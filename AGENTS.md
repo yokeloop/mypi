@@ -30,6 +30,7 @@
 - `mypi.py warmup [-s <org|org/project>]` — каскадный вход: глобальный уровень всегда, `-s` добавляет оргу и проект (память, глоссарий, хвост журнала)
 - `mypi.py capture "<текст>"` — черновик в inbox.md, формулировка без изменений
 - `mypi.py journal <org/project> "<исход>"` — запись в месячный файл проекта
+- `mypi.py error <org/project> "<что сломалось>"` — журнал ошибок и тупиков проекта (errors.md), источник багрепортов
 - `mypi.py memory [-s <org|org/project>] add "<факт>" | show | remove <n>` — память global/org/project; удалённое остаётся в git-истории home/
 - `mypi.py note [-s <org|org/project>] "<тема>" "<текст>"` — заметка (глобальная или проекта)
 - `mypi.py project add <org/name> <path>` / `mypi.py project list` — паспорт
