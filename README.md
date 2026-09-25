@@ -73,5 +73,7 @@ python3 scripts/mypi.py warmup -s prineycom/sp-cli  # + память, глосс
 ## Документы
 
 - [`CONCEPT.md`](./CONCEPT.md) — синтез: что взято из yokemate-pi, что из NorthStar.
+- [`adr/ADR-0001-three-layers-files-db-tracker.md`](./adr/ADR-0001-three-layers-files-db-tracker.md) — файлы=правда, БД=проекция, tracker=интеграция (proposed).
+- [`adr/ADR-0002-plugin-subagents-on-pi-primitives.md`](./adr/ADR-0002-plugin-subagents-on-pi-primitives.md) — плагины-сабагенты поверх примитивов Pi (proposed).
 - [`PLAN.md`](./PLAN.md) — фазы развития, фаза 1 и что дальше.
 - [`AGENTS.md`](./AGENTS.md) — правила агента, работающего в корне mypi.
