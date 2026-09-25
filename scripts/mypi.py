@@ -96,6 +96,12 @@ def memory_path() -> Path:
         p.write_text("# Memory\n\nОбщая память агента: факты, предпочтения, договорённости.\nПодгружается на старте каждой сессии (warmup).\n", encoding="utf-8")
     return p
 
+def memory_items() -> list[tuple[int, str]]:
+    """[(raw_line_index, line)] for item lines in MEMORY.md."""
+    p = memory_path()
+    lines = p.read_text(encoding="utf-8").split("\n")
+    return [(i, l) for i, l in enumerate(lines) if l.startswith("- (")]
+
 def memory_add(text: str) -> None:
     ensure_home()
     p = memory_path()
@@ -106,8 +112,32 @@ def memory_add(text: str) -> None:
 def memory_show() -> None:
     ensure_home()
     p = memory_path()
-    if p.exists():
-        print(p.read_text(encoding="utf-8"))
+    if not p.exists():
+        print("(memory file does not exist)")
+        return
+    content = p.read_text(encoding="utf-8")
+    if "- (" not in content:
+        print(content)
+        return
+    n = 0
+    for line in content.split("\n"):
+        if line.startswith("- ("):
+            n += 1
+            print(f"{n}. {line}")
+        elif line.strip():
+            print(line)
+
+def memory_remove(num: int) -> None:
+    ensure_home()
+    p = memory_path()
+    items = memory_items()
+    if num < 1 or num > len(items):
+        die(f"no item #{num} (1..{len(items)})")
+    raw_idx, line = items[num - 1]
+    lines = p.read_text(encoding="utf-8").split("\n")
+    del lines[raw_idx]
+    p.write_text("\n".join(lines), encoding="utf-8")
+    print(f"removed #{num}: {line}")
 
 # --- note ---
 
@@ -210,8 +240,10 @@ def main() -> None:
             memory_add(" ".join(args[2:]))
         elif sub == "show":
             memory_show()
+        elif sub == "remove" and len(args) >= 3 and args[2].isdigit():
+            memory_remove(int(args[2]))
         else:
-            die('usage: mypi.py memory add "<fact>" | memory show')
+            die('usage: mypi.py memory add "<fact>" | memory show | memory remove <n>')
     elif cmd == "note":
         if len(args) < 3:
             die('note requires topic and text: mypi.py note "<topic>" "<text>"')

@@ -45,6 +45,7 @@ python3 scripts/mypi.py project add prineycom/sp-cli ~/repos/sp-cli
 python3 scripts/mypi.py capture "переработать систему памяти"   # → inbox.md
 python3 scripts/mypi.py journal prineycom/sp-cli "записать исход"
 python3 scripts/mypi.py memory add "стабильный факт о работе"  # → MEMORY.md
+python3 scripts/mypi.py memory remove 2    # удалить факт №2 (show нумерует)
 python3 scripts/mypi.py warmup            # дайджест + MEMORY.md на старте сессии
 ```
 
