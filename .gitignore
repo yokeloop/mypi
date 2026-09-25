@@ -1,0 +1,10 @@
+# home/ — nested git repo of personal data, never commit into mypi git
+home/
+
+# projects/ — working clones
+projects/
+
+# local junk
+*.pyc
+__pycache__/
+.DS_Store
