@@ -112,6 +112,30 @@ def journal_last_entry(project_dir: Path) -> str | None:
                 return line.strip("# ").strip()
     return None
 
+# --- error log (per project) ---
+
+def error_log_add(org_project: str, text: str) -> None:
+    """Structured error/dead-end log: source for bugreports and improvements.
+
+    Journal records outcomes; errors.md records what hurt and why —
+    searchable separately, reviewed periodically.
+    """
+    ensure_home()
+    pdir = resolve_scope_dir(org_project)
+    if pdir == HOME:
+        die("error log requires a project: mypi.py error <org/project> \"<what failed>\"")
+    p = pdir / "errors.md"
+    if not p.exists():
+        p.write_text(
+            "# Ошибки\n\nЖурнал ошибок и тупиков проекта: что случилось, "
+            "симптом, причина/гипотеза, куда ведёт (issue, ADR, nothing).\n"
+            "Источник для багрепортов и улучшений.\n",
+            encoding="utf-8",
+        )
+    with p.open("a", encoding="utf-8") as f:
+        f.write(f"- ({today()}) {text}\n")
+    print(f"error → {p.relative_to(ROOT)}")
+
 # --- capture (inbox draft) ---
 
 def capture(text: str) -> None:
@@ -297,6 +321,10 @@ def main() -> None:
         if len(args) < 3:
             die('journal requires org/project and text: mypi.py journal <org/project> "<outcome>"')
         journal_add(args[1], " ".join(args[2:]))
+    elif cmd == "error":
+        if len(args) < 3:
+            die('error log requires org/project and text: mypi.py error <org/project> "<what failed>"')
+        error_log_add(args[1], " ".join(args[2:]))
     elif cmd == "memory":
         scope, rest = extract_scope(args[1:])
         sub = rest[0] if rest else ""

@@ -31,7 +31,8 @@ mypi/
 │       └── <project>/
 │           ├── MEMORY.md       # память проекта (lazy)
 │           ├── journal/YYYY-MM.md   # журнал проекта, newest-first
-│           ├── notes/          # заметки проекта
+│           ├── errors.md        # журнал ошибок и тупиков: багрепорты и улучшения
+│           ├── notes/           # заметки проекта
 │           ├── context.md      # глоссарий домена
 │           ├── adr/            # архитектурные решения
 │           └── ai/<slug>/      # иммутабельные артефакты: plans, reports
@@ -48,6 +49,7 @@ mypi/
 python3 scripts/mypi.py project add prineycom/sp-cli ~/repos/sp-cli
 python3 scripts/mypi.py capture "переработать систему памяти"   # → inbox.md
 python3 scripts/mypi.py journal prineycom/sp-cli "записать исход"
+python3 scripts/mypi.py error prineycom/sp-cli "что сломалось, симптом, причина"  # → errors.md
 python3 scripts/mypi.py memory add "стабильный факт"             # глобальная
 python3 scripts/mypi.py memory -s prineycom add "факт по орге"   # org-level
 python3 scripts/mypi.py memory -s prineycom/sp-cli add "факт по проекту"
