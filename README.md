@@ -54,7 +54,9 @@ python3 scripts/mypi.py memory -s prineycom/sp-cli add "факт по проек
 python3 scripts/mypi.py memory -s prineycom/sp-cli show           # с номерами
 python3 scripts/mypi.py memory -s prineycom/sp-cli remove 2       # удалить №2
 python3 scripts/mypi.py note -s prineycom/sp-cli "тема" "текст"   # заметка в проект
-python3 scripts/mypi.py warmup          # дайджест + вся память на старте сессии
+python3 scripts/mypi.py warmup                     # глобальный: память + проекты + inbox
+python3 scripts/mypi.py warmup -s prineycom          # + память и проекты орги
+python3 scripts/mypi.py warmup -s prineycom/sp-cli  # + память, глоссарий и хвост журнала проекта
 ```
 
 ## Scope-модель

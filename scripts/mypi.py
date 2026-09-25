@@ -213,56 +213,70 @@ def project_list() -> None:
     for key, p in data.items():
         print(f"{key}\n  path: {p.get('path')}\n  added: {p.get('added')}")
 
-# --- warmup ---
+# --- warmup (cascade: global → org → project) ---
 
-def warmup() -> None:
+def warmup(scope: str | None) -> None:
     ensure_home()
-    print("=== mypi warmup ===")
     data = read_projects()
-    orgs = sorted({p.get("org") for p in data.values()})
+    print(f"=== mypi warmup — {scope or 'global'} ===")
+    if scope is not None:
+        # same validation as memory/note: scope must exist in passport
+        resolve_scope_dir(scope)
 
-    # memories: global + org + project (each shown if the file exists)
-    print("\n--- memory (global) ---")
+    if scope is None:
+        # global level: MEMORY.md, passport, inbox
+        g = HOME / "MEMORY.md"
+        print("\n--- memory (global) ---")
+        print(g.read_text(encoding="utf-8") if g.exists() else "(empty)")
+        print("\n--- projects ---")
+        if data:
+            for key in data:
+                print(key)
+        else:
+            print("(empty)")
+        print("\n--- inbox drafts ---")
+        drafts = inbox_drafts()
+        if drafts:
+            for d in drafts[-10:]:
+                print(d)
+        else:
+            print("(empty)")
+        return
+
+    # cascade: global → org → (project)
+    parts = scope.split("/")
+    org = parts[0]
+    project = parts[1] if len(parts) > 1 else None
+
     g = HOME / "MEMORY.md"
+    print("\n--- memory (global) ---")
     print(g.read_text(encoding="utf-8") if g.exists() else "(empty)")
-    for org in orgs:
-        m = HOME / org / "MEMORY.md"
-        if m.exists():
-            print(f"\n--- memory ({org}) ---")
-            print(m.read_text(encoding="utf-8"))
-    for key in data:
-        org, name = key.split("/", 1)
-        m = HOME / org / name / "MEMORY.md"
-        if m.exists():
-            print(f"\n--- memory ({key}) ---")
-            print(m.read_text(encoding="utf-8"))
 
-    # journal: last entry per project
-    print("\n--- journal (last entry per project) ---")
-    any_entry = False
-    for key in data:
-        org, name = key.split("/", 1)
-        entry = journal_last_entry(HOME / org / name)
-        if entry:
-            any_entry = True
-            print(f"{key}: {entry}")
-    if not any_entry:
-        print("(empty)")
+    m = HOME / org / "MEMORY.md"
+    print(f"\n--- memory ({org}) ---")
+    print(m.read_text(encoding="utf-8") if m.exists() else "(empty)")
 
-    print("\n--- projects ---")
-    if data:
-        for key in data:
-            print(key)
+    if project is not None:
+        pdir = HOME / org / project
+        m = pdir / "MEMORY.md"
+        print(f"\n--- memory ({scope}) ---")
+        print(m.read_text(encoding="utf-8") if m.exists() else "(empty)")
+        ctx = pdir / "context.md"
+        if ctx.exists():
+            print(f"\n--- glossary ({scope}) ---")
+            print(ctx.read_text(encoding="utf-8"))
+        entry = journal_last_entry(pdir)
+        print(f"\n--- journal ({scope}, last) ---")
+        print(entry if entry else "(empty)")
     else:
-        print("(empty)")
-
-    print("\n--- inbox drafts ---")
-    drafts = inbox_drafts()
-    if drafts:
-        for d in drafts[-10:]:
-            print(d)
-    else:
-        print("(empty)")
+        # org level: list its projects
+        org_projects = [k for k, p in data.items() if p.get("org") == org]
+        print(f"\n--- projects ({org}) ---")
+        if org_projects:
+            for k in org_projects:
+                print(k)
+        else:
+            print("(empty)")
 
 def main() -> None:
     args = sys.argv[1:]
@@ -271,7 +285,10 @@ def main() -> None:
         sys.exit(0)
     cmd = args[0]
     if cmd == "warmup":
-        warmup()
+        scope, rest = extract_scope(args[1:])
+        if rest:
+            die("warmup takes no positional args: mypi.py warmup [-s <org|org/project>]")
+        warmup(scope)
     elif cmd == "capture":
         if len(args) < 2:
             die('capture requires text: mypi.py capture "<text>"')
