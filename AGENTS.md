@@ -27,11 +27,11 @@
 Инженер может попросить «сделай warmup», «запиши в журнал» — агент запускает CLI
 из `scripts/mypi.py`. Команды — инструменты агента, не инженера.
 
-- `mypi.py warmup` — дайджест: журнал-хвост, проекты, inbox drafts
+- `mypi.py warmup` — дайджест: память всех уровней, хвосты журналов, проекты, inbox
 - `mypi.py capture "<текст>"` — черновик в inbox.md, формулировка без изменений
-- `mypi.py journal <org>/<project> "<исход>"` — запись в месячный файл
-- `mypi.py memory add "<факт>"` / `memory show` (нумерует строки) / `memory remove <n>` — общая память агента (MEMORY.md); удалённое остаётся в git-истории home/
-- `mypi.py note "<тема>" "<текст>"` — заметка в home/notes/
+- `mypi.py journal <org/project> "<исход>"` — запись в месячный файл проекта
+- `mypi.py memory [-s <org|org/project>] add "<факт>" | show | remove <n>` — память global/org/project; удалённое остаётся в git-истории home/
+- `mypi.py note [-s <org|org/project>] "<тема>" "<текст>"` — заметка (глобальная или проекта)
 - `mypi.py project add <org/name> <path>` / `mypi.py project list` — паспорт
 
 ## Границы фазы 1
