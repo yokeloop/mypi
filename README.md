@@ -23,6 +23,7 @@
 mypi/
 ├── home/                  # вложенный git-репозиторий личных данных (не в git mypi)
 │   ├── journal/YYYY-MM.md # пул-wide журнал, newest-first, один файл на месяц
+│   ├── MEMORY.md         # общая память агента, подгружается на старте сессии
 │   ├── inbox.md           # явный capture: черновики (drafts), по строке на идею
 │   ├── knowledge/<org>/<project>/
 │   │   ├── context.md     # глоссарий домена проекта
@@ -43,7 +44,8 @@ mypi/
 python3 scripts/mypi.py project add prineycom/sp-cli ~/repos/sp-cli
 python3 scripts/mypi.py capture "переработать систему памяти"   # → inbox.md
 python3 scripts/mypi.py journal prineycom/sp-cli "записать исход"
-python3 scripts/mypi.py warmup            # дайджест на старте сессии
+python3 scripts/mypi.py memory add "стабильный факт о работе"  # → MEMORY.md
+python3 scripts/mypi.py warmup            # дайджест + MEMORY.md на старте сессии
 ```
 
 ## Документы

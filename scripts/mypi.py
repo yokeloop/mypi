@@ -88,6 +88,27 @@ def inbox_drafts() -> list[str]:
             drafts.append(line)
     return drafts
 
+# --- memory (MEMORY.md) ---
+
+def memory_path() -> Path:
+    p = HOME / "MEMORY.md"
+    if not p.exists():
+        p.write_text("# Memory\n\nОбщая память агента: факты, предпочтения, договорённости.\nПодгружается на старте каждой сессии (warmup).\n", encoding="utf-8")
+    return p
+
+def memory_add(text: str) -> None:
+    ensure_home()
+    p = memory_path()
+    with p.open("a", encoding="utf-8") as f:
+        f.write(f"- ({today()}) {text}\n")
+    print(f"memory → {p.relative_to(ROOT)}")
+
+def memory_show() -> None:
+    ensure_home()
+    p = memory_path()
+    if p.exists():
+        print(p.read_text(encoding="utf-8"))
+
 # --- note ---
 
 def note_add(topic: str, text: str) -> None:
@@ -142,6 +163,11 @@ def journal_blocks() -> list[str]:
 def warmup() -> None:
     ensure_home()
     print("=== mypi warmup ===")
+    # MEMORY.md — agent-wide memory, loaded at session start
+    print("\n--- memory ---")
+    p = memory_path()
+    if p.exists():
+        print(p.read_text(encoding="utf-8"))
     print("\n--- journal (newest) ---")
     for b in journal_blocks()[:10]:
         print(b.split("\n")[0])
@@ -178,6 +204,14 @@ def main() -> None:
         if len(args) < 3:
             die('journal requires org/project and text: mypi.py journal <org/project> "<outcome>"')
         journal_add(args[1], " ".join(args[2:]))
+    elif cmd == "memory":
+        sub = args[1] if len(args) > 1 else ""
+        if sub == "add" and len(args) >= 3:
+            memory_add(" ".join(args[2:]))
+        elif sub == "show":
+            memory_show()
+        else:
+            die('usage: mypi.py memory add "<fact>" | memory show')
     elif cmd == "note":
         if len(args) < 3:
             die('note requires topic and text: mypi.py note "<topic>" "<text>"')
