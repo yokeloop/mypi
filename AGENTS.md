@@ -30,7 +30,7 @@
 - `mypi.py warmup` — дайджест: журнал-хвост, проекты, inbox drafts
 - `mypi.py capture "<текст>"` — черновик в inbox.md, формулировка без изменений
 - `mypi.py journal <org>/<project> "<исход>"` — запись в месячный файл
-- `mypi.py memory add "<факт>"` / `mypi.py memory show` — общая память агента (MEMORY.md)
+- `mypi.py memory add "<факт>"` / `memory show` (нумерует строки) / `memory remove <n>` — общая память агента (MEMORY.md); удалённое остаётся в git-истории home/
 - `mypi.py note "<тема>" "<текст>"` — заметка в home/notes/
 - `mypi.py project add <org/name> <path>` / `mypi.py project list` — паспорт
 
