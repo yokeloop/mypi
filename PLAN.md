@@ -48,7 +48,7 @@
 
 ## Фаза 4 — сабагенты
 
-Цель: подключаемые плагины-сабагенты. Подробное обоснование — `adr/ADR-0002-plugin-subagents-on-pi-primitives.md` (proposed).
+Цель: подключаемые плагины-сабагенты. Обоснование — `adr/ADR-0002-plugin-subagents-on-pi-primitives.md` (proposed), иерархия запуска — `adr/ADR-0003-orchestrator-cascade.md` (proposed).
 
 - [ ] Формат плагина: `<plugin>/agent.md` (frontmatter: name, tools, model + system prompt) + `scripts/` + `config.yaml` — поверх примитивов Pi (`--append-system-prompt`, `--tools`, `--model`, `--thinking`, cwd, chain `{previous}`, parallel + лимиты `subagent.*`)
 - [ ] Интерпретатор конфига: YAML-флоу проекта → dispatch-план (chain/parallel, правила переходов, сейфгарды)
