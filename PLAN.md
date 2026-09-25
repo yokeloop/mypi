@@ -22,26 +22,28 @@
 - [x] Всё на python3 stdlib, ноль зависимостей
 - criteria: запустить на Pi и на другой машине — работает одинаково
 
-## Фаза 2 — request lifecycle в файле
+## Фаза 2 — request lifecycle в файлах
 
 Цель: draft из inbox превращается в tracked work, но всё ещё без БД и агентов.
+Подробное обоснование — `adr/ADR-0001-three-layers-files-db-tracker.md` (proposed).
 
-- [ ] `request` сущность: файл `home/requests/<id>.md` с frontmatter (status: draft|backlog|planning|shipping|acceptance|done, created, links)
-- [ ] Команды: `mypi request new <id>` (из inbox draft), `mypi request status <id> <status>` с валидацией переходов (state machine как в NorthStar 04, но упрощённая: draft→backlog→shipping→done + cancel)
+- [ ] `request` сущность: файл `home/<org>/<project>/requests/<id>.md` с frontmatter (status: draft|backlog|shipping|acceptance|done|canceled, created, links, related)
+- [ ] Команды: `mypi request new <id>` (из inbox draft), `mypi request status <id> <status>` с валидацией переходов (упрощённая state machine из NorthStar 04: draft→backlog→shipping→done + cancel; planning как осознанный интерактивный шаг, не отдельный статус до фазы 4)
 - [ ] `mypi request list` по статусам
-- [ ] Journal-хук: смена статуса автоматически добавляет outcome-строку в журнал (как outcome lines в yokemate)
-- [ ] Паспорт: поле tracker в projects.json, импорт issue как draft
+- [ ] Авто-журнал: смена статуса автоматически добавляет outcome-строку в журнал проекта (проверенный паттерн yokemate)
+- [ ] Паспорт: поле tracker в projects.json, команда `request import` — issue как draft (односторонняя проекция, тикет не условие работы)
 
 Граница фазы: state machine в файлах с git-историей. БД всё ещё нет.
 
 ## Фаза 3 — облачная БД статусов
 
-Цель: статус задачи живёт не в файле, а в удалённой БД для синка между устройствами в реальном времени.
+Цель: статус задачи живёт в удалённой БД для синка между устройствами в реальном времени.
 
-- [ ] Выбор БД: PostgreSQL (single authoritative store, как рекомендует NorthStar roadmap) — без multi-master, без SQLite-синка через git
-- [ ] Схема: request(id, title, description, status, links[], related[], created, updated) — плоская, но со связями; детальная схема — отдельная проработка из опыта фаз 1-2
+- [ ] PostgreSQL как single authoritative store (ADR-0001: без multi-master, БД — проекция, requests-файлы — seed и источник восстановления)
+- [ ] Схема = frontmatter requests-файлов: request(id, title, description, status, org, project, links[], related[], created, updated, closed)
 - [ ] MYPY_HOME_REMOTE → дополнить MYPI_STORE_URL; bootstrap подключает store
-- [ ] CLI-команды фазы 2 работают поверх store
+- [ ] CLI-команды фазы 2 работают поверх store; интерфейс не меняется, меняется backend
+- [ ] Синк в момент действия: команда = commit в git + транзакция в БД (без фоновых демонов)
 - [ ] Оркестрация всё ещё без агентов: человек + CLI
 
 ## Фаза 4 — сабагенты
