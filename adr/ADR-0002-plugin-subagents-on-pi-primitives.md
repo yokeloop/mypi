@@ -73,6 +73,19 @@ Discovery — скан папки + YAML frontmatter. **Добавить аге�
   синхронный, чтобы модель не врала о полноте набора.
 - `runningAgents`-реестр — живой виджет «кто работает и сколько».
 
+## Важно: исправление по официальному пакету pi-subagents
+
+Первоначальный разбор вёл по кастомному расширению yokemate-pi
+(`.pi/extensions/subagent/`). Официальный пакет `pi-subagents` (v0.55)
+сильнее: у него ЕСТЬ `allowedAgents` (allowlist имён запускаемых детей),
+рекурсивный discovery подпапок, `permission: allow|ask|deny` per-tool
+(one-call arbiter, fail-closed), launch rules по моделям, watchdog,
+acceptance gates, recursion guard (default depth 2), workflowScript с
+бюджетами, per-agent persistent memory. Полный справочник:
+`references/pi-subagents-reference.md`. Для фазы 4 это готовые примитивы:
+поля `dispatch.allowed` из решений ниже заменяются штатным `allowedAgents`,
+сейфгарды — штатным `permission: ask`.
+
 ## Решение: архитектура плагина поверх примитивов
 
 ```
