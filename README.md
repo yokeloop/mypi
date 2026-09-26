@@ -79,5 +79,6 @@ python3 scripts/mypi.py warmup -s prineycom/sp-cli  # + память, глосс
 - [`adr/ADR-0002-plugin-subagents-on-pi-primitives.md`](./adr/ADR-0002-plugin-subagents-on-pi-primitives.md) — плагины-сабагенты поверх примитивов Pi (proposed).
 - [`adr/ADR-0003-orchestrator-cascade.md`](./adr/ADR-0003-orchestrator-cascade.md) — каскад оркестраторов root/org/project (proposed).
 - [`references/pi-subagents-reference.md`](./references/pi-subagents-reference.md) — справочник: все frontmatter-поля, гварды, модели, best practices pi-subagents.
+- [`references/pi-extensions-reference.md`](./references/pi-extensions-reference.md) — справочник: extensions Pi (события, ExtensionAPI, кастомные туры, режимы, маппинг на mypi).
 - [`PLAN.md`](./PLAN.md) — фазы развития, фаза 1 и что дальше.
 - [`AGENTS.md`](./AGENTS.md) — правила агента, работающего в корне mypi.
