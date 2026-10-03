@@ -163,3 +163,22 @@ Hosted Ubuntu 24.04 прошёл checkout/Node/pnpm/install, но bwrap оста
 для bwrap на одноразовом CI-runner (не глобальное отключение AppArmor). Последовательность — M1-PUBLISH.
 Raw evidence сохранены дословно: staged diff --check сообщает trailing spaces в старых логах/review;
 код/документы вне docs/evidence проходят whitespace check. Старые записи ради форматирования не переписывались.
+
+
+## Выпуск RC разрешён — 2026-10-03
+
+Инженер разрешил точечный профиль AppArmor и расширил полномочия до релиза с последующей своей проверкой:
+«Это не продакшен можешь довести все до релиза как считаешь нужным я потом проверю».
+Подготовлен v0.1.0-rc.1, не объявление production-ready или окончательной приёмки M1.
+
+Профиль только /usr/bin/bwrap на временном Ubuntu runner устранил AppArmor-отказ без глобального sysctl
+и без повышения CPU/RAM/tasks/deadline. Hosted [run 37124664193](https://github.com/yokeloop/mypi/actions/runs/37124664193):
+19/19, wall 7340 ms, cgroup memory_peak 307277824 bytes, tasks_peak 34;
+[вывод](evidence/m1-hosted-green.txt). Отсутствующий App issuer не подменяется обычным Actions check.
+[Независимый RC review](evidence/m1-rc-review.md) одобрил ограниченный prerelease, не полный trusted gate.
+
+Создан воспроизводимый справочник FILEMAP.md и интерактивный отчёт с деревом всех собственных файлов,
+назначением, TypeScript-символами, imports и исходным кодом; отдельно 21 шаблон home.
+Генератор — docs/reports/build-report.mjs, ручные пояснения — file-guide.mjs.
+Личный home не создавался. Локальная Chromium-автоматизация даже с уменьшенным параллелизмом
+остановилась по лимиту; успех кликов не заявлен, [запись](evidence/m1-report-rc-browser.txt).

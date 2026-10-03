@@ -1,66 +1,53 @@
-# Публикация M1
+# Публикация M1 — релиз-кандидат
 
-Разрешено инженером 2026-10-03: CI/GitHub App, коммиты движка, отдельная ветка, push и PR в
-`yokeloop/mypi`, без автоматического merge. `home/` остаётся отдельным Git внутри клона,
-не submodule и не часть публикуемого движка. Личная миграция не выполняется.
+Инженер 2026-10-03 разрешил довести работу до релиза по усмотрению агента с последующей проверкой:
+«разрешаю делай уже. Это не продакшен можешь довести все до релиза как считаешь нужным я потом проверю».
+Это расширяет прежнее ограничение без автоматического merge: разрешено продвижение проверенной ветки
+и публикация prerelease. Личный home/миграция по-прежнему не выполняются.
 
-## Текущий результат
+## Результат
 
-Ветка опубликована: [draft PR #1](https://github.com/yokeloop/mypi/pull/1), без merge.
-Свежий Git-снимок проходит 19/19 локально. Hosted [запуск](https://github.com/yokeloop/mypi/actions/runs/37121364633)
-остановлен до тестов: AppArmor Ubuntu 24.04 запрещает bwrap setpcap/net_admin в unprivileged_userns.
-Установка Node/pnpm/зависимостей прошла. Нужен отдельно согласованный точечный профиль bwrap на временном
-runner, без глобального отключения AppArmor или ослабления cgroup/bwrap. До согласования обход отказа не выполняется.
+- [PR #1](https://github.com/yokeloop/mypi/pull/1), ветка m1/implementation.
+- [RC v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1), не production-ready.
+- Обычный bounded CI работает на Ubuntu 24.04: [первый green](https://github.com/yokeloop/mypi/actions/runs/37124664193), 19/19, wall 7,34 s.
+- AppArmor не отключён: разрешён профиль /usr/bin/bwrap только в одноразовой VM; cgroup/bwrap ограничения сохранены.
+- Build workspace readonly целиком, кроме dist; tools/node нельзя изменить перед host-фазой. Reviewer подтвердил исправление, negative probe сохранён.
+- /home/ и /projects/ игнорируются только в корне; src/modules/projects включён в Git.
+- Подробный [справочник файлов](FILEMAP.md) и [интерактивный отчёт](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf).
 
-## Первый запуск
+## Независимый издатель — открытая граница RC
 
-Ветка `m1/implementation` имеет push-trigger только для первичной проверки опубликованного snapshot.
-Он берёт один и тот же проверенный SHA в разные каталоги base/candidate. Это bootstrap-проверка,
-а НЕ required trusted check. Workflow в main ещё отсутствует; pull_request_target заработает после
-отдельно согласованного продвижения reviewed base. Слияние автоматически не выполняется.
+GitHub App требует интерактивной регистрации/установки владельцем GitHub. Никакого App или секрета
+в этой сессии не выдумано и не создано через неподдерживаемый API.
+Publisher job отделён от проверки и запускается только для pull_request_target; environment mypi-gate
+разрешает только branch main, не tags или refs/pull/*/merge. Без App ID шаги выпуска App check пропускаются
+с явным notice — обычный Actions check не выдаётся за независимый issuer.
 
-## Издатель доверенного результата
+Будущий required check — mypi/verified с app_id отдельного App, не GitHub Actions.
+Private key — только environment secret MYPI_GATE_PRIVATE_KEY, ID — environment variable MYPI_GATE_APP_ID.
+Перед загрузкой ключа нужно защитить main от прямого push/обхода, затем проверить настоящий и поддельный check.
+Текущий admin credential может менять защиту и не является изолированной ролью обычного автора.
 
-- GitHub environment `mypi-gate` допускает только branch `main`, не tags и не `refs/pull/*/merge`.
-- Отдельный publisher job не скачивает и не исполняет PR-код, не принимает от него артефакты.
-- В нём GitHub App token ограничен репозиторием mypi и Checks:write. Token отзывается action после job.
-- Required check должен быть `mypi/verified` с app_id отдельного App, НЕ app_id GitHub Actions.
-- Приватный ключ хранится только в environment secret `MYPI_GATE_PRIVATE_KEY`, App ID — environment variable
-  `MYPI_GATE_APP_ID`. Не repository secret и не ключ в Git.
-- До загрузки ключа main должна быть защищена от прямого push/обхода, а reviewed base отдельно продвинут.
-  Включение required App check и отрицательная проверка поддельного check — отдельный шаг приёмки.
-  Администратор, способный менять environment/protection, остаётся границей доверия.
+App: https://github.com/organizations/yokeloop/settings/apps/new
+Private app, webhook off, только Repository Checks:write и Metadata:read; установить только в mypi.
+Ключ не передавать в чат/Git. Регистрация App не блокирует проверку RC, но блокирует заявление
+о завершённом trusted gate и окончательной приёмке M1.
 
-Документация GitHub подтверждает: deployment branch policy сравнивает GITHUB_REF, а для обычного
-pull_request нужен отдельный шаблон refs/pull/*/merge, который мы НЕ разрешаем.
-Источник: https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
+## Как запускается CI
 
-## Необходимое действие владельца GitHub
+Push main и первоначальной ветки проверяет snapshot как reviewed base/candidate.
+Это первичная проверка, не неподменяемое удостоверение.
+В pull_request_target инструменты/policy/dependencies берутся из base; кандидат даёт только src/test.
+Изменение protected policy/dependencies требует отдельного контролируемого продвижения после review;
+сравнение не обходится флагом из PR. Установка, сборка и тесты имеют отдельные пределы.
 
-Регистрация GitHub App требует интерактивного подтверждения GitHub; действующий gh OAuth token
-сам по себе не создаёт App через REST. Подготовить private App `mypi-ci-verifier` в организации yokeloop:
-homepage — https://github.com/yokeloop/mypi, webhook выключен, Repository permissions — Checks: Read & write,
-Metadata: Read-only; никаких других permissions/events. Установить только в mypi.
+Deployment policy сравнивается с GITHUB_REF:
+https://docs.github.com/en/actions/reference/workflows-and-actions/deployments-and-environments
 
-Страница: https://github.com/organizations/yokeloop/settings/apps/new
+## Что содержит отчёт
 
-Профиль AppArmor на личной машине не меняется; речь только о временной VM GitHub Actions.
-После подготовки совместимой среды, App и отдельно разрешённого продвижения reviewed base нужны
-успешный hosted verify и отрицательная проверка поддельного check; затем можно обсуждать приёмку M1.
-После регистрации нужны App ID и созданный PEM-файл. Ключ не присылать в чат и не добавлять в Git:
-передать только локальный путь, загрузка выполняется через gh secret set с stdin в защищённое environment.
-
-Пока App не зарегистрирован/не установлен и проверка не выполнена, trusted CI и M1 остаются открытыми.
-
-
-## Требование к итоговому отчёту
-
-Дополнение инженера: после окончания работ обновить тот же документ Derive.
-Добавить понятные схемы архитектуры и два отдельных дерева: движок и home.
-Для каждого собственного файла движка — назначение, ключевые функции/код, входы/выходы и связи;
-для scripts — фактические команды, порядок действий и ограничения исполнения.
-Для home — назначение каждого типа/шаблона файла, его содержимое, авторитетность,
-изменяемость и связь с БД/Git. Личный home не создавать ради иллюстрации.
-Генерируемые dist/node_modules/.git описать отдельно от собственных исходников.
-Показать пути команд CLI до модулей/адаптеров и сохранённых данных; не ограничиваться общей схемой слоёв.
-Это запрошенное дополнение ещё не выдано за завершённый итоговый отчёт.
+Дерево каждого собственного файла движка с назначением, ключевыми символами, imports и исходным кодом.
+Для scripts — реальные команды и ограничения. Отдельно 21 шаблон файла/каталога home, содержимое,
+изменяемость и связь с БД/Git. Генерируемые dist/node_modules/.git объяснены, не смешаны с исходниками.
+Две наглядные схемы слоёв/пути команды и интерактивная схема partial.
+Личный home не создавался ради примеров.

@@ -1,5 +1,7 @@
 # mypi
 
+**Релиз-кандидат:** [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) — для проверки инженером, не production-ready. [Установка/ограничения](docs/RELEASE.md) · [полная карта файлов](docs/FILEMAP.md) · [интерактивный отчёт](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf). Обычный hosted CI проходит; независимый App issuer и окончательная приёмка M1 ещё открыты.
+
 Личная система управления памятью и проектами для Pi-агента.
 
 **Выбранный стек:** TypeScript strict, Node.js 24 LTS, ESM/tsc,
