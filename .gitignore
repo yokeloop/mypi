@@ -1,8 +1,8 @@
 # home/ — nested git repo of personal data, never commit into mypi git
-home/
+/home/
 
 # projects/ — working clones
-projects/
+/projects/
 
 # local junk
 *.pyc
