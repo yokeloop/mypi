@@ -2,7 +2,7 @@ name: M1 bounded verification
 on:
   # Initial publication only: this is NOT a trusted required check.
   push:
-    branches: [m1/implementation]
+    branches: [main, m1/implementation]
   pull_request_target:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
@@ -42,6 +42,11 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y bubblewrap dbus-user-session
+          # Permit namespaces only for bwrap on this disposable VM; keep AppArmor enabled.
+          printf '%s\n' 'abi <abi/4.0>,' 'include <tunables/global>' \
+            'profile mypi-bwrap /usr/bin/bwrap flags=(unconfined) {' '  userns,' '}' \
+            | sudo tee /etc/apparmor.d/mypi-bwrap >/dev/null
+          sudo apparmor_parser -r /etc/apparmor.d/mypi-bwrap
           sudo loginctl enable-linger "$(id -un)"
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
@@ -72,8 +77,12 @@ jobs:
     environment: mypi-gate
     permissions: {}
     steps:
+      - name: Explicitly report missing independent issuer
+        if: ${{ vars.MYPI_GATE_APP_ID == '' }}
+        run: echo '::notice::Independent App issuer is not configured; this is NOT a trusted merge gate.'
       - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
         id: issuer
+        if: ${{ vars.MYPI_GATE_APP_ID != '' }}
         with:
           app-id: ${{ vars.MYPI_GATE_APP_ID }}
           private-key: ${{ secrets.MYPI_GATE_PRIVATE_KEY }}
@@ -81,6 +90,7 @@ jobs:
           repositories: mypi
           permission-checks: write
       - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
+        if: ${{ steps.issuer.outcome == 'success' }}
         env:
           VERIFY_RESULT: ${{ needs.verify.result }}
         with:
