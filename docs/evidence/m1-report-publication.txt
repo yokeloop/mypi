@@ -7,3 +7,9 @@ Tags: yokeloop, report, mypi. Template submitted: enqrv4f1 v2.
 Upload response content_sha256 matched local HTML sha256sum. Full HTML read(section="*") matched the local source byte-for-byte. Derive render(top) visually inspected: readable title, summary, 19/19, 5.03 s, CI blocker. JavaScript syntax checked.
 Local Chromium interaction attempts failed (single-process crash; then task exhaustion/deadline). Limits not increased, not counted as passing interaction coverage.
 Source: docs/reports/m1-report.html
+
+
+2026-10-03: v3 published, same artifact bqso2mhf; current URL https://draft.yokeloop.com/artifacts/mypi-v0-1-0-rc-1-bqso2mhf
+SHA256 d6921e450e97d5bb3f7f843e9f4a3c005078a945795532a09cd9f01ee438709d matches source and downloaded GitHub release asset.
+Visual read(top/full) checked. Catalog has all 134 release files with source, 21 home patterns and architecture/command-flow diagrams. Automatic local interaction coverage still not claimed.
+Release https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1; tag commit 71e0428231cb1d67c4bbb50604682353855f3dbb; main CI https://github.com/yokeloop/mypi/actions/runs/37126240487 success.

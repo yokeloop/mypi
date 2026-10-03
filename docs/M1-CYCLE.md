@@ -182,3 +182,24 @@ Raw evidence сохранены дословно: staged diff --check сообщ
 Генератор — docs/reports/build-report.mjs, ручные пояснения — file-guide.mjs.
 Личный home не создавался. Локальная Chromium-автоматизация даже с уменьшенным параллелизмом
 остановилась по лимиту; успех кликов не заявлен, [запись](evidence/m1-report-rc-browser.txt).
+
+
+## RC опубликован — 2026-10-03
+
+PR #1 объединён по расширенному разрешению инженера. Merge commit: 71e0428231cb1d67c4bbb50604682353855f3dbb.
+[Main CI](https://github.com/yokeloop/mypi/actions/runs/37126240487) завершился success;
+предыдущий release-head [CI](https://github.com/yokeloop/mypi/actions/runs/37126169997) также success.
+Создан annotated tag и [prerelease v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1).
+Assets: исходный tar.gz без home/dependencies/dist, автономный HTML, SHA256SUMS; повторная загрузка
+assets и sha256sum --check прошли. Source tar SHA256: 892a336ca7d25fd9f2f816645affe174ae6a018241dac2958f203015c01bb7ad.
+
+Тот же [Derive-документ](https://draft.yokeloop.com/artifacts/mypi-v0-1-0-rc-1-bqso2mhf) обновлён до v3:
+134 файла движка с назначением/символами/imports/кодом, 21 шаблон home, схемы слоёв и пути команды,
+интерактивный partial. HTML SHA256 d6921e450e97d5bb3f7f843e9f4a3c005078a945795532a09cd9f01ee438709d
+совпадает с Derive и release asset. top/full render просмотрены: дерево и начальный инспектор
+заполнены, схемы и home читаемы. Это не утверждение о пройденной автоматизации кликов Chromium.
+Генератор повторно дал идентичные HTML/FILEMAP.
+
+Это RC для последующей проверки инженером, не production и не финальная приёмка M1.
+Независимый App issuer остаётся незарегистрированным, защита required check не заявляется.
+Личный home/default DB не созданы. Следующая фаза не начата.
