@@ -2,3 +2,39 @@ Run: https://github.com/yokeloop/mypi/actions/runs/37121364633
 Snapshot: e10adf9b093748c1e885fe90a8c86850cdb11a45
 Selected diagnostic lines; not a passing hosted test run. AppArmor denies setpcap/net_admin in unprivileged_userns; no global sysctl/AppArmor disabling or unbounded fallback attempted.
 
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:59:10.9023592Z bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+bounded-verify	Diagnose isolation failure without loosening it	﻿2026-10-03T11:59:10.9404166Z ##[group]Run bwrap --version
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9404490Z ^[[36;1mbwrap --version^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9404730Z ^[[36;1msystemd --version^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9404957Z ^[[36;1muname -r^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9405189Z ^[[36;1mgrep -H . /proc/self/attr/current^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9405551Z ^[[36;1msysctl kernel.apparmor_restrict_unprivileged_userns || true^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9406052Z ^[[36;1msudo journalctl -k --no-pager -n 100 | grep -E 'apparmor|DENIED|bwrap|audit' || true^[[0m
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9442100Z shell: /usr/bin/bash -e {0}
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9442369Z env:
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9442626Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9442946Z   XDG_RUNTIME_DIR: /run/user/1001
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9443240Z   DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1001/bus
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9443562Z ##[endgroup]
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9505146Z bubblewrap 0.9.0
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9535757Z systemd 255 (255.4-1ubuntu8.17)
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9537336Z +PAM +AUDIT +SELINUX +APPARMOR +IMA +SMACK +SECCOMP +GCRYPT -GNUTLS +OPENSSL +ACL +BLKID +CURL +ELFUTILS +FIDO2 +IDN2 -IDN +IPTC +KMOD +LIBCRYPTSETUP +LIBFDISK +PCRE2 -PWQUALITY +P11KIT +QRENCODE +TPM2 +BZIP2 +LZ4 +XZ +ZLIB +ZSTD -BPF_FRAMEWORK -XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9545709Z 6.17.0-1022-azure
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9556778Z /proc/self/attr/current:unconfined
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9565275Z kernel.apparmor_restrict_unprivileged_userns = 1
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9654480Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.625:2): apparmor="STATUS" operation="profile_load" profile="unconfined" name="1password" pid=477 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9656497Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.625:3): apparmor="STATUS" operation="profile_load" profile="unconfined" name="Discord" pid=478 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9657809Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.625:4): apparmor="STATUS" operation="profile_load" profile="unconfined" name="QtWebEngineProcess" pid=480 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9660248Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.626:5): apparmor="STATUS" operation="profile_load" profile="unconfined" name=4D6F6E676F444220436F6D70617373 pid=479 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9661586Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.627:6): apparmor="STATUS" operation="profile_load" profile="unconfined" name="balena-etcher" pid=481 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9662832Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.627:7): apparmor="STATUS" operation="profile_load" profile="unconfined" name="brave" pid=482 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9664240Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.628:8): apparmor="STATUS" operation="profile_load" profile="unconfined" name="cam" pid=484 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9665465Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.629:9): apparmor="STATUS" operation="profile_load" profile="unconfined" name="ch-run" pid=486 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9666698Z Oct 03 11:55:21 runnervm8df0l kernel: audit: type=1400 audit(1791028521.630:10): apparmor="STATUS" operation="profile_load" profile="unconfined" name="ch-checkns" pid=485 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9667576Z Oct 03 11:55:29 runnervm8df0l kernel: kauditd_printk_skb: 113 callbacks suppressed
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9668954Z Oct 03 11:55:29 runnervm8df0l kernel: audit: type=1400 audit(1791028529.467:124): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="rsyslogd" pid=1013 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9670624Z Oct 03 11:55:29 runnervm8df0l kernel: audit: type=1400 audit(1791028529.982:125): apparmor="STATUS" operation="profile_replace" info="same as current profile, skipping" profile="unconfined" name="/usr/lib/snapd/snap-confine" pid=1269 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9672228Z Oct 03 11:55:30 runnervm8df0l kernel: audit: type=1400 audit(1791028530.129:126): apparmor="STATUS" operation="profile_load" profile="unconfined" name="docker-default" pid=1397 comm="apparmor_parser"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9673978Z Oct 03 11:59:10 runnervm8df0l kernel: audit: type=1400 audit(1791028750.900:127): apparmor="AUDIT" operation="userns_create" class="namespace" info="Userns create - transitioning profile" profile="unconfined" pid=3121 comm="bwrap" requested="userns_create" target="unprivileged_userns" execpath="/usr/bin/bwrap"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9675684Z Oct 03 11:59:10 runnervm8df0l kernel: audit: type=1400 audit(1791028750.901:128): apparmor="DENIED" operation="capable" class="cap" profile="unprivileged_userns" pid=3122 comm="bwrap" capability=8  capname="setpcap"
+bounded-verify	Diagnose isolation failure without loosening it	2026-10-03T11:59:10.9677106Z Oct 03 11:59:10 runnervm8df0l kernel: audit: type=1400 audit(1791028750.901:129): apparmor="DENIED" operation="capable" class="cap" profile="unprivileged_userns" pid=3122 comm="bwrap" capability=12  capname="net_admin"

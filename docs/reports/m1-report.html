@@ -65,6 +65,11 @@ td code{overflow-wrap:anywhere}.notice{border-left-color:var(--accent)}
 @media(max-width:650px){.metrics,.grid{grid-template-columns:1fr}.track{grid-template-columns:1fr 1fr}.detail{min-height:0}}
 @media print{nav,.controls,.arch button{display:none}details{break-inside:avoid}.card{break-inside:avoid}body{background:white;color:black}}
 </style></head><body><main>
+<section class="answer notice" aria-label="Актуализация публикации"><p><strong>Обновление · 2026-10-03.</strong> Код опубликован в ветке <code>m1/implementation</code>: <a href="https://github.com/yokeloop/mypi/pull/1">draft PR #1</a>, без merge. <code>home/</code> остаётся отдельным Git внутри клона; пользовательских данных в PR нет.</p>
+<p>Свежий Git-снимок проходит <strong>19/19 локально</strong>. Независимый CI review обнаружил изменяемый Node executable между sandbox и host; исправлено: весь build workspace readonly, кроме dist. Отрицательный probe и повторный review подтвердили исправление.</p>
+<p><strong>Hosted CI пока красный:</strong> <a href="https://github.com/yokeloop/mypi/actions/runs/37121364633">Ubuntu AppArmor запретил bwrap setpcap/net_admin</a>, запуск остановился до тестов. Ограничения не отключались.</p>
+<p>Environment <code>mypi-gate</code> настроен только для branch main; отдельный App publisher подготовлен, секретов ещё нет. Остались интерактивная регистрация/установка GitHub App владельцем и отдельно согласованный точечный профиль AppArmor для bwrap на временном runner. <a href="https://github.com/yokeloop/mypi/blob/m1/implementation/docs/M1-PUBLISH.md">Актуальные шаги и ограничения</a>.</p>
+<p class="small">Ниже сохранён исходный интерактивный отчёт до публикации ветки (08:16 UTC); его просьбы о разрешении коммитов уже выполнены. M1 по-прежнему не принята.</p></section>
 <header><p class="kind">Отчёт · M1 · состояние на 3 октября 2026</p>
 <h1>mypi: память, проекты и запросы</h1>
 <dl class="meta"><div><dt>Организация</dt><dd>yokeloop</dd></div><div><dt>Тикет</dt><dd>нет</dd></div>
