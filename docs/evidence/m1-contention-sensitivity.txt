@@ -1,0 +1,98 @@
+Disposable candidate only: BEGIN IMMEDIATE -> deferred. Expected failure in source callback reservation assertion. No budget changed.
+Running as unit: mypi-ci-build.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.153s
+             CPU time consumed: 4.070s
+                   Memory peak: 377.8M (swap: 0B)
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.884862ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.897832ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (7.111844ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.787358ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.336739ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.896706ms)
+✔ invalid identities/codes never register an organization or create context (1.586922ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.176237ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.732199
+✔ real Node launcher persists projects across independent processes without Python or context writes (239.085335ms)
+✖ writer reservation blocks a second source callback before number allocation completes (1055.737119ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (153.909561ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (10.701009ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (263.719563ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (61.794705ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (315.299488ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (524.750953ms)
+✖ two independent request writers retain distinct committed numbers and journal records (66.588593ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (97.892438ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (781.641643ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 9
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3957.722398
+
+✖ failing tests:
+
+test at dist/test/boundary/contention.test.js:8:1
+✖ writer reservation blocks a second source callback before number allocation completes (1055.737119ms)
+  AssertionError [ERR_ASSERTION]: reservation must precede source side effects
+  
+  true !== false
+  
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/contention.test.js:29:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/boundary/requests.test.js:112:1
+✖ two independent request writers retain distinct committed numbers and journal records (66.588593ms)
+  Error: file:///work/dist/src/app/request-work.js:58
+                      throw new PartialError(String(e), saved ? ['source'] : [], ['inspect source', 'database', 'journal', 'git'], [path]);
+                            ^
+  
+  PartialError: InputError: Target has uncommitted changes; reconcile/commit explicitly first
+      at Object.create (file:///work/dist/src/app/request-work.js:58:27)
+      at file:///work/[eval1]:3:47
+      at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+      at async node:internal/modules/esm/loader:223:26
+      at async ModuleLoader.executeModuleJob (node:internal/modules/esm/loader:220:20)
+      at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+    saved: [],
+    missing: [ 'inspect source', 'database', 'journal', 'git' ],
+    paths: [ 'requests/REQ-1-child/source.md' ],
+    requestId: undefined,
+    status: 'partial'
+  }
+  
+  Node.js v24.21.0
+  
+      at ChildProcess.<anonymous> (file:///work/dist/test/boundary/requests.test.js:126:72)
+      at ChildProcess.emit (node:events:514:28)
+      at ChildProcess._handle.onexit (node:internal/child_process:295:12)
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 4.992s
+             CPU time consumed: 4.589s
+                   Memory peak: 325.4M (swap: 0B)

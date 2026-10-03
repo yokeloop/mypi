@@ -1,0 +1,49 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.395657ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.865081ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.356434ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.90279ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.464516ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.950376ms)
+✔ invalid identities/codes never register an organization or create context (1.540765ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.685483ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.527789
+✔ real Node launcher persists projects across independent processes without Python or context writes (249.472903ms)
+✔ writer reservation blocks a second source callback before number allocation completes (1051.677105ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (154.488052ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (10.296309ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (212.877812ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (37.708098ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (230.310127ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (332.946156ms)
+✔ two independent request writers retain distinct committed numbers and journal records (122.64879ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (84.641551ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (704.00111ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3592.530454
+Cost: wall=4588ms fast=84ms memory_peak=350556160 tasks_peak=36
+CPU: 4113083 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 4.616s
+             CPU time consumed: 4.133s
+                   Memory peak: 334.3M (swap: 0B)

@@ -1,0 +1,151 @@
+Mutations in disposable source copy only. Expected nonzero exits; final original source tested separately.
+
+SCOPED INBOX LEAK
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.495405ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (3.106058ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.503334ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.661817ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.418405ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.941897ms)
+✔ invalid identities/codes never register an organization or create context (1.596407ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.485146ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.476414
+✔ real Node launcher persists projects across independent processes without Python or context writes (243.21088ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (71.997205ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (13.351264ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (170.35918ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (26.049398ms)
+✖ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (158.245504ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (183.707454ms)
+✔ two independent request writers retain distinct committed numbers and journal records (117.014609ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (85.777082ms)
+✖ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1345.132285ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 8
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2747.762524
+
+✖ failing tests:
+
+test at dist/test/boundary/memory.test.js:7:1
+✖ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (158.245504ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert(!scoped.includes('draft'))
+  
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/memory.test.js:35:9)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+
+test at dist/test/boundary/workspace-cli.test.js:7:1
+✖ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1345.132285ms)
+  AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
+  
+    assert(!JSON.stringify(cli('warmup', '-s', 'one/project')).includes('original'))
+  
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/workspace-cli.test.js:60:5)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: '==',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 3.765s
+             CPU time consumed: 4.314s
+                   Memory peak: 324.9M (swap: 0B)
+
+TERMINAL REOPEN
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.478972ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.922152ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.487894ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.594857ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.423737ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.980745ms)
+✔ invalid identities/codes never register an organization or create context (1.656382ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.614179ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.774943
+✔ real Node launcher persists projects across independent processes without Python or context writes (253.541401ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (75.699819ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (13.625888ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (172.492012ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (26.769726ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (196.463797ms)
+✖ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (149.129348ms)
+✔ two independent request writers retain distinct committed numbers and journal records (126.591974ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (76.735536ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1650.826313ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 9
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3084.59521
+
+✖ failing tests:
+
+test at dist/test/boundary/requests.test.js:12:1
+✖ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (149.129348ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/requests.test.js:38:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.start (node:internal/test_runner/test:1262:17)
+      at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /Terminal/,
+    operator: 'throws',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 4.106s
+             CPU time consumed: 4.708s
+                   Memory peak: 325.1M (swap: 0B)

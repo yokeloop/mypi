@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Отчёт: mypi M1 — результаты и архитектура</title><style>
+/* derive-page-css v1 2026-10-02 · источник: страница «Контракт страниц Derive» */
+:root{color-scheme:light dark;--paper:#f7f7f5;--panel:#fff;--ink:#1d1f21;--soft:#5a5f66;--line:#dcdde0;--primary:#2b5cab;--accent:#a86a12;--ok:#2d7a46;--fail:#b3362b;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--paper:#16181b;--panel:#1f2226;--ink:#e6e7e9;--soft:#a3a8b0;--line:#33373d;--primary:#7fa6e6;--accent:#d9a24a;--ok:#6cc08a;--fail:#ec7a6f}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans);overflow-wrap:break-word}
+main{max-width:960px;margin:0 auto;padding:40px 24px 64px}
+@media (max-width:600px){main{padding:24px 16px 40px}}
+.kind{margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+h1{margin:0 0 16px;font-size:clamp(26px,5vw,32px);line-height:1.2;font-weight:600}
+h2{margin:40px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:22px;line-height:1.25;font-weight:600}
+h3{margin:24px 0 8px;font-size:17px;font-weight:600}
+p,ul,ol,dl{margin:8px 0}
+ul,ol{padding-left:24px}
+li{margin:2px 0}
+a{color:var(--primary)}
+strong{font-weight:600}
+code{font:13px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+pre{margin:16px 0;padding:16px;font:13px/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;white-space:pre}
+pre code{border:0;padding:0;background:none}
+.meta{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 24px;padding:0 0 16px;border-bottom:1px solid var(--line);font-size:14px}
+.meta div{display:flex;gap:6px}
+.meta dt{color:var(--soft)}
+.meta dd{margin:0}
+.answer{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:6px}
+.answer>:first-child{margin-top:0}.answer>:last-child{margin-bottom:0}
+.table{margin:16px 0;overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{min-width:7em;padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:normal}
+th{background:var(--panel);font-weight:600}
+tr:last-child td{border-bottom:0}
+.mark{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;line-height:1.7;white-space:nowrap}
+.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.unchecked{color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.fail,.risk{color:var(--fail);background:color-mix(in srgb,var(--fail) 13%,transparent)}
+.low{color:var(--soft);background:color-mix(in srgb,var(--soft) 14%,transparent)}
+.hint{margin:16px 0;padding:8px 16px;border:1px dashed var(--accent);border-radius:6px;font-size:14px;color:var(--soft)}
+.mermaid{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;text-align:center}
+img,svg,video{max-width:100%;height:auto}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--soft)}
+
+nav{display:flex;flex-wrap:wrap;gap:8px 20px;margin:16px 0;font-size:14px}
+.metrics,.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.card{padding:16px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}
+.metric{font-size:26px;line-height:1.2;font-weight:600;margin-bottom:6px}
+.small{font-size:13px;color:var(--soft)}.muted{color:var(--soft)}
+button,select,input{font:inherit;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:5px;padding:8px 12px}
+button{cursor:pointer}button:hover,button[aria-pressed=true]{border-color:var(--primary);color:var(--primary)}
+button:focus-visible,select:focus-visible,a:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+.controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}.controls label{font-size:14px}
+.arch{display:grid;gap:10px;margin:16px 0}.arch-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.arch button{flex:1;min-width:150px;text-align:left}.arch button span{display:block;font-size:12px;color:var(--soft)}
+.connector{text-align:center;font-size:13px;color:var(--soft)}.detail{min-height:170px}
+details{margin:12px 0;border:1px solid var(--line);border-radius:6px;padding:12px 16px}
+summary{cursor:pointer;font-weight:600}details pre{max-height:600px}
+.stage{display:grid;grid-template-columns:30px 1fr;gap:12px}.stage b{font-size:18px;color:var(--primary)}
+.track{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:16px 0}
+.track div{padding:12px;border:1px solid var(--line);border-radius:6px}.track strong,.track span{display:block}.track span{font-size:12px}
+#scope-results{padding-left:22px}.budget{height:8px;border-radius:4px;background:var(--line);margin:8px 0}
+.budget span{display:block;width:17%;height:100%;border-radius:4px;background:var(--ok)}
+td code{overflow-wrap:anywhere}.notice{border-left-color:var(--accent)}
+@media(max-width:650px){.metrics,.grid{grid-template-columns:1fr}.track{grid-template-columns:1fr 1fr}.detail{min-height:0}}
+@media print{nav,.controls,.arch button{display:none}details{break-inside:avoid}.card{break-inside:avoid}body{background:white;color:black}}
+</style></head><body><main>
+<header><p class="kind">Отчёт · M1 · состояние на 3 октября 2026</p>
+<h1>mypi: память, проекты и запросы</h1>
+<dl class="meta"><div><dt>Организация</dt><dd>yokeloop</dd></div><div><dt>Тикет</dt><dd>нет</dd></div>
+<div><dt>Автор</dt><dd>pi (omarchy)</dd></div><div><dt>Дата</dt><dd>2026-10-03 · UTC</dd></div></dl></header>
+<div class="answer"><p><strong>Коротко.</strong> Реализованы шесть функциональных этапов M1: Node.js CLI, SQLite-состояние, файловый контекст и его Git-история, импорт и восстановление. Локальные проверки проходят. Независимое ревью обнаружило реальные дефекты — они исправлены.</p>
+<p><strong>M1 пока не принята:</strong> доверенный удалённый CI не настроен. Проверка с одним лишь именем GitHub Actions job оказалась подменяемой. Код движка не закоммичен и не опубликован; личное хранилище не создано.</p></div>
+<div class="metrics"><div class="card"><div class="metric">19 / 19</div>локальных проверок<div class="small">8 fast + 11 boundary; не мера полноты покрытия</div></div>
+<div class="card"><div class="metric">5,03 с</div>полный ограниченный verify<div class="small">один замер, не p95; бюджет 30 с</div></div>
+<div class="card"><div class="metric">CI: открыт</div>изоляция проверена локально<div class="small">идентичность внешнего проверяющего не обеспечена</div></div></div>
+<nav aria-label="Разделы отчёта"><a href="#done">Результат</a><a href="#architecture">Архитектура</a><a href="#data">Данные</a><a href="#partial">Частичный результат</a><a href="#scope">Области данных</a><a href="#review">Ревью</a><a href="#checks">Проверки</a><a href="#ci">CI</a><a href="#next">Дальше</a></nav>
+
+<h2 id="done">Что сделано</h2>
+<p>Раньше использовался Python-прототип с Markdown-файлами и без БД. Теперь основной путь — самостоятельный Node.js CLI. Исторические Python/Bash entrypoints сохранены как исходник, но отказываются выполнять действия. Автоматического переноса личных данных нет.</p>
+<div class="grid">
+<div class="card stage"><b>1</b><div><strong>Контекст и Git</strong><p>Точный текст, безопасные пути, no-overwrite, локальные коммиты выбранных файлов и явное завершение partial.</p><code>context-files.ts</code><br><code>context-git.ts</code></div></div>
+<div class="card stage"><b>2</b><div><strong>Общий журнал</strong><p>JSONL по UTC-месяцам. Потоковое чтение, проверка оболочки, фильтрация до общего порядка и limit.</p><code>jsonl-journal.ts</code></div></div>
+<div class="card stage"><b>3</b><div><strong>Запросы</strong><p>Карточки БД, отдельные номера проектов и REQ, явный статус, неизменяемый source, публикация версий материалов.</p><code>request-work.ts</code></div></div>
+<div class="card stage"><b>4</b><div><strong>Память и знания</strong><p>Многострочная память, точный capture, заметки, ошибки и warmup с наследованием родителей.</p><code>modules/{memory,inbox,knowledge}</code></div></div>
+<div class="card stage"><b>5</b><div><strong>Перенос и резервная копия</strong><p>Отдельный legacy-архив; SQLite snapshot + Git bundle; проверка checksum, связей и сохранённого контекста.</p><code>import-legacy.ts</code><br><code>backup.ts</code></div></div>
+<div class="card stage"><b>6</b><div><strong>Полный CLI</strong><p>Команды всех модулей, структурированные ошибки, отказ при partial, восстановление во временную новую установку.</p><code>src/cli/</code><br><code>execute-command.ts</code></div></div>
+</div>
+<p class="small">Подробная поэтапная запись: <code>docs/M1-CYCLE.md</code>; команды: <code>docs/M1-CLI.md</code>. Эти файлы пока локальные, а не опубликованные ссылки на main.</p>
+
+<h2 id="architecture">Архитектура решения</h2>
+<p>Один pnpm-пакет, модульный монолит. Предметные модули задают сценарии и порты; адаптеры реализуют хранение. Слой приложения связывает модули, не создавая универсальную систему операций или восстановления.</p>
+<p class="small">Выбери блок — ниже появятся его ответственность и ограничения. Это описание реализации, не интерфейс работающего сервера.</p>
+<div class="arch" aria-label="Слои приложения">
+<div class="arch-row"><button data-mod="cli" aria-controls="module-detail" aria-pressed="false">CLI<span>argv → команда → JSON / exit</span></button></div>
+<div class="connector">↓ вызов сценария</div>
+<div class="arch-row"><button data-mod="app" aria-controls="module-detail" aria-pressed="true">App<span>композиция и составные операции</span></button></div>
+<div class="connector">↓ публичные интерфейсы модулей</div>
+<div class="arch-row"><button data-mod="projects" aria-controls="module-detail" aria-pressed="false">Projects<span>организация · проект · scope</span></button><button data-mod="requests" aria-controls="module-detail" aria-pressed="false">Requests<span>карточка · номера · статусы</span></button><button data-mod="memory" aria-controls="module-detail" aria-pressed="false">Memory / Inbox / Knowledge<span>контекст · capture · журнал</span></button></div>
+<div class="connector">↓ порты хранения</div>
+<div class="arch-row"><button data-mod="adapters" aria-controls="module-detail" aria-pressed="false">Adapters<span>SQLite · файловая система · JSONL · Git</span></button></div></div>
+<div id="module-detail" class="card detail" aria-live="polite"><strong>App — составные операции</strong><p>БД, файлы и Git не образуют общую транзакцию. Порядок действий и частичный результат определены явно.</p></div>
+<details><summary>Почему здесь нет дополнительных подсистем</summary><ul><li>Нет microservices, ORM, DI container, event bus и CQRS.</li><li>Нет flow, исполнителя агентов, табов, сетевой синхронизации и многомашинной работы.</li><li>Нет captures/operations-таблиц, универсального recovery engine и SQL-индекса истории.</li><li>Запрос необязателен для обычной работы; capture и регистрация задачи не запускают её исполнение.</li><li>Core не вызывает LLM. Отдельный ревьюер использовался при разработке, не добавлен в продукт.</li></ul></details>
+<div class="table"><table><thead><tr><th>Компонент</th><th>Закреплённая версия</th><th>Зачем</th></tr></thead><tbody>
+<tr><td>Node.js / pnpm</td><td>24.21.0 / 12.6.0</td><td>LTS runtime и один пакет</td></tr><tr><td>TypeScript</td><td>5.9.3, strict, ESM/tsc</td><td>Явные границы без дополнительного runtime</td></tr><tr><td>better-sqlite3 / SQLite</td><td>13.0.3 / 3.53.4</td><td>Локальная авторитетная БД, реальные транзакции</td></tr><tr><td>Тесты / границы</td><td>node:test + assert / dependency-cruiser 18.5.0</td><td>Без отдельного тестового framework; проверка зависимостей</td></tr></tbody></table></div>
+
+<h2 id="data">Где находятся данные</h2>
+<div class="grid"><div class="card"><h3>SQLite — состояние</h3><p>Организации, проекты, карточки и справочник статусов.</p><p><code>$XDG_STATE_HOME/mypi/state.sqlite3</code></p><p class="small">Fallback: ~/.local/state/mypi. Вне движка и контекста, включая symlink-алиасы. БД и snapshots не в Git.</p></div>
+<div class="card"><h3>Контекст — содержание</h3><p>Исходники запросов, MEMORY, заметки, артефакты и JSONL.</p><p><code>home/</code> — отдельный Git-репозиторий.</p><p class="small">В этой сессии личный home не создавался. Использовались только временные установки.</p></div>
+<div class="card"><h3>Checkout — исходный проект</h3><p>Необязательный существующий путь хранится в карточке проекта.</p><p>Это не его identity и не папка контекста.</p><p class="small">Ветки рабочих клонов не переключались; код проектов не коммитился.</p></div></div>
+<pre><code>organizations ──&lt; projects ──&lt; requests &gt;── request_statuses
+  id, slug          id          id              id, code
+                    org_id      project_id?     is_terminal
+                    slug        number
+                    code        title
+                    checkout?   status_id
+                                context_dir
+                                created_at, updated_at</code></pre>
+<p><code>id</code> — внутренняя глобальная идентичность. <code>number</code> — номер внутри проекта или общей последовательности REQ. Ключ <code>MP-7</code> вычисляется из кода проекта и номера; изменение title не меняет ключ и папку.</p>
+<pre><code>home/
+  MEMORY.md
+  inbox/… .md
+  journal/YYYY-MM.jsonl
+  requests/REQ-1-slug/source.md
+  projects/org/project/
+    MEMORY.md
+    requests/MP-7-slug/
+      source.md
+      research/result-v1.md
+      research/result-v2.md</code></pre>
+<p>У задачи нет отдельного журнала. В SQL нет копии source_text или progress. Исходная формулировка сохраняется без trim, заголовков и потерь BOM/CRLF. Опубликованная ссылка указывает на неизменяемую версию артефакта; новая версия получает новый путь.</p>
+<details><summary>Статусы и ограничения</summary><p>Статусы — строки БД, не TypeScript enum и не обязательный pipeline. Начальный код всегда указывается явно, в том числе при создании сразу terminal.</p><p><code>new · research · planning · in_progress · review · blocked · paused · done · failed · cancelled</code></p><p>Последние три — terminal в начальном справочнике. Используемому статусу нельзя изменить terminality или удалить его. Переименование кода сохраняет status_id, не создаёт переход и не меняет updated_at задач. Продолжение закрытого запроса — новая связанная запись, не reopen.</p></details>
+<details><summary>Фактическая SQL-миграция 001</summary><pre><code>CREATE TABLE organizations (
+  id INTEGER PRIMARY KEY,
+  slug TEXT NOT NULL UNIQUE CHECK (length(trim(slug)) &gt; 0)
+) STRICT;
+
+CREATE TABLE projects (
+  id INTEGER PRIMARY KEY,
+  org_id INTEGER NOT NULL REFERENCES organizations(id) ON DELETE RESTRICT,
+  slug TEXT NOT NULL CHECK (length(trim(slug)) &gt; 0),
+  code TEXT NOT NULL UNIQUE CHECK (code &lt;&gt; '' AND code NOT GLOB '*[^A-Z]*' AND code &lt;&gt; 'REQ'),
+  checkout_path TEXT,
+  UNIQUE (org_id, slug)
+) STRICT;
+
+CREATE TABLE request_statuses (
+  id INTEGER PRIMARY KEY,
+  code TEXT NOT NULL UNIQUE CHECK (length(trim(code)) &gt; 0),
+  is_terminal INTEGER NOT NULL CHECK (is_terminal IN (0, 1))
+) STRICT;
+
+CREATE TABLE requests (
+  id INTEGER PRIMARY KEY,
+  project_id INTEGER REFERENCES projects(id) ON DELETE RESTRICT,
+  number INTEGER NOT NULL CHECK (number &gt; 0),
+  title TEXT NOT NULL CHECK (length(trim(title)) &gt; 0),
+  status_id INTEGER NOT NULL REFERENCES request_statuses(id) ON DELETE RESTRICT,
+  context_dir TEXT NOT NULL UNIQUE CHECK (length(context_dir) &gt; 0),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE (project_id, number)
+) STRICT;
+
+CREATE UNIQUE INDEX requests_unassigned_number ON requests(number) WHERE project_id IS NULL;
+
+CREATE TRIGGER used_status_terminality BEFORE UPDATE OF is_terminal ON request_statuses
+WHEN OLD.is_terminal &lt;&gt; NEW.is_terminal AND EXISTS (SELECT 1 FROM requests WHERE status_id = OLD.id)
+BEGIN
+  SELECT RAISE(ABORT, 'Cannot change terminality of a used status');
+END;
+
+CREATE TRIGGER used_project_code BEFORE UPDATE OF code ON projects
+WHEN OLD.code &lt;&gt; NEW.code AND EXISTS (SELECT 1 FROM requests WHERE project_id = OLD.id)
+BEGIN
+  SELECT RAISE(ABORT, 'Cannot rename a project code with requests');
+END;
+
+CREATE TRIGGER preserve_request_numbers BEFORE DELETE ON requests
+BEGIN
+  SELECT RAISE(ABORT, 'Saved requests cannot be deleted');
+END;
+
+INSERT INTO request_statuses(code, is_terminal) VALUES
+  ('new', 0), ('research', 0), ('planning', 0), ('in_progress', 0), ('review', 0),
+  ('blocked', 0), ('paused', 0), ('done', 1), ('failed', 1), ('cancelled', 1);
+</code></pre></details>
+<details><summary>Формат записи журнала — пример</summary><pre><code>{
+  "at": "2026-10-03T08:00:00Z",
+  "scope": { "type": "request", "key": "MP-7" },
+  "event_type": "note",
+  "text": "Проверка завершена; результат сохранён",
+  "artifacts": [
+    "projects/org/project/requests/MP-7-slug/research/result-v1.md"
+  ]
+}</code></pre><p>На диске это одна физическая JSONL-строка. Нет event ID, actor/session/run или SQL-копии. Многострочный текст экранируется JSON. Повреждённая/оборванная строка вызывает ошибку, а не исчезает из истории.</p></details>
+
+<h2 id="partial">Если операция сохранилась частично</h2>
+<p>Создание запроса идёт в порядке <strong>source → DB → journal → Git</strong>. Номер выбирается под SQLite write reservation; сохранение source выполняется до фиксации карточки. Git не заменяет транзакцию БД.</p>
+<div class="controls"><label for="failure">Покажи исход:</label><select id="failure"><option value="success">Всё сохранилось</option><option value="sql">Сбой SQL после source</option><option value="journal">Сбой журнала после DB</option><option value="git">Сбой Git после журнала</option></select></div>
+<div id="partial-track" class="track" aria-label="Сохранённые части"></div>
+<div id="partial-detail" class="answer" aria-live="polite"></div>
+<p class="small">Это интерактивная схема контрольных точек, не исполнение команды и не модель всех возможных сбоев. Фактический PartialError содержит saved, missing, paths и при наличии requestId; после любой ошибки нужно сверить реальные данные.</p>
+<ul><li>Сохранённая DB не откатывается ради видимости общего rollback.</li><li>Осиротевший source не удаляется; <code>--adopt-source</code> разрешён только при точных байтах и ожидаемом пути/номере.</li><li>Недостающий Git commit завершается явно, без повторного append в журнал.</li><li>Потерянный переход не выдумывается. В журнал добавляется фактическая заметка о проверенном состоянии.</li><li>Для недостающего времени активности есть <code>request touch</code>.</li></ul>
+<p>Никаких обещаний exactly-once audit, автоматического retry или универсального восстановления.</p>
+
+<h2 id="scope">Области журнала и наследование памяти</h2>
+<p>Сначала CLI разрешает scope через БД, затем читает нужные месяцы и применяет scope/date/type; только после этого общий порядок и limit. Scope не даёт права вернуть соседние данные.</p>
+<div class="controls"><label for="scope-select">Журнал:</label><select id="scope-select"><option value="global">global</option><option value="org">организация yokeloop</option><option value="MP" selected>проект MP</option><option value="MP-7">запрос MP-7</option><option value="all">весь журнал — explicit all</option></select><label for="limit">Последних:</label><select id="limit"><option value="99">все</option><option value="2">2</option><option value="1">1</option></select></div>
+<div class="card"><ul id="scope-results" aria-live="polite"></ul><p id="scope-memory" class="small"></p></div>
+<p class="small">Синтетические записи для объяснения правила, не личная память. MP и YM в примере принадлежат одной организации; REQ-1 не относится к проекту.</p>
+<p><strong>Важно:</strong> журнал global содержит только global-события, а не всё дерево. Наследование MEMORY — отдельное правило: global → организация → проект. Scoped warmup не включает общий inbox и не пересказывает исходники чужих задач.</p>
+
+<h2 id="review">Независимое ревью и исправления</h2>
+<p>Ревьюер — отдельный процесс Pi, модель <code>openai-codex/gpt-6-astra</code>, без инструментов, расширений, исходного диалога и контекстных файлов. Ему передавались исходники и принятый контракт. Это независимый контекст, <strong>не независимый поставщик модели</strong> и не человеческая приёмка.</p>
+<p>Перед первым запуском: четыре фиксированные ситуации о parser/oracle/бюджете/дублирующем тесте — 4/4 правильных решения, без повторных попыток. Это узкая проверка поведения, не универсальная оценка ревьюера. Сам ревьюер код не исполнял; ниже отдельно приведены фактические тестовые запуски.</p>
+<div class="table"><table><thead><tr><th>Замечание</th><th>Исправление / проверка</th><th>Состояние</th></tr></thead><tbody>
+<tr><td>Dangling symlink в будущем DB path</td><td>lstat отсутствующего пути; отказ до создания БД. Добавлен отрицательный пример и положительный контроль.</td><td><span class="mark ok">исправлено</span></td></tr>
+<tr><td>Перепубликация артефакта под прежним путём</td><td>Пути публикаций выводятся из журнала. Git сверяет прежние байты; новая версия — отдельный путь.</td><td><span class="mark ok">исправлено</span></td></tr>
+<tr><td>Переименование title терялось в истории</td><td>Журнал содержит старое/новое название и причину. Без смены статуса это note, а не status_changed.</td><td><span class="mark ok">исправлено</span></td></tr>
+<tr><td>Коллизии назначений legacy import</td><td>До регистрации/копирования проверяются дубли, receipt и файл/каталог. Проверены одинаковые и разные байты.</td><td><span class="mark ok">исправлено</span></td></tr>
+<tr><td>Сокрытие публикации правкой рабочего JSONL</td><td>До вычисления опубликованных путей проверяются все журналы из Git HEAD: сохранённый префикс, включая удаление файла. Подмена не меняет HEAD.</td><td><span class="mark ok">исправлено</span></td></tr>
+<tr><td>Слабые доказательства тестов</td><td>Точный SHA при completion, прямой verifyReferences, IPC-барьер writer reservation, in-process CLI matrix; ненужная SQLite fixture убрана.</td><td><span class="mark ok">усилено</span></td></tr>
+<tr><td>Подмена обязательного CI-check</td><td>Имя job + GitHub Actions App не удостоверяют workflow. Ошибочная protection откачена; нужен независимый issuer/rule.</td><td><span class="mark fail">не закрыто</span></td></tr>
+</tbody></table></div>
+<div class="answer"><p><strong>Итог ревью продукта:</strong> исправление одобрено в последнем уточнении; ошибочное требование к DB-only операциям отозвано. CI остаётся BLOCKED.</p><p>Общее требование проверять Git перед DB-only добавлением проекта/статуса не принято: оно нарушило бы независимость БД от контекста. Барьер проверяет операции файлов/Git, а не любые SQL-изменения. Все версии замечаний сохранены, а не переписаны задним числом.</p></div>
+<details><summary>Последний ответ ревьюера целиком</summary><pre>**Продуктовое исправление одобряю в рамках уточнённого контракта.** В представленном коде не вижу обычного прикладного входа, который способен закоммитить изменение опубликованного артефакта в обход проверки префикса журнала.
+
+Проверенные по коду маршруты:
+- `complete` и `restoreContext` проходят через `core.serialize`: сначала `git.validateJournal()`, затем получение `journal.published()`, затем операция.
+- Изменения через memory/inbox/notes используют `texts.create/edit` с тем же барьером.
+- `journal`, `requests.progress`, публикация `requests.create` и журналирование `requests.change` также выполняют файлово-коммитную фазу внутри `core.serialize`.
+- `importLegacy` явно вызывает `git.validateJournal()` до импорта; при коммите защита артефактов использует `publishedArtifactPaths(root)`.
+- `initializeWorkspace` не коммитит артефакты. `cloneContextBundle` разворачивает существующую историю, а не создаёт коммит изменения опубликованного артефакта.
+
+Для исходного сценария обхода — переписать уже закоммиченный журнал, убрав сведения о публикации, затем изменить артефакт — проверка обнаруживает несовпадение с префиксом из `HEAD`. В workspace она выполняется **до** извлечения набора опубликованных путей. Удаление и усечение закоммиченного журнала также не проходят проверку.
+
+**Явно отзываю прежнее возражение к DB-only операциям как выходящее за согласованный контракт.** Операции проектов и словаря статусов не обязаны проверять журнал или зависеть от context/Git. Переименование словарного статуса не является переходом заявки. Сохранение SQL-изменения status/title при последующем отказе журнальной фазы соответствует заданному порядку и не доказывает обход файлового барьера. Создание `source.md` до барьера тоже само по себе не является коммитом.
+
+Это статический вывод по приведённым фрагментам; тесты я не запускал.
+
+**CI остаётся BLOCKED:** идентичность проверки подделываема, конфигурация не развёрнута, branch protection откатили, попытка расширения scope не выполнялась. Одобрение продуктового исправления эти блокеры не снимает.
+</pre></details>
+
+<h2 id="checks">Проверки</h2>
+<div class="table"><table><thead><tr><th>Проверка</th><th>Фактический результат</th><th>Запись</th></tr></thead><tbody>
+<tr><td><code>mise exec -- pnpm build</code><br><code>mise exec -- pnpm verify</code></td><td>8 fast + 11 boundary, без skipped. Реальные SQLite/FS/Git/CLI.</td><td><code>m1-review-final-checks.txt</code></td></tr>
+<tr><td>CI entrypoint, отдельные base/candidate</td><td>Ограниченная сборка и verify проходят локально. Подмена MemoryMax отклонена до исполнения.</td><td><code>m1-ci-checks.txt</code><br><code>m1-review-final-checks.txt</code></td></tr>
+<tr><td>Мутация IMMEDIATE → deferred</td><td>Проверка отказывает: «reservation must precede source side effects». Изменялась только одноразовая копия.</td><td><code>m1-contention-sensitivity.txt</code></td></tr>
+<tr><td>Мутации scoped inbox / terminal reopen</td><td>Нужные assertions обнаружили утечку и повторное открытие.</td><td><code>m1-final-sensitivity.txt</code></td></tr>
+<tr><td>Сбой SQL, Git index.lock, SIGKILL</td><td>Partial и сохранённые части сверены; нет выдуманного перехода, дубликата карточки или повторного append.</td><td><code>m1-stage-6.txt</code><br><code>m1-review-final-checks.txt</code></td></tr>
+<tr><td>Backup → другая временная установка</td><td>SQLite integrity/FK и реальные source/artifacts; повторный restore в существующее состояние отвергается.</td><td><code>m1-review-final-checks.txt</code></td></tr>
+<tr><td>Исторические red → green</td><td>Readonly отказывает до source; большой immutable blob больше не вызывает ENOBUFS. Лимиты не повышались.</td><td><code>m1-stage-6.txt</code><br><code>m1-git-guard-regression.txt</code></td></tr>
+</tbody></table></div>
+<p class="small">Имена evidence выше относительны к <code>docs/evidence/</code>. Это журналы конкретных запусков, не заявление о 100% покрытии.</p>
+<details><summary>Финальный вывод ограниченного запуска</summary><pre>Running as unit: mypi-ci-build.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.010s
+             CPU time consumed: 3.841s
+                   Memory peak: 379.7M (swap: 0B)
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.37552ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.891606ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.475494ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.864555ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.46408ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.872247ms)
+✔ invalid identities/codes never register an organization or create context (1.576608ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.63337ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.736026
+✔ real Node launcher persists projects across independent processes without Python or context writes (244.468896ms)
+✔ writer reservation blocks a second source callback before number allocation completes (1049.170118ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (157.73914ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (10.244719ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (266.099729ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (61.549836ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (314.718846ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (518.685686ms)
+✔ two independent request writers retain distinct committed numbers and journal records (136.023686ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (92.081753ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (792.753968ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4024.81178
+Cost: wall=5001ms fast=84ms memory_peak=350826496 tasks_peak=36
+CPU: 4563044 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 5.027s
+             CPU time consumed: 4.583s
+                   Memory peak: 334.5M (swap: 0B)
+$ bash scripts/check.sh fast
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.406644ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.94297ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.693362ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (2.043214ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.480135ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.832913ms)
+✔ invalid identities/codes never register an organization or create context (1.673168ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.596299ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.61676
+Cost: wall=970ms fast=83ms memory_peak=339349504 tasks_peak=11
+CPU: 1258870 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 998ms
+             CPU time consumed: 1.281s
+                   Memory peak: 323.6M (swap: 0B)
+</pre></details>
+<div class="grid"><div class="card"><strong>Время</strong><p>fast ≤ 5 с<br>verify ≤ 30 с<br>жёсткий срок с cleanup: 60 с</p><div class="budget"><span></span></div><p class="small">Полоса приблизительно показывает один verify, не статистику производительности.</p></div><div class="card"><strong>Ресурсы</strong><p>2 CPU · 1 GiB · 64 tasks<br>один запуск, один worker</p><p class="small">Фактический peak — в раскрываемом выводе. Установка и сборка измеряются отдельно.</p></div><div class="card"><strong>Изоляция</strong><p>systemd / cgroup v2 + bubblewrap<br>без сети и credentials</p><p class="small">Node permission mode с --allow-addons сам по себе не доказывает sandbox.</p></div></div>
+<p>Admission проверяет границы импортов, обнаружение тестов, запрет skip, достижимые эффекты fast и свежесть сборки. Это полезные проверки, но не доказательство всех динамических свойств. При недоступности внешних ограничений запуск прекращается — бесконтрольного fallback нет.</p>
+
+<h2 id="ci">Что с CI на GitHub</h2>
+<p>Цель настройки: <a href="https://github.com/yokeloop/mypi">yokeloop/mypi</a>. Подготовленный workflow берёт checker и зависимости из base, а из PR — только src/test. Сборка и тесты изолируются. Все Actions закреплены SHA.</p>
+<pre><code>PR head ── src/test ──&gt; ограниченная сборка ──&gt; bounded verify
+base    ── policy / dependencies / checker ────┘
+
+Пока нет: доверенный издатель результата, которого не подменит
+другой workflow с тем же именем job.</code></pre>
+<div class="answer notice"><p><strong>Активное внешнее изменение:</strong> в репозитории включено требование SHA pinning для Actions.</p><p>Временная branch protection была создана и проверена чтением API, но удалена после обнаружения обхода. Сейчас main <strong>не защищена этой проверкой</strong>, удалённых workflows — 0. Не оставлена блокировка слияний в ожидании ещё не опубликованного check.</p></div>
+<ul><li>Удалённый main: <code>9b68f281eb26d66dad37a58c750aba31bc1e4d2b</code>, до M1.</li><li>workflow_dispatch убран, но одно это не закрывает подмену одноимённого check.</li><li>План организации — Free. Org rulesets API отказал из-за отсутствия admin:org; права не расширялись.</li><li>Нужен workflow-bound rule в поддерживаемой конфигурации либо отдельный GitHub App/проверяющий с ключом, недоступным произвольным branch-workflows.</li><li>Текущий admin credential может менять protection. Защита от самого администратора не заявляется.</li></ul>
+<p>Записи: <code>docs/M1-CI.md</code>, <code>docs/evidence/m1-ci-control-plane-blocker.txt</code>. Нельзя засчитать локальный зелёный запуск как работающий удалённый доверенный gate.</p>
+
+<h2>Что не проверено</h2>
+<ul><li><span class="mark unchecked">не подтверждено локально</span> автоматическое переключение интерактивных элементов отчёта в Chromium: первая попытка single-process завершилась сбоем, вторая — ограниченным deadline. Лимиты не повышались. Снимок страницы Derive проверяется отдельно и не подменяет проверку кликов.</li><li><span class="mark unchecked">не проверено</span> настоящий GitHub-hosted Ubuntu job: user systemd, AppArmor, cgroup и результат для конкретного head SHA.</li><li><span class="mark unchecked">не обеспечено</span> независимая идентичность обязательной проверки и отказ поддельному одноимённому check.</li><li><span class="mark unchecked">не выполнялось</span> личная миграция, bootstrap личного home и сетевой sync.</li><li><span class="mark unchecked">не проверено</span> другие ОС, физическая потеря питания, большие длительные истории и p95 производительности. SIGKILL не равен отключению питания.</li><li><span class="mark unchecked">не обещается</span> защита от владельца машины, который напрямую переписывает БД/историю Git, или от администратора GitHub, снимающего правила.</li></ul>
+<p>Проверка опубликованных артефактов читает журнал и проверяет сохранённые префиксы; дополнительного индекса нет. Стоимость на большой многолетней истории отдельно не измерялась.</p>
+
+<h2 id="next">Дальше</h2>
+<ol><li>Определить доверенного издателя результата CI и допустимые полномочия — ждёт просьбы 1.</li><li>После явного разрешения закоммитить и опубликовать проверенный M1/base — ждёт просьбы 2. Исторические и чужие изменения перед публикацией нужно отдельно разобрать.</li><li>Проверить настоящий hosted job и отрицательный сценарий с поддельным check. Не снимать лимиты при несовместимости runner.</li><li>Вернуться к окончательной приёмке M1. Следующую фазу, личную миграцию и исполнение агентов пока не начинать.</li></ol>
+<h2>Просьбы к инженеру</h2>
+<pre><code>1. Реши: используем отдельный GitHub App/доверенный исполнитель
+   или предоставляем доступ для проверки workflow-bound org rule?
+   Сейчас: check с именем GitHub Actions job подменяем; org API
+   требует отсутствующий admin:org, поддержка правила на Free не подтверждена.
+   Ключ App нельзя отдавать произвольным branch-workflows.
+   Ответ:
+
+2. Разреши отдельно первую публикацию проверенного кода M1 и CI.
+   Сейчас: всё находится в локальном незакоммиченном дереве.
+   Коммиты движка, новая ветка, PR и push ещё не выполнялись.
+   Ответ:</code></pre>
+<footer><p>Источник: локальная реализация и evidence в <code>/home/priney/Projects/mypi</code>. Отчёт — снимок состояния, не мониторинг живой системы.</p><p>Основан на <a href="https://draft.yokeloop.com/artifacts/enqrv4f1">шаблоне отчёта Derive v2</a>. derive-page-css v1. Интерактивные примеры не пишут данные и не выполняют команды.</p></footer>
+<noscript><p>JavaScript выключен: интерактивные переключатели недоступны. Основной отчёт, схема, SQL и раскрываемые доказательства остаются читаемыми.</p></noscript>
+<script>
+const modules={"cli":{"title":"CLI — разбор команды и вывод","files":"src/cli/{command,workspace-command,run,main}.ts","body":"Проверяет аргументы, вызывает сценарий и печатает JSON. Ошибки и partial дают ненулевой exit. Не хранит SQL и не выполняет LLM-вызовы.","invariant":"Импорт модуля не запускает действия. Матрица аргументов проверяется в процессе; отдельные процессы проверяют настоящий Node launcher."},"app":{"title":"App — сборка приложения и составные операции","files":"src/app/{create-app,create-workspace,request-work,context-changes,backup,import-legacy,warmup}.ts","body":"Связывает публичные интерфейсы модулей, БД, файлы, журнал и Git. Здесь определён порядок сохранения и сведения о частичном результате.","invariant":"DB-only операции независимы от Git. Перед изменением файлов/Git проверяются сохранённые префиксы журнала и опубликованные ссылки. Нет обещания общей транзакции SQL + FS + Git."},"projects":{"title":"Projects — организации, проекты и scope","files":"src/modules/projects/{public,model,ports}.ts","body":"Организация и проект имеют устойчивую запись БД. org/project — идентичность, code — префикс ключей задач, checkout_path — необязательное расположение исходного проекта.","invariant":"Код проекта уникален, REQ зарезервирован. После появления задач код не меняется. Неудачный add не оставляет лишнюю организацию."},"requests":{"title":"Requests — карточка и справочник статусов","files":"src/modules/requests/{public,ports}.ts","body":"БД хранит номер, проект, заголовок, устойчивый status_id, относительный context_dir и время. Исходная формулировка и progress не дублируются в SQL.","invariant":"MAX(number)+1 вычисляется в BEGIN IMMEDIATE. Начальный статус всегда указан явно. Terminal не reopen; тот же статус — no-op. Название статуса можно менять без изменения его ID."},"memory":{"title":"Memory / Inbox / Knowledge — контекст","files":"src/modules/{memory,inbox,knowledge}/public.ts","body":"Память родителей, точный capture, уникальные заметки, журнал исходов и ошибок. Warmup выдаёт индекс и указывает пути к полным материалам.","invariant":"В scoped warmup нет общего inbox и чужих проектов. Исходник, опубликованные артефакты и сохранённая история не переписываются через CLI."},"adapters":{"title":"Adapters — реальные механизмы хранения","files":"src/infrastructure/{database,filesystem,git} + src/modules/*/adapters","body":"SQL принадлежит адаптеру соответствующего модуля. SQLite миграции без ORM, безопасные пути, потоковый JSONL, отдельный Git-репозиторий контекста.","invariant":"БД вне Git. Git коммитит только перечисленные файлы, сохраняет чужой staged diff и не выполняет hooks/fsmonitor/signing/network. Domain не делает IO."}};
+function moduleDetail(key){
+ document.querySelectorAll('[data-mod]').forEach(function(button){button.setAttribute('aria-pressed',String(button.dataset.mod===key));});
+ const m=modules[key], target=document.getElementById('module-detail'); target.replaceChildren();
+ [['h3',m.title],['p',m.body],['p',m.invariant],['code',m.files]].forEach(function(pair){const node=document.createElement(pair[0]);node.textContent=pair[1];target.append(node);});
+}
+document.querySelectorAll('[data-mod]').forEach(function(button){button.addEventListener('click',function(){moduleDetail(button.dataset.mod);});});moduleDetail('app');
+const failures={
+ success:{count:4,text:'Source, карточка, запись журнала и контекстный Git commit сохранены. Это не commit движка и не сетевой sync.'},
+ sql:{count:1,text:'Карточки нет, source остаётся. Проверь отсутствие карточки и точный ожидаемый путь. Только затем допустим явный --adopt-source; изменившийся текст, путь или номер — повод остановиться.'},
+ journal:{count:2,text:'Source и DB уже сохранены. Не создавай запрос повторно и не откатывай карточку. Сверь журнал: он мог сохраниться частично. Недостающий переход не выдумывай; после сверки добавь фактическую note и заверши Git.'},
+ git:{count:3,text:'Source, DB и журнал сохранены. Устрани причину Git-сбоя, сверяй конкретные файлы и выполняй explicit commit. Не повторяй append или создание запроса.'}
+};
+function partial(){const f=failures[document.getElementById('failure').value], target=document.getElementById('partial-track');target.replaceChildren();['Source','DB','Journal','Git'].forEach(function(name,i){const card=document.createElement('div'), title=document.createElement('strong'), state=document.createElement('span');card.className=i<f.count?'ok':'unchecked';title.textContent=name;state.textContent=i<f.count?'сохранено':'не завершено';card.append(title,state);target.append(card);});document.getElementById('partial-detail').textContent=f.text;}
+document.getElementById('failure').addEventListener('change',partial);partial();
+const events=[
+ {scope:'global',text:'08:00 · Общая заметка'},
+ {scope:'org',text:'08:01 · Заметка организации yokeloop'},
+ {scope:'MP',text:'08:02 · Заметка проекта MP'},
+ {scope:'MP-7',text:'08:03 · Результат запроса MP-7'},
+ {scope:'YM',text:'08:04 · Заметка соседнего проекта YM'},
+ {scope:'YM-2',text:'08:05 · Результат запроса YM-2'},
+ {scope:'REQ-1',text:'08:06 · Запрос без проекта REQ-1'}
+];
+const scopes={global:['global'],org:['org','MP','MP-7','YM','YM-2'],MP:['MP','MP-7'],'MP-7':['MP-7'],all:events.map(function(e){return e.scope;})};
+function scope(){const value=document.getElementById('scope-select').value, limit=Number(document.getElementById('limit').value), target=document.getElementById('scope-results');target.replaceChildren();events.filter(function(e){return scopes[value].includes(e.scope);}).slice(-limit).forEach(function(e){const li=document.createElement('li');li.textContent=e.text;target.append(li);});document.getElementById('scope-memory').textContent=(value==='MP'||value==='MP-7')?'Память отдельно: global → yokeloop → проект MP. Общий inbox и проект YM исключены.':value==='org'?'Память отдельно: global → yokeloop. Общий inbox исключён.':value==='all'?'Explicit all расширяет журнал; это не команда выдачи всей памяти или всех исходников.':'Global journal — только global. REQ-1 сюда не подмешивается; полный журнал требует explicit all.';}
+document.getElementById('scope-select').addEventListener('change',scope);document.getElementById('limit').addEventListener('change',scope);scope();
+</script></main></body></html>

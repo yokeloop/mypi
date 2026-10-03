@@ -1,0 +1,5 @@
+Independent review found spoofable GitHub Actions job-name identity. The branch protection created in this session was rolled back to its prior absent state, rather than presenting it as trusted or leaving main blocked without a workflow.
+Organization plan: free. Organization rulesets API: 404 with missing admin:org scope; no credential refresh or permission escalation attempted.
+Readback:
+{"protected":false,"sha":"9b68f281eb26d66dad37a58c750aba31bc1e4d2b"}
+{"enabled":true,"allowed_actions":"all","sha_pinning_required":true}

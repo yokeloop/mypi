@@ -1,0 +1,18 @@
+{
+  "mode": "one fixed no-tools trial, no retries",
+  "model": "openai-codex/gpt-6-astra",
+  "results": {
+    "parser": "accept",
+    "oracle": "reject",
+    "budget": "reject",
+    "duplicate": "accept"
+  },
+  "expected": {
+    "parser": "accept",
+    "oracle": "reject",
+    "budget": "reject",
+    "duplicate": "accept"
+  },
+  "passed": true,
+  "scope": "four narrow review decisions; not a general agent capability evaluation"
+}

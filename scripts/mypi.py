@@ -303,6 +303,7 @@ def warmup(scope: str | None) -> None:
             print("(empty)")
 
 def main() -> None:
+    die("legacy CLI retired; use mise exec -- node dist/src/cli/main.js --help (import legacy explicitly)")
     args = sys.argv[1:]
     if not args:
         print(__doc__)

@@ -8,3 +8,13 @@ projects/
 *.pyc
 __pycache__/
 .DS_Store
+
+# Node build/dependencies
+node_modules/
+dist/
+
+# Never store runtime databases or snapshots in the engine repository
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*

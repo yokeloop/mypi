@@ -1,0 +1,28 @@
+{
+  "name": "mypi",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24 <25",
+    "pnpm": "12.6.0"
+  },
+  "packageManager": "pnpm@12.6.0",
+  "bin": {
+    "mypi": "dist/src/cli/main.js"
+  },
+  "scripts": {
+    "build": "timeout --kill-after=5s 55s bash scripts/build.sh",
+    "test": "bash scripts/check.sh fast",
+    "verify": "bash scripts/check.sh verify"
+  },
+  "dependencies": {
+    "better-sqlite3": "13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "9.6.0",
+    "@types/node": "24.19.0",
+    "dependency-cruiser": "18.5.0",
+    "typescript": "5.9.3"
+  }
+}
