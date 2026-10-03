@@ -3,6 +3,14 @@
 Источники: https://pi.dev/docs/latest/extensions (полный текст), pi.dev/docs/latest/packages,
 примеры github.com/earendil-works/pi (examples/extensions). Дата: 2026-09-26.
 
+**Уточнение M0, 2026-09-29:** это вторичная историческая сводка, не фиксация
+проверенного API для реализации. Точные сигнатуры сверяются с выбранной версией
+Pi; в аудите читалась локальная документация 0.87.1. В частности, session replacement
+описывается там как command-only, а status/acceptance mypi не предоставляются
+ядром Pi автоматически. Маппинг mypi в §12 отражает прежние ADR; текущий контракт —
+[ARCHITECTURE](../docs/ARCHITECTURE.md). Первая поставка — Node.js память/проекты
+с DB-состоянием, без разработки extension/flow. Исходная сводка ниже сохранена.
+
 ---
 
 ## 1. Терминология: «плагинов» в Pi нет — есть extensions
