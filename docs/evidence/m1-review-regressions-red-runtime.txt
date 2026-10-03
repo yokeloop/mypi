@@ -1,0 +1,50 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.461098ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.921672ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.468705ms)
+✖ XDG/default state paths stay outside engine and context, including symlink aliases (1.908976ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.489757ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.942474ms)
+✔ invalid identities/codes never register an organization or create context (1.731578ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.660997ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 7
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.600849
+
+✖ failing tests:
+
+test at dist/test/fast/paths-cli.test.js:10:1
+✖ XDG/default state paths stay outside engine and context, including symlink aliases (1.908976ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///work/dist/test/fast/paths-cli.test.js:24:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /symlink|outside/i,
+    operator: 'throws',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 971ms
+             CPU time consumed: 1.220s
+                   Memory peak: 332.9M (swap: 0B)
+[ELIFECYCLE] Command failed with exit code 1.

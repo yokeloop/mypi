@@ -1,0 +1,43 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.233399ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.915212ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.414247ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.573281ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.944353ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (3.041997ms)
+✔ invalid identities/codes never register an organization or create context (1.58908ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (1.999286ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.246243
+✔ real Node launcher persists projects across independent processes without Python or context writes (188.793509ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (50.103146ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (13.583437ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (114.010142ms)
+✔ two independent request writers retain distinct committed numbers and journal records (105.316206ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 5
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 660.756971
+Cost: wall=1583ms fast=80ms memory_peak=341585920 tasks_peak=34
+CPU: 1882947 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.610s
+             CPU time consumed: 1.903s
+                   Memory peak: 325.7M (swap: 0B)

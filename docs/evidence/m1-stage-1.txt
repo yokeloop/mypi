@@ -1,0 +1,39 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.107492ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.885388ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.499454ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.919578ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.76081ms)
+✔ invalid identities/codes never register an organization or create context (1.574897ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (1.990411ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40.48242
+✔ real Node launcher persists projects across independent processes without Python or context writes (194.387152ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (47.29792ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 331.022506
+Cost: wall=1209ms fast=68ms memory_peak=337211392 tasks_peak=24
+CPU: 1397366 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.236s
+             CPU time consumed: 1.417s
+                   Memory peak: 321.5M (swap: 0B)

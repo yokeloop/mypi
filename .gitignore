@@ -1,10 +1,20 @@
 # home/ — nested git repo of personal data, never commit into mypi git
-home/
+/home/
 
 # projects/ — working clones
-projects/
+/projects/
 
 # local junk
 *.pyc
 __pycache__/
 .DS_Store
+
+# Node build/dependencies
+node_modules/
+dist/
+
+# Never store runtime databases or snapshots in the engine repository
+*.sqlite3
+*.sqlite3-*
+*.db
+*.db-*

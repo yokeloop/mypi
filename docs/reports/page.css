@@ -1,0 +1,41 @@
+
+/* derive-page-css v1 2026-10-02 · источник: страница «Контракт страниц Derive» */
+:root{color-scheme:light dark;--paper:#f7f7f5;--panel:#fff;--ink:#1d1f21;--soft:#5a5f66;--line:#dcdde0;--primary:#2b5cab;--accent:#a86a12;--ok:#2d7a46;--fail:#b3362b;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--paper:#16181b;--panel:#1f2226;--ink:#e6e7e9;--soft:#a3a8b0;--line:#33373d;--primary:#7fa6e6;--accent:#d9a24a;--ok:#6cc08a;--fail:#ec7a6f}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans);overflow-wrap:break-word}
+main{max-width:960px;margin:0 auto;padding:40px 24px 64px}
+@media (max-width:600px){main{padding:24px 16px 40px}}
+.kind{margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+h1{margin:0 0 16px;font-size:clamp(26px,5vw,32px);line-height:1.2;font-weight:600}
+h2{margin:40px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:22px;line-height:1.25;font-weight:600}
+h3{margin:24px 0 8px;font-size:17px;font-weight:600}
+p,ul,ol,dl{margin:8px 0}
+ul,ol{padding-left:24px}
+li{margin:2px 0}
+a{color:var(--primary)}
+strong{font-weight:600}
+code{font:13px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+pre{margin:16px 0;padding:16px;font:13px/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;white-space:pre}
+pre code{border:0;padding:0;background:none}
+.meta{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 24px;padding:0 0 16px;border-bottom:1px solid var(--line);font-size:14px}
+.meta div{display:flex;gap:6px}
+.meta dt{color:var(--soft)}
+.meta dd{margin:0}
+.answer{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:6px}
+.answer>:first-child{margin-top:0}.answer>:last-child{margin-bottom:0}
+.table{margin:16px 0;overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{min-width:7em;padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:normal}
+th{background:var(--panel);font-weight:600}
+tr:last-child td{border-bottom:0}
+.mark{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;line-height:1.7;white-space:nowrap}
+.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.unchecked{color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.fail,.risk{color:var(--fail);background:color-mix(in srgb,var(--fail) 13%,transparent)}
+.low{color:var(--soft);background:color-mix(in srgb,var(--soft) 14%,transparent)}
+.hint{margin:16px 0;padding:8px 16px;border:1px dashed var(--accent);border-radius:6px;font-size:14px;color:var(--soft)}
+.mermaid{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;text-align:center}
+img,svg,video{max-width:100%;height:auto}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--soft)}

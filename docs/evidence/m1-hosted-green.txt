@@ -1,0 +1,68 @@
+GitHub-hosted Ubuntu 24.04, commit b458f8bcd4447f8975a4585e38b148cd15d5c67f
+Run: https://github.com/yokeloop/mypi/actions/runs/37124664193
+Scoped AppArmor profile for /usr/bin/bwrap on disposable runner; global AppArmor remains enabled. Independent App issuer is NOT provisioned.
+bounded-verify	Install reviewed base dependencies only	2026-10-03T12:59:48.6230575Z .../node_modules/better-sqlite3 install: Done
+bounded-verify	Install reviewed base dependencies only	2026-10-03T12:59:48.7056109Z Done in 4.8s using pnpm v12.6.0
+bounded-verify	Build and verify through reviewed base	﻿2026-10-03T12:59:48.7229048Z ##[group]Run bash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7229538Z ^[[36;1mbash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"^[[0m
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7293082Z shell: /usr/bin/bash -e {0}
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7293338Z env:
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7293590Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7293919Z   XDG_RUNTIME_DIR: /run/user/1001
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7294229Z   DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1001/bus
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:48.7294550Z ##[endgroup]
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:49.0063650Z Running as unit: mypi-ci-build.service; invocation ID: cf183eb02d934ec38e0c774e736b3aef
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1008324Z Finished with result: success
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1009109Z Main processes terminated with: code=exited/status=0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1009679Z Service runtime: 3.092s
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1010131Z CPU time consumed: 5.864s
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1010538Z Memory peak: 1.5M
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1010893Z Memory swap peak: 0B
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:52.1418988Z Running as unit: mypi-tests.service; invocation ID: 0e9a65e3ed0e4974a89b69a14467a756
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.3777118Z Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.4350774Z (node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.4351828Z (Use `node --trace-warnings ...` to show where the warning was created)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5495211Z ✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (10.601384ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5496467Z ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5497658Z ✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (4.061535ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5498612Z ✔ journal validates envelope and applies overall ordering/limit even for unordered input (58.433421ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5500309Z ✔ XDG/default state paths stay outside engine and context, including symlink aliases (2.739116ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5501908Z ✔ CLI parsing is strict without invoking a process for the validation matrix (1.918117ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5503407Z ✔ registered scope, independent organizations and duplicate rollback through the public API (4.289039ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5504279Z ✔ invalid identities/codes never register an organization or create context (2.367536ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5505144Z ✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (3.478588ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5536320Z ℹ tests 8
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5536713Z ℹ suites 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5537058Z ℹ pass 8
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5537401Z ℹ fail 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5537740Z ℹ cancelled 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5538108Z ℹ skipped 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5538455Z ℹ todo 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.5538856Z ℹ duration_ms 124.239387
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:53.9546981Z ✔ real Node launcher persists projects across independent processes without Python or context writes (313.910522ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:55.0812562Z ✔ writer reservation blocks a second source callback before number allocation completes (1069.550627ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:55.3990552Z ✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (261.778518ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:55.4717875Z ✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (17.992654ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:56.1353381Z ✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (488.134028ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:56.1360065Z ✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (107.654119ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:56.7702135Z ✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (565.474144ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:57.7874309Z ✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (934.719736ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:58.0228349Z ✔ two independent request writers retain distinct committed numbers and journal records (238.375831ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:58.1614212Z ✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (151.129422ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4661941Z ✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1230.539977ms)
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4765117Z ℹ tests 11
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4765566Z ℹ suites 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4765930Z ℹ pass 11
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4766551Z ℹ fail 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4766971Z ℹ cancelled 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4767371Z ℹ skipped 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4767727Z ℹ todo 0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4768140Z ℹ duration_ms 5884.93859
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4853846Z Cost: wall=7340ms fast=162ms memory_peak=307277824 tasks_peak=34
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.4854611Z CPU: 7340773 us
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5315801Z Finished with result: success
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5316755Z Main processes terminated with: code=exited/status=0
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5317390Z Service runtime: 7.388s
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5317851Z CPU time consumed: 7.384s
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5318276Z Memory peak: 2.2M
+bounded-verify	Build and verify through reviewed base	2026-10-03T12:59:59.5318649Z Memory swap peak: 0B

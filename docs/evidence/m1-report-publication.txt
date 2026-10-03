@@ -1,0 +1,9 @@
+Published through Derive stage(target=doc), workspace ws_51b016a6e5aad4721e72e8a3.
+URL: https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf
+Version: 1
+SHA256: 5b4eda5d39c034877761f5b2830e7a9b7d8c1fd71d8c2da8a878a0d0b508c732
+Access: workspace member; listed workspace; link_role none.
+Tags: yokeloop, report, mypi. Template submitted: enqrv4f1 v2.
+Upload response content_sha256 matched local HTML sha256sum. Full HTML read(section="*") matched the local source byte-for-byte. Derive render(top) visually inspected: readable title, summary, 19/19, 5.03 s, CI blocker. JavaScript syntax checked.
+Local Chromium interaction attempts failed (single-process crash; then task exhaustion/deadline). Limits not increased, not counted as passing interaction coverage.
+Source: docs/reports/m1-report.html

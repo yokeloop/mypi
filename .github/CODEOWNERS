@@ -1,0 +1,12 @@
+# Only control-plane and test changes require an independent owner review.
+/.github/ @prineycom
+/scripts/ @prineycom
+/test/ @prineycom
+/package.json @prineycom
+/pnpm-lock.yaml @prineycom
+/pnpm-workspace.yaml @prineycom
+/.npmrc @prineycom
+/tsconfig.json @prineycom
+/.dependency-cruiser.cjs @prineycom
+/mise.toml @prineycom
+/docs/TESTING.md @prineycom

@@ -1,0 +1,348 @@
+2026-10-02 — initial M1 slice; negative checks only in disposable copy.
+Expected failures are explicitly labelled; they are not passing product suites.
+
+## Mutation: organization filter removed; must fail by assertion
+exit_code=1; tool wall=2.7s
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.100766ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.913514ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.462129ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.876177ms)
+✖ registered scope, independent organizations and duplicate rollback through the public API (3.201677ms)
+✔ invalid identities/codes never register an organization or create context (1.552843ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (1.896019ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 6
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40.590408
+
+✖ failing tests:
+
+test at dist/test/fast/projects.test.js:7:1
+✖ registered scope, independent organizations and duplicate rollback through the public API (3.201677ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+  
+    [
+      {
+        checkoutPath: '/tmp/mypi-RaIlpc/checkout',
+        code: 'MP',
+        id: 1,
+  ...
+      },
+  +   {
+  +     checkoutPath: null,
+  +     code: 'YM',
+  +     id: 2,
+  +     org: 'two',
+  +     slug: 'project'
+  +   }
+    ]
+  
+      at TestContext.<anonymous> (file:///work/dist/test/fast/projects.test.js:21:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Array],
+    expected: [Array],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 851ms
+             CPU time consumed: 989ms
+                   Memory peak: 321.3M (swap: 0B)
+
+## Admission: unknown profile; must fail
+exit_code=1; tool wall=2.4s
+Running as unit: mypi-tests.service
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Unknown test file: test/unknown.test.ts
+    at file:///work/scripts/admission.mjs:12:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 755ms
+             CPU time consumed: 877ms
+                   Memory peak: 321.5M (swap: 0B)
+
+## Build freshness: source removed after compilation; must fail
+exit_code=1; tool wall=0.2s
+Running as unit: mypi-tests.service
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Stale/modified build; run pnpm build
++ actual - expected
+
+  {
++   input: '0e59461d8a63f9d347389013642d7df9c8bad472a34fabae41c0623be9c8a1b4',
+-   input: '4ba41b70c859813a0325897cd0328bfcfdfea83b552c335272b54c65b91fc0ad',
+    output: '043b457ff7be93e8b3c918e656d6a5f63fd935790585f0f7480f4a2b373c952f'
+  }
+
+    at file:///work/scripts/build-state.mjs:20:10
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: {
+    input: '0e59461d8a63f9d347389013642d7df9c8bad472a34fabae41c0623be9c8a1b4',
+    output: '043b457ff7be93e8b3c918e656d6a5f63fd935790585f0f7480f4a2b373c952f'
+  },
+  expected: {
+    input: '4ba41b70c859813a0325897cd0328bfcfdfea83b552c335272b54c65b91fc0ad',
+    output: '043b457ff7be93e8b3c918e656d6a5f63fd935790585f0f7480f4a2b373c952f'
+  },
+  operator: 'deepStrictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 161ms
+             CPU time consumed: 162ms
+                   Memory peak: 233.7M (swap: 0B)
+
+## Admission: skipped test; must fail before tests
+exit_code=1; tool wall=2.4s
+Running as unit: mypi-tests.service
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Focused/skipped test: test/fast/paths-cli.test.ts
+    at visit (file:///work/scripts/admission.mjs:41:9)
+    at visitNode2 (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32449:18)
+    at forEachChildInPropertyAccessExpression (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32609:96)
+    at Object.forEachChild (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32970:35)
+    at visit (file:///work/scripts/admission.mjs:54:8)
+    at visitNode2 (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32449:18)
+    at forEachChildInCallOrNewExpression (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32923:10)
+    at Object.forEachChild (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32970:35)
+    at visit (file:///work/scripts/admission.mjs:54:8)
+    at visitNode2 (/work/node_modules/.pnpm/typescript@5.9.3/node_modules/typescript/lib/typescript.js:32449:18) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 778ms
+             CPU time consumed: 897ms
+                   Memory peak: 319.1M (swap: 0B)
+
+## Admission: child_process hidden in fast helper; must fail
+exit_code=1; tool wall=2.5s
+Running as unit: mypi-tests.service
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Fast process dependency: child_process
+    at file:///work/scripts/admission.mjs:33:3
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 758ms
+             CPU time consumed: 892ms
+                   Memory peak: 319.6M (swap: 0B)
+
+## Limiter: surviving child; must fail, namespace cleanup removes child
+exit_code=1; tool wall=2.8s
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (6.990794ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.879005ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.473738ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.874679ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.791984ms)
+✔ invalid identities/codes never register an organization or create context (1.614855ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.047899ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40.349023
+✔ real Node launcher persists projects across independent processes without Python or context writes (193.988455ms)
+✔ negative canary leaves one child (2.119203ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 2
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 277.658976
+Surviving child: 87
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 1.159s
+             CPU time consumed: 1.330s
+                   Memory peak: 321.2M (swap: 0B)
+
+## Limiter: safe waiting fixture, tighter 1s deadline; must time out
+exit_code=1; tool wall=2.8s
+Running as unit: mypi-tests.service
+          Finished with result: timeout
+Main processes terminated with: code=killed, status=15/TERM
+               Service runtime: 1.083s
+             CPU time consumed: 137ms
+                   Memory peak: 220.2M (swap: 0B)
+
+## Architecture: domain imports node:fs; must fail (normalized core dependency)
+exit_code=1; tool wall=2.4s
+Running as unit: mypi-tests.service
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: [{"type":"dependency","from":"src/modules/projects/public.ts","to":"fs","unresolvedTo":"fs","dependencyTypes":["core","import"],"rule":{"severity":"error","name":"core-no-io"}}]
+
+1 !== 0
+
+    at file:///work/scripts/admission.mjs:6:8
+    at ModuleJob.run (node:internal/modules/esm/module_job:561:25)
+    at async node:internal/modules/esm/loader:647:26
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:101:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 768ms
+             CPU time consumed: 898ms
+                   Memory peak: 321.1M (swap: 0B)
+
+## Final original source: verify
+exit_code=0; tool wall=2.8s
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (6.805334ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.727942ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.42625ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.871436ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.748985ms)
+✔ invalid identities/codes never register an organization or create context (1.736506ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.069993ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 42.924928
+✔ real Node launcher persists projects across independent processes without Python or context writes (190.156214ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 234.420901
+Cost: wall=1092ms fast=73ms memory_peak=334585856 tasks_peak=24
+CPU: 1250274 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 1.120s
+             CPU time consumed: 1.271s
+                   Memory peak: 319M (swap: 0B)
+
+## Final original source: fast
+exit_code=0; tool wall=0.9s
+$ bash scripts/check.sh fast
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (6.989009ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.780268ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.465121ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.893047ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.75068ms)
+✔ invalid identities/codes never register an organization or create context (1.547743ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (1.912865ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 40.560969
+Cost: wall=830ms fast=72ms memory_peak=338030592 tasks_peak=11
+CPU: 988052 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 855ms
+             CPU time consumed: 1.007s
+                   Memory peak: 322.3M (swap: 0B)

@@ -1,0 +1,81 @@
+Final functional M1 check on isolated disposable state only. No independent review/trusted CI claim.
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.988983ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.914542ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.39406ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.524804ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.418184ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (3.003757ms)
+✔ invalid identities/codes never register an organization or create context (1.572496ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.668843ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.948219
+✔ real Node launcher persists projects across independent processes without Python or context writes (244.180604ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (133.368816ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (13.178768ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (185.827221ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (32.133665ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (195.654871ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (211.92101ms)
+✔ two independent request writers retain distinct committed numbers and journal records (117.438359ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (77.604655ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1805.416289ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3358.017177
+Cost: wall=4348ms fast=81ms memory_peak=339492864 tasks_peak=36
+CPU: 4945988 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 4.378s
+             CPU time consumed: 4.968s
+                   Memory peak: 323.7M (swap: 0B)
+$ bash scripts/check.sh fast
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.446825ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.961819ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.525424ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.63517ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.40637ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.878259ms)
+✔ invalid identities/codes never register an organization or create context (1.59112ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.763184ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 51.823006
+Cost: wall=952ms fast=81ms memory_peak=350396416 tasks_peak=11
+CPU: 1213675 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 981ms
+             CPU time consumed: 1.235s
+                   Memory peak: 334.1M (swap: 0B)
+
+Build fingerprint (not an engine commit):
+{"input":"5c065d088b7547693e3fa12109e0cd400a6fa66b726a1219c6b9cf77d0439d89","output":"a8463817f4cca6e9eb449505b8e571fe45e7931b7a41e260abe18eaa7672b7bd"}

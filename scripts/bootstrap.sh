@@ -2,6 +2,10 @@
 # bootstrap mypi home/ — clone from MYPY_HOME_REMOTE or create fresh
 set -euo pipefail
 
+echo "legacy bootstrap retired; use mise exec -- node dist/src/cli/main.js bootstrap (no automatic network sync)" >&2
+exit 2
+
+# Historical implementation below is intentionally unreachable.
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 HOME_DIR="$ROOT/home"
 

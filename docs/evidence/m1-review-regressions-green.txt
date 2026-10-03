@@ -1,0 +1,48 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.594638ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.825933ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.369767ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.773848ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.314945ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.79943ms)
+✔ invalid identities/codes never register an organization or create context (1.703471ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.224741ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 53.293768
+✔ real Node launcher persists projects across independent processes without Python or context writes (257.190299ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (153.372966ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (13.062986ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (213.321439ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (35.910902ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (234.120594ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (332.790681ms)
+✔ two independent request writers retain distinct committed numbers and journal records (121.604548ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (88.046532ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1845.520819ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3634.749977
+Cost: wall=4607ms fast=87ms memory_peak=350007296 tasks_peak=36
+CPU: 5212330 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 4.636s
+             CPU time consumed: 5.234s
+                   Memory peak: 333.7M (swap: 0B)

@@ -1,0 +1,54 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
+import { changeContext } from '../../src/app/context-changes.js';
+import { PartialError } from '../../src/shared/context.js';
+import { contextGit } from '../../src/infrastructure/git/context-git.js';
+
+test('context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-context-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const root = join(dir, 'home'), files = contextFiles(root), history = contextGit(root);
+  history.initialize();
+  files.create('source.md', '  Исходник\r\nдве строки\n');
+  history.commit(['source.md'], 'initial');
+  assert.equal(files.read('source.md'), '  Исходник\r\nдве строки\n');
+  assert.throws(() => files.create('source.md', 'overwrite'));
+  for (const path of ['../escape', '/tmp/escape', '.git/config', 'x/../../escape']) assert.throws(() => files.create(path, 'bad'));
+  symlinkSync(dir, join(root, 'escape'));
+  assert.throws(() => files.create('escape/outside', 'bad'), /link/);
+  files.create('unrelated.md', 'staged');
+  const stage = spawnSync('git', ['-C', root, 'add', 'unrelated.md']);
+  assert.equal(stage.status, 0);
+  history.clean(['notes/new.md']);
+  files.create('notes/new.md', '  note\n');
+  const noteCommit = history.commit(['notes/new.md'], 'note');
+  const staged = spawnSync('git', ['-C', root, 'diff', '--cached', '--name-only'], { encoding: 'utf8' });
+  assert.equal(staged.stdout.trim(), 'unrelated.md');
+  assert.equal(history.commit(['notes/new.md'], 'idempotent completion'), noteCommit);
+  files.create('requests/REQ-1-large/source.md', 'x'.repeat(1_048_577));
+  const largeHead = history.commit(['requests/REQ-1-large/source.md'], 'large original');
+  assert.equal(history.commit(['requests/REQ-1-large/source.md'], 'verify immutable bytes'), largeHead);
+  assert.throws(() => history.commit(['requests/REQ-1-large'], 'directory bypass'), /file/);
+  assert.throws(() => history.restoreFile('requests/REQ-1-large', largeHead), /file/);
+  rmSync(join(root, 'requests/REQ-1-large'), { recursive: true });
+  assert.throws(() => history.commit(['requests/REQ-1-large'], 'deleted directory bypass'), /file/);
+  writeFileSync(join(root, 'source.md'), 'dirty');
+  assert.throws(() => history.clean(['source.md']), /uncommitted/);
+  assert.throws(() => history.commit(['source.md'], 'overwrite original'), /Immutable/);
+  writeFileSync(join(root, '.git/index.lock'), 'blocked');
+  assert.throws(() => changeContext(history, ['pending.md'],
+    () => files.create('pending.md', 'saved despite Git failure'), 'fail'), error => {
+    assert(error instanceof PartialError);
+    assert.deepEqual(error.saved, ['context']);
+    assert.deepEqual(error.missing, ['git']);
+    return true;
+  });
+  assert.equal(files.read('pending.md'), 'saved despite Git failure');
+  rmSync(join(root, '.git/index.lock'));
+  history.commit(['pending.md'], 'explicit completion');
+});

@@ -1,0 +1,7 @@
+Input fingerprints of isolated static reviews. Temporary raw inputs are removed; these hashes identify the supplied snapshots, not a substitute for execution evidence.
+e9ae310633df41d4e6343723cee8299b6d5d2dbdebe539f7b1f5d9bc2d460bf8  /tmp/mypi-review-ci.FbEukabM/input.md
+db8dbed78b609a00f9b0c8a7e5ec96700d3a799708ca8faf01f1447f36fdbbfb  /tmp/mypi-review-ci.FbEukabM/round2.md
+4b35f1175b0426d1d107cd9f55e64937c3c4171d47e92483f0d1d7a0a72656b8  /tmp/mypi-review-ci.FbEukabM/round3.md
+70d108749ff95d53cde67d62d710d7fadc68c91637838017d1fb3a598cf47e71  /tmp/mypi-review-ci.FbEukabM/round4.md
+773047ca4023ac0729f381a73b59f1a594ec9447f1f9947a95688ccf555aea20  /tmp/mypi-review-ci.FbEukabM/eval.txt
+9b68f281eb26d66dad37a58c750aba31bc1e4d2b

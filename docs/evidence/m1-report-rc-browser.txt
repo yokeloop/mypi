@@ -1,0 +1,1 @@
+One new local Chromium attempt with reduced CPU affinity/raster/V8 parallelism; same 2 CPU / 1 GiB / 64 tasks / 30 s renderer deadline. Failed at bounded deadline. Not interaction coverage; no limits increased. Product tests unaffected. Published Derive rendering is checked separately.

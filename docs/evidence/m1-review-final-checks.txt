@@ -1,0 +1,86 @@
+Final LOCAL CI entrypoint + fast after native /lib64 mapping fix in both sandbox entrypoints. Ubuntu still not run.
+Running as unit: mypi-ci-build.service
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.010s
+             CPU time consumed: 3.841s
+                   Memory peak: 379.7M (swap: 0B)
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.37552ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.891606ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.475494ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.864555ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.46408ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.872247ms)
+✔ invalid identities/codes never register an organization or create context (1.576608ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.63337ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 50.736026
+✔ real Node launcher persists projects across independent processes without Python or context writes (244.468896ms)
+✔ writer reservation blocks a second source callback before number allocation completes (1049.170118ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (157.73914ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (10.244719ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (266.099729ms)
+✔ legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite (61.549836ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (314.718846ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (518.685686ms)
+✔ two independent request writers retain distinct committed numbers and journal records (136.023686ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (92.081753ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (792.753968ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4024.81178
+Cost: wall=5001ms fast=84ms memory_peak=350826496 tasks_peak=36
+CPU: 4563044 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 5.027s
+             CPU time consumed: 4.583s
+                   Memory peak: 334.5M (swap: 0B)
+$ bash scripts/check.sh fast
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.406644ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.94297ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.693362ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (2.043214ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (1.480135ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.832913ms)
+✔ invalid identities/codes never register an organization or create context (1.673168ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.596299ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 54.61676
+Cost: wall=970ms fast=83ms memory_peak=339349504 tasks_peak=11
+CPU: 1258870 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 998ms
+             CPU time consumed: 1.281s
+                   Memory peak: 323.6M (swap: 0B)
+
+Local dist fingerprint:
+{"input":"1e5fce1b3c09a4a49cdc69142e1daf4ae7a8f4a2df35245475a54d89dcb94bfd","output":"559997b5c77417aa344d230df73c9cbb8c963a6ab82686cb75db1e5c00d485ca"}

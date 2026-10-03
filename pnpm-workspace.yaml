@@ -1,0 +1,3 @@
+# One package; only the selected native driver may run an install script.
+allowBuilds:
+  better-sqlite3: true

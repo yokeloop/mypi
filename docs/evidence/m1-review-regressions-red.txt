@@ -1,0 +1,3 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh
+test/boundary/context.test.ts(18,9): error TS6133: 'first' is declared but its value is never read.
+[ELIFECYCLE] Command failed with exit code 2.
