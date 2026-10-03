@@ -52,6 +52,15 @@ jobs:
         run: timeout --kill-after=5s 295s pnpm install --frozen-lockfile --ignore-pnpmfile
       - name: Build and verify through reviewed base
         run: bash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"
+      - name: Diagnose isolation failure without loosening it
+        if: failure()
+        run: |
+          bwrap --version
+          systemd --version
+          uname -r
+          grep -H . /proc/self/attr/current
+          sysctl kernel.apparmor_restrict_unprivileged_userns || true
+          sudo journalctl -k --no-pager -n 100 | grep -E 'apparmor|DENIED|bwrap|audit' || true
   publish:
     name: publish-app-verdict
     needs: verify

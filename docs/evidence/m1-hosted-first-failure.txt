@@ -1,0 +1,17 @@
+bounded-verify	Build and verify through reviewed base	﻿2026-10-03T11:57:32.3779772Z ##[group]Run bash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3780312Z ^[[36;1mbash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"^[[0m
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3845669Z shell: /usr/bin/bash -e {0}
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3845956Z env:
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3846222Z   PNPM_HOME: /home/runner/setup-pnpm/node_modules/.bin
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3846573Z   XDG_RUNTIME_DIR: /run/user/1001
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3846892Z   DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1001/bus
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.3847221Z ##[endgroup]
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.6926330Z Running as unit: mypi-ci-build.service; invocation ID: a7abb59e1bf24d79a69ee2adef905900
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.6986343Z bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7018856Z Finished with result: exit-code
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7019655Z Main processes terminated with: code=exited/status=1
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7020117Z Service runtime: 7ms
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7020700Z CPU time consumed: 7ms
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7021233Z Memory peak: 1.5M
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7021772Z Memory swap peak: 0B
+bounded-verify	Build and verify through reviewed base	2026-10-03T11:57:32.7606594Z ##[error]Process completed with exit code 1.
