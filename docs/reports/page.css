@@ -39,4 +39,3 @@ tr:last-child td{border-bottom:0}
 .mermaid{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;text-align:center}
 img,svg,video{max-width:100%;height:auto}
 footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--soft)}
-
