@@ -4,6 +4,14 @@
 `yokeloop/mypi`, без автоматического merge. `home/` остаётся отдельным Git внутри клона,
 не submodule и не часть публикуемого движка. Личная миграция не выполняется.
 
+## Текущий результат
+
+Ветка опубликована: [draft PR #1](https://github.com/yokeloop/mypi/pull/1), без merge.
+Свежий Git-снимок проходит 19/19 локально. Hosted [запуск](https://github.com/yokeloop/mypi/actions/runs/37121364633)
+остановлен до тестов: AppArmor Ubuntu 24.04 запрещает bwrap setpcap/net_admin в unprivileged_userns.
+Установка Node/pnpm/зависимостей прошла. Нужен отдельно согласованный точечный профиль bwrap на временном
+runner, без глобального отключения AppArmor или ослабления cgroup/bwrap. До согласования обход отказа не выполняется.
+
 ## Первый запуск
 
 Ветка `m1/implementation` имеет push-trigger только для первичной проверки опубликованного snapshot.
@@ -35,6 +43,10 @@ homepage — https://github.com/yokeloop/mypi, webhook выключен, Reposit
 Metadata: Read-only; никаких других permissions/events. Установить только в mypi.
 
 Страница: https://github.com/organizations/yokeloop/settings/apps/new
+
+Профиль AppArmor на личной машине не меняется; речь только о временной VM GitHub Actions.
+После подготовки совместимой среды, App и отдельно разрешённого продвижения reviewed base нужны
+успешный hosted verify и отрицательная проверка поддельного check; затем можно обсуждать приёмку M1.
 После регистрации нужны App ID и созданный PEM-файл. Ключ не присылать в чат и не добавлять в Git:
 передать только локальный путь, загрузка выполняется через gh secret set с stdin в защищённое environment.
 

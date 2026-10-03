@@ -140,3 +140,26 @@ org rulesets API требует отсутствующий admin:org, расши
 ## Разрешение публикации — 2026-10-03
 
 Инженер ответил «делай все разрешаю» на отдельный GitHub App/доверенный CI и коммиты/ветку/push/PR в yokeloop/mypi без автоматического merge. Затем подтвердил размещение home/ внутри клона отдельным Git-репозиторием: «нет все правильно, так и оставляем. Продолжай работу». Личный bootstrap/миграция не выполняются; исходный код публикуется отдельно от данных пользователя.
+
+
+## Публикация и hosted-проверка — 2026-10-03
+
+Создана ветка m1/implementation и draft [PR #1](https://github.com/yokeloop/mypi/pull/1), без merge.
+Ранее накопленные договорённости сохранены отдельным коммитом 9be933a; код и доказательства — 8b7a3ac.
+Обнаружено, что старый незафиксированный шаблон gitignore projects/ также исключал src/modules/projects:
+32bec0f ограничил игнорирование корневыми /home/ и /projects/ и включил уже проверенный модуль.
+Все 37 исходных и 13 тестовых файлов находятся в Git. Свежий git archive e10adf9 прошёл локальный bounded CI: 19/19.
+
+Независимый CI reviewer обнаружил writable tools bridge: теперь весь build workspace readonly, кроме dist;
+build сохраняет mountpoint. [Review](evidence/m1-ci-design-review-1.md), [подтверждение](evidence/m1-ci-design-review-2.md),
+[probe](evidence/m1-ci-readonly-build.txt): запись в tools/node и корень запрещена, сборка/tests проходят.
+
+Настроен environment mypi-gate: только branch main. App publisher отделён от test runner, секретов пока нет.
+Hosted Ubuntu 24.04 прошёл checkout/Node/pnpm/install, но bwrap остановился ДО тестов.
+[Диагноз](evidence/m1-hosted-isolation-diagnosis.txt): AppArmor unprivileged_userns запрещает setpcap/net_admin.
+Ограничения не снимались, alternative unbounded runner не запускался. Это не зелёный CI и не закрытие M1.
+
+Нужны интерактивная регистрация/установка App владельцем GitHub и согласованный точечный профиль AppArmor
+для bwrap на одноразовом CI-runner (не глобальное отключение AppArmor). Последовательность — M1-PUBLISH.
+Raw evidence сохранены дословно: staged diff --check сообщает trailing spaces в старых логах/review;
+код/документы вне docs/evidence проходят whitespace check. Старые записи ради форматирования не переписывались.

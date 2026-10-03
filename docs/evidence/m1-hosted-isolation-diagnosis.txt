@@ -1,0 +1,4 @@
+Run: https://github.com/yokeloop/mypi/actions/runs/37121364633
+Snapshot: e10adf9b093748c1e885fe90a8c86850cdb11a45
+Selected diagnostic lines; not a passing hosted test run. AppArmor denies setpcap/net_admin in unprivileged_userns; no global sysctl/AppArmor disabling or unbounded fallback attempted.
+
