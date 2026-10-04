@@ -1,0 +1,82 @@
+$ bash scripts/check.sh fast
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.182709ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.869111ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.550114ms)
+✖ memory manages only JSON-string facts and preserves other Markdown as context (1.293627ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.885301ms)
+✖ CLI parsing is strict without invoking a process for the validation matrix (1.544023ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (3.076084ms)
+✔ invalid identities/codes never register an organization or create context (1.612728ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.222324ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 7
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 52.735636
+
+✖ failing tests:
+
+test at dist/test/fast/memory.test.js:4:1
+✖ memory manages only JSON-string facts and preserves other Markdown as context (1.293627ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+      {
+        number: 1,
+  +     text: 'dated prose'
+  +   },
+  +   {
+  +     number: 2,
+        text: 'first\nline'
+      }
+    ]
+  
+      at TestContext.<anonymous> (file:///work/dist/test/fast/memory.test.js:11:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Array],
+    expected: [Array],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/fast/paths-cli.test.js:30:1
+✖ CLI parsing is strict without invoking a process for the validation matrix (1.544023ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///work/dist/test/fast/paths-cli.test.js:67:16)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: undefined,
+    operator: 'throws',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 995ms
+             CPU time consumed: 1.292s
+                   Memory peak: 324.9M (swap: 0B)
+[ELIFECYCLE] Test failed. See above for more details.

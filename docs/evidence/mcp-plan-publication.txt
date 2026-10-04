@@ -1,0 +1,22 @@
+2026-10-03 — plan only, implementation not started.
+Artifact: krfyduz7 version 2
+URL: https://draft.yokeloop.com/artifacts/mcp-mypi-krfyduz7
+Local source: docs/MCP-PLAN.html
+SHA256: 177059161cef038d1c066c145d4d67332c9aa3fcbaef8a0c4e18e62203d8afc4 (matches Derive publish response and local sha256sum).
+request_review: true; publish returned review_requested: true.
+v1 HTML readback contained all 32 unique tool definitions; top/full render inspected. v2 top render inspected after updating publication-check text/date.
+Static checks: 32 distinct tool names; configuration JSON parses; internal anchors exist; common CSS matches derive-page-css v1 exactly; no matches from the documented simple secret-pattern scan.
+git diff --exit-code -- src scripts test package.json pnpm-lock.yaml: exit 0. No product implementation, dependencies, tests, Pi configuration or personal data changed.
+Reviewed sources: mypi 580942ddce9dc907e683e27a45e114c3d2313f96, local Pi 1.0.0 documentation, npm metadata SDK 1.32.0/Zod 4.6.5, SDK server docs at commit 32549b00a9a808265f35a29f92fdf27fa4aac2ef.
+No MCP runtime tests or personal bootstrap performed; published plan is a proposal awaiting engineer agreement.
+
+2026-10-04 — version 3 after the explicit request to remove the prototype.
+URL unchanged: https://draft.yokeloop.com/artifacts/mcp-mypi-krfyduz7
+SHA256: 1c2849b9fd85abfd08fc11bbbb3fc21100d83f49242af14330dd123ff3251475 (local file and Derive response match).
+31 tools: 30 M1 operations plus project_resolve; import_legacy definition removed.
+Read v2 HTML and caught up before editing. Engineer comments on v2:
+c_gtgtrsnouc2r6qua — confirmed common API/catalog.
+c_bkcheck2e4yzcoav — user-level connection (option a).
+c_s8zzdo6ng9brxdhm — native MCP + instructions without session management (option a).
+Answers recorded in the plan; no MCP implementation or personal connection was started.
+v3 top/full renders inspected. This is document evidence, not MCP runtime testing.

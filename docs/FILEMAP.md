@@ -1,6 +1,7 @@
-# Карта файлов mypi 0.1.0-rc.1
+# Карта файлов mypi — рабочее дерево M1
 
-Сгенерировано `mise exec -- node docs/reports/build-report.mjs` из Git-инвентаря.
+Сгенерировано `mise exec -- node docs/reports/build-report.mjs` из текущего рабочего дерева (включая новые и исключая удалённые файлы).
+Базовый commit: `580942ddce9dc907e683e27a45e114c3d2313f96`. Изменённые файлы не выдаются за опубликованный RC.
 Релиз-кандидат, не окончательная приёмка M1. `home/` в Git движка отсутствует.
 
 ## Движок — полное дерево
@@ -14,13 +15,8 @@
 ├── .gitignore
 ├── .npmrc
 ├── AGENTS.md
-├── CONCEPT.md
 ├── PLAN.md
 ├── README.md
-├── adr/
-│   ├── ADR-0001-three-layers-files-db-tracker.md
-│   ├── ADR-0002-plugin-subagents-on-pi-primitives.md
-│   └── ADR-0003-orchestrator-cascade.md
 ├── docs/
 │   ├── ARCHITECTURE.md
 │   ├── FILEMAP.md
@@ -33,9 +29,8 @@
 │   ├── M1-PUBLISH.md
 │   ├── M1-REQUESTS.md
 │   ├── M1-START.md
-│   ├── M1-STORAGE.md
+│   ├── MCP-PLAN.html
 │   ├── RELEASE.md
-│   ├── TESTING-PROPOSAL.md
 │   ├── TESTING.md
 │   ├── evidence/
 │   │   ├── m1-ci-checks.txt
@@ -56,6 +51,13 @@
 │   │   ├── m1-independent-review-4.md
 │   │   ├── m1-initial-checks.txt
 │   │   ├── m1-rc-review.md
+│   │   ├── m1-remove-legacy-build.txt
+│   │   ├── m1-remove-legacy-docs.txt
+│   │   ├── m1-remove-legacy-final-build.txt
+│   │   ├── m1-remove-legacy-final-verify.txt
+│   │   ├── m1-remove-legacy-red-build.txt
+│   │   ├── m1-remove-legacy-red.txt
+│   │   ├── m1-remove-legacy-verify.txt
 │   │   ├── m1-report-browser-check.txt
 │   │   ├── m1-report-browser-initial.txt
 │   │   ├── m1-report-publication.txt
@@ -73,13 +75,13 @@
 │   │   ├── m1-stage-3.txt
 │   │   ├── m1-stage-4.txt
 │   │   ├── m1-stage-5.txt
-│   │   └── m1-stage-6.txt
-│   ├── reports/
-│   │   ├── build-report.mjs
-│   │   ├── file-guide.mjs
-│   │   ├── m1-report.html
-│   │   └── page.css
-│   └── subagent-brick-architecture-proposal.md
+│   │   ├── m1-stage-6.txt
+│   │   └── mcp-plan-publication.txt
+│   └── reports/
+│       ├── build-report.mjs
+│       ├── file-guide.mjs
+│       ├── m1-report.html
+│       └── page.css
 ├── mise.toml
 ├── package.json
 ├── pnpm-lock.yaml
@@ -89,12 +91,10 @@
 │   └── pi-subagents-reference.md
 ├── scripts/
 │   ├── admission.mjs
-│   ├── bootstrap.sh
 │   ├── build-state.mjs
 │   ├── build.sh
 │   ├── check.sh
 │   ├── ci.sh
-│   ├── mypi.py
 │   ├── test-profile.sh
 │   └── test-sandbox.sh
 ├── src/
@@ -105,7 +105,6 @@
 │   │   ├── create-app.ts
 │   │   ├── create-workspace.ts
 │   │   ├── execute-command.ts
-│   │   ├── import-legacy.ts
 │   │   ├── journal-storage.ts
 │   │   ├── request-work.ts
 │   │   └── warmup.ts
@@ -165,6 +164,7 @@
 │   ├── fast/
 │   │   ├── database.test.ts
 │   │   ├── journal-rules.test.ts
+│   │   ├── memory.test.ts
 │   │   ├── paths-cli.test.ts
 │   │   └── projects.test.ts
 │   └── support/
@@ -176,379 +176,397 @@
 
 Правила допустимых импортов: CLI → app → публичные API, запрет циклов, IO в domain и зависимости production от tests.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/.dependency-cruiser.cjs).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/.dependency-cruiser.cjs).
 
 ### `.github/CODEOWNERS`
 
 Владелец review для CI, тестов, скриптов, зависимостей и политики. Это не правило приёмки пользовательских задач.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/.github/CODEOWNERS).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/.github/CODEOWNERS).
 
 ### `.github/workflows/m1-verify.yml`
 
 GitHub Actions: checkout base/candidate, pinned Node/pnpm, отдельный профиль AppArmor для bwrap, ограниченная сборка/verify. Отдельный App publisher не исполняет PR-код и пока не настроен.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/.github/workflows/m1-verify.yml).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/.github/workflows/m1-verify.yml).
 
 ### `.gitignore`
 
 Исключает только корневые /home/ и /projects/, зависимости, dist и БД. Исходный src/modules/projects в Git включён.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/.gitignore).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `.npmrc`
 
 Настройки pnpm и ограничения разрешения зависимостей. Не содержит токенов.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/.npmrc).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/.npmrc).
 
 ### `AGENTS.md`
 
 Правила работы агента и ссылки на принятые контракты. Не исполняется движком.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/AGENTS.md).
-
-### `CONCEPT.md`
-
-Историческая концепция с явно отмеченными заменёнными решениями.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/CONCEPT.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `PLAN.md`
 
 План этапов и критерии приёмки, отдельно от фактического состояния пользовательских запросов.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/PLAN.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `README.md`
 
 Первый вход в проект: назначение, установка, команды, ограничения и ссылки.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/README.md).
-
-### `adr/ADR-0001-three-layers-files-db-tracker.md`
-
-История предложения о файлах, БД и tracker; уточнения M0 не принимают исходный ADR целиком.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/adr/ADR-0001-three-layers-files-db-tracker.md).
-
-### `adr/ADR-0002-plugin-subagents-on-pi-primitives.md`
-
-Историческое предложение об агентах/расширениях. Не реализация M1.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/adr/ADR-0002-plugin-subagents-on-pi-primitives.md).
-
-### `adr/ADR-0003-orchestrator-cascade.md`
-
-Историческое предложение об оркестрации; будущие гарантии не приписываются текущему коду.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/adr/ADR-0003-orchestrator-cascade.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/ARCHITECTURE.md`
 
 Актуальные границы системы, ответственность слоёв и принятые решения.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/ARCHITECTURE.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/FILEMAP.md`
 
 Сгенерированный справочник каждого файла движка и шаблонов home; тот же источник пояснений, что в интерактивном отчёте.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/FILEMAP.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M0-CONTRACT.md`
 
 Закрытый контракт M0 и запись его приёмки.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M0-CONTRACT.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M1-CI.md`
 
 Граница доверия CI, исторические отказы и ссылки на текущий rollout.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-CI.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/M1-CI.md).
 
 ### `docs/M1-CLI.md`
 
-Синтаксис команд, точный текст, partial, импорт, backup и restore.
+Синтаксис команд, точный текст, partial, backup и restore.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-CLI.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M1-CYCLE.md`
 
 Append-only журнал этапов разработки, найденных дефектов и проверок; не пользовательский журнал home.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-CYCLE.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M1-DESIGN.md`
 
 Выбранный модульный монолит, Ports & Adapters, зависимости и стек.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-DESIGN.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M1-IMPLEMENTATION.md`
 
 История первого небольшого среза реализации. Не текущая сводка готовности.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-IMPLEMENTATION.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/M1-IMPLEMENTATION.md).
 
 ### `docs/M1-PUBLISH.md`
 
 Публикация ветки/релиза, состояние CI и оставшаяся регистрация независимого издателя.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-PUBLISH.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/M1-PUBLISH.md).
 
 ### `docs/M1-REQUESTS.md`
 
 Контракт карточек, ключей, статусов, контекста, журнала и истории согласований.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-REQUESTS.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/M1-START.md`
 
 Принятые стартовые схема, пути, partial и бюджеты реализации.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-START.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
-### `docs/M1-STORAGE.md`
+### `docs/MCP-PLAN.html`
 
-Отозванное предложение о хранении. Не основание для реализации универсального recovery engine.
+Предложение локального MCP поверх общего API: каталог инструментов, структура, запуск и подключение к сессиям. Не реализованный сервер.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/M1-STORAGE.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/RELEASE.md`
 
 Релиз-кандидат: установка, проверенные возможности, границы поддержки и незакрытая окончательная приёмка.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/RELEASE.md).
-
-### `docs/TESTING-PROPOSAL.md`
-
-Указатель на единственный действующий документ TESTING.md.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/TESTING-PROPOSAL.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/RELEASE.md).
 
 ### `docs/TESTING.md`
 
 Политика тестов, уровни, стоимость, ограничения, независимое review и требования к доказательствам.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/TESTING.md).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/evidence/m1-ci-checks.txt`
 
 Сохранённое доказательство/исход: m1-ci-checks.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Trusted base/candidate LOCAL validation, not a hosted GitHub Actions run.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-ci-checks.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-ci-checks.txt).
 
 ### `docs/evidence/m1-ci-control-plane-blocker.txt`
 
 Сохранённое доказательство/исход: m1-ci-control-plane-blocker.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Independent review found spoofable GitHub Actions job-name identity. The branch protection created in this session was rolled back to its prior absent state, rather than presenting it as trusted or leaving main
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-ci-control-plane-blocker.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-ci-control-plane-blocker.txt).
 
 ### `docs/evidence/m1-ci-design-review-1.md`
 
 Сохранённое доказательство/исход: m1-ci-design-review-1.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: ## REQUEST_CHANGES — для дизайна
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-ci-design-review-1.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-ci-design-review-1.md).
 
 ### `docs/evidence/m1-ci-design-review-2.md`
 
 Сохранённое доказательство/исход: m1-ci-design-review-2.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: **APPROVE** — по предоставленному статическому diff исправления. Команды и тесты не запускал.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-ci-design-review-2.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-ci-design-review-2.md).
 
 ### `docs/evidence/m1-ci-readonly-build.txt`
 
 Сохранённое доказательство/исход: m1-ci-readonly-build.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Disposable base/candidate probe, same fixed limits. Attempts to overwrite tools/node and create host-visible root file must fail. Compilation/output in dist and all tests must still succeed.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-ci-readonly-build.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-ci-readonly-build.txt).
 
 ### `docs/evidence/m1-contention-sensitivity.txt`
 
 Сохранённое доказательство/исход: m1-contention-sensitivity.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Disposable candidate only: BEGIN IMMEDIATE -> deferred. Expected failure in source callback reservation assertion. No budget changed.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-contention-sensitivity.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-contention-sensitivity.txt).
 
 ### `docs/evidence/m1-final-checks.txt`
 
 Сохранённое доказательство/исход: m1-final-checks.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Final functional M1 check on isolated disposable state only. No independent review/trusted CI claim.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-final-checks.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-final-checks.txt).
 
 ### `docs/evidence/m1-final-sensitivity.txt`
 
 Сохранённое доказательство/исход: m1-final-sensitivity.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Mutations in disposable source copy only. Expected nonzero exits; final original source tested separately.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-final-sensitivity.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-final-sensitivity.txt).
 
 ### `docs/evidence/m1-git-guard-regression.txt`
 
 Сохранённое доказательство/исход: m1-git-guard-regression.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Safe 1 MiB + 1 byte fixture reproduces Git stdout buffering defect; no resource limit raised.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-git-guard-regression.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-git-guard-regression.txt).
 
 ### `docs/evidence/m1-hosted-first-failure.txt`
 
 Сохранённое доказательство/исход: m1-hosted-first-failure.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: bounded-verify	Build and verify through reviewed base	﻿2026-10-03T11:57:32.3779772Z ##[group]Run bash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-hosted-first-failure.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-hosted-first-failure.txt).
 
 ### `docs/evidence/m1-hosted-green.txt`
 
 Сохранённое доказательство/исход: m1-hosted-green.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: GitHub-hosted Ubuntu 24.04, commit b458f8bcd4447f8975a4585e38b148cd15d5c67f
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-hosted-green.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-hosted-green.txt).
 
 ### `docs/evidence/m1-hosted-isolation-diagnosis.txt`
 
 Сохранённое доказательство/исход: m1-hosted-isolation-diagnosis.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Run: https://github.com/yokeloop/mypi/actions/runs/37121364633
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-hosted-isolation-diagnosis.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-hosted-isolation-diagnosis.txt).
 
 ### `docs/evidence/m1-independent-review-1.md`
 
 Сохранённое доказательство/исход: m1-independent-review-1.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: ## Итог
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-independent-review-1.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-independent-review-1.md).
 
 ### `docs/evidence/m1-independent-review-2.md`
 
 Сохранённое доказательство/исход: m1-independent-review-2.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: ## Итог
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-independent-review-2.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-independent-review-2.md).
 
 ### `docs/evidence/m1-independent-review-3.md`
 
 Сохранённое доказательство/исход: m1-independent-review-3.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: ## Продукт: REQUEST_CHANGES
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-independent-review-3.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-independent-review-3.md).
 
 ### `docs/evidence/m1-independent-review-4.md`
 
 Сохранённое доказательство/исход: m1-independent-review-4.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: **Продуктовое исправление одобряю в рамках уточнённого контракта.** В представленном коде не вижу обычного прикладного входа, который способен закоммитить изменение опубликованного артефакта в обход проверки пр
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-independent-review-4.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-independent-review-4.md).
 
 ### `docs/evidence/m1-initial-checks.txt`
 
 Сохранённое доказательство/исход: m1-initial-checks.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: 2026-10-02 — initial M1 slice; negative checks only in disposable copy.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-initial-checks.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-initial-checks.txt).
 
 ### `docs/evidence/m1-rc-review.md`
 
 Сохранённое доказательство/исход: m1-rc-review.md. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: **APPROVE** — для `v0.1.0-rc.1` как prerelease, не production и не окончательной приёмки M1. В представленных изменениях блокеров не обнаружено.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-rc-review.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-rc-review.md).
+
+### `docs/evidence/m1-remove-legacy-build.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-build.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-docs.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-docs.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: 2026-10-04 — static checks for prototype removal; not runtime MCP/browser evidence.
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-final-build.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-final-build.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-final-verify.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-final-verify.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ bash scripts/check.sh verify
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-red-build.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-red-build.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-red.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-red.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ bash scripts/check.sh fast
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
+
+### `docs/evidence/m1-remove-legacy-verify.txt`
+
+Сохранённое доказательство/исход: m1-remove-legacy-verify.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ bash scripts/check.sh verify
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/evidence/m1-report-browser-check.txt`
 
 Сохранённое доказательство/исход: m1-report-browser-check.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Second isolated Chromium attempt: normal renderer instead of unsupported single-process. Same limits. No interaction success marker; bounded service failed. Browser interaction coverage NOT claimed. No further
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-report-browser-check.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-report-browser-check.txt).
 
 ### `docs/evidence/m1-report-browser-initial.txt`
 
 Сохранённое доказательство/исход: m1-report-browser-initial.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Isolated Chromium single-process attempt failed, exit 133. Not a successful interaction check; limits not increased. No coredump (LimitCORE=0).
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-report-browser-initial.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-report-browser-initial.txt).
 
 ### `docs/evidence/m1-report-publication.txt`
 
 Сохранённое доказательство/исход: m1-report-publication.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Published through Derive stage(target=doc), workspace ws_51b016a6e5aad4721e72e8a3.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-report-publication.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-report-publication.txt).
 
 ### `docs/evidence/m1-report-rc-browser.txt`
 
 Сохранённое доказательство/исход: m1-report-rc-browser.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: One new local Chromium attempt with reduced CPU affinity/raster/V8 parallelism; same 2 CPU / 1 GiB / 64 tasks / 30 s renderer deadline. Failed at bounded deadline. Not interaction coverage; no limits increased.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-report-rc-browser.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-report-rc-browser.txt).
 
 ### `docs/evidence/m1-retired-entrypoints.txt`
 
 Сохранённое доказательство/исход: m1-retired-entrypoints.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: One-off check in disposable copy under the same bounded verify. Python is only used to verify retirement of the historical script; it is not a Node CLI backend or a dependency of the permanent suite.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-retired-entrypoints.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-retired-entrypoints.txt).
 
 ### `docs/evidence/m1-review-calibration.json`
 
 Сохранённое доказательство/исход: m1-review-calibration.json. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: {
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-calibration.json).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-calibration.json).
 
 ### `docs/evidence/m1-review-current-checks.txt`
 
 Сохранённое доказательство/исход: m1-review-current-checks.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-current-checks.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-current-checks.txt).
 
 ### `docs/evidence/m1-review-final-checks.txt`
 
 Сохранённое доказательство/исход: m1-review-final-checks.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Final LOCAL CI entrypoint + fast after native /lib64 mapping fix in both sandbox entrypoints. Ubuntu still not run.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-final-checks.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-final-checks.txt).
 
 ### `docs/evidence/m1-review-input-sha256.txt`
 
 Сохранённое доказательство/исход: m1-review-input-sha256.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Input fingerprints of isolated static reviews. Temporary raw inputs are removed; these hashes identify the supplied snapshots, not a substitute for execution evidence.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-input-sha256.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-input-sha256.txt).
 
 ### `docs/evidence/m1-review-regressions-green.txt`
 
 Сохранённое доказательство/исход: m1-review-regressions-green.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-regressions-green.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-regressions-green.txt).
 
 ### `docs/evidence/m1-review-regressions-red-runtime.txt`
 
 Сохранённое доказательство/исход: m1-review-regressions-red-runtime.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-regressions-red-runtime.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-regressions-red-runtime.txt).
 
 ### `docs/evidence/m1-review-regressions-red.txt`
 
 Сохранённое доказательство/исход: m1-review-regressions-red.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-review-regressions-red.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-review-regressions-red.txt).
 
 ### `docs/evidence/m1-stage-1.txt`
 
 Сохранённое доказательство/исход: m1-stage-1.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-1.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-1.txt).
 
 ### `docs/evidence/m1-stage-2.txt`
 
 Сохранённое доказательство/исход: m1-stage-2.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-2.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-2.txt).
 
 ### `docs/evidence/m1-stage-3.txt`
 
 Сохранённое доказательство/исход: m1-stage-3.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-3.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-3.txt).
 
 ### `docs/evidence/m1-stage-4.txt`
 
 Сохранённое доказательство/исход: m1-stage-4.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-4.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-4.txt).
 
 ### `docs/evidence/m1-stage-5.txt`
 
 Сохранённое доказательство/исход: m1-stage-5.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: $ timeout --kill-after=5s 55s bash scripts/build.sh
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-5.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-5.txt).
 
 ### `docs/evidence/m1-stage-6.txt`
 
 Сохранённое доказательство/исход: m1-stage-6.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: Stage 6 review found a real readonly side-effect defect. Added regression first:
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/evidence/m1-stage-6.txt).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/evidence/m1-stage-6.txt).
+
+### `docs/evidence/mcp-plan-publication.txt`
+
+Сохранённое доказательство/исход: mcp-plan-publication.txt. Это запись конкретного запуска или review, не исполняемый код и не текущий статус системы. Начало: 2026-10-03 — plan only, implementation not started.
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/reports/build-report.mjs`
 
@@ -556,121 +574,103 @@ Append-only журнал этапов разработки, найденных �
 
 Символы: `visit`, `treePaths`, `walk`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/reports/build-report.mjs).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/reports/file-guide.mjs`
 
 Пояснения к файлам движка и шаблонам home. Данные для генератора отчёта, не конфигурация приложения.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/reports/file-guide.mjs).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/reports/m1-report.html`
 
 Самодостаточный интерактивный отчёт: схемы, дерево, поиск файлов, исходники, правила данных и результаты. Не выполняет команды mypi.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/reports/m1-report.html).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `docs/reports/page.css`
 
 Общий стиль Derive: светлая/тёмная тема, типографика, таблицы, статусы и доступные цвета. Не код движка.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/reports/page.css).
-
-### `docs/subagent-brick-architecture-proposal.md`
-
-Исторический набросок будущих юнитов и flow. M1 не исполняет эту схему.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/docs/subagent-brick-architecture-proposal.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/reports/page.css).
 
 ### `mise.toml`
 
 Закреплённые версии Node.js и pnpm для воспроизводимой среды разработки.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/mise.toml).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/mise.toml).
 
 ### `package.json`
 
 Версия, ESM, bin, scripts build/test/verify и точные прямые зависимости. private запрещает случайный npm publish, но не git clone.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/package.json).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/package.json).
 
 ### `pnpm-lock.yaml`
 
 Точные разрешённые версии и integrity зависимостей. Frozen install не пересчитывает дерево.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/pnpm-lock.yaml).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/pnpm-lock.yaml).
 
 ### `pnpm-workspace.yaml`
 
 Настройки единственного пакета, в том числе допуск native build better-sqlite3. Это не многопакетный продукт.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/pnpm-workspace.yaml).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/pnpm-workspace.yaml).
 
 ### `references/pi-extensions-reference.md`
 
 Историческая вторичная справка по Pi extensions; не гарантия API текущей версии.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/references/pi-extensions-reference.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/references/pi-extensions-reference.md).
 
 ### `references/pi-subagents-reference.md`
 
 Историческая справка об отдельном pi-subagents; эта библиотека не входит в M1.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/references/pi-subagents-reference.md).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/references/pi-subagents-reference.md).
 
 ### `scripts/admission.mjs`
 
 Статически проверяет границы импортов, discovery, skip/only, запрещённые fast-эффекты и свежесть build. Читает TypeScript AST и запускает dependency-cruiser; не заменяет sandbox.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/admission.mjs).
-
-### `scripts/bootstrap.sh`
-
-Отключённый legacy launcher: stderr и exit 2 до исторического тела. Старые git/network-команды ниже не выполняются.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/bootstrap.sh).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/admission.mjs).
 
 ### `scripts/build-state.mjs`
 
 SHA256 по входам src/test/config и выходам dist. write сохраняет fingerprint, check отвергает устаревшую/изменённую сборку.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/build-state.mjs).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/build-state.mjs).
 
 ### `scripts/build.sh`
 
 Проверяет Node 24; отказывает на symlink dist; find очищает содержимое dist без удаления mountpoint; tsc компилирует; SQL копируется; fingerprint записывается.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/build.sh).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/build.sh).
 
 ### `scripts/check.sh`
 
 Допускает только fast/verify, проверяет Node и инструменты, запускает фиксированный systemd unit с CPU/RAM/tasks/deadline и очисткой всей control group.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/check.sh).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/check.sh).
 
 ### `scripts/ci.sh`
 
 Сравнивает policy/dependencies с отдельным base, берёт только candidate src/test, создаёт временный snapshot. bwrap делает всё readonly кроме dist; затем вызывается штатный verify. Не запускает candidate package scripts.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/ci.sh).
-
-### `scripts/mypi.py`
-
-Исходник старого Python CLI. main немедленно завершает работу с сообщением retired; не backend Node.js и не второй путь записи.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/mypi.py).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/ci.sh).
 
 ### `scripts/test-profile.sh`
 
 Внутри sandbox выполняет admission, затем node:test fast и при verify boundary. Проверяет время, cgroup peaks и отсутствие оставшихся процессов.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/test-profile.sh).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/test-profile.sh).
 
 ### `scripts/test-sandbox.sh`
 
 Готовит временный workspace, копирует Node, проверяет принадлежность bounded unit; bwrap скрывает сеть/home/credentials, монтирует /work readonly и передаёт cgroup-метрики.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/scripts/test-sandbox.sh).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/scripts/test-sandbox.sh).
 
 ### `src/app/backup.ts`
 
@@ -678,7 +678,7 @@ SHA256 по входам src/test/config и выходам dist. write сохр�
 
 Символы: `hash`, `verifyReferences`, `backupState`, `restoreState`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/backup.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/backup.ts).
 
 ### `src/app/commands.ts`
 
@@ -686,7 +686,7 @@ DTO WorkspaceCommand: name, позиционные args и options. Без IO и
 
 Символы: `WorkspaceCommand`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/commands.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/commands.ts).
 
 ### `src/app/context-changes.ts`
 
@@ -694,7 +694,7 @@ DTO WorkspaceCommand: name, позиционные args и options. Без IO и
 
 Символы: `changeContext`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/context-changes.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/context-changes.ts).
 
 ### `src/app/create-app.ts`
 
@@ -702,7 +702,7 @@ DB-only composition root: открывает БД, соединяет SQL stores
 
 Символы: `engineRoot`, `resolveStatePath`, `initializeState`, `createApp`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/create-app.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/create-app.ts).
 
 ### `src/app/create-workspace.ts`
 
@@ -710,29 +710,21 @@ DB-only composition root: открывает БД, соединяет SQL stores
 
 Символы: `defaultContextRoot`, `initializeWorkspace`, `createWorkspace`, `serialize`, `project`, `requestKey`, `resolve`, `contains`, `contextPath`, `create`, `edit`, `journal`, `restoreContext`, `complete`, `error`, `warmup`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/create-workspace.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/app/execute-command.ts`
 
-Сопоставляет WorkspaceCommand с API: преобразует scope/параметры, выбирает readonly для чтения, вызывает bootstrap/backup/import или методы workspace и закрывает БД.
+Сопоставляет WorkspaceCommand с API: преобразует scope/параметры, выбирает readonly для чтения, вызывает bootstrap/backup/restore или методы workspace и закрывает БД.
 
 Символы: `readInputFile`, `executeCommand`, `text`, `scope`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/execute-command.ts).
-
-### `src/app/import-legacy.ts`
-
-Читает отдельный legacy archive и явные project codes. До записи проверяет коллизии; переносит оригинальные байты, регистрирует проекты, сохраняет receipt/hash и Git commit; повтор сверяет БД.
-
-Символы: `importLegacy`.
-
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/import-legacy.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/app/journal-storage.ts`
 
 Сборка чтения журнала для системных операций и извлечение опубликованных путей; Git не получает прямую зависимость на SQL чужого модуля.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/journal-storage.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/journal-storage.ts).
 
 ### `src/app/request-work.ts`
 
@@ -740,7 +732,7 @@ DB-only composition root: открывает БД, соединяет SQL stores
 
 Символы: `requestWork`, `find`, `record`, `list`, `create`, `change`, `progress`, `touch`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/request-work.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/app/request-work.ts).
 
 ### `src/app/warmup.ts`
 
@@ -748,7 +740,7 @@ Read-only сборка индекса: MEMORY родителей, glossary и п
 
 Символы: `warmup`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/app/warmup.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/cli/command.ts`
 
@@ -756,13 +748,13 @@ Read-only сборка индекса: MEMORY родителей, glossary и п
 
 Символы: `Command`, `parseCommand`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/cli/command.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/cli/main.ts`
 
 Единственный исполняемый Node entrypoint: argv → parser → run; JSON в stdout/stderr, exitCode=1 при error/partial. --help не открывает БД.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/cli/main.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/cli/main.ts).
 
 ### `src/cli/run.ts`
 
@@ -770,7 +762,7 @@ Read-only сборка индекса: MEMORY родителей, glossary и п
 
 Символы: `run`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/cli/run.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/cli/run.ts).
 
 ### `src/cli/workspace-command.ts`
 
@@ -778,7 +770,7 @@ Read-only сборка индекса: MEMORY родителей, glossary и п
 
 Символы: `parseWorkspaceCommand`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/cli/workspace-command.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/infrastructure/database/backup.ts`
 
@@ -786,7 +778,7 @@ SQLite backup API, восстановление с integrity/FK checks и общ
 
 Символы: `snapshotDatabase`, `withWriteLock`, `restoreDatabase`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/database/backup.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/database/backup.ts).
 
 ### `src/infrastructure/database/database.ts`
 
@@ -794,13 +786,13 @@ SQLite backup API, восстановление с integrity/FK checks и общ
 
 Символы: `connect`, `version`, `initializeDatabase`, `openDatabase`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/database/database.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/database/database.ts).
 
 ### `src/infrastructure/database/migrations/001-initial.sql`
 
 DDL четырёх STRICT-таблиц, FK/unique/check/index, триггеры сохранения номеров и terminality; однократный seed десяти статусов.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/database/migrations/001-initial.sql).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/database/migrations/001-initial.sql).
 
 ### `src/infrastructure/filesystem/context-files.ts`
 
@@ -808,7 +800,7 @@ DDL четырёх STRICT-таблиц, FK/unique/check/index, триггеры 
 
 Символы: `relativeContextPath`, `contextFiles`, `safe`, `write`, `isFile`, `read`, `list`, `create`, `append`, `replace`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/filesystem/context-files.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/filesystem/context-files.ts).
 
 ### `src/infrastructure/filesystem/paths.ts`
 
@@ -816,7 +808,7 @@ DDL четырёх STRICT-таблиц, FK/unique/check/index, триггеры 
 
 Символы: `canonicalDirectory`, `canonicalFuturePath`, `databasePath`, `externalDatabasePath`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/filesystem/paths.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/filesystem/paths.ts).
 
 ### `src/infrastructure/git/context-git.ts`
 
@@ -824,7 +816,7 @@ DDL четырёх STRICT-таблиц, FK/unique/check/index, триггеры 
 
 Символы: `contextGit`, `ensureAttributes`, `git`, `matchesBlob`, `ownMetadata`, `check`, `initialize`, `head`, `cleanAll`, `bundle`, `restoreFile`, `clean`, `validateJournal`, `validate`, `commit`, `cloneContextBundle`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/infrastructure/git/context-git.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/infrastructure/git/context-git.ts).
 
 ### `src/modules/inbox/public.ts`
 
@@ -832,7 +824,7 @@ Capture записывает точную исходную строку в ун�
 
 Символы: `Files`, `createInbox`, `capture`, `index`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/inbox/public.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/inbox/public.ts).
 
 ### `src/modules/knowledge/adapters/jsonl-journal.ts`
 
@@ -840,7 +832,7 @@ Capture записывает точную исходную строку в ун�
 
 Символы: `jsonlJournal`, `append`, `entries`, `fileSize`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/knowledge/adapters/jsonl-journal.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/knowledge/adapters/jsonl-journal.ts).
 
 ### `src/modules/knowledge/model.ts`
 
@@ -848,7 +840,7 @@ Entry/EventType и чистая проверка строгого envelope, UTC,
 
 Символы: `EventType`, `Entry`, `utc`, `artifactPath`, `entryValue`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/knowledge/model.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/knowledge/model.ts).
 
 ### `src/modules/knowledge/notes.ts`
 
@@ -856,7 +848,7 @@ Notes создаёт уникальную Markdown-заметку с загол�
 
 Символы: `Files`, `createNotes`, `note`, `error`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/knowledge/notes.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/knowledge/notes.ts).
 
 ### `src/modules/knowledge/ports.ts`
 
@@ -864,7 +856,7 @@ JournalStore — контракт append и потокового чтения и
 
 Символы: `JournalStore`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/knowledge/ports.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/knowledge/ports.ts).
 
 ### `src/modules/knowledge/public.ts`
 
@@ -872,15 +864,15 @@ API журнала: валидация/resolve scope, record/append, scope/date/
 
 Символы: `publishedArtifacts`, `createJournal`, `record`, `append`, `read`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/knowledge/public.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/knowledge/public.ts).
 
 ### `src/modules/memory/public.ts`
 
-Читает MEMORY, добавляет JSON-строки многострочных фактов, удаляет выбранный факт по номеру; понимает старые Markdown-факты, сохраняет остальной текст.
+Читает MEMORY, добавляет JSON-строки многострочных фактов, удаляет выбранный факт по номеру; остальной Markdown сохраняет как контекст, не распознаёт как факты.
 
 Символы: `Files`, `items`, `createMemory`, `path`, `show`, `add`, `remove`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/memory/public.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `src/modules/projects/adapters/sqlite-project-store.ts`
 
@@ -888,7 +880,7 @@ SQL организаций и проектов: поиск, список, insert
 
 Символы: `sqliteProjectStore`, `list`, `find`, `findOrganization`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/projects/adapters/sqlite-project-store.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/projects/adapters/sqlite-project-store.ts).
 
 ### `src/modules/projects/model.ts`
 
@@ -896,7 +888,7 @@ SQL организаций и проектов: поиск, список, insert
 
 Символы: `Project`, `ProjectScope`, `parseIdentity`, `validSlug`, `validateCode`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/projects/model.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/projects/model.ts).
 
 ### `src/modules/projects/ports.ts`
 
@@ -904,7 +896,7 @@ SQL организаций и проектов: поиск, список, insert
 
 Символы: `ProjectStore`, `CheckoutPaths`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/projects/ports.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/projects/ports.ts).
 
 ### `src/modules/projects/public.ts`
 
@@ -912,7 +904,7 @@ SQL организаций и проектов: поиск, список, insert
 
 Символы: `createProjects`, `add`, `list`, `resolveScope`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/projects/public.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/projects/public.ts).
 
 ### `src/modules/requests/adapters/sqlite-request-store.ts`
 
@@ -920,7 +912,7 @@ SQL requests/statuses и MAX(number)+1 под BEGIN IMMEDIATE; readonly отка
 
 Символы: `card`, `sqliteRequestStore`, `addStatus`, `renameStatus`, `terminalStatus`, `removeStatus`, `nextNumber`, `insert`, `update`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/requests/adapters/sqlite-request-store.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/requests/adapters/sqlite-request-store.ts).
 
 ### `src/modules/requests/ports.ts`
 
@@ -928,7 +920,7 @@ SQL requests/statuses и MAX(number)+1 под BEGIN IMMEDIATE; readonly отка
 
 Символы: `Status`, `Card`, `RequestStore`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/requests/ports.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/requests/ports.ts).
 
 ### `src/modules/requests/public.ts`
 
@@ -936,7 +928,7 @@ SQL requests/statuses и MAX(number)+1 под BEGIN IMMEDIATE; readonly отка
 
 Символы: `nonempty`, `createRequests`, `status`, `addStatus`, `renameStatus`, `setTerminal`, `removeStatus`, `create`, `change`, `touch`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/modules/requests/public.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/modules/requests/public.ts).
 
 ### `src/shared/context.ts`
 
@@ -944,7 +936,7 @@ SQL requests/statuses и MAX(number)+1 под BEGIN IMMEDIATE; readonly отка
 
 Символы: `ContextFiles`, `ContextHistory`, `PartialError`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/shared/context.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/shared/context.ts).
 
 ### `src/shared/errors.ts`
 
@@ -952,7 +944,7 @@ InputError для отклонённого ввода; не управляет s
 
 Символы: `InputError`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/shared/errors.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/shared/errors.ts).
 
 ### `src/shared/scope.ts`
 
@@ -960,49 +952,49 @@ InputError для отклонённого ввода; не управляет s
 
 Символы: `Scope`, `scopeValue`, `sameScope`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/src/shared/scope.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/src/shared/scope.ts).
 
 ### `test/boundary/cli.test.ts`
 
 Реальная интеграционная граница на временных данных. real Node launcher persists projects across independent processes without Python or context writes
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/cli.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/cli.test.ts).
 
 ### `test/boundary/contention.test.ts`
 
 Реальная интеграционная граница на временных данных. writer reservation blocks a second source callback before number allocation completes
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/contention.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/contention.test.ts).
 
 ### `test/boundary/context.test.ts`
 
 Реальная интеграционная граница на временных данных. context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/context.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/context.test.ts).
 
 ### `test/boundary/journal.test.ts`
 
 Реальная интеграционная граница на временных данных. journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/journal.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/journal.test.ts).
 
 ### `test/boundary/maintenance.test.ts`
 
-Реальная интеграционная граница на временных данных. backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption; legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite
+Реальная интеграционная граница на временных данных. backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/maintenance.test.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `test/boundary/memory.test.ts`
 
 Реальная интеграционная граница на временных данных. memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/memory.test.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `test/boundary/requests.test.ts`
 
 Реальная интеграционная граница на временных данных. requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay; two independent request writers retain distinct committed numbers and journal records; abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/requests.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/requests.test.ts).
 
 ### `test/boundary/workspace-cli.test.ts`
 
@@ -1010,31 +1002,37 @@ InputError для отклонённого ввода; не управляет s
 
 Символы: `installation`, `run`, `cli`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/boundary/workspace-cli.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/boundary/workspace-cli.test.ts).
 
 ### `test/fast/database.test.ts`
 
 Дешёвые проверки правил без subprocess из теста. STRICT types, relational uniqueness and foreign keys are enforced by real SQLite; migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/fast/database.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/fast/database.test.ts).
 
 ### `test/fast/journal-rules.test.ts`
 
 Дешёвые проверки правил без subprocess из теста. journal validates envelope and applies overall ordering/limit even for unordered input
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/fast/journal-rules.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/fast/journal-rules.test.ts).
+
+### `test/fast/memory.test.ts`
+
+Дешёвые проверки правил без subprocess из теста. memory manages only JSON-string facts and preserves other Markdown as context
+
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `test/fast/paths-cli.test.ts`
 
 Дешёвые проверки правил без subprocess из теста. XDG/default state paths stay outside engine and context, including symlink aliases; CLI parsing is strict without invoking a process for the validation matrix
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/fast/paths-cli.test.ts).
+Текущий локальный/генерируемый файл; эта версия не опубликована в GitHub.
 
 ### `test/fast/projects.test.ts`
 
 Дешёвые проверки правил без subprocess из теста. registered scope, independent organizations and duplicate rollback through the public API; invalid identities/codes never register an organization or create context; read APIs leave database bytes and filesystem unchanged; absent database is not initialized
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/fast/projects.test.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/fast/projects.test.ts).
 
 ### `test/support/state.ts`
 
@@ -1042,13 +1040,13 @@ InputError для отклонённого ввода; не управляет s
 
 Символы: `state`.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/test/support/state.ts).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/test/support/state.ts).
 
 ### `tsconfig.json`
 
 Strict TypeScript, ESM, исходники src/test и вывод в dist. Не runtime loader.
 
-[Исходник](https://github.com/yokeloop/mypi/blob/v0.1.0-rc.1/tsconfig.json).
+[Исходник](https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/tsconfig.json).
 
 ## Home — шаблоны, не созданное личное хранилище
 
@@ -1115,26 +1113,6 @@ Append-only ошибки и тупики: дата и JSON-строка текс
 ### `home/requests/REQ-number-slug/<artifact-path>`
 
 Материалы запроса без проекта. Новая опубликованная версия — новый путь, история всё равно в общем journal. Записывает/читает: request progress.
-
-### `home/legacy/import.json`
-
-Receipt выполненного импорта: version и SHA256 исходного архива. Повтор также сверяет authoritative DB; receipt не заменяет БД. Записывает/читает: import legacy.
-
-### `home/legacy/projects.json`
-
-Архив старого паспорта, не действующий реестр проектов. Текущий реестр — SQLite. Записывает/читает: import legacy.
-
-### `home/legacy/<other-original-path>`
-
-Оригинальные legacy-файлы, не имеющие прямого целевого назначения, сохраняются здесь без потерь байтов. Записывает/читает: import legacy.
-
-### `home/inbox/legacy-inbox.md`
-
-Сохранённый исходный inbox.md старого прототипа. Не автоисполнение и не миграция задач в SQL. Записывает/читает: import legacy.
-
-### `home/projects/<org>/<project>/legacy-journal/<name>.md`
-
-Старые Markdown-журналы: сохранены отдельно от нового JSONL, warmup возвращает пути к оригиналам. Записывает/читает: import legacy / warmup.
 
 ## Вне home
 

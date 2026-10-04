@@ -1,6 +1,6 @@
 # mypi
 
-**Релиз-кандидат:** [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) — для проверки инженером, не production-ready. [Установка/ограничения](docs/RELEASE.md) · [полная карта файлов](docs/FILEMAP.md) · [интерактивный отчёт](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf). Обычный hosted CI проходит; независимый App issuer и окончательная приёмка M1 ещё открыты.
+**Релиз-кандидат:** [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) — для проверки инженером, не production-ready. [Установка/ограничения](docs/RELEASE.md) · [полная карта файлов](docs/FILEMAP.md) · [интерактивный отчёт опубликованного RC](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf) (исторический снимок, до очистки). Обычный hosted CI проходит; независимый App issuer и окончательная приёмка M1 ещё открыты.
 
 Личная система управления памятью и проектами для Pi-агента.
 
@@ -16,7 +16,7 @@ Markdown — контекст и знания агентов. Первая по�
 все нужные файлы журнала, без индексации. Flow и сабагенты добавляются позже под реальные задачи.
 
 **Фактический код:** реализованы Node.js CLI/API памяти, проектов, запросов,
-контекста/Git, журнала, импорта и backup/restore. Поэтапные проверки —
+контекста/Git, журнала и backup/restore. Поэтапные проверки —
 [`docs/M1-CYCLE.md`](./docs/M1-CYCLE.md). Окончательная приёмка M1 пока не закрыта:
 независимое статическое review проведено, исправления подтверждены; доверенный CI-gate заблокирован ([причина](./docs/M1-CI.md)).
 **M0 закрыт:** архитектурный контракт принят; запись приёмки —
@@ -81,77 +81,52 @@ mise exec -- node dist/src/cli/main.js project list
 Ответы/ошибки — JSON; ошибки дают ненулевой exit. `db init` создаёт только БД,
 не home и не git; обычное чтение отсутствующую БД не инициализирует.
 Полный синтаксис и безопасное продолжение partial — [`docs/M1-CLI.md`](./docs/M1-CLI.md).
-Bootstrap и личную миграцию не запускай автоматически ради демонстрации;
+Bootstrap не запускай автоматически ради демонстрации;
 сквозные проверки сами создают временные установки.
 
-## Исторический layout legacy-прототипа
+## Размещение M1
 
-```
+```text
 mypi/
-├── home/                       # вложенный git-репозиторий (не в git mypi)
-│   ├── MEMORY.md               # глобальная память агента
-│   ├── inbox.md                # явный capture: drafts
-│   ├── projects.json           # паспорт: org, name, path клона
-│   ├── notes/                  # заметки вне проектов
-│   └── <org>/
-│       ├── MEMORY.md           # память уровня организации (lazy)
-│       └── <project>/
-│           ├── MEMORY.md       # память проекта (lazy)
-│           ├── journal/YYYY-MM.md   # журнал проекта, newest-first
-│           ├── errors.md        # журнал ошибок и тупиков: багрепорты и улучшения
-│           ├── notes/           # заметки проекта
-│           ├── context.md      # глоссарий домена
-│           ├── adr/            # архитектурные решения
-│           └── ai/<slug>/      # иммутабельные артефакты: plans, reports
-├── projects/                   # рабочие клоны (не в git)
-└── scripts/
-    ├── bootstrap.sh            # поднять home/ из MYPY_HOME_REMOTE или создать
-    └── mypi.py                 # CLI
+├── src/                  # cli, app, modules, infrastructure, shared
+├── test/                 # fast и boundary
+├── scripts/              # только build/checks
+├── home/                 # самостоятельный ignored Git контекста
+│   ├── MEMORY.md
+│   ├── inbox/*.md
+│   ├── notes/*.md
+│   ├── journal/YYYY-MM.jsonl
+│   ├── requests/REQ-number-slug/
+│   └── projects/<org>/<project>/
+│       ├── MEMORY.md, context.md, errors.md
+│       ├── notes/
+│       └── requests/CODE-number-slug/
+└── projects/             # ignored рабочие клоны
+
+$XDG_STATE_HOME/mypi/state.sqlite3  # вне обоих Git
 ```
 
-## Legacy-прототип
+У задачи source.md и материалы находятся в context_dir. Текущий статус —
+в SQLite, история — в общем JSONL. Для организации MEMORY лежит в
+`home/projects/<org>/MEMORY.md`. `home/projects/` и рабочие клоны — разные каталоги.
 
-`scripts/mypi.py` и `scripts/bootstrap.sh` оставлены как исторический исходник,
-но их CLI отключён. Они не редактируют прежний паспорт и не делают автоматический
-pull. Старое хранилище переносится явной Node-командой `import legacy` из отдельного архива;
-байты исходников сохраняются, активный реестр после импорта — только SQLite.
+`warmup -s org/project` наследует MEMORY родителей и читает индекс истории выбранного
+проекта, не общий inbox и не чужие проекты. `journal read` поддерживает
+global/org/project/request; весь журнал — только через явный `--all`.
 
-## Scope-модель
-
-Ниже — исторические пути отключённого legacy-прототипа, не новый layout M1.
-`-s <org>` или `-s <org>/<project>` применяется к memory и note:
-
-- без флага — глобальный уровень (`home/MEMORY.md`, `home/notes/`)
-- `-s org` — уровень организации (`home/<org>/MEMORY.md`)
-- `-s org/project` — уровень проекта (`home/<org>/<project>/…`)
-
-Legacy scope проверяется по паспорту, но валидация неполна: например,
-`journal`/`error` принимают org вместо project. Новый core должен проверять
-scope и безопасные пути во всех entrypoints.
-
-Целевой M1-контекст — `home/projects/<org>/<project>/`, орг-память —
-`home/projects/<org>/MEMORY.md`, общая память — `home/MEMORY.md`.
-`home/projects/` не является каталогом рабочих клонов `<mypi>/projects/`.
-Scope журнала принят в M1-REQUESTS §3.7/§10: global/org/project/request;
-это не автоматическое изменение синтаксиса legacy CLI.
-
-Целевой warmup наследует MEMORY родителей, но не общий inbox и соседние
-проекты в org/project scope. Он показывает исходы и пути к полным записям;
-чтение ничего не меняет.
+В рабочем дереве осталась только реализация M1: старый прототип, импорт его данных
+и совместимость форматов удалены по запросу инженера. Исторический RC и evidence
+описывают свои версии; текущую очистку фиксирует [M1-CYCLE](docs/M1-CYCLE.md#удаление-прототипа-и-совместимости).
+SQL-миграции схемы M1 и backup/restore сохранены.
 
 ## Документы
 
 - [`docs/M0-CONTRACT.md`](./docs/M0-CONTRACT.md) — исходные ответы инженера, принятые решения и оставшиеся уточнения.
-- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — актуальная архитектура Node.js/DB/context, scope первой поставки и аудит legacy.
+- [`docs/ARCHITECTURE.md`](./docs/ARCHITECTURE.md) — актуальная архитектура M1, данные, сценарии и границы.
 - [`docs/M1-DESIGN.md`](./docs/M1-DESIGN.md) — принятые стек, модульный монолит, Ports & Adapters и организация кода.
 - [`docs/M1-START.md`](./docs/M1-START.md) — принятый пакет подготовки: минимальная схема БД, путь, partial-контракт и ссылка на стартовые лимиты тестирования; не разрешение реализации.
 - [`docs/M1-REQUESTS.md`](./docs/M1-REQUESTS.md) — принятые DB-карточка, папка артефактов и общий JSONL-журнал без индексации; принятые scope, справочник request_statuses(id, code, is_terminal) с начальным набором статусов и устойчивой ссылкой requests.status_id (§18/§19), явный выбор статуса при создании без is_initial/default (§20), INTEGER PRIMARY KEY для id всех четырёх таблиц (§21) и обязательный event_type (note/request_created/status_changed, §13); полная JSONL-оболочка принята (§14); именование проектных задач `MP-23-task-name-example` и нумерация приняты (§2.4/§15); запросы без проекта разрешены (§16), приняты REQ-number, отдельная общая нумерация и home/requests/ (§17).
-- [`docs/M1-STORAGE.md`](./docs/M1-STORAGE.md) — отозванное предложение DB-capture и универсального recovery; сохранено как история.
 - [`docs/TESTING.md`](./docs/TESTING.md) — принятая политика тестирования и стартовые численные бюджеты (§6/§11); локальный запуск ограничен; проверки и оставшиеся ограничения защиты описаны в M1-IMPLEMENTATION.
-- [`CONCEPT.md`](./CONCEPT.md) — история синтеза yokemate-pi/NorthStar с уточнением решений M0.
-- [`adr/ADR-0001-three-layers-files-db-tracker.md`](./adr/ADR-0001-three-layers-files-db-tracker.md) — уточнение: БД=состояние, файлы=контекст; прежнее предложение сохранено как историческое.
-- [`adr/ADR-0002-plugin-subagents-on-pi-primitives.md`](./adr/ADR-0002-plugin-subagents-on-pi-primitives.md) — плагины-сабагенты поверх примитивов Pi (proposed).
-- [`adr/ADR-0003-orchestrator-cascade.md`](./adr/ADR-0003-orchestrator-cascade.md) — каскад оркестраторов root/org/project (proposed).
 - [`references/pi-subagents-reference.md`](./references/pi-subagents-reference.md) — справочник: все frontmatter-поля, гварды, модели, best practices pi-subagents.
 - [`references/pi-extensions-reference.md`](./references/pi-extensions-reference.md) — справочник: extensions Pi (события, ExtensionAPI, кастомные туры, режимы, маппинг на mypi).
 - [`PLAN.md`](./PLAN.md) — фазы развития, фаза 1 и что дальше.

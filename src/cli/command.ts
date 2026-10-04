@@ -25,7 +25,6 @@ mypi request status <key> <code> --reason text | title <key> <title> --reason te
 mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
-mypi import legacy <archive> --codes JSON-file
 mypi backup <directory> | restore <backup-directory>
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;

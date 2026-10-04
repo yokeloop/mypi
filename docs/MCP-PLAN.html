@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>План: MCP для памяти, проектов и задач mypi</title>
+<style>
+/* derive-page-css v1 2026-10-02 · источник: страница «Контракт страниц Derive» */
+:root{color-scheme:light dark;--paper:#f7f7f5;--panel:#fff;--ink:#1d1f21;--soft:#5a5f66;--line:#dcdde0;--primary:#2b5cab;--accent:#a86a12;--ok:#2d7a46;--fail:#b3362b;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;--mono:ui-monospace,"JetBrains Mono","SF Mono",Menlo,Consolas,monospace}
+@media (prefers-color-scheme:dark){:root{--paper:#16181b;--panel:#1f2226;--ink:#e6e7e9;--soft:#a3a8b0;--line:#33373d;--primary:#7fa6e6;--accent:#d9a24a;--ok:#6cc08a;--fail:#ec7a6f}}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.6 var(--sans);overflow-wrap:break-word}
+main{max-width:960px;margin:0 auto;padding:40px 24px 64px}
+@media (max-width:600px){main{padding:24px 16px 40px}}
+.kind{margin:0 0 4px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--soft)}
+h1{margin:0 0 16px;font-size:clamp(26px,5vw,32px);line-height:1.2;font-weight:600}
+h2{margin:40px 0 8px;padding-top:16px;border-top:1px solid var(--line);font-size:22px;line-height:1.25;font-weight:600}
+h3{margin:24px 0 8px;font-size:17px;font-weight:600}
+p,ul,ol,dl{margin:8px 0}
+ul,ol{padding-left:24px}
+li{margin:2px 0}
+a{color:var(--primary)}
+strong{font-weight:600}
+code{font:13px var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:0 4px}
+pre{margin:16px 0;padding:16px;font:13px/1.5 var(--mono);background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;white-space:pre}
+pre code{border:0;padding:0;background:none}
+.meta{display:flex;flex-wrap:wrap;gap:4px 24px;margin:0 0 24px;padding:0 0 16px;border-bottom:1px solid var(--line);font-size:14px}
+.meta div{display:flex;gap:6px}
+.meta dt{color:var(--soft)}
+.meta dd{margin:0}
+.answer{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--primary);border-radius:6px}
+.answer>:first-child{margin-top:0}.answer>:last-child{margin-bottom:0}
+.table{margin:16px 0;overflow-x:auto;border:1px solid var(--line);border-radius:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{min-width:7em;padding:8px 12px;text-align:left;vertical-align:top;border-bottom:1px solid var(--line);overflow-wrap:normal}
+th{background:var(--panel);font-weight:600}
+tr:last-child td{border-bottom:0}
+.mark{display:inline-block;padding:0 8px;border-radius:999px;font-size:12px;line-height:1.7;white-space:nowrap}
+.ok{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
+.unchecked{color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.fail,.risk{color:var(--fail);background:color-mix(in srgb,var(--fail) 13%,transparent)}
+.low{color:var(--soft);background:color-mix(in srgb,var(--soft) 14%,transparent)}
+.hint{margin:16px 0;padding:8px 16px;border:1px dashed var(--accent);border-radius:6px;font-size:14px;color:var(--soft)}
+.mermaid{margin:16px 0;padding:16px;background:var(--panel);border:1px solid var(--line);border-radius:6px;overflow-x:auto;text-align:center}
+img,svg,video{max-width:100%;height:auto}
+footer{margin-top:64px;padding-top:16px;border-top:1px solid var(--line);font-size:13px;color:var(--soft)}
+</style>
+<style>
+nav{display:flex;flex-wrap:wrap;gap:8px 16px;margin:20px 0}.small{font-size:13px;color:var(--soft)}.diagram{margin:20px 0;padding:12px;border:1px solid var(--line);border-radius:6px;background:var(--panel)}.diagram svg{display:block;width:100%}.diagram rect{fill:var(--paper);stroke:var(--line)}.diagram text{fill:var(--ink);font:15px var(--sans)}.diagram path{fill:none;stroke:var(--primary);stroke-width:2}details{border:1px solid var(--line);border-radius:6px;padding:12px 16px;margin:12px 0}summary{cursor:pointer;font-weight:600}.tools td:first-child{min-width:11em}.tools td:nth-child(2){min-width:13em}.tools code{overflow-wrap:anywhere}.request{white-space:pre-wrap}a:focus-visible,summary:focus-visible{outline:3px solid var(--primary);outline-offset:2px}
+</style></head><body><main>
+<header><p class="kind">План · решения инженера получены · MCP не реализован</p><h1>План: MCP для памяти, проектов и задач mypi</h1><dl class="meta"><div><dt>Организация</dt><dd>yokeloop</dd></div><div><dt>Тикет</dt><dd>нет</dd></div><div><dt>Автор</dt><dd>pi (omarchy)</dd></div><div><dt>Дата</dt><dd>2026-10-04 06:10 UTC</dd></div></dl></header>
+<div class="answer"><p><strong>Предложение:</strong> добавить локальный MCP-сервер с <strong>31 предметным инструментом</strong>: 30 операций существующего CLI и один помощник определения проекта по папке. MCP — Model Context Protocol, протокол вызова инструментов агентом.</p><p>Код — в том же репозитории и pnpm-пакете, рядом с CLI. Оба входа используют общие сценарии, БД и Git контекста. Pi сам запускает процесс по настройке MCP; отдельный постоянно работающий сервис не нужен.</p><p><strong>Решения инженера:</strong> в комментариях Derive v2 подтверждены общий API и каталог, пользовательское подключение во всех сессиях и штатный MCP + инструкция без управления сессиями. Последующим запросом удалён legacy: в каталоге теперь 31 инструмент, без import_legacy. Сейчас подготовлен только план — без установки зависимостей, изменения Pi или личного хранилища.</p></div>
+<nav aria-label="Разделы"><a href="#goal">Цель</a><a href="#now">Что сейчас</a><a href="#tools">Все инструменты</a><a href="#architecture">Реализация</a><a href="#tree">Структура кода</a><a href="#launch">Запуск</a><a href="#sessions">Сессии</a><a href="#checks">Проверки</a><a href="#approval">Согласование</a></nav>
+<h2 id="goal">Цель</h2>
+<p>Ты работаешь в обычной сессии агента и просишь: «подними контекст проекта», «запиши результат», «создай задачу», «покажи историю». Агент вызывает конкретный MCP-инструмент со структурированными аргументами, а не собирает shell-команду и не угадывает флаги.</p>
+<p>Сохраняются все принятые правила: SQLite — источник состояния; <code>home/</code> — отдельный Git; журнал общий и append-only; source неизменяемый; request необязателен; запись не запускает исполнение задачи.</p>
+<p><strong>Не входит:</strong> HTTP, OAuth, удалённый доступ, отдельный daemon, новый tracker, таблица сессий, перенос истории Pi в mypi, flow, сабагенты, автозапуск LLM, синхронизация по сети. Для чтения контекста достаточно инструментов — отдельные MCP resources/prompts в первой версии не нужны.</p>
+<h2 id="now">Что сейчас</h2>
+<ul>
+<li><span class="mark ok">проверено по исходникам</span> В <code>src/cli/command.ts</code>, <code>workspace-command.ts</code>, <code>run.ts</code> и <code>src/app/execute-command.ts</code> есть перечисленные ниже 30 операций. CLI возвращает JSON, но его общий диспетчер ещё принимает CLI-подобные <code>args/options</code>.</li>
+<li><span class="mark ok">проверено по исходникам</span> <code>createApp</code>, <code>createWorkspace</code>, <code>backupState</code>, <code>restoreState</code> уже содержат необходимое поведение. MCP-адаптера пока нет. Основа плана — commit <code>580942ddce9dc907e683e27a45e114c3d2313f96</code> с последующим удалением прототипа и его импорта по прямому запросу инженера.</li>
+<li><span class="mark ok">проверено по локальным документам</span> Pi 1.0.0 поддерживает stdio MCP, пользовательский <code>~/.pi/agent/mcp.json</code>, <code>/mcp</code>, <code>/reload</code>, поиск инструментов и codemode. Прочитаны <code>docs/mcp.md</code>, <code>cli.md</code>, <code>configuration.md</code>, <code>security.md</code>, <code>sessions.md</code> и связанные справочники установленного Pi.</li>
+<li><span class="mark ok">проверено</span> Прочитаны только имена настроенных MCP-серверов и список пакетов: mypi ещё не подключён; в настройках есть другие серверы. Их записи и секреты менять нельзя. Старый пакет <code>pi-mcp-adapter</code> по прежнему пути отсутствует; план использует встроенную поддержку Pi, не ставит второй адаптер.</li>
+<li><span class="mark ok">проверено метаданными</span> npm registry сообщает <code>@modelcontextprotocol/sdk@1.32.0</code>, Node <code>&gt;=18</code>, peer <code>zod ^3.25 || ^4.0</code>; текущий <code>zod@4.6.5</code>. Это кандидаты для точной фиксации. <code>mise which node</code> показывает Node 24.21.0.</li>
+<li><span class="mark unchecked">не проверено</span> Совместная сборка этих зависимостей с mypi, обмен MCP, работа нескольких клиентов и подключение нового сервера к Pi: сервер ещё не реализован. Green CI релиза M1 не является проверкой MCP.</li>
+</ul>
+<h2 id="steps">Шаги</h2>
+<div class="table"><table><thead><tr><th>№</th><th>Действие и результат</th><th>Где</th><th>Класс</th></tr></thead><tbody>
+<tr><td>1</td><td>Зафиксировать после согласования каталог и схемы аргументов/ответов. Проверить SDK 1.32.0 + Zod 4.6.5 на Node 24 / TS 5.9, зависимости закрепить точно. Не вводить собственный JSON-RPC.</td><td>Документация, package.json, pnpm-lock.yaml</td><td><span class="mark risk">риск</span> новые зависимости</td></tr>
+<tr><td>2</td><td>Отделить типизированную команду приложения от argv/options; перевести CLI на тот же вход без изменения его внешнего поведения. Вынести общее разрешение scope и чтение UTF-8-ввода.</td><td>src/app, src/cli</td><td><span class="mark risk">риск</span> существующий вход</td></tr>
+<tr><td>3</td><td>Добавить stdio-сервер, 31 инструмент, схемы и ответы ошибок/partial. Подключение и tools/list ничего не инициализируют.</td><td>src/mcp, package.json</td><td><span class="mark low">низкий риск</span> до подключения данных</td></tr>
+<tr><td>4</td><td>Проверить общий API, настоящий протокол, два клиента и совместную работу с CLI на временных установках. Обновить правила зависимостей; изменения защищённых зависимостей/policy отдельно продвинуть по принятому порядку CI.</td><td>test, .dependency-cruiser.cjs, CI</td><td><span class="mark risk">риск</span> проверяющие правила</td></tr>
+<tr><td>5</td><td>Подготовить пример mcp.json и короткую инструкцию агенту. Проверить подключение в отдельном временном профиле Pi без личных данных; без LLM-вызовов в обязательном suite.</td><td>integrations/pi, docs/MCP.md</td><td><span class="mark low">низкий риск</span></td></tr>
+<tr><td>6</td><td>После разрешения личного подключения добавить только запись mypi в активный пользовательский конфиг и инструкцию в применяемый файл контекста. Проверить новую и возобновлённую сессию. Личный bootstrap не запускать без отдельного запроса.</td><td>Пользовательская конфигурация Pi</td><td><span class="mark risk">риск</span> доступ к личным данным</td></tr>
+</tbody></table></div>
+<p>Это порядок реализации одного согласуемого изменения, не новые тикеты и не разрешение начать работу до ответа инженера.</p>
+<h3 id="tools">Какие инструменты будут — полный каталог</h3>
+<p>Названия ниже — имена сервера. В Pi они получат префикс <code>mcp__mypi__</code>, например <code>mcp__mypi__request_create</code>. Каждая операция — самостоятельный инструмент; <code>run_command</code>, произвольных SQL и shell нет.</p>
+<p><strong>Обозначения:</strong> <code>?</code> — необязательный аргумент; <code>ContextScope</code> — global/org/project; <code>Scope</code> добавляет request. Scope передаётся объектом <code>{type,key?}</code>, например <code>{"type":"project","key":"MP"}</code>. Для чтения всего журнала есть отдельное явное значение <code>"all"</code>. Это не новый DB-формат: приложение разрешает ссылки через существующий реестр.</p>
+<p>В scoped-инструментах scope обязателен, в том числе <code>{"type":"global"}</code>: забытый проект не должен тихо превращаться в глобальную запись. Capture явно относится к общему inbox. У <code>request_create</code> проект указан явно: <code>org/project</code> либо <code>null</code> для REQ. Не вводим сохранённый «текущий проект» сервера.</p>
+<p><code>TextInput</code> — ровно один из вариантов <code>{text:string}</code> или <code>{file:absolutePath}</code>. Это замена позиционного текста / CLI <code>--file</code>, без временных файлов для обычных сообщений. Внешние пути в MCP задаются абсолютными; пути внутри контекста — относительно home, артефакты progress — относительно папки задачи.</p>
+<h3>Проекты — 3 инструмента</h3>
+<div class="table tools"><table><thead><tr><th>Инструмент</th><th>Аргументы</th><th>Действие и результат</th></tr></thead><tbody>
+<tr><td><code data-tool="project_list">project_list</code></td><td><code>org?</code></td><td>Чтение. Возвращает зарегистрированные проекты, коды и checkout-пути. Без org — весь реестр, не только проект сессии.</td></tr>
+<tr><td><code data-tool="project_add">project_add</code></td><td><code>identity, code, checkoutPath?</code></td><td>DB-only. Регистрирует org/project и возвращает паспорт. Не клонирует код, не создаёт home, не переключает ветку.</td></tr>
+<tr><td><code data-tool="project_resolve">project_resolve</code></td><td><code>path</code></td><td>Новый помощник чтения. Сопоставляет папку с checkout в БД; возвращает identity/code/scope либо отсутствие совпадения/неоднозначность. Не регистрирует проект автоматически.</td></tr>
+</tbody></table></div>
+<h3>Память и знания — 9 инструментов</h3>
+<div class="table tools"><table><thead><tr><th>Инструмент</th><th>Аргументы</th><th>Действие и результат</th></tr></thead><tbody>
+<tr><td><code data-tool="warmup">warmup</code></td><td><code>scope: ContextScope</code></td><td>Чтение. Память родителей, контекст и индекс истории выбранного scope. В проектном/org scope нет общего inbox и соседних проектов вне scope. Это индекс, не полный текст всех артефактов.</td></tr>
+<tr><td><code data-tool="memory_show">memory_show</code></td><td><code>scope: ContextScope</code></td><td>Чтение фактов заданного уровня; не подменяет наследование warmup.</td></tr>
+<tr><td><code data-tool="memory_add">memory_add</code></td><td><code>scope, text</code></td><td>Добавляет точный факт в MEMORY выбранного уровня и делает commit контекста.</td></tr>
+<tr><td><code data-tool="memory_remove">memory_remove</code></td><td><code>scope, number</code></td><td>Удаляет факт по номеру из текущей выдачи, делает commit. Перед удалением перечитать memory_show; номер не является постоянным ID.</td></tr>
+<tr><td><code data-tool="capture">capture</code></td><td><code>source: TextInput</code></td><td>Сохраняет исходную формулировку в immutable inbox-файле и Git. Возвращает путь. Не создаёт задачу и не запускает работу.</td></tr>
+<tr><td><code data-tool="note_add">note_add</code></td><td><code>scope, title, body: TextInput</code></td><td>Создаёт отдельную заметку с новым путём и commit; совпадающая тема не перезаписывает прежнюю.</td></tr>
+<tr><td><code data-tool="error_add">error_add</code></td><td><code>project: identity, text</code></td><td>Дописывает реальный сбой или тупик в errors.md проекта и Git; возвращает путь.</td></tr>
+<tr><td><code data-tool="journal_read">journal_read</code></td><td><code>scope: Scope | "all", from?, to?, eventType?, limit?</code></td><td>Читает общий JSONL с существующей фильтрацией до общего sort/limit. Global — только глобальные записи. В обычной работе агент запрашивает ограниченную выборку через limit.</td></tr>
+<tr><td><code data-tool="journal_add">journal_add</code></td><td><code>scope: Scope, text</code></td><td>Дописывает фактическую note в общий журнал и делает Git commit. Не принимает произвольный event_type; ссылки на публикуемые артефакты задачи — через request_progress.</td></tr>
+</tbody></table></div>
+<h3>Задачи и справочник статусов — 12 инструментов</h3>
+<div class="table tools"><table><thead><tr><th>Инструмент</th><th>Аргументы</th><th>Действие и результат</th></tr></thead><tbody>
+<tr><td><code data-tool="request_list">request_list</code></td><td><code>project?, status?</code></td><td>Чтение карточек. Без project — все проекты и REQ; при работе по проекту агент передаёт фильтр явно.</td></tr>
+<tr><td><code data-tool="request_show">request_show</code></td><td><code>key</code></td><td>Чтение карточки по MP-1 / REQ-1: идентичность, статус, context_dir, даты. Полный source/артефакт читается отдельным context_read.</td></tr>
+<tr><td><code data-tool="request_create">request_create</code></td><td><code>project: identity | null, title, status, slug, source: TextInput, adoptSource?</code></td><td>Создаёт immutable source, DB-карточку с атомарным номером, запись журнала и commit. Явный начальный статус; нет default pipeline. adoptSource — только после сверки partial, не автоматический retry.</td></tr>
+<tr><td><code data-tool="request_status">request_status</code></td><td><code>key, status, reason</code></td><td>Меняет статус и фиксирует переход. Терминальная задача не reopen; тот же статус — no-op.</td></tr>
+<tr><td><code data-tool="request_title">request_title</code></td><td><code>key, title, reason</code></td><td>Меняет title; журнал хранит прежнее/новое название и причину. Ключ и папка не переименовываются.</td></tr>
+<tr><td><code data-tool="request_progress">request_progress</code></td><td><code>key, text, artifacts?: [{path,text?}]</code></td><td>Сохраняет результат, новые материалы или ссылки на существующие файлы, журнал и commit; обновляет activity. Без text у артефакта — ссылка, в том числе на бинарный файл. Новая версия опубликованного материала требует нового пути.</td></tr>
+<tr><td><code data-tool="request_touch">request_touch</code></td><td><code>key</code></td><td>Явно завершает сохранение activity timestamp после сверенного partial. Не создаёт фиктивный переход статуса.</td></tr>
+<tr><td><code data-tool="status_list">status_list</code></td><td>нет</td><td>Чтение актуального справочника из БД; агент не угадывает набор статусов по зашитому enum.</td></tr>
+<tr><td><code data-tool="status_add">status_add</code></td><td><code>code, terminal</code></td><td>DB-only: добавляет значение справочника. terminal задаётся явно.</td></tr>
+<tr><td><code data-tool="status_rename">status_rename</code></td><td><code>code, newCode</code></td><td>DB-only: переименовывает код с сохранением stable ID. Это не переход задач и не их activity.</td></tr>
+<tr><td><code data-tool="status_terminal">status_terminal</code></td><td><code>code, terminal</code></td><td>DB-only: меняет терминальность только неиспользованного значения.</td></tr>
+<tr><td><code data-tool="status_remove">status_remove</code></td><td><code>code</code></td><td>DB-only: удаляет только неиспользованный статус.</td></tr>
+</tbody></table></div>
+<h3>Контекст и обслуживание — 7 инструментов</h3>
+<div class="table tools"><table><thead><tr><th>Инструмент</th><th>Аргументы</th><th>Действие и результат</th></tr></thead><tbody>
+<tr><td><code data-tool="context_read">context_read</code></td><td><code>path</code></td><td>Читает UTF-8-файл внутри home. Не создаёт отсутствующий файл; действуют traversal/symlink/hardlink guards. Не универсальный просмотр бинарных данных.</td></tr>
+<tr><td><code data-tool="context_commit">context_commit</code></td><td><code>paths: string[], message</code></td><td>После сверки завершает commit только конкретных файлов контекста. Не commit движка, не каталоги, не git push.</td></tr>
+<tr><td><code data-tool="context_restore">context_restore</code></td><td><code>path, revision</code></td><td>Восстанавливает mutable-файл из полного Git SHA и создаёт новый commit. Immutable source/inbox и append-only историю не переписывает.</td></tr>
+<tr><td><code data-tool="db_init">db_init</code></td><td>нет</td><td>Явно создаёт/мигрирует только БД принятой схемы. Не автоматическое действие при подключении.</td></tr>
+<tr><td><code data-tool="bootstrap">bootstrap</code></td><td>нет</td><td>Явно инициализирует БД и отдельный Git home. Без сетевого sync.</td></tr>
+<tr><td><code data-tool="backup">backup</code></td><td><code>destination</code></td><td>Создаёт SQLite snapshot, при наличии контекста Git bundle и checksum manifest; возвращает расположение. Проверяет чистоту и ссылки. Это запись файлов, не read-only инструмент.</td></tr>
+<tr><td><code data-tool="restore">restore</code></td><td><code>backupDirectory</code></td><td>Восстанавливает только в отсутствующие DB/home этой установки после проверки backup. Не принимает произвольный target и не затирает существующую установку.</td></tr>
+</tbody></table></div>
+<p>Таким образом, все исполняемые операции CLI покрыты. <code>--help</code> заменяет стандартный MCP <code>tools/list</code> с описаниями и схемами. Временные JSON-файлы для artifacts не нужны. Новых команд удаления задач, переписывания истории, исполнения задач или управления разговорами не появляется.</p>
+<h3 id="architecture">Как именно будет реализовано</h3>
+<div class="diagram"><svg viewBox="0 0 880 270" role="img" aria-label="CLI и MCP обращаются к общим сценариям mypi, которые используют существующие модули и хранилища"><defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 Z" style="fill:var(--primary);stroke:none"/></marker></defs><rect x="10" y="20" width="190" height="60" rx="5"/><text x="26" y="45">Pi / другой MCP-клиент</text><text x="26" y="66">аргументы JSON</text><path d="M200 50 H245" marker-end="url(#arrow)"/><rect x="245" y="20" width="220" height="60" rx="5"/><text x="263" y="45">src/mcp</text><text x="263" y="66">stdio · схемы · ответы</text><path d="M465 50 H535 V117" marker-end="url(#arrow)"/><rect x="10" y="122" width="190" height="60" rx="5"/><text x="26" y="148">src/cli</text><text x="26" y="170">argv → тип команды</text><path d="M200 152 H245" marker-end="url(#arrow)"/><rect x="245" y="122" width="435" height="60" rx="5"/><text x="263" y="147">src/app/execute-command.ts</text><text x="263" y="170">общие сценарии · open/close · partial</text><path d="M680 151 H710" marker-end="url(#arrow)"/><rect x="710" y="115" width="160" height="135" rx="5"/><text x="728" y="143">Модули и</text><text x="728" y="165">адаптеры M1</text><text x="728" y="199">SQLite</text><text x="728" y="223">home / Git / JSONL</text><text x="18" y="227">Нет запуска CLI из MCP. Нет второй реализации правил и хранилищ.</text></svg></div>
+<ol>
+<li><strong>Типизированный вход.</strong> <code>src/app/commands.ts</code> станет discriminated union команд с предметными полями вместо универсальных строк args/options. CLI разбирает argv, MCP проверяет строгую JSON Schema (неизвестные поля отклоняются, а не удаляются валидатором); оба передают одинаковые команды в <code>executeCommand</code>. Синтаксис и JSON-ответы существующего CLI сохраняются.</li>
+<li><strong>Один владелец правил.</strong> Диспетчер вызывает текущие <code>createApp/createWorkspace</code> и системные сценарии. MCP не обращается к таблицам, Git или файлам напрямую. Существующие бизнес-проверки не заменяются схемами протокола.</li>
+<li><strong>Небольшое расширение определения проекта.</strong> <code>project_resolve</code> канонизирует переданную папку и ищет зарегистрированный checkout, равный ей или являющийся её родителем по границам компонентов пути. При вложенных checkout выбирается наиболее глубокий; при нескольких равных кандидатах — неоднозначность, не первый в списке. Проект без checkout выбирают явно по identity. Правило располагается в projects с существующим портом путей, не в MCP.</li>
+<li><strong>Официальный SDK.</strong> Предлагаются <code>@modelcontextprotocol/sdk@1.32.0</code> и <code>zod@4.6.5</code>, проверенные пока только по метаданным и документации. <code>McpServer</code>, <code>StdioServerTransport</code>, <code>registerTool</code>; Zod — схемы входа/выхода на границе. Не импортировать HTTP-server entrypoints. Наличие транзитивных HTTP-зависимостей SDK не означает запуск HTTP; их состав и стоимость отдельно проверяются.</li>
+<li><strong>Без побочных эффектов загрузки.</strong> Только <code>main.ts</code> подключает stdin/stdout. Импорт server/tools не запускает процесс, не открывает DB и не создаёт home. Инициализация MCP и tools/list доступны до bootstrap.</li>
+<li><strong>Ресурсы на один вызов.</strong> Приложение открывается для операции и закрывается в finally. Нет вечного DB-handle, устаревающего после restore. DB-only проекты/справочник не приобретают зависимости от наличия Git.</li>
+</ol>
+<h3>Ответы, ошибки и отмена</h3>
+<p>У инструментов будут <code>inputSchema</code> и <code>outputSchema</code>. Для программного вызова — <code>structuredContent</code>; текстовый <code>content</code> содержит тот же сериализованный результат, чтобы клиент без structuredContent не терял поля. Успех: <code>{status:"ok", data:...}</code>. Обычная ошибка: <code>isError:true</code> и <code>{status:"error", message:...}</code>. Частичный исход переносит существующий <code>PartialError</code> без потери полей:</p>
+<pre><code>{
+  "isError": true,
+  "structuredContent": {
+    "status": "partial",
+    "message": "...",
+    "saved": ["..."],
+    "missing": ["..."],
+    "paths": ["..."],
+    "requestId": 17
+  },
+  "content": [{"type": "text", "text": "тот же JSON"}]
+}</code></pre>
+<p>Это схема ответа, не запись реально выполненной операции; requestId передаётся только если известен. В <code>saved/missing</code> — факты из core, не предположения MCP. Ошибка не всегда означает отсутствие записи. Некорректные параметры/неизвестный инструмент отклоняются до вызова сценария.</p>
+<p>Сервер не повторяет мутации автоматически. Потеря соединения или клиентский timeout после начала вызова означает <strong>неизвестный клиенту исход</strong>, а не rollback. Сначала сверка карточки, журнала, файлов и Git; затем явное завершение partial. JSON-RPC request ID — корреляция ответа, не ключ идемпотентности.</p>
+<p>В одном серверном процессе инструменты исполняются последовательно, включая async backup; достаточно небольшой последовательной цепочки Promise, не нового supervisor или постоянной очереди. Отменённый ожидающий вызов не начинает работу. Уже начатую синхронную SQLite/Git-операцию нельзя обещать мгновенно прервать с откатом. При закрытии stdin/SIGTERM перестаём принимать новые вызовы и освобождаем ресурсы; принудительный kill оставляет тот же контракт partial/сверки.</p>
+<p>Несколько сессий имеют отдельные процессы MCP, но одну БД и home. Согласование записей между ними остаётся в общих транзакциях/блокировках M1, действующих также для CLI. Локальная цепочка MCP не выдаётся за межпроцессную защиту. Bootstrap/restore — режим обслуживания: до него остановить другие писатели; никакого нового глобального recovery/lock engine.</p>
+<h3>Безопасность и объём ответов</h3>
+<ul>
+<li>Предлагается зарегистрировать 31 инструмент. Административные действия имеют отдельные имена и предупреждения: bootstrap/restore запускаются по прямому намерению инженера; context_commit/restore/touch — после сверки. Не вводим глобальное подтверждение каждой обычной записи.</li>
+<li><code>readOnlyHint/destructiveHint/idempotentHint/openWorldHint</code> описывают реальные свойства. Запись журнала/capture/progress не объявляется идемпотентной; backup не объявляется чтением. Аннотации, инструкции и скрытие инструмента — <strong>не защита доступа</strong> и не доказательство подтверждения человеком.</li>
+<li>Локальный сервер работает с правами пользователя и может обслуживать разные зарегистрированные проекты. Scope фильтрует данные, но не является ACL. Клиенту MCP не выдаётся обещание изоляции одного проекта от другого.</li>
+<li>Нет произвольных shell/SQL-команд; Git остаётся внутри существующего адаптера. Context-пути ограничены home. Явные file/backup/checkout аргументы могут обращаться к другим разрешённым пользователю локальным путям — это не sandbox файловой системы.</li>
+<li>Текст source передаётся без trim, шаблонного заголовка или потери BOM/CRLF. Неизвестные поля и неверные типы не исправляются молча. Статусы проверяются по БД, не статическим enum.</li>
+<li>Сервер не обрезает содержимое молча и не вводит новый SQL-индекс журнала. Используем существующие from/to/type/limit. Pi может сократить длинный текст для модели и сохранить полный ответ во временный файл; codemode получает полный MCP-результат. Эта особенность клиента не даёт права считать сокращённый текст всей историей.</li>
+<li>Stdout — только протокол. Диагностика — stderr, без полного исходника задачи/секретов. Нет автоматического журнала каждой MCP-команды: рабочий journal хранит исходы, не технический трафик.</li>
+</ul>
+<h3 id="tree">Где будет код и какая структура</h3>
+<p>Один репозиторий <code>/home/priney/Projects/mypi</code>, один pnpm-пакет. Ни отдельного репозитория MCP, ни монорепозитория, ни второй БД. Ниже — планируемые пути, <strong>они ещё не созданы</strong>.</p>
+<pre>src/
+├── mcp/                         # новый входной адаптер
+│   ├── main.ts                  # env/paths, stdio, shutdown; stdout только JSON-RPC
+│   ├── server.ts                # сборка McpServer, регистрация, порядок вызовов
+│   ├── schemas.ts               # общие Scope/TextInput/Artifact и схемы результата
+│   ├── result.ts                # ok/error/partial → MCP CallToolResult
+│   └── tools/
+│       ├── projects.ts          # 3 определения: list/add/resolve
+│       ├── knowledge.ts         # 9: warmup, memory, capture, notes/errors, journal
+│       ├── requests.ts          # 12: карточки/прогресс и справочник статусов
+│       └── maintenance.ts       # 7: context и обслуживание
+├── app/
+│   ├── commands.ts              # изменить: типизированные команды без argv/options
+│   ├── execute-command.ts       # изменить: общий dispatch CLI/MCP и finally close
+│   ├── input-text.ts            # выделить: TextInput → точный UTF-8-текст
+│   ├── resolve-scope.ts         # выделить: одинаковое разрешение ссылок через DB
+│   ├── create-app.ts            # существующая DB-композиция
+│   ├── create-workspace.ts      # существующая композиция контекста
+│   └── backup.ts, ... # переиспользовать
+├── cli/                         # прежний интерфейс; преобразует argv в общий тип
+├── modules/projects/            # добавить lookup checkout через публичный API/порт
+├── modules/...                  # существующие правила, без импортов MCP SDK
+└── infrastructure/...           # существующие SQLite/FS/Git
+
+integrations/pi/
+├── mcp.example.json             # пример настройки, без личных данных/секретов
+└── mypi-instructions.md         # короткий фрагмент правил для активного контекста Pi
+
+test/
+├── fast/mcp-contract.test.ts    # чистые схемы/преобразования/ошибки
+└── boundary/mcp.test.ts         # реальный протокол + временные хранилища
+
+docs/MCP.md                     # запуск, подключение, диагностика, примеры
+package.json                    # SDK/Zod и bin mypi-mcp
+pnpm-lock.yaml                  # точные зависимости
+.dependency-cruiser.cjs          # MCP → app, запрет обратных/низкоуровневых импортов
+
+dist/src/mcp/main.js            # сгенерированный entrypoint; не коммитится</pre>
+<p>Группировка tools-файлов нужна только для описаний протокола; владение данными остаётся за предметными модулями M1. Размер файла не является причиной создавать фреймворк регистрации. Доступ к инфраструктуре — через приложение; MCP SDK/Zod не проникают в domain. При изменении tool-схемы меняется адаптер, при изменении правила задачи — requests, а не две копии CLI/MCP.</p>
+<h3 id="launch">Как будет запускаться</h3>
+<p><strong>После реализации:</strong> обычная сборка <code>mise exec -- pnpm build</code> создаёт второй entrypoint. Его можно запустить из корня командой <code>mise exec -- node dist/src/mcp/main.js</code>; он ждёт протокол, а не печатает интерактивное меню. В <code>package.json</code> появится bin <code>mypi-mcp</code>, но глобальная установка не требуется.</p>
+<p>Для подключения рекомендуются абсолютные пути к Node 24 и собранному entrypoint. Не запускать через shell-строку, <code>npx</code> с загрузкой пакета или команду сборки при каждом открытии сессии. Pi создаёт дочерний процесс сам; порта и постоянно работающего systemd-сервиса нет.</p>
+<p>Данные определяются местом установленного движка и действующим XDG-путём БД, <strong>не cwd MCP-клиента</strong>. <code>home/</code> остаётся внутри клона; настройку переноса home не добавляем. Для конкретной машины сейчас известны такие пути:</p>
+<pre><code class="config-json">{
+  "mcpServers": {
+    "mypi": {
+      "command": "/home/priney/.local/share/mise/installs/node/24.21.0/bin/node",
+      "args": ["/home/priney/Projects/mypi/dist/src/mcp/main.js"],
+      "description": "Память, проекты, журнал и задачи mypi. Определи проект через project_resolve, затем warmup; записывай фактические результаты в явный scope.",
+      "exposure": "codemode",
+      "toolExposure": {
+        "project_resolve": "direct",
+        "warmup": "direct"
+      }
+    }
+  }
+}</code></pre>
+<p class="small">Это пример добавляемой записи, не замена текущего mcp.json. На другой машине пути получают из её установки, например через mise which node; пути Павла не встраиваются в продукт. Нестандартный XDG_STATE_HOME при необходимости передаётся клиентом так же, как CLI, без нового mypi-конфига.</p>
+<p><strong>Почему 2 direct и остальные codemode:</strong> агент сразу видит как определить проект и поднять память, но не получает 31 полную схему в каждом запросе модели. Остальные инструменты доступны через поиск/описание и вызов codemode. В другом MCP-клиенте формат exposure может отсутствовать — это настройка Pi, не требование сервера.</p>
+<p>Одноразовая настройка по документации Pi: <code>pi mcp add mypi --exposure codemode -- /absolute/node24 /absolute/mypi/dist/src/mcp/main.js</code>, затем точечное добавление двух toolExposure и description. Предпочтительно пользовательский <code>~/.pi/agent/mcp.json</code>; если изменён agent-dir, используется его фактический путь. Проектный вариант <code>.pi/mcp.json</code> потребует project trust и будет доступен только соответствующему проекту.</p>
+<p>Диагностика: <code>pi mcp list</code> вне сессии; <code>/mcp</code> внутри. Для уже открытой сессии после внешней правки — <code>/reload</code>; при разрыве — <code>/mcp reconnect mypi</code>. <code>pi mcp list</code> обращается также к другим включённым серверам, поэтому протокольные тесты выполняются в отдельном временном профиле с одним mypi. Перезапуск после обновления сборки обязателен: уже запущенный Node-процесс сам новый JS не подхватывает.</p>
+<h3 id="sessions">Как MCP подключается к сессиям — и чего не делает</h3>
+<p><strong>Подключение инструментов и привязка работы к проекту — разные вещи.</strong> Pi читает mcp.json при старте сессии и соединяется с сервером. MCP не получает автоматически всю переписку, постоянный Pi session ID или выбранную задачу. Поэтому server-процесс не является записью сессии в mypi.</p>
+<div class="table"><table><thead><tr><th>Ситуация</th><th>Предлагаемое поведение</th></tr></thead><tbody>
+<tr><td>Новый разговор в checkout проекта</td><td>Агент берёт рабочую папку из контекста сессии и передаёт её в project_resolve. При однозначном результате вызывает warmup с возвращённым project scope. Server cwd для этого не используется.</td></tr>
+<tr><td>Проект задан словами или не имеет checkout</td><td>Агент использует явный org/project, при необходимости читает реестр. Не придумывает соответствие папки проекту и не создаёт паспорт автоматически.</td></tr>
+<tr><td>Продолжение задачи</td><td>Агент вызывает request_show, journal_read нужного request scope и context_read по нужным путям. Текущий статус берёт из БД, а не из старого текста разговора.</td></tr>
+<tr><td>Работа без задачи</td><td>Допустима. Результат сохраняется через journal_add в scope проекта. При работе по задаче — request_progress; тот же исход второй раз в project journal не дублируется, он уже виден через scoped выборку.</td></tr>
+<tr><td>Возобновление / новая ветка разговора</td><td>Подключение инструментов выполняет клиент. Агент заново сверяет проект/задачу и актуальное состояние. Движение по дереву разговора не отменяет уже сделанные DB/FS/Git-записи.</td></tr>
+<tr><td>Два разговора одновременно</td><td>Два соединения/процесса используют одну установку; каждый вызов имеет явный scope/key. Нет общего mutable currentProject/currentRequest. Проверяются коллизии и блокировки с CLI.</td></tr>
+<tr><td>Разговор закрыт или аварийно оборван</td><td>Pi останавливает stdio-процесс. Сервер не выдумывает «итог сессии» из shutdown. Реальные исходы записываются по мере работы; неизвестный результат последнего вызова требует сверки.</td></tr>
+</tbody></table></div>
+<p><strong>Инструкция агенту</strong> из <code>integrations/pi/mypi-instructions.md</code> добавляется отдельным отмеченным фрагментом в реально применяемый пользовательский файл контекста Pi. Существующие инструкции сохраняются; учитывается приоритет AGENTS.override.md. Этот фрагмент объясняет выбор scope, warmup, чтение полных артефактов, необязательность request и запрет слепого retry. Создавать extension только ради регистрации MCP не нужно.</p>
+<p>Это поведение агента по инструкции, <strong>не механический lifecycle-hook</strong>. Если нужен гарантированный вызов warmup на событии старта, индикатор выбранного проекта, сохранённая связь Pi-session → request или автозапись при завершении — потребуется отдельное согласование интеграции Pi. В этом плане нет tools <code>session_start/session_close</code> и новой таблицы sessions.</p>
+<h3>Пример рабочего цикла после реализации</h3>
+<pre><code>project_resolve({path: "/work/acme/api"})
+  → проект acme/api, code API, scope {type:"project",key:"API"}
+
+warmup({scope:{type:"project",key:"API"}})
+  → память и индекс; затем context_read для нужных полных материалов
+
+request_create({
+  project:"acme/api", title:"Разобрать ошибку чтения",
+  status:"research", slug:"read-error",
+  source:{text:"точная исходная формулировка"}
+})
+  → карточка API-1
+
+request_progress({
+  key:"API-1", text:"Причина воспроизведена; сохранён разбор",
+  artifacts:[{path:"research/result-v1.md",text:"проверенные детали"}]
+})
+
+# В другом разговоре:
+request_show({key:"API-1"})
+journal_read({scope:{type:"request",key:"API-1"},limit:10})
+context_read({path:"projects/acme/api/requests/API-1-read-error/research/result-v1.md"})</code></pre>
+<p>Пример синтетический. Номер возвращает БД; сервер не обещает всегда API-1. Статус research используется только если он есть в текущем справочнике. Регистрация проекта и личный bootstrap не выполнялись этим документом.</p>
+<h2 id="checks">Проверки</h2>
+<p><strong>Ниже — ожидаемые проверки после реализации, не утверждение об уже пройденных тестах MCP.</strong> Единый источник политики — <a href="https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/TESTING.md">docs/TESTING.md</a>. Бюджеты не повышаются: fast ≤5 с; admission+fast+boundary ≤30 с; внешний deadline с cleanup 60 с; 2 CPU, 1 GiB, 64 tasks, один worker/run. Install и build считаются отдельно.</p>
+<div class="table"><table><thead><tr><th>После шага</th><th>Как проверяем</th><th>Что обязано подтвердиться</th></tr></thead><tbody>
+<tr><td>1–2</td><td>Существующая CLI/API-матрица; чистая таблица преобразований команд/схем</td><td>Тот же синтаксис и результаты CLI; нет shell-преобразования MCP → argv; неверные поля/типы не попадают в сценарий. Ожидания задаются независимо от registry инструментов.</td></tr>
+<tr><td>3</td><td>SDK client ↔ настоящий Node stdio server на временной установке</td><td>initialize, tools/list из 31 имени, tools/call; stdout не загрязнён логами; до bootstrap нет новых DB/home. Неизвестный tool/невалидные параметры не меняют состояние.</td></tr>
+<tr><td>3–4</td><td>Матрица tool → сценарий внутри процесса; узкая реальная граница для хранения</td><td>Все 30 существующих операций и project_resolve правильно подключены; чтение readonly; source байты сохранены; scoped warmup не раскрывает inbox; terminal/no-op и Git-ограничения прежние.</td></tr>
+<tr><td>4</td><td>Управляемый отказ Git, затем чтение состояния</td><td>Partial возвращается как isError со всеми saved/missing/paths/requestId. Нет ложного ok или повторного append/create.</td></tr>
+<tr><td>4</td><td>Два MCP-клиента и CLI с детерминированной синхронизацией</td><td>Номера не конфликтуют; чужой scope не подставляется; блокировка не оставляет source до резервирования. Backup не приводит к самоблокировке параллельных вызовов в одном процессе.</td></tr>
+<tr><td>4</td><td>Отмена ожидающего вызова, disconnect, EOF/SIGTERM; контроль cleanup</td><td>Ожидающая отменённая запись не выполняется; прерванная начатая операция не объявляется откатанной; процесс и DB-handles освобождаются, нет оставшихся дочерних процессов.</td></tr>
+<tr><td>4</td><td>Точечные мутации в disposable copy</td><td>Превращение partial в успех, потеря project scope или автоматический bootstrap на connect должны приводить к падению нужного assertion.</td></tr>
+<tr><td>4</td><td><code>mise exec -- pnpm build</code>, затем <code>mise exec -- pnpm verify</code> и hosted CI после review policy/dependencies</td><td>Новые и прежние обязательные проверки проходят в тех же пределах. Не ослаблены admission и изоляция. Отсутствующий независимый App issuer M1 не скрывается успехом обычного CI.</td></tr>
+<tr><td>5–6</td><td>Отдельная проверка Pi без LLM: временный agent-dir, один mypi; затем разрешённое личное подключение</td><td>Сервер виден в /mcp, два direct-инструмента объявлены, остальные находятся через codemode. Новая/resume-сессии читают сохранённые результаты. Проверка клиента не маскируется под дешёвый fast-test.</td></tr>
+</tbody></table></div>
+<p>Не запускать отдельный процесс ради каждого имени инструмента. SDK transport — boundary; чистые схемы/перевод аргументов — fast, если их imports не несут запрещённых эффектов. При обнаружении такого эффекта проверку переносим на правильную границу, не отключаем admission. Отдельный review проверяет тестовый diff и прирост стоимости; проверки с LLM не включаются в обычный suite.</p>
+<p>Для текущей версии проверяются 31 уникальное имя инструмента, JSON настройки и внутренние ссылки. MCP не реализован. Удаление прототипа — отдельная работа M1; её build/verify и red→green сохранены в docs/evidence/m1-remove-legacy-*.txt.</p><p id="publication-check">Исходная публикация v2 сверена по SHA256 и top/full render. Эта версия обновляет каталог после прямого запроса удалить legacy; проверка публикации фиксируется в docs/evidence/mcp-plan-publication.txt.</p>
+<h2 id="rollback">Откат</h2>
+<ol>
+<li><strong>Подключение Pi:</strong> до изменения сохранить прежний пользовательский конфиг/инструкции локально с исходными правами, без публикации секретов. Удалить только запись mypi (<code>pi mcp remove mypi</code> для стандартного user-level случая) и добавленный фрагмент инструкции, затем /reload. Остальные серверы и настройки не трогать.</li>
+<li><strong>Сервер:</strong> остановить активные соединения через клиент. Старые CLI и данные продолжают существовать; удаление MCP-настройки не удаляет БД или home.</li>
+<li><strong>Код/зависимости:</strong> вернуть коммиты адаптера и рефакторинга через обычный Git revert, восстановить согласованный lockfile, выполнить frozen install и build. Обновления проверяющих правил возвращать вместе с соответствующим кодом, а не оставлять ослабленную проверку.</li>
+<li><strong>Данные:</strong> миграции SQL и нового layout этим планом не предусматриваются. Если во время разрешённой эксплуатации были записи, откат программы не откатывает их автоматически. Состояния до и после изменения сверяются; mutable-контекст восстанавливается штатной командой, неизменяемая история не переписывается. Полное восстановление — из проверенной резервной копии в отсутствующее состояние, без уничтожения текущего.</li>
+</ol>
+<h2 id="approval">Решения инженера</h2>
+<p>Ответы получены в комментариях Derive к v2 и зафиксированы ниже. Повторно отвечать не нужно; реализация MCP и изменение личной установки этой очисткой не запускаются.</p>
+<pre class="request"><code>1. Подтверди: один локальный stdio MCP в том же пакете, общий типизированный API с CLI и весь каталог из 31 инструмента, включая явно названные операции обслуживания.
+   Сейчас: предложены src/mcp, небольшой общий рефакторинг app/cli и один новый lookup проекта по checkout; SDK 1.32.0 + Zod 4.6.5 ещё предстоит проверить в сборке.
+   Ответ: «Подтверждаю» (Derive v2). Каталог сокращён до 31 после запроса удалить legacy.
+
+2. Реши: подключение а) пользовательское — во всех твоих сессиях, б) только в выбранных проектах?
+   Сейчас: рекомендую а), с project_resolve и warmup как direct, остальными через codemode. Все операции используют явный scope/key, не общий текущий проект.
+   Ответ: «а)» (Derive v2): пользовательское подключение.
+
+3. Реши: для первой версии а) штатное MCP-подключение Pi + инструкция агенту, без управления сессиями, б) сначала дополнить план обязательными lifecycle-возможностями?
+   Сейчас: рекомендую а). Вариант а) не обещает автоматический warmup по событию, session → request registry или автоматическую итоговую запись при закрытии.
+   Ответ: «а)» (Derive v2): MCP + инструкция, без управления сессиями.</code></pre>
+<p><strong>Граница согласования:</strong> этот запрос разрешает подготовить и опубликовать план. Реализация начинается после явного разрешения; изменение личного подключения, bootstrap и изменение личных данных не выполняются молча вслед за согласованием архитектуры.</p>
+<footer>
+<p><strong>Основания:</strong> <a href="https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/M1-DESIGN.md">архитектура M1</a>, <a href="https://github.com/yokeloop/mypi/blob/580942ddce9dc907e683e27a45e114c3d2313f96/docs/M1-CLI.md">CLI</a>, <a href="https://github.com/yokeloop/mypi/tree/580942ddce9dc907e683e27a45e114c3d2313f96/src">прочитанные исходники</a>, <a href="https://draft.yokeloop.com/artifacts/mypi-v0-1-0-rc-1-bqso2mhf">отчёт RC</a>.</p>
+<p><strong>Внешние источники:</strong> установленный Pi 1.0.0, локальные README/docs/mcp/cli/configuration/security/settings/sessions/extensions/sdk/skills и пример examples/sdk/14-codemode-mcp.ts; <a href="https://registry.npmjs.org/@modelcontextprotocol/sdk/1.32.0">метаданные SDK</a>, <a href="https://registry.npmjs.org/zod/4.6.5">метаданные Zod</a>, <a href="https://github.com/modelcontextprotocol/typescript-sdk/blob/32549b00a9a808265f35a29f92fdf27fa4aac2ef/docs/server.md">SDK server, зафиксированный commit</a>. Чтение документации не выдаётся за испытание.</p>
+<p>Локальный исходник: docs/MCP-PLAN.html. Шаблон <a href="https://draft.yokeloop.com/artifacts/wiu8c0ys">«План», v2</a>; <a href="https://draft.yokeloop.com/artifacts/derive-dwrxyhtz">контракт страниц</a>; derive-page-css v1. При подготовке исходного плана код продукта, конфигурация Pi и личные данные не менялись. Последующее удаление прототипа выполнено отдельным запросом; MCP и подключение к личным данным не реализованы.</p>
+</footer></main></body></html>

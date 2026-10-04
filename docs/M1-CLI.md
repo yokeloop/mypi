@@ -8,7 +8,7 @@
 
 БД: XDG_STATE_HOME/mypi/state.sqlite3 (fallback ~/.local/state/mypi/state.sqlite3), вне git.
 Контекст: home/ этого checkout. `db init` создаёт только БД; `bootstrap` — БД и отдельный Git контекста,
-без fetch/pull/push. Личная инициализация/миграция не выполнялась во время разработки.
+без fetch/pull/push. Личная инициализация не выполнялась во время разработки.
 
 ```text
 project add org/project --code MP [--path /absolute/checkout]
@@ -25,7 +25,7 @@ warmup [-s org | org/project]
 ```
 
 Без -s память/заметки глобальные. Memory поддерживает многострочные факты; в Markdown они сериализованы JSON-строкой,
-при чтении возвращается точный текст. Произвольный прежний Markdown сохраняется. Capture — отдельный
+при чтении возвращается точный текст. Остальной Markdown сохраняется как контекст, не распознаётся как управляемые факты. Capture — отдельный
 immutable inbox/*.md с оригиналом, не SQL-копия; BOM/CRLF не удаляются. Notes не перезаписываются при совпадении темы.
 Scoped warmup не включает inbox/чужой проект; это индекс, не замена чтения артефактов.
 
@@ -74,14 +74,7 @@ Global не означает весь журнал. Результаты упо�
 Commit/restore принимают конкретные файлы, не каталоги. Незакоммиченный/staged preimage не теряется; immutable source/inbox и append-only журналы так не переписываются.
 Данные, которых никогда не было в Git, Git восстановить не может.
 
-## Импорт и backup
-
-`import legacy /separate/archive --codes /path/to/codes.json`, например коды `{"org/project":"MP"}`.
-Источник должен быть отдельным архивом, не активным home. Не запускай старую версию CLI параллельно с новой.
-Перед записью проверяются паспорт, checkout-привязки, коды и конфликты. Бинарные артефакты и исходные Markdown
-сохраняются. Прежний паспорт — legacy/projects.json (архив, не authority), inbox.md — inbox/legacy-inbox.md.
-Старые журналы — projects/org/project/legacy-journal/, ссылки входят в warmup.
-Повтор не дублирует регистрацию и проверяет соответствие receipt авторитетной БД.
+## Backup и restore
 
 `backup /existing-parent/new-backup-directory` использует SQLite backup API, отдельный Git bundle и checksum manifest.
 Cooperating writers блокируются; грязный контекст/битые ссылки требуют сверки. DB-only backup разрешён и без home.

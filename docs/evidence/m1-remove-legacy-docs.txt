@@ -1,0 +1,26 @@
+2026-10-04 — static checks for prototype removal; not runtime MCP/browser evidence.
+
+Removed own code paths: scripts/mypi.py, scripts/bootstrap.sh, src/app/import-legacy.ts.
+Removed obsolete documents: CONCEPT.md, three adr/ADR-000*.md proposals,
+docs/subagent-brick-architecture-proposal.md, docs/M1-STORAGE.md, docs/TESTING-PROPOSAL.md.
+No legacy/importLegacy/MYPY_HOME_REMOTE strings or Python source in src/scripts.
+No Python, pycache or import-legacy output in dist after bounded rebuild.
+Historical M0/M1 records and raw evidence remain; archived-document links use the previous Git revision.
+
+Checks:
+- Local Markdown target paths exist.
+- FILEMAP/HTML generation succeeds from the current working-tree inventory, excluding removed paths.
+- Embedded HTML report JavaScript parses with vm.Script; exactly one script.
+- Report source snapshots match current files (generated files deliberately not embedded).
+- 36 production source files, 16 home templates.
+- MCP plan: 31 unique tool names; no import_legacy definition; configuration JSON parses;
+  internal anchors resolve; shared CSS exactly matches page.css.
+- Two successive generations of FILEMAP/HTML produce identical hashes.
+- git diff --check excluding raw evidence passes.
+- Dependencies, schema/database infrastructure, import-boundary rules and CI unchanged.
+- Only cancelled migration-risk row removed from TESTING; budgets/admission/isolation unchanged.
+
+The updated local interactive report was not subjected to browser click automation.
+Derive plan krfyduz7 v3 top/full render and source hash were checked separately:
+see mcp-plan-publication.txt. Published RC/report/assets were not replaced.
+No personal bootstrap, Pi configuration change, commit or push performed.

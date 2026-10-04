@@ -110,7 +110,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     warmup(scope?: string) {
       const resolved = core.projects.resolveScope(scope);
       return warmup(resolved, memory, inbox, files.read,
-        resolved.type === 'org' ? core.projects.list(resolved.slug) : core.projects.list(), journal.read, files.list);
+        resolved.type === 'org' ? core.projects.list(resolved.slug) : core.projects.list(), journal.read);
     },
   };
 }

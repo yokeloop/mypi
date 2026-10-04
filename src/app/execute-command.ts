@@ -2,7 +2,6 @@ import { readFileSync } from 'node:fs';
 import type { WorkspaceCommand } from './commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { backupState, restoreState } from './backup.js';
-import { importLegacy } from './import-legacy.js';
 import { InputError } from '../shared/errors.js';
 import { scopeValue } from '../shared/scope.js';
 import type { Scope } from '../shared/scope.js';
@@ -25,11 +24,6 @@ export async function executeCommand(command: WorkspaceCommand, filename: string
   if (name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (name === 'backup') return backupState(filename, args[0]!, root);
   if (name === 'restore') return restoreState(args[0]!, filename, root);
-  if (name === 'import legacy') {
-    const codes: unknown = JSON.parse(readInputFile(required('codes')));
-    if (!codes || typeof codes !== 'object' || Array.isArray(codes) || Object.values(codes).some(c => typeof c !== 'string')) throw new InputError('Codes must map project identities to codes');
-    return importLegacy(filename, args[0]!, codes as Record<string, string>, root);
-  }
   const app = createWorkspace(filename, reads.has(name), root);
   function scope(): Scope {
     const input = opt('scope');

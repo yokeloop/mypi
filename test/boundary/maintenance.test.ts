@@ -1,12 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { backupState, restoreState, verifyReferences } from '../../src/app/backup.js';
-import { importLegacy } from '../../src/app/import-legacy.js';
-import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
 import { contextGit } from '../../src/infrastructure/git/context-git.js';
 
@@ -49,42 +47,4 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   rmSync(join(root, card.contextDir, 'artifacts/result.md'));
   await assert.rejects(backupState(filename, join(dir, 'missing-backup'), root), /Dirty/);
   assert.throws(() => verifyReferences(filename, root), /ENOENT|Missing artifact/);
-});
-
-test('legacy import preserves original text/binary artifacts and passport identity; repeat does not duplicate or overwrite', t => {
-  const { dir, filename } = state(t), root = join(dir, 'home'), legacy = join(dir, 'legacy'), checkout = join(dir, 'checkout');
-  mkdirSync(legacy); mkdirSync(checkout);
-  mkdirSync(join(legacy, 'one/project/journal'), { recursive: true });
-  mkdirSync(join(legacy, 'one/project/ai'), { recursive: true });
-  writeFileSync(join(legacy, 'projects.json'), JSON.stringify({ 'one/project': { org: 'one', name: 'project', path: checkout } }));
-  writeFileSync(join(legacy, 'MEMORY.md'), '# Old\n- (2026-09-01) fact\n');
-  writeFileSync(join(legacy, 'inbox.md'), '# Drafts\n  original\r\n');
-  writeFileSync(join(legacy, 'one/project/journal/2026-09.md'), '# Journal\n\n## Outcome\ntext\n');
-  const binary = Buffer.from([0, 255, 1, 2]);
-  writeFileSync(join(legacy, 'one/project/ai/image.bin'), binary);
-  initializeWorkspace(filename, root);
-  mkdirSync(join(legacy, 'one/project/legacy-journal'));
-  writeFileSync(join(legacy, 'one/project/legacy-journal/2026-09.md'), 'conflict');
-  assert.throws(() => importLegacy(filename, legacy, { 'one/project': 'MP' }, root), /collision/);
-  const untouched = createWorkspace(filename, true, root);
-  assert.equal(untouched.projects.list().length, 0); untouched.close();
-  assert.equal(existsSync(join(root, 'legacy/import.json')), false);
-  writeFileSync(join(legacy, 'one/project/legacy-journal/2026-09.md'), readFileSync(join(legacy, 'one/project/journal/2026-09.md')));
-  assert.throws(() => importLegacy(filename, legacy, { 'one/project': 'MP' }, root), /collision/);
-  rmSync(join(legacy, 'one/project/legacy-journal'), { recursive: true });
-  assert.equal(importLegacy(filename, legacy, { 'one/project': 'MP' }, root).status, 'ok');
-  assert.equal(importLegacy(filename, legacy, { 'one/project': 'MP' }, root).status, 'already_imported');
-  const app = createWorkspace(filename, true, root);
-  try {
-    assert.equal(app.projects.list().length, 1);
-    assert.equal(app.memory.show().items[0]?.text, 'fact');
-    assert(app.read('inbox/legacy-inbox.md')?.includes('  original\r\n'));
-    assert(JSON.stringify(app.warmup('one/project')).includes('legacy-journal/2026-09.md'));
-    assert.deepEqual(readFileSync(join(root, 'projects/one/project/ai/image.bin')), binary);
-  } finally { app.close(); }
-  const mismatch = openDatabase(filename); mismatch.prepare("UPDATE projects SET code='OTHER'").run(); mismatch.close();
-  assert.throws(() => importLegacy(filename, legacy, { 'one/project': 'MP' }, root), /authoritative DB/);
-  writeFileSync(join(legacy, 'projects.json'), '{invalid');
-  assert.throws(() => importLegacy(filename, legacy, { 'one/project': 'MP' }, root));
-  assert.deepEqual(readFileSync(join(root, 'projects/one/project/ai/image.bin')), binary);
 });

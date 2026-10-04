@@ -10,8 +10,7 @@ function items(text: string): { line: number; text: string }[] {
       if (typeof value !== 'string') throw new InputError('Corrupt memory fact');
       return [{ line: index, text: value }];
     }
-    const legacy = /^- \(\d{4}-\d\d-\d\d\) (.*)$/.exec(line);
-    return legacy ? [{ line: index, text: legacy[1]! }] : [];
+    return [];
   });
 }
 export function createMemory(files: Files) {

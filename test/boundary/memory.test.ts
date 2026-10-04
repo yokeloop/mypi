@@ -26,7 +26,9 @@ test('memory, notes, errors, capture and scoped warmup preserve originals, paren
     assert.throws(() => app.error('one', 'wrong'), /project scope/);
     app.journal({ type: 'project', key: 'MP' }, 'result');
     const before = readFileSync(filename);
-    const scoped = JSON.stringify(app.warmup('one/project'));
+    const warm = app.warmup('one/project');
+    assert.deepEqual(Object.keys(warm).sort(), ['glossary', 'history', 'memory']);
+    const scoped = JSON.stringify(warm);
     assert(scoped.includes('global fact')); assert(scoped.includes('org fact')); assert(scoped.includes('project fact'));
     assert(!scoped.includes('foreign secret')); assert(!scoped.includes('draft')); assert(!scoped.includes('inbox'));
     assert(JSON.stringify(app.warmup()).includes(capture));

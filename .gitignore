@@ -5,8 +5,6 @@
 /projects/
 
 # local junk
-*.pyc
-__pycache__/
 .DS_Store
 
 # Node build/dependencies

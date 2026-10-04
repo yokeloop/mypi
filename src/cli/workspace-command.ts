@@ -29,7 +29,6 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'context restore': [1, 1, ['revision'], []],
   backup: [1, 1, [], []],
   restore: [1, 1, [], []],
-  'import legacy': [1, 1, ['codes'], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');
