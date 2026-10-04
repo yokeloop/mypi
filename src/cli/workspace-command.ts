@@ -1,5 +1,10 @@
 import { parseArgs } from 'node:util';
-import type { WorkspaceCommand } from '../app/commands.js';
+export interface WorkspaceCommand {
+  type: 'workspace';
+  name: string;
+  args: string[];
+  options: Record<string, string | boolean | undefined>;
+}
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],

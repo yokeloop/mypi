@@ -1,0 +1,34 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { executeCommand } from '../app/execute-command.js';
+import { tools, toolCommand, readOnly } from './tools.js';
+import type { ToolName } from './tools.js';
+import { output } from './schemas.js';
+import { success, failure } from './result.js';
+import { serialCalls } from './serial.js';
+
+export function createServer(filename: string, root?: string) {
+  const server = new McpServer({ name: 'mypi', version: '0.1.0-rc.1' }, {
+    instructions: 'Use explicit scope/key. Resolve project from client working directory, then warmup. Warmup is an index, not full memory. Requests are optional. No automatic retries: partial or connection loss requires DB/files/journal/Git reconciliation. Maintenance requires explicit intent; stop other writers for bootstrap/restore.',
+  });
+  const calls = serialCalls();
+  async function invoke(name: string, args: unknown, signal: AbortSignal) {
+    try {
+      const command = toolCommand(name, args);
+      return await calls.run(signal, async () => success(await executeCommand(command, filename, root)));
+    } catch (error) { return failure(error); }
+  }
+  for (const name of Object.keys(tools) as ToolName[]) {
+    const tool = tools[name], readonly = readOnly.has(name);
+    server.registerTool(name, {
+      description: tool.description, inputSchema: tool.schema, outputSchema: output,
+      annotations: { readOnlyHint: readonly, destructiveHint: !readonly,
+        idempotentHint: readonly, openWorldHint: false },
+    }, (args: unknown, extra: { signal: AbortSignal }) => invoke(name, args, extra.signal));
+  }
+  // McpServer's default call handler emits text-only validation errors. Keep SDK framing,
+  // discovery and JSON-RPC validation, but use our envelope for every well-formed tool call.
+  server.server.setRequestHandler(CallToolRequestSchema, (request, extra) =>
+    invoke(request.params.name, request.params.arguments ?? {}, extra.signal));
+  return { server, stop: () => calls.stop() };
+}

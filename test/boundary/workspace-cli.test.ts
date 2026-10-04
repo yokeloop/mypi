@@ -1,4 +1,4 @@
-import { executeCommand } from '../../src/app/execute-command.js';
+import { run as executeCommand } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -36,6 +36,11 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   run(root, ['context', 'read', 'missing.md'], 1);
   run(root, ['project', 'add', 'one/project', '--code', 'MP']);
   await cli('memory', 'add', 'global\nline');
+  run(root, ['project', 'add', 'global/project', '--code', 'GL']);
+  await cli('memory', 'add', 'org-only', '-s', 'global');
+  assert.equal((await cli('memory', 'show', '-s', 'global')).items[0].text, 'org-only');
+  assert.equal((await cli('memory', 'show')).items.length, 1, 'organization global is not global scope');
+  await assert.rejects(cli('memory', 'add', 'invalid scope', '--scope', ''), /Invalid organization/);
   await cli('memory', 'add', 'scoped', '-s', 'one/project');
   assert.equal((await cli('memory', 'show', '-s', 'one/project')).items[0].text, 'scoped');
   const source = join(dir, 'source.md'); writeFileSync(source, '\ufeff  original\r\n');
@@ -44,6 +49,11 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   await cli('note', 'Title', 'Note', '-s', 'one/project');
   await cli('error', 'one/project', 'dead end');
   await cli('journal', 'add', 'project outcome', '-s', 'one/project');
+  await assert.rejects(cli('journal', 'read', '-s', 'all'), /Unknown organization/);
+  run(root, ['project', 'add', 'all/project', '--code', 'AP']);
+  await cli('journal', 'add', 'org-only outcome', '-s', 'all');
+  assert.deepEqual((await cli('journal', 'read', '-s', 'all')).map((e: { text: string }) => e.text), ['org-only outcome']);
+  assert.equal((await cli('journal', 'read', '--all')).length, 2);
   const request = await cli('request', 'create', '--file', source, '--project', 'one/project',
     '--title', 'Task', '--slug', 'task', '--status', 'planning');
   assert.equal(request.key, 'MP-1');

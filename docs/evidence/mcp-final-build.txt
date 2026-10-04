@@ -1,0 +1,1 @@
+$ timeout --kill-after=5s 55s bash scripts/build.sh

@@ -1,0 +1,95 @@
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (8.129622ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (3.158664ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.912522ms)
+✔ 31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types (12.021798ms)
+✔ CLI translates to the same subject commands without changing text or default scope (2.240524ms)
+✔ partial is never success; structured and text results agree with every recovery field (0.284317ms)
+✔ calls serialize async work; cancelled pending calls and calls after stop have no effects (0.388159ms)
+✔ memory manages only JSON-string facts and preserves other Markdown as context (0.41368ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.776298ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.673745ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.607516ms)
+✔ checkout lookup uses canonical component boundaries, deepest match and explicit ambiguity (2.425074ms)
+✔ invalid identities/codes never register an organization or create context (1.36906ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.024022ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 122.173277
+✔ real Node launcher persists projects across independent processes without Python or context writes (251.518806ms)
+✔ writer reservation blocks a second source callback before number allocation completes (1050.212268ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (158.686197ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (10.26172ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (264.425742ms)
+✖ real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore (224.130118ms)
+✔ stdio EOF and SIGTERM exit cleanly without creating state (313.788571ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (315.269322ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (515.461262ms)
+✔ two independent request writers retain distinct committed numbers and journal records (130.943605ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (93.374421ms)
+✖ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (269.655253ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 10
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4123.980717
+
+✖ failing tests:
+
+test at dist/test/boundary/mcp.test.js:10:1
+✖ real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore (224.130118ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + undefined
+  - 'error'
+  
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/mcp.test.js:50:16)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: 'error',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at dist/test/boundary/workspace-cli.test.js:9:1
+✖ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (269.655253ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'global\nline'
+  - 'org-only'
+  
+      at TestContext.<anonymous> (file:///work/dist/test/boundary/workspace-cli.test.js:42:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'global\nline',
+    expected: 'org-only',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 5.334s
+             CPU time consumed: 5.117s
+                   Memory peak: 366.1M (swap: 0B)
+[ELIFECYCLE] Command failed with exit code 1.

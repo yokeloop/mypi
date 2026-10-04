@@ -1,0 +1,67 @@
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.486018ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (2.94207ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (6.419739ms)
+✔ 31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types (12.197217ms)
+✔ CLI translates to the same subject commands without changing text or default scope (1.338325ms)
+✖ partial is never success; structured and text results agree with every recovery field (1.20161ms)
+✔ calls serialize async work; cancelled pending calls and calls after stop have no effects (0.505135ms)
+✔ memory manages only JSON-string facts and preserves other Markdown as context (0.42895ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (1.824462ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.638769ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.520557ms)
+✔ checkout lookup uses canonical component boundaries, deepest match and explicit ambiguity (2.33383ms)
+✔ invalid identities/codes never register an organization or create context (1.330964ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (1.962906ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 13
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 118.501412
+
+✖ failing tests:
+
+test at dist/test/fast/mcp-contract.test.js:62:1
+✖ partial is never success; structured and text results agree with every recovery field (1.20161ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  ... Skipped lines
+  
+    {
+      message: 'commit failed',
+      missing: [
+        'git'
+      ],
+  ...
+      ],
+  +   status: 'ok'
+  -   status: 'partial'
+    }
+  
+      at TestContext.<anonymous> (file:///work/dist/test/fast/mcp-contract.test.js:66:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at Test.processPendingSubtests (node:internal/test_runner/test:974:18)
+      at Test.postRun (node:internal/test_runner/test:1542:19)
+      at Test.run (node:internal/test_runner/test:1467:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [Object],
+    expected: [Object],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+Running as unit: mypi-tests.service
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+          Finished with result: exit-code
+Main processes terminated with: code=exited, status=1/FAILURE
+               Service runtime: 1.159s
+             CPU time consumed: 1.456s
+                   Memory peak: 371.5M (swap: 0B)

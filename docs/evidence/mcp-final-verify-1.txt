@@ -1,0 +1,55 @@
+$ bash scripts/check.sh verify
+Running as unit: mypi-tests.service
+Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+(node:25) [PERM0001] SecurityWarning: The flag --allow-addons must be used with extreme caution. It could invalidate the permission model.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (7.546317ms)
+ℹ {"node":"24.21.0","sqlite":{"version":"3.53.4"}}
+✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (3.020632ms)
+✔ journal validates envelope and applies overall ordering/limit even for unordered input (7.768148ms)
+✔ 31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types (12.444798ms)
+✔ CLI translates to the same subject commands without changing text or default scope (1.277781ms)
+✔ partial is never success; structured and text results agree with every recovery field (0.274899ms)
+✔ calls serialize async work; cancelled pending calls and calls after stop have no effects (0.473878ms)
+✔ memory manages only JSON-string facts and preserves other Markdown as context (0.419801ms)
+✔ XDG/default state paths stay outside engine and context, including symlink aliases (2.818342ms)
+✔ CLI parsing is strict without invoking a process for the validation matrix (0.652737ms)
+✔ registered scope, independent organizations and duplicate rollback through the public API (2.5332ms)
+✔ checkout lookup uses canonical component boundaries, deepest match and explicit ambiguity (2.352054ms)
+✔ invalid identities/codes never register an organization or create context (1.627469ms)
+✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.10115ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 124.252969
+✔ real Node launcher persists projects across independent processes without Python or context writes (256.029195ms)
+✔ writer reservation blocks a second source callback before number allocation completes (1053.593099ms)
+✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (157.043734ms)
+✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (11.15009ms)
+✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (267.167829ms)
+✔ real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore (1194.231253ms)
+✔ stdio EOF and SIGTERM exit cleanly without creating state (306.592036ms)
+✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (312.296458ms)
+✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (520.422359ms)
+✔ two independent request writers retain distinct committed numbers and journal records (135.994571ms)
+✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (98.540952ms)
+✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (963.890124ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5795.32716
+Cost: wall=6971ms fast=155ms memory_peak=439328768 tasks_peak=50
+CPU: 7068253 us
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 7.010s
+             CPU time consumed: 7.100s
+                   Memory peak: 418.9M (swap: 0B)

@@ -22,14 +22,16 @@ M0 закрыт; исходные решения — [M0-CONTRACT.md](M0-CONTRAC
 
 Request не обязателен для обычной работы. Нет flow, runner/LLM, очереди исполнения,
 tracker-обязательности, multi-device, сетевого sync, постоянного сервера или каталога сессий.
-MCP пока только предложен отдельным планом; реализации нет.
+Реализован локальный stdio MCP: 31 инструмент, общий типизированный AppCommand с CLI,
+без HTTP/daemon и управления сессиями. Подключение — [MCP.md](MCP.md), проверки — [MCP-CYCLE.md](MCP-CYCLE.md).
 
 ## 2. Структура и зависимости
 
 ```text
 mypi/
 ├── src/
-│   ├── cli/                       # argv, dispatch, JSON, exit
+│   ├── cli/                       # argv → AppCommand, JSON, exit
+│   ├── mcp/                       # SDK stdio, strict schemas, ответы/очередь
 │   ├── app/                       # композиция, mixed-операции, warmup, backup/restore
 │   ├── modules/
 │   │   ├── projects/              # identity, реестр, scope, checkout
@@ -47,7 +49,7 @@ mypi/
 ```
 
 ```text
-CLI → app → публичные API предметных модулей
+CLI / MCP → app → публичные API предметных модулей
 модуль → собственные правила и порты
 адаптер модуля → порты и техническая инфраструктура
 composition root → конкретные адаптеры
