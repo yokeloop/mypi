@@ -1,0 +1,48 @@
+PR https://github.com/yokeloop/mypi/pull/2
+Run https://github.com/yokeloop/mypi/actions/runs/37194235107
+Tested head ca4fb66c99251d350c0c45451549f96fb0f7e4a2
+Reviewed base 6f5135562a4e5b3b9c63347ddd56154c0832cf2b
+Merge 4562ccd7c0851ae772d08cb6fb4479c2d0ff7402 at 2026-10-04T10:07:28Z
+Selected raw log lines (not complete job log):
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:42.0867595Z Service runtime: 6.496s
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:42.0868659Z Memory peak: 1.5M
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.3415850Z Admission: module boundaries, discovery and reachable fast effects checked (not a sandbox proof)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5765759Z ✔ STRICT types, relational uniqueness and foreign keys are enforced by real SQLite (10.175856ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5768106Z ✔ migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected (4.119087ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5769661Z ✔ journal validates envelope and applies overall ordering/limit even for unordered input (49.711909ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5771431Z ✔ 31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types (15.506542ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5772826Z ✔ CLI translates to the same subject commands without changing text or default scope (3.296489ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5774463Z ✔ partial is never success; structured and text results agree with every recovery field (0.380932ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5776079Z ✔ calls serialize async work; cancelled pending calls and calls after stop have no effects (0.541189ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5777694Z ✔ memory manages only JSON-string facts and preserves other Markdown as context (0.495466ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5779282Z ✔ XDG/default state paths stay outside engine and context, including symlink aliases (2.331858ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5780733Z ✔ CLI parsing is strict without invoking a process for the validation matrix (0.956705ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5782081Z ✔ registered scope, independent organizations and duplicate rollback through the public API (3.346674ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5783491Z ✔ checkout lookup uses canonical component boundaries, deepest match and explicit ambiguity (3.119447ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5785396Z ✔ invalid identities/codes never register an organization or create context (1.765644ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5786779Z ✔ read APIs leave database bytes and filesystem unchanged; absent database is not initialized (2.620722ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5850956Z ℹ tests 14
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5852770Z ℹ pass 14
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.5853305Z ℹ fail 0
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:43.9815372Z ✔ real Node launcher persists projects across independent processes without Python or context writes (308.03839ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:45.0996193Z ✔ writer reservation blocks a second source callback before number allocation completes (1062.103101ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:45.3691340Z ✔ context preserves exact text, rejects escaping/overwrite, commits only selected files and exposes Git failure (217.925246ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:45.4359868Z ✔ journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption (12.384141ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:45.8739852Z ✔ backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption (374.695646ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:47.6684638Z ✔ real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore (1628.203913ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:48.0461479Z ✔ stdio EOF and SIGTERM exit cleanly without creating state (379.401672ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:48.5598313Z ✔ memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior (448.877403ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:49.3815325Z ✔ requests preserve source, allocate separate numbers, filter parents, extend statuses and surface partial without replay (740.770211ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:49.5699325Z ✔ two independent request writers retain distinct committed numbers and journal records (192.100831ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:49.6854113Z ✔ abrupt exit after DB commit preserves identity/source; reconciliation adds a factual note, never a fabricated transition (125.894158ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0226978Z ✔ complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation (1265.916722ms)
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0319297Z ℹ tests 12
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0320598Z ℹ pass 12
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0321075Z ℹ fail 0
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0385723Z Cost: wall=8911ms fast=235ms memory_peak=406331392 tasks_peak=47
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0386160Z CPU: 9565752 us
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0805327Z Service runtime: 8.953s
+bounded-verify	Build and verify through reviewed base	2026-10-04T10:06:51.0805819Z Memory peak: 1.6M
+publish-app-verdict	Explicitly report missing independent issuer	﻿2026-10-04T10:07:00.4669786Z ##[group]Run echo '::notice::Independent App issuer is not configured; this is NOT a trusted merge gate.'
+publish-app-verdict	Explicitly report missing independent issuer	2026-10-04T10:07:00.4671612Z ^[[36;1mecho '::notice::Independent App issuer is not configured; this is NOT a trusted merge gate.'^[[0m
+publish-app-verdict	Explicitly report missing independent issuer	2026-10-04T10:07:00.5127456Z ##[notice]Independent App issuer is not configured; this is NOT a trusted merge gate.

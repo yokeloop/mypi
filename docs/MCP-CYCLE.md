@@ -114,7 +114,13 @@ Backup вне Git: `~/.local/state/mypi-config-backups/20261004T100346Z/mcp.json
 
 Reviewed dependencies/policy выделены в commit 6f51355 для продвижения trusted base;
 runner/scripts/TESTING/лимиты не менялись. Политика CI не обходится PR override.
-Hosted CI и merge фиксируются следующим исходом, релизы не создаются.
+Hosted CI и merge завершены: [PR #2](https://github.com/yokeloop/mypi/pull/2),
+[run 37194235107](https://github.com/yokeloop/mypi/actions/runs/37194235107),
+проверенный head ca4fb66, merge `4562ccd7c0851ae772d08cb6fb4479c2d0ff7402`
+(2026-10-04 10:07:28 UTC). [Выдержка hosted log](evidence/mcp-hosted-green.txt).
+Локальный main fast-forward до origin/main, рабочее дерево чистое после слияния.
+Релизов/тегов не создавали. Успех publish-app-verdict сообщает отсутствие issuer,
+а не доказывает доверенный gate.
 
 Оставшиеся границы (не скрытые дефекты): независимый App issuer M1 по-прежнему отсутствует;
 реальный SIGTERM во время активной async операции не доказан end-to-end, но stop/queue
