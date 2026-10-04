@@ -9,7 +9,8 @@
   },
   "packageManager": "pnpm@12.6.0",
   "bin": {
-    "mypi": "dist/src/cli/main.js"
+    "mypi": "dist/src/cli/main.js",
+    "mypi-mcp": "dist/src/mcp/main.js"
   },
   "scripts": {
     "build": "timeout --kill-after=5s 55s bash scripts/build.sh",
@@ -17,7 +18,9 @@
     "verify": "bash scripts/check.sh verify"
   },
   "dependencies": {
-    "better-sqlite3": "13.0.3"
+    "@modelcontextprotocol/sdk": "1.32.0",
+    "better-sqlite3": "13.0.3",
+    "zod": "4.6.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "9.6.0",
