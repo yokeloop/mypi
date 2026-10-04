@@ -1,0 +1,14 @@
+Running as unit: mypi-pi-smoke.service
+mypi: connected, 31 tools (codemode, global)
+  /tools/node /tmp/engine/dist/src/mcp/main.js
+  tools: project_list, project_add, project_resolve [direct], warmup [direct], memory_show, memory_add, memory_remove, capture, note_add, error_add, journal_read, journal_add, request_list, request_show, request_create, request_status, request_title, request_progress, request_touch, status_list, status_add, status_rename, status_terminal, status_remove, context_read, context_commit, context_restore, db_init, bootstrap, backup, restore
+{"status":"ok"}
+{"path":"MEMORY.md"}
+Warning: No project session found with id 'mypi-offline'; creating a new session with that id.
+OFFLINE MCP READ OK; tools=31, direct=2; priorUserMessages=1
+OFFLINE MCP READ OK; tools=31, direct=2; priorUserMessages=2
+          Finished with result: success
+Main processes terminated with: code=exited, status=0/SUCCESS
+               Service runtime: 2.045s
+             CPU time consumed: 2.778s
+                   Memory peak: 169.5M (swap: 0B)

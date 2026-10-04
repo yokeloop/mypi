@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, readdirSync, existsSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, existsSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { state } from '../support/state.js';
@@ -25,6 +25,28 @@ test('registered scope, independent organizations and duplicate rollback through
     assert.throws(() => app.projects.add('one/project', 'OTHER'), /already exists/);
     assert.throws(() => app.projects.resolveScope('one/unknown'), /Unknown project/);
     assert.deepEqual(app.projects.list(), [first, other]);
+  } finally { app.close(); }
+});
+
+test('checkout lookup uses canonical component boundaries, deepest match and explicit ambiguity', t => {
+  const { dir, filename } = state(t), checkout = join(dir, 'repo');
+  mkdirSync(join(checkout, 'nested', 'src'), { recursive: true });
+  mkdirSync(join(dir, 'repo-other'));
+  symlinkSync(checkout, join(dir, 'alias'));
+  const app = createApp(filename, false);
+  try {
+    app.projects.add('one/parent', 'P', checkout);
+    app.projects.add('one/nested', 'N', join(checkout, 'nested'));
+    assert.deepEqual(app.projects.resolveCheckout(join(dir, 'alias')), {
+      match: 'project', identity: 'one/parent', code: 'P', scope: { type: 'project', key: 'P' },
+    });
+    assert.equal(app.projects.resolveCheckout(join(checkout, 'nested', 'src')).code, 'N');
+    assert.deepEqual(app.projects.resolveCheckout(join(dir, 'repo-other')), { match: 'none' });
+    app.projects.add('two/duplicate', 'D', checkout);
+    const ambiguous = app.projects.resolveCheckout(checkout);
+    assert.equal(ambiguous.match, 'ambiguous');
+    assert.equal(ambiguous.projects?.length, 2);
+    assert.throws(() => app.projects.resolveCheckout(filename), /directory/);
   } finally { app.close(); }
 });
 

@@ -1,0 +1,72 @@
+✓ Lockfile passes supply-chain policies (verified 1d ago)
+Lockfile is up to date, resolution step is skipped
+Packages: +51 -89
++++++++++++++++++++++++++++++---------------------------------------------------
+Progress: resolved 51, reused 51, downloaded 0, added 51, done
+.../node_modules/better-sqlite3 install$ node-gyp rebuild
+.../node_modules/better-sqlite3 install: gyp info it worked if it ends with ok
+.../node_modules/better-sqlite3 install: gyp info using node-gyp@12.3.0
+.../node_modules/better-sqlite3 install: gyp info using node@26.8.2 | linux | x64
+.../node_modules/better-sqlite3 install: gyp info find Python using Python version 3.14.7 found at "/usr/bin/python3"
+.../node_modules/better-sqlite3 install: 
+.../node_modules/better-sqlite3 install: gyp info spawn /usr/bin/python3
+.../node_modules/better-sqlite3 install: gyp info spawn args [
+.../node_modules/better-sqlite3 install: gyp info spawn args '/home/priney/.local/share/mise/installs/pnpm/12.6.0/dist/node_modules/node-gyp/gyp/gyp_main.py',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'binding.gyp',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-f',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'make',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/tmp/mypi-mcp-base.GXgDHds7/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3/build/config.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/home/priney/.local/share/mise/installs/pnpm/12.6.0/dist/node_modules/node-gyp/addon.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-I',
+.../node_modules/better-sqlite3 install: gyp info spawn args '/home/priney/.cache/node-gyp/26.8.2/include/node/common.gypi',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dlibrary=shared_library',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dvisibility=default',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_root_dir=/home/priney/.cache/node-gyp/26.8.2',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_gyp_dir=/home/priney/.local/share/mise/installs/pnpm/12.6.0/dist/node_modules/node-gyp',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_lib_file=/home/priney/.cache/node-gyp/26.8.2/<(target_arch)/node.lib',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dmodule_root_dir=/tmp/mypi-mcp-base.GXgDHds7/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Dnode_engine=v8',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--depth=.',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--no-parallel',
+.../node_modules/better-sqlite3 install: gyp info spawn args '--generator-output',
+.../node_modules/better-sqlite3 install: gyp info spawn args 'build',
+.../node_modules/better-sqlite3 install: gyp info spawn args '-Goutput_dir=.'
+.../node_modules/better-sqlite3 install: gyp info spawn args ]
+.../node_modules/better-sqlite3 install: gyp info spawn make
+.../node_modules/better-sqlite3 install: gyp info spawn args [ 'BUILDTYPE=Release', '-C', 'build' ]
+.../node_modules/better-sqlite3 install: make: Entering directory '/tmp/mypi-mcp-base.GXgDHds7/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3/build'
+.../node_modules/better-sqlite3 install:   TOUCH Release/obj.target/better_sqlite3.stamp
+.../node_modules/better-sqlite3 install:   TOUCH Release/obj.target/test_extension.stamp
+.../node_modules/better-sqlite3 install: make: Leaving directory '/tmp/mypi-mcp-base.GXgDHds7/node_modules/.pnpm/better-sqlite3@13.0.3/node_modules/better-sqlite3/build'
+.../node_modules/better-sqlite3 install: gyp info ok 
+.../node_modules/better-sqlite3 install: Done
+
+dependencies:
+- @modelcontextprotocol/sdk 1.32.0
++ better-sqlite3 13.0.3
+- zod 4.6.5
+
+devDependencies:
++ @types/better-sqlite3 9.6.0
++ @types/node 24.19.0
++ dependency-cruiser 18.5.0
++ typescript 5.9.3
+
+Done in 401ms using pnpm v12.6.0
+[eval]:1
+if (process.versions.node.split(".")[0] !== "24") throw Error("Node 24 required")
+                                                  ^
+
+Error: Node 24 required
+    at [eval]:1:57
+    at runScriptInThisContext (node:internal/vm:219:10)
+    at node:internal/process/execution:485:12
+    at [eval]-wrapper:6:24
+    at runScriptInContext (node:internal/process/execution:483:60)
+    at evalFunction (node:internal/process/execution:317:30)
+    at evalTypeScript (node:internal/process/execution:329:3)
+    at node:internal/main/eval_string:71:3
+
+Node.js v26.8.2

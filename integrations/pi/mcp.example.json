@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "mypi": {
+      "command": "/absolute/path/to/node24",
+      "args": [
+        "/absolute/path/to/mypi/dist/src/mcp/main.js"
+      ],
+      "description": "Память, проекты, журнал и задачи mypi. Определи проект через project_resolve, затем warmup; записывай фактические исходы в явный scope.",
+      "exposure": "codemode",
+      "toolExposure": {
+        "project_resolve": "direct",
+        "warmup": "direct"
+      }
+    }
+  }
+}

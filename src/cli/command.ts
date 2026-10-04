@@ -1,4 +1,4 @@
-import type { WorkspaceCommand } from '../app/commands.js';
+import type { WorkspaceCommand } from './workspace-command.js';
 import { parseWorkspaceCommand } from './workspace-command.js';
 import { parseArgs } from 'node:util';
 import { InputError } from '../shared/errors.js';
