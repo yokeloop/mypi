@@ -16,3 +16,11 @@ dist/
 *.sqlite3-*
 *.db
 *.db-*
+
+# MP-5 private publication receipts and raw experimental traces (managed task context)
+/docs/MP-5-ARCHITECTURE-PROPOSAL.html
+/docs/MP-5-DERIVE-PUBLICATION*.json
+/experiments/mp5-a1/evidence/
+/experiments/mp5-a1/runs/
+/experiments/mp5-a1/P0-RESULTS.md
+/experiments/mp5-a1/*report-section*.html
