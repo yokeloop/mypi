@@ -2,7 +2,8 @@
 
 Status: implementation design under the engineer-approved A1 plan. This document is
 not evidence of deployed enforcement. Only the disposable prototype has been exercised.
-Product source changes await the agreed committed baseline incorporating MP-1/MP-4.
+Implementation proceeds on the current MP-5 branch baseline, independently of other
+tasks. Their uncommitted changes are neither a prerequisite nor part of this work.
 The current task session and its real MCP connections remain outside the proposed boundary.
 
 ## 1. Authority
@@ -15,8 +16,8 @@ The current task session and its real MCP connections remain outside the propose
 - Discover registered project paths, Git baseline and current Herdr IDs at action time;
   do not introduce manual configuration for facts that can be derived and verified.
 - Persist enough authoritative run state to reconcile partial effects, revoke rights
-  and refuse duplicate live launches. Exact SQL/API design belongs to implementation
-  after baseline reconciliation; this is not a second status database in Markdown.
+  and refuse duplicate live launches. Exact SQL/API design belongs to MP-5
+  implementation; this is not a second status database in Markdown.
 
 ## 2. Visible local resources
 

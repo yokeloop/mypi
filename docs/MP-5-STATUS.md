@@ -7,9 +7,14 @@ resources. Disabling tool classes is not isolation. See
 [prototype](../experiments/mp5-a1/README.md).
 
 This checkpoint is not a deployed flow runtime, security acceptance or task completion.
-Review, merge permission and completion remain separate gates. Product source changes
-await a separately prepared committed baseline incorporating MP-1/MP-4; their dirty
-original-checkout changes have not been imported or committed here.
+Review, merge permission and completion remain separate gates. The engineer clarified
+that other tasks must not gate MP-5. Continue from this branch's existing committed
+baseline (`6d4ebec`, based on `7ff3703`), without waiting for, importing or committing
+other tasks' dirty changes. This supersedes the earlier proposed baseline dependency.
+
+Next: implement P1, the managed local launch and durable request/run/session binding,
+with Herdr orchestration, whole-process isolation and fixture external operations.
+The approved A1 plan and its remaining verification/delivery gates are unchanged.
 
 ## Verified feasibility, including failures
 

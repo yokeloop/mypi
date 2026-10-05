@@ -2,8 +2,8 @@
 
 This is disposable experimental code, **not a product launcher, alternate test suite,
 or production authorization boundary**. Do not install it globally or accept untrusted
-launcher arguments. The implementation plan is approved; product source work awaits
-the agreed committed baseline. See [status](../../docs/MP-5-STATUS.md) and the
+launcher arguments. The implementation plan is approved and proceeds on the current
+MP-5 branch, independently of other tasks. See [status](../../docs/MP-5-STATUS.md) and the
 [resource contract](../../docs/MP-5-RESOURCE-CONTRACT.md).
 
 ## Scope and prerequisites
