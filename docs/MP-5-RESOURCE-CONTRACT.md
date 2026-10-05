@@ -71,10 +71,12 @@ are safe; independent review of the replacement boundary is still required.
 A run owns a service/cgroup independently of Herdr's foreground-agent heuristic.
 `unknown`/`idle`, a closed tab, exit 0 or a footer marker never establish acceptance.
 Stopping must revoke external grants and terminate/reconcile the owned process group.
-Signal observations so far cover normal Pi exit/keyboard exit, a real deadline-triggered
-TERM and an explicit KILL of the service's main process. Observed descendants were
-cleaned up. Routine manager-stop, host crash recovery and grant revocation were not
-all independently verified and must not be inferred from those cases.
+Signal observations cover normal Pi exit/keyboard exit, a real deadline-triggered
+TERM, an explicit KILL of the service's main process, and a subsequent routine
+manager-stop with a live canary child. In the latter case, the child was verified in
+the owned cgroup before stop, then absent along with the cgroup after stop returned.
+Host crash recovery, all signal variants and grant revocation remain unverified;
+none may be inferred from these selected cleanup cases.
 
 ## 4. External resources
 

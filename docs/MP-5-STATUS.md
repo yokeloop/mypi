@@ -38,6 +38,24 @@ stop bound, sequentially under the exclusive test unit. P0 wall times were 22.13
 credentials were used. Temporary fixture trees, runtime copies and owned panes were
 cleaned up. These are individual observations, not benchmarks or latency percentiles.
 
+## Subsequent routine-stop check
+
+After the first MP-5 commits were pushed, one additional run exercised ordinary
+`systemctl stop` through an owned Herdr controller pane, not the emergency deadline.
+The source was commit `07cbf7d`; no launcher/probe code changed for this check.
+
+- Fresh service/Pi TTY identity was checked; the native/helper scope checks passed.
+- The canary was observed alive and verified in the owned service's cgroup.
+- The current InvocationID was checked immediately before a no-pager stop command.
+- Stop returned successfully: manager result `success`, main signal `15/TERM`, service
+  runtime 1.245 s, CPU 1.093 s. Before stop, memory.peak was 260,378,624 bytes and
+  pids.peak was 36; final service summary reported 248.3 MiB. No limit changed.
+- Afterward the service was inactive/dead, cgroup and canary absent, foreign/read-only
+  canaries unchanged. Owned panes and temporary fixture data were removed.
+
+This establishes observed routine-stop cleanup, not host-crash recovery, atomic grant
+revocation or task acceptance. Raw evidence: managed `p0-routine-stop-v1.json`.
+
 ## Traceability
 
 Detailed report and raw evidence remain in the managed MP-5 context. Key artifacts:
@@ -53,8 +71,8 @@ traces. The fixture source contains no provider keys; `non-secret-fixture` is sy
 
 ## Remaining work
 
-Routine manager-stop, all signal variants, host-crash recovery and the full isolation
-attack set are not yet verified. Production mypi/Derive authorization and revocation,
+All signal variants, host-crash recovery and the full isolation attack set are not
+yet verified. Production mypi/Derive authorization and revocation,
 Git mediation, provider credential/streaming support and trusted approvals remain
 unimplemented. No independent test-diff/security review has run. Do not claim that a
 passing fixture establishes production scope enforcement.
