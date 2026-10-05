@@ -17,8 +17,8 @@ fixes HTTP Transport's optional sessionId typing without enabling skipLibCheck.
 ## Observed checks
 
 - Full `build` + `verify`: **18 fast + 14 boundary**, all passing. Latest recorded
-  full profile before documentation: wall 7415 ms; fast 164 ms; memory.peak
-  411,398,144 bytes; pids.peak 50. These are individual measurements, not p95.
+  full profile before documentation: wall 7418 ms; fast 164 ms; memory.peak
+  411,041,792 bytes; pids.peak 50. These are individual measurements, not p95.
 - Two mutations in a disposable copy: removing context-scope enforcement and allowing
   a stopping grant. Both failed the intended existing assertions (`Missing expected
   exception`), not setup/import. Their bounded service times were 1.224 / 1.185 s.
@@ -74,6 +74,16 @@ used the existing installation budget, completed in 93 ms and downloaded no pack
 8. Admission rejected a dynamic-import `/task` test. Its pure command adapter was
    extracted to the CLI boundary and tested through a static import, preserving the
    same runtime handler and exact-source/card-only assertions without weakening admission.
+
+## Remote CI policy gate
+
+The first PR #3 CI run (`37360882674`) stopped **before running tests**:
+`Trusted policy differs: pnpm-lock.yaml`. The reviewed-base gate intentionally
+requires review of dependency/build/test-policy changes, including the SDK type
+patch and runtime build/sandbox inputs. The CI source copy now also includes the
+integration files, under the same symlink rejection and read-only build mount.
+The equality gate was not relaxed or bypassed. Local verification is not a green
+remote CI result; explicit promotion of a reviewed base remains required.
 
 ## Remaining gates
 
