@@ -11,6 +11,21 @@
 - «Готово» называет запись, через которую это проверено. У поведения больше одной точки входа — чинить все, не одну.
 - Не знаю — говорить «не знаю», не соседний известный ответ.
 
+## Herdr session orchestration
+
+- Task sessions must run inside Herdr and be controlled through its API. Discover the
+  current environment first: inspect `HERDR_ENV`, `HERDR_TAB_ID`, `HERDR_PANE_ID`,
+  `HERDR_WORKSPACE_ID`, `HERDR_SOCKET_PATH`, and `HERDR_BIN_PATH`; use `command -v herdr`
+  and `herdr --help`. Before control, load `herdr --skill` if not already loaded and
+  follow it. A missing Herdr MCP entry does not mean its CLI/API is unavailable.
+- Resolve paths and live IDs at action time; use the current pane or explicitly
+  discovered targets. Never reuse saved IDs or silently replace Herdr with an ordinary
+  child process. Do not create or launch a task just because a card was created.
+- The general orchestrator may discover the environment and manage memory/DB and
+  authorized launches. Research, criteria, implementation plans and source changes
+  belong in the dedicated task tab. Keep useful tools inside the authorized resource
+  scope; neither tool removal nor a separate worktree is a security boundary.
+
 ## Архитектурный контракт
 
 - Принятые решения: `docs/M0-CONTRACT.md`; актуальная архитектура: `docs/ARCHITECTURE.md`. M0 закрыт; приёмка — `docs/M0-CONTRACT.md`, §8. Реализация M1 разрешена ответом «начинай»; ход и проверки — `docs/M1-CYCLE.md`; первый срез — `docs/M1-IMPLEMENTATION.md`. Миграция личных данных этим не разрешена. Отдельным ответом «делай все разрешаю» разрешены CI/GitHub App, коммиты движка, отдельная ветка, push и PR в yokeloop/mypi, а следующим ответом «можешь довести все до релиза как считаешь нужным я потом проверю» — также продвижение проверенной ветки и prerelease. RC не означает окончательную приёмку M1 без доверенного issuer. Размещение отдельного Git home/ внутри клона подтверждено; не выносить его наружу.
