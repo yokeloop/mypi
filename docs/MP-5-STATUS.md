@@ -6,15 +6,19 @@ resources. Disabling tool classes is not isolation. See
 [resource contract](MP-5-RESOURCE-CONTRACT.md) and
 [prototype](../experiments/mp5-a1/README.md).
 
-This checkpoint is not a deployed flow runtime, security acceptance or task completion.
+The first product runtime is implemented on this branch: see [operator guide](MP-5-RUNTIME.md)
+and [verification record](MP-5-VERIFICATION.md). This is not a production deployment,
+independent security acceptance or task completion.
 Review, merge permission and completion remain separate gates. The engineer clarified
 that other tasks must not gate MP-5. Continue from this branch's existing committed
 baseline (`6d4ebec`, based on `7ff3703`), without waiting for, importing or committing
 other tasks' dirty changes. This supersedes the earlier proposed baseline dependency.
 
-Next: implement P1, the managed local launch and durable request/run/session binding,
-with Herdr orchestration, whole-process isolation and fixture external operations.
-The approved A1 plan and its remaining verification/delivery gates are unchanged.
+Implemented: durable run binding and migration; shared CLI/MCP lifecycle; scoped local
+resources and mypi/Derive adapters; host provider relay; private Git and bounded export;
+explicit card-only `/task` integration. Product fixtures include actual resume, raw RPC
+denials and abnormal cleanup. Delivery is a review-ready PR, not an automatic merge.
+The approved A1 plan and its remaining verification/acceptance gates are unchanged.
 
 ## Verified feasibility, including failures
 
@@ -76,11 +80,11 @@ traces. The fixture source contains no provider keys; `non-secret-fixture` is sy
 
 ## Remaining work
 
-All signal variants, host-crash recovery and the full isolation attack set are not
-yet verified. Production mypi/Derive authorization and revocation,
-Git mediation, provider credential/streaming support and trusted approvals remain
-unimplemented. No independent test-diff/security review has run. Do not claim that a
-passing fixture establishes production scope enforcement.
+All signal variants, physical host-crash recovery and the full isolation attack set are
+not verified. The runtime now enforces scoped dispatch and implements private Git/export
+and a bounded provider channel; their tested cases and unsupported integrations are in
+MP-5-RUNTIME/VERIFICATION. Live authentication/streaming and independent test-diff/security
+review remain open. A passing fixture is not production security acceptance.
 
 Herdr discovery instructions are being delivered in this branch's `AGENTS.md`.
 The shared MEMORY fact must remain until the instructions reach the canonical checkout;

@@ -1,0 +1,24 @@
+diff --git a/dist/esm/shared/transport.d.ts b/dist/esm/shared/transport.d.ts
+--- a/dist/esm/shared/transport.d.ts
++++ b/dist/esm/shared/transport.d.ts
+@@ -90,7 +90,7 @@
+     /**
+      * The session ID generated for this connection.
+      */
+-    sessionId?: string;
++    sessionId?: string | undefined;
+     /**
+      * Sets the protocol version used for the connection (called when the initialize response is received).
+      */
+diff --git a/dist/cjs/shared/transport.d.ts b/dist/cjs/shared/transport.d.ts
+--- a/dist/cjs/shared/transport.d.ts
++++ b/dist/cjs/shared/transport.d.ts
+@@ -90,7 +90,7 @@
+     /**
+      * The session ID generated for this connection.
+      */
+-    sessionId?: string;
++    sessionId?: string | undefined;
+     /**
+      * Sets the protocol version used for the connection (called when the initialize response is received).
+      */

@@ -41,13 +41,21 @@ test('migration is repeatable without reseeding renamed/custom statuses; newer s
       .map(code => ({ code, is_terminal: ['done', 'failed', 'cancelled'].includes(code) ? 1 : 0 })));
   db.prepare("UPDATE request_statuses SET code = 'fresh' WHERE code = 'new'").run();
   db.prepare("INSERT INTO request_statuses(code, is_terminal) VALUES ('custom', 0)").run();
+  db.prepare(`INSERT INTO requests(project_id, number, title, status_id, context_dir, created_at, updated_at)
+    VALUES (NULL, 1, 'Preserved card', (SELECT id FROM request_statuses WHERE code='custom'), 'requests/REQ-1-kept', 'before', 'before')`).run();
+  const cards = db.prepare('SELECT * FROM requests').all();
   const expected = db.prepare('SELECT * FROM request_statuses ORDER BY id').all();
+  // Exercise the actual v1 -> v2 path, not only fresh initialization.
+  db.exec('DROP TABLE task_runs'); db.pragma('user_version = 1');
   db.close();
+  assert.throws(() => openDatabase(filename), /compatible/); // Reads never migrate implicitly.
+  initializeDatabase(filename);
   initializeDatabase(filename);
   db = openDatabase(filename);
   try {
     assert.deepEqual(db.prepare('SELECT * FROM request_statuses ORDER BY id').all(), expected);
-    db.pragma('user_version = 2');
+    assert.deepEqual(db.prepare('SELECT * FROM requests').all(), cards);
+    db.pragma('user_version = 999');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
   assert.throws(() => openDatabase(filename), /compatible/);

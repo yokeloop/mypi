@@ -6,8 +6,16 @@ import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 
+import { startRun, stopRun, reconcileRun, showRun, listRuns, exportRun } from './run-control.js';
+
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
+  if (c.name === 'run_start') return startRun(filename, c.key, c, root);
+  if (c.name === 'run_stop') return stopRun(filename, c.id);
+  if (c.name === 'run_reconcile') return reconcileRun(filename, c.id);
+  if (c.name === 'run_show') return showRun(filename, c.id);
+  if (c.name === 'run_export') return exportRun(filename, c.id, root);
+  if (c.name === 'run_list') return listRuns(filename, c.key, root);
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);

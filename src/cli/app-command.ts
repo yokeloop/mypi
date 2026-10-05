@@ -20,6 +20,17 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     return { text: a[index] };
   }
   switch (name) {
+    case 'run start': return { name: 'run_start', key: a[0]!, seconds: Number(required('seconds')),
+      modelCalls: Number(required('model-calls')), fixture: Boolean(o['fixture']),
+      ...(opt('derive-artifact') === undefined ? {} : { deriveArtifact: opt('derive-artifact')! }),
+      ...(opt('derive-workspace') === undefined ? {} : { deriveWorkspace: opt('derive-workspace')! }),
+      ...(opt('model') === undefined ? {} : { model: opt('model')! }), ...(opt('resume') === undefined ? {} : { resume: opt('resume')! }) };
+    case 'project resolve': return { name: 'project_resolve', path: a[0]! };
+    case 'run export': return { name: 'run_export', id: a[0]! };
+    case 'run show': return { name: 'run_show', id: a[0]! };
+    case 'run stop': return { name: 'run_stop', id: a[0]! };
+    case 'run reconcile': return { name: 'run_reconcile', id: a[0]! };
+    case 'run list': return { name: 'run_list', key: a[0]! };
     case 'bootstrap': return { name: 'bootstrap' };
     case 'capture': return { name: 'capture', source: source(0) };
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };

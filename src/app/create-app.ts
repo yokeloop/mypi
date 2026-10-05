@@ -2,6 +2,8 @@ import { initializeDatabase, openDatabase } from '../infrastructure/database/dat
 import { fileURLToPath } from 'node:url';
 import { canonicalDirectory, databasePath, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
+import { createRuns } from '../modules/runs/public.js';
+import { sqliteRunStore } from '../modules/runs/adapters/sqlite-run-store.js';
 import { createRequests } from '../modules/requests/public.js';
 import { sqliteRequestStore } from '../modules/requests/adapters/sqlite-request-store.js';
 import { createProjects } from '../modules/projects/public.js';
@@ -29,6 +31,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
       return { code: project.code, prefix: 'projects/' + project.org + '/' + project.slug + '/requests' };
     }),
     projects,
+    runs: createRuns(sqliteRunStore(db), clock),
     close: () => db.close(),
   };
 }

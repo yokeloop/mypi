@@ -29,4 +29,7 @@ export type AppCommand =
   | { name: 'context_commit'; paths: string[]; message: string }
   | { name: 'context_restore'; path: string; revision: string }
   | { name: 'backup'; destination: string }
-  | { name: 'restore'; backupDirectory: string };
+  | { name: 'restore'; backupDirectory: string }
+  | { name: 'run_start'; key: string; seconds: number; modelCalls: number; fixture: boolean; model?: string; resume?: string; deriveArtifact?: string; deriveWorkspace?: string }
+  | { name: 'run_show' | 'run_stop' | 'run_reconcile' | 'run_export'; id: string }
+  | { name: 'run_list'; key: string };

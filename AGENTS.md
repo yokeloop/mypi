@@ -1,6 +1,7 @@
 # AGENTS.md — mypi
 
-Правила агента, работающего в корне mypi. Фаза 1: память и проекты, включая простой учёт запросов, без оркестрации.
+Agent guidance for mypi. M1 is the memory/project/request baseline; the separately
+authorized MP-5 interactive task runtime is documented in `docs/MP-5-RUNTIME.md`.
 
 ## Поведение
 
@@ -25,6 +26,24 @@
   authorized launches. Research, criteria, implementation plans and source changes
   belong in the dedicated task tab. Keep useful tools inside the authorized resource
   scope; neither tool removal nor a separate worktree is a security boundary.
+
+## MP-5 interactive flow
+
+- `/task` creates a card only; launching a worker is a separately authorized host action.
+  New flow definitions require a user request. Use a separate worktree by default;
+  never infer permission to work in main. This first runtime offers worktrees only.
+- Follow `docs/MP-5-RUNTIME.md` and `docs/MP-5-RESOURCE-CONTRACT.md`. Keep normal tools
+  usable inside granted resources; do not confuse a worktree, prompt or tool annotation
+  with technical isolation. The normal MCP server is a trusted-host control surface,
+  not a worker endpoint. Do not mount shared credentials, context DB or host sockets.
+- Model call limits and runtime lifetime must be explicit. Offline fixtures are not
+  live-provider verification. Do not run paid/live trial operations without the required
+  authorization; unsupported dependencies/credentials must not trigger a broad fallback.
+- For MP-5 delivery: commit + review-ready PR, then engineer review/merge approval,
+  then merge, then request completion. Process exit, model output and successful export
+  are not acceptance. Other units/flows retain their own acceptance contracts.
+- Earlier M1-only statements below describe that baseline, not a ban on the separately
+  approved MP-5 implementation. Do not import or wait for unrelated task changes.
 
 ## Архитектурный контракт
 

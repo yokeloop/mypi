@@ -27,9 +27,12 @@ const examples: [string, Record<string, unknown>][] = [
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
+  ['run_start', { key: 'MP-1', seconds: 55, modelCalls: 2, fixture: true }],
+  ['run_show', { id: 'a'.repeat(32) }], ['run_list', { key: 'MP-1' }],
+  ['run_export', { id: 'a'.repeat(32) }], ['run_stop', { id: 'a'.repeat(32) }], ['run_reconcile', { id: 'a'.repeat(32) }],
 ];
-test('31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 31);
+test('37 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 37);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -58,6 +61,11 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
+  assert.deepEqual(translate(['run', 'start', 'MP-1', '--seconds', '55', '--model-calls', '2', '--fixture']),
+    { name: 'run_start', key: 'MP-1', seconds: 55, modelCalls: 2, fixture: true });
+  assert.deepEqual(translate(['run', 'stop', 'a'.repeat(32)]), { name: 'run_stop', id: 'a'.repeat(32) });
+  assert.deepEqual(translate(['project', 'resolve', '/tmp']), { name: 'project_resolve', path: '/tmp' });
+  assert.deepEqual(translate(['run', 'export', 'a'.repeat(32)]), { name: 'run_export', id: 'a'.repeat(32) });
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {

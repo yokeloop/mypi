@@ -162,13 +162,16 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+patchedDependencies:
+  '@modelcontextprotocol/sdk@1.32.0': 701982645ccfb6e663d252edd417224193c41220a3d1adfcafcde2efc2dcd2af
+
 importers:
 
   .:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: 1.32.0
-        version: 1.32.0(supports-color@7.2.0)(zod@4.6.5)
+        version: 1.32.0(patch_hash=701982645ccfb6e663d252edd417224193c41220a3d1adfcafcde2efc2dcd2af)(supports-color@7.2.0)(zod@4.6.5)
       better-sqlite3:
         specifier: 13.0.3
         version: 13.0.3
@@ -755,7 +758,7 @@ snapshots:
     dependencies:
       hono: 4.13.12
 
-  '@modelcontextprotocol/sdk@1.32.0(supports-color@7.2.0)(zod@4.6.5)':
+  '@modelcontextprotocol/sdk@1.32.0(patch_hash=701982645ccfb6e663d252edd417224193c41220a3d1adfcafcde2efc2dcd2af)(supports-color@7.2.0)(zod@4.6.5)':
     dependencies:
       '@hono/node-server': 2.1.3(hono@4.13.12)
       ajv: 8.20.0

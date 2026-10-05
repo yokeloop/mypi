@@ -12,7 +12,7 @@ export type Command =
 
 export const usage = `mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
-mypi project list [--org <org>]
+mypi project list [--org <org>] | resolve <existing-directory>
 mypi bootstrap | warmup [-s org/project]
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> [-s scope]
@@ -25,6 +25,9 @@ mypi request status <key> <code> --reason text | title <key> <title> --reason te
 mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
+mypi run start <request-key> --seconds n --model-calls n (--fixture | --model codex-model-id) [--resume run-id] [--derive-artifact id --derive-workspace id]
+mypi run list <request-key> | show <run-id> | stop <run-id> | reconcile <run-id> | export <run-id>
+Run control requires a trusted host; request creation never launches a run.
 mypi backup <directory> | restore <backup-directory>
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;

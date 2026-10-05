@@ -40,7 +40,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 31);
+  assert.equal(listed.length, 37);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.idempotentHint, false);

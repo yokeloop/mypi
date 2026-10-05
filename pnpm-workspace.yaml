@@ -1,3 +1,6 @@
 # One package; only the selected native driver may run an install script.
 allowBuilds:
   better-sqlite3: true
+# SDK 1.32's HTTP getter can return undefined; keep exactOptionalPropertyTypes enabled.
+patchedDependencies:
+  '@modelcontextprotocol/sdk@1.32.0': patches/mcp-sdk-exact-optional.patch

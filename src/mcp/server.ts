@@ -9,7 +9,7 @@ import { serialCalls } from './serial.js';
 
 export function createServer(filename: string, root?: string) {
   const server = new McpServer({ name: 'mypi', version: '0.1.0-rc.1' }, {
-    instructions: 'Use explicit scope/key. Resolve project from client working directory, then warmup. Warmup is an index, not full memory. Requests are optional. No automatic retries: partial or connection loss requires DB/files/journal/Git reconciliation. Maintenance requires explicit intent; stop other writers for bootstrap/restore.',
+    instructions: 'Use explicit scope/key. Resolve project from client working directory, then warmup. Warmup is an index, not full memory. Requests are optional. No automatic retries: partial or connection loss requires DB/files/journal/Git reconciliation. Maintenance requires explicit intent; stop other writers for bootstrap/restore. This is a trusted-host endpoint, not worker ACL. run_start requires separate launch/provider authorization and explicit budgets; card creation never launches. Workers receive a separate scoped listener. Exit/export are not request acceptance.',
   });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
@@ -23,7 +23,7 @@ export function createServer(filename: string, root?: string) {
     server.registerTool(name, {
       description: tool.description, inputSchema: tool.schema, outputSchema: output,
       annotations: { readOnlyHint: readonly, destructiveHint: !readonly,
-        idempotentHint: readonly, openWorldHint: false },
+        idempotentHint: readonly, openWorldHint: name === 'run_start' },
     }, (args: unknown, extra: { signal: AbortSignal }) => invoke(name, args, extra.signal));
   }
   // McpServer's default call handler emits text-only validation errors. Keep SDK framing,

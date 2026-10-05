@@ -1,7 +1,9 @@
 # MP-5 A1 — resource and launch contract
 
-Status: implementation design under the engineer-approved A1 plan. This document is
-not evidence of deployed enforcement. Only the disposable prototype has been exercised.
+Status: contract under the engineer-approved A1 plan. The first implementation and its
+supported subset are described in [MP-5-RUNTIME.md](MP-5-RUNTIME.md); product verification
+is in [MP-5-VERIFICATION.md](MP-5-VERIFICATION.md). This document alone is not evidence of
+deployment or complete security acceptance.
 Implementation proceeds on the current MP-5 branch baseline, independently of other
 tasks. Their uncommitted changes are neither a prerequisite nor part of this work.
 The current task session and its real MCP connections remain outside the proposed boundary.
@@ -16,8 +18,8 @@ The current task session and its real MCP connections remain outside the propose
 - Discover registered project paths, Git baseline and current Herdr IDs at action time;
   do not introduce manual configuration for facts that can be derived and verified.
 - Persist enough authoritative run state to reconcile partial effects, revoke rights
-  and refuse duplicate live launches. Exact SQL/API design belongs to MP-5
-  implementation; this is not a second status database in Markdown.
+  and refuse duplicate live launches. The implementation uses `task_runs` and scoped
+  host listeners; this is not a second status database in Markdown.
 
 ## 2. Visible local resources
 
@@ -76,7 +78,8 @@ Signal observations cover normal Pi exit/keyboard exit, a real deadline-triggere
 TERM, an explicit KILL of the service's main process, and a subsequent routine
 manager-stop with a live canary child. In the latter case, the child was verified in
 the owned cgroup before stop, then absent along with the cgroup after stop returned.
-Host crash recovery, all signal variants and grant revocation remain unverified;
+Physical host-crash recovery and all signal variants remain unverified. Queued-call
+revocation and a product main-KILL/reconcile case now have the linked implementation evidence;
 none may be inferred from these selected cleanup cases.
 
 ## 4. External resources
@@ -107,8 +110,8 @@ slash-only activity did not materialize a session file in the observed Pi versio
 
 Readiness observations must be tied to the current attempt. Do not consume stale
 `ready.json`, an old transcript marker, or a marker merely echoed in a shell command.
-The prototype now removes its old ready file; a production handshake requires stronger
-attempt/connection ownership. Shell control commands must disable pagers and fail
+The prototype removes its old ready file. The product uses new attempt directories,
+service identity checks and a fresh host-written attempt/session/InvocationID handshake. Shell control commands must disable pagers and fail
 closed on readiness errors. Verify actual state after sending a signal.
 
 After timeout/connection loss, inspect the owned service, cgroup, session, worktree and
