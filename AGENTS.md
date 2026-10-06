@@ -48,6 +48,14 @@ or delegation step before doing work. Follow the user's requested scope and sess
 - Partial operations or lost connections do not imply rollback. Inspect actual state
   before repeating a write; report verification and remaining limitations honestly.
 
+## Project setup and maintenance
+
+- For explicitly requested creation, initialization, registration or maintenance of
+  a project, use the [project-management skill](.agents/skills/project-management/SKILL.md).
+  Clarify whether the user means a repository or a mypi registration; neither
+  implies the other. Do not register projects, initialize storage, or start a
+  project-tracking workflow automatically.
+
 ## Developing the engine
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
