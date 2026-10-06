@@ -14,9 +14,9 @@ The former instruction-driven workflow has been withdrawn; stored data is retain
 Flow is part of the product direction; automated execution/visibility isolation are
 not implemented. See [PLAN](PLAN.md) for milestones without speculative infrastructure.
 
-**Readiness:** v0.1.1 includes the stdio MCP server and withdrawal of the mandatory
-agent workflow. It is not production-ready: the independent App issuer/trusted gate
-and final M1 acceptance remain open ([M1-CI](docs/M1-CI.md)). The earlier
+**Readiness:** the stdio MCP server and withdrawal of the mandatory agent workflow
+are included since v0.1.1. This project is not production-ready: the independent App
+issuer/trusted gate and final M1 acceptance remain open ([M1-CI](docs/M1-CI.md)). The earlier
 [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) was a
 release candidate. [Release snapshot](docs/RELEASE.md), [file-map snapshot](docs/FILEMAP.md)
 and [published RC report](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf)
@@ -45,6 +45,18 @@ describe older revisions, not the current operating policy.
 TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
 Versions are pinned in mise.toml, package.json and the lockfile.
+
+To publish a new version from a clean `main` with GitHub CLI authenticated:
+
+```bash
+mise exec -- pnpm release 0.1.2 # replace with the next version
+```
+
+The command updates package/MCP versions, builds and verifies, commits and tags that
+same commit, pushes both refs atomically, waits for hosted CI on that SHA and creates
+a GitHub prerelease (no npm publish). Tags are never moved. After a partial remote
+write, inspect the reported state and rerun the same command to continue; it does not
+roll back published refs. This is release automation, not an independent trusted gate.
 
 From the engine checkout:
 
