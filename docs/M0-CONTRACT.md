@@ -1,5 +1,9 @@
 # M0 — архитектурный контракт
 
+> The former mandatory memory/task/Herdr agent workflow is
+> [withdrawn](AGENT-WORKFLOW.md). Earlier operating instructions below are historical,
+> not current agent policy. Storage contracts and original decisions are unchanged.
+
 > Уточнение 2026-10-04: по прямому запросу инженера прототип, импорт его данных и совместимость прежних форматов удалены. Упоминания миграции прототипа ниже — история согласований, не действующее требование. SQL-миграции схемы M1 и backup/restore сохранены; актуальная архитектура — [ARCHITECTURE.md](ARCHITECTURE.md).
 
 Статус: **M0 закрыт: архитектурный контракт принят инженером. Реализация M1 не разрешена.**

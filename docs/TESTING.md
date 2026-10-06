@@ -1,193 +1,299 @@
-# mypi — политика тестирования
+# mypi testing policy
 
-Дата: 2026-09-30. **Архитектурная основа и правила приняты ответом инженера «закрепляем». Стартовые численные бюджеты приняты 2026-10-02 (§11); локальные ограничения и admission реализованы; проверки/границы защиты — [M1-CYCLE.md](M1-CYCLE.md), первоначальный срез — [M1-IMPLEMENTATION.md](M1-IMPLEMENTATION.md). Измеренного baseline всей M1 нет.**
-Основание: [отчёт указанной ревизии gist](https://gist.github.com/prineycom/0bce7da0b37ae6f580b292e5d854d528/aaa39187b7aa20722bd4405d431078f7d418297c), связанные первоисточники, [контракт M0](M0-CONTRACT.md) и [архитектура mypi](ARCHITECTURE.md).
+Accepted rules, not a new policy proposal. The architecture and rules were accepted
+on 2026-09-30; initial numeric budgets on 2026-10-02 (§11). Local isolation/admission
+are implemented; evidence and protection boundaries: [M1-CYCLE](M1-CYCLE.md),
+[MCP-CYCLE](MCP-CYCLE.md); initial slice: [M1-IMPLEMENTATION](M1-IMPLEMENTATION.md).
+MP-1 translates the active guidance into English without changing budgets, profiles,
+runner, admission or review requirements. Historical records in §§9–11 stay verbatim.
+The MCP cycle contains limited comparative measurements, not a full p95 baseline.
 
-Scope: правила разработки тестов mypi до делегирования юнитам. Первая поставка остаётся системой памяти и проектов на Node.js. M0 закрыт отдельным итоговым подтверждением инженера (M0-CONTRACT, §8). Принятие политики не разрешает реализацию, не выбирает БД и не вводит flow/runner агентов.
+Basis: [the pinned research report](https://gist.github.com/prineycom/0bce7da0b37ae6f580b292e5d854d528/aaa39187b7aa20722bd4405d431078f7d418297c),
+its primary sources, [M0-CONTRACT](M0-CONTRACT.md) and [ARCHITECTURE](ARCHITECTURE.md).
+Scope: developing mypi tests before future delegation to units. Accepting this policy
+does not authorize implementation or introduce a flow/agent runner. M0 acceptance
+and subsequent stack decisions are separate records. Current request-accounting rules
+are in [AGENT-WORKFLOW](AGENT-WORKFLOW.md).
 
-## 1. Главный вывод
+## 1. Main conclusion
 
-**Ограничивать нужно не число тестов, а стоимость исполнения и сопровождения при доказанной дополнительной защите.**
+**Bound execution and maintenance cost while demonstrating additional protection,
+not the number of tests.**
 
-В прошлом проекте, по отчёту, одновременно отсутствовали границы уровня, стоимости и ответственности. Матрицы сценариев размножались на реальных процессах; umbrella-тесты запускали чужие suites; исправление через supervisor добавляло систему управления, но не уменьшало работу.
+The previous project's report described missing boundaries of level, cost and
+responsibility: process-based scenario matrices, umbrella tests running other suites,
+and a supervisor that added machinery without reducing work. Its reduced suite had
+53 files / 436 tests. The reported 73.961 s, 347.41 MiB and 53 kernel tasks describe
+one isolated reduced run, not mypi targets. CI used another environment/partly another
+revision: no valid percentage speedup follows. That code and local evidence were
+not audited here; the dangerous old suite was not run.
 
-После аварийного сокращения осталось 53 файла / 436 tests. Указанные 73,961 s, 347,41 MiB и 53 kernel tasks — результат одного изолированного прогона сокращённой версии, не норматив mypi. CI-замер сделан в другой среде/частично на другой ревизии; сравнивать их как процент ускорения нельзя. Код прошлого проекта и локальные evidence-файлы из отчёта здесь не аудировались; старый опасный suite не запускался.
+Protection needs three independent parts:
 
-Защита должна иметь три независимые части:
+1. Execution: enforced resource limits and mandatory test composition.
+2. Meaning: review of additional value, sensitivity and maintainability.
+3. Future delegation: a small eval set checking agents' compliance with both.
 
-1. **Исполнение:** проверяемые границы ресурсов и обязательного состава тестов.
-2. **Смысл:** test design и review дополнительной ценности, чувствительности и сопровождаемости.
-3. **Делегирование, позже:** маленький набор evals, проверяющий, соблюдают ли агенты первые два пункта.
+Prompts alone do not protect the machine. Limits alone do not stop thousands of
+pointless fast tests. Agent evals do not replace product tests.
 
-Одни промпты не защищают машину. Одни лимиты не защищают от тысячи быстрых бессмысленных тестов. Evals агента не заменяют тесты продукта.
+## 2. What the sources support, and what they do not
 
-## 2. Что берём из материалов — и чего не переносим
-
-| Источник | Полезное для mypi | Ограничение вывода |
+| Source | Useful principle | Limit of the conclusion |
 |---|---|---|
-| OpenAI, Harness engineering [1] | Короткий AGENTS как указатель; механическая проверка границ; повторяющиеся ошибки превращаются в проверяемые правила | Не копируем миллион строк инфраструктуры, автономные циклы до успеха и терпимость к flakes |
-| Atlassian, mutation coverage [2] | Генерация требует проверки пользы; общий запрос «улучши coverage» создаёт лишние тесты; анализ должен быть ограничен | Авторы сами отмечают нерешённую проблему excess tests; их 80% — не наша цель |
-| Meta, ACH [3] | Проверять чувствительность к конкретным правдоподобным поломкам | Обнаружение выбранных mutants не доказывает полноту; не нужен LLM mutation engine на старте |
-| Google, главы 11–13 [4–6] | Разделять scope и ресурсы; минимально достаточная проверка; публичное поведение вместо внутреннего устройства; реальные дешёвые зависимости | Проценты пирамиды не квота; наш fast с temp FS/embedded DB не равен строгому Google small |
-| Anthropic, agent evals [7] | Проверять фактический результат; положительные и отрицательные случаи; проверять качество grader | Недетерминированные evals не включаются в обычный suite; модельный judge требует калибровки |
-| OpenAI, skill evals [8] | Начать с небольшого набора задач, сохранять trace/artifacts и проверять несколько обязательных свойств | Примерные 10–20 prompts — стартовый масштаб, не доказательство надёжности любого юнита |
-| StrykerJS incremental [9] | Возможен ограниченный mutation-анализ | Кэш не замечает всех изменений среды; Command runner не сообщает данные об изменениях tests. Интеграция с выбранным runner не проверена |
+| OpenAI harness engineering [1] | Concise AGENTS entry/index; mechanical boundaries; repeated errors become checkable rules | Do not copy a million lines of infrastructure, autonomous until-green loops or flake tolerance |
+| Atlassian mutation coverage [2] | Generated tests need value review; generic coverage requests create excess tests; bound analysis | Excess tests remain a known problem; 80% is not our target |
+| Meta ACH [3] | Check sensitivity to specific plausible faults | Chosen mutants do not prove completeness; no initial LLM mutation engine |
+| Google chapters 11–13 [4–6] | Separate scope/resources; minimum sufficient check; public behavior; cheap real dependencies | Pyramid percentages are not quotas; temp-FS/embedded-DB fast is not strictly Google small |
+| Anthropic agent evals [7] | Check actual outcomes, positive/negative controls and grader quality | Nondeterministic evals stay outside ordinary suites; model judges need calibration |
+| OpenAI skill evals [8] | Start small, preserve traces/artifacts, check mandatory properties | Roughly 10–20 prompts are a starting scale, not proof of reliability |
+| StrykerJS incremental [9] | Bounded mutation analysis may help | Cache misses environment changes; Command runner lacks test-change data; integration is unverified |
 
-Ранний [документ YM-284](https://gist.github.com/prineycom/f27b4e019e959c8cf3b8b650f7ac027b) предлагал ручной каталог и resource harness. Поздний отчёт явно отказывается от ручной второй базы выводимых фактов и сложного supervisor. Переносить оба предложения одновременно нельзя.
+The earlier [YM-284 proposal](https://gist.github.com/prineycom/f27b4e019e959c8cf3b8b650f7ac027b)
+suggested a manual catalog/resource harness. The later report rejects a second manual
+database of derivable facts and a complex supervisor. Do not adopt both proposals.
 
-## 3. Архитектура продукта, позволяющая дешёвые тесты
+## 3. Product architecture that permits cheap tests
 
-Используем уже предложенное разделение CLI → core → DB/context/Git adapters, а не строим параллельную «тестовую архитектуру» продукта.
+Use the product's CLI → core → DB/context/Git adapter boundaries, not a parallel
+"test architecture".
 
-- Core и разбор CLI доступны как Node API; импорт модуля не запускает команду, сеть, процесс или запись в пользовательский home.
-- Командный entry point тонкий: аргументы, вызов API, stdout/stderr, exit code. Доменная логика не дублируется в CLI.
-- Матрицы правил проверяются через публичный API компонента. Публичный API не обязательно означает запуск CLI-процесса.
-- Где реальные зависимости быстрые и детерминированные, используем их: текстовые операции, временную FS, выбранную embedded DB. Не пишем собственную копию БД ради «unit isolation».
-- Clock/ID и внешние эффекты отделяются там, где это действительно нужно. Никакой DI-платформы, универсального fake runtime и production test hooks «на всякий случай».
-- Git adapter, упаковка CLI и перезапуск получают настоящие проверки границ: mock не доказывает commit, durability или корректность launcher.
+- Core and CLI parsing are Node APIs. Importing a module must not launch a command,
+  network call, process or write to personal home.
+- Keep the executable thin: arguments, API call, stdout/stderr and exit code. Do not
+  duplicate domain logic in CLI.
+- Test rule matrices through public component APIs; public API does not mean subprocess.
+- Use real cheap deterministic dependencies: text operations, temp FS and the selected
+  embedded DB. Do not build a DB clone just for unit isolation.
+- Separate clock/ID/external effects only where needed. No speculative DI framework,
+  universal fake runtime or production test hooks.
+- Git adapters, CLI packaging and restart need real boundary checks. Mocks do not
+  prove commit, durability or launcher correctness.
 
-Выбран штатный `node:test` и `node:assert/strict` на Node.js 24 LTS; принятый стек — [M1-DESIGN.md, §11](M1-DESIGN.md#11-принятие-стека). Тесты выполняются как JavaScript после `tsc`; сборка не повторяется для каждого файла. Точные версии фиксируются и совместимость проверяется при разрешённой настройке. Встроенный runner не является ограничителем всего дерева процессов: его file concurrency ограничивает workers runner, а не всех потомков и native threads [10].
+Use Node.js 24 LTS node:test and node:assert/strict; stack decision:
+[M1-DESIGN §11](M1-DESIGN.md#11-принятие-стека). Tests run as JavaScript after tsc;
+do not rebuild per file. Pin versions and verify compatibility during authorized setup.
+Runner file concurrency bounds its workers, not all descendants/native threads [10].
 
-## 4. Два профиля вместо универсального запуска
+## 4. Two profiles, not a universal runner
 
-Пути и команды test/verify реализованы; актуальное покрытие и ограничения — M1-CYCLE, первоначальный срез — M1-IMPLEMENTATION.
+Profiles/commands are implemented; current coverage/limits are recorded in M1-CYCLE
+and MCP-CYCLE, the first implementation in M1-IMPLEMENTATION.
 
-| Профиль | Разрешено | Не разрешено |
+| Profile | Allowed | Forbidden |
 |---|---|---|
-| `test/fast/` | Детерминированные проверки внутри test worker; небольшие temp FS/embedded DB fixtures; таблицы входов | Дочерние процессы из теста или вызываемого им кода, новые workers, сеть/сокеты, LLM/Pi, реальные sleeps |
-| `test/boundary/` | Конкретные реальные Node CLI/Git/restart границы; локальные изолированные данные; явное освобождение ресурсов | Nested test runners, запуск всего workflow ради локального assertion, сеть/LLM, пользовательский home, detached процессы |
+| test/fast/ | Deterministic in-worker checks; small temp FS/embedded DB fixtures; input tables | Child processes in tests or called code, extra workers, network/sockets, LLM/Pi, real sleeps |
+| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup | Nested runners, entire workflow for a local assertion, network/LLM, personal home, detached processes |
 
-Запуск workers самим штатным runner не считается запрещённым child process из fast-теста; он входит в общий ресурсный бюджет. Если выбранная БД требует сервера, её реальные проверки относятся к boundary, а не маскируются как fast.
+Workers created by the standard runner are not forbidden child spawns from a fast
+test; they count toward the total budget. Server-based DB checks belong in boundary,
+not a mislabeled fast profile.
 
-- `test` — быстрый профиль для обратной связи. Его успех не означает полной приёмки.
-- `verify` — admission checks + fast + обязательные boundary. Это профиль завершения изменения и обязательный CI-профиль.
-- Точечный запуск разрешён для red→green, но не заменяет `verify` перед завершением.
-- Новые test-файлы должны принадлежать известному профилю. Неизвестный путь — ошибка discovery, не молчаливое исключение или включение в дорогой glob.
-- Нельзя ослабить обязательную проверку, просто переместив её в opt-in профиль.
-- В M1 нет пустых `system/`, `evals/` и тестов будущих юнитов. Такие профили появляются вместе с реальной функцией и отдельным решением о стоимости.
+- test: quick feedback, not complete acceptance.
+- verify: admission + fast + mandatory boundary; required for completion and CI.
+- Targeted red→green runs do not replace final verify.
+- New test files must belong to a known profile; unknown paths fail discovery rather
+  than being silently excluded or added to an expensive glob.
+- Do not move a mandatory check into opt-in to weaken verification.
+- No empty system/evals/future-unit suites in M1. Add profiles with real functionality
+  and a separate cost decision.
 
-### Применение к рискам mypi
+### Applying profiles to mypi risks
 
-Это выбор основных мест проверки, не ручной каталог каждого test-file и не требование создать по suite на каждую строку.
+This is a placement guide, not a manual per-file catalog or eight separate runners.
 
-| Риск | Основная дешёвая проверка | Где нужна настоящая граница |
+| Risk | Primary cheap check | Necessary real boundary |
 |---|---|---|
-| Scope/identity и traversal | Таблицы через core; temp FS для symlink/выхода за root; проверка отсутствия записи | Узкая CLI-проверка передачи аргументов/ошибки; не все комбинации ID через subprocess |
-| Scoped warmup | Различимые global/org/project/чужие данные; проверка наследования и исключения inbox | Проверка подключения CLI и вывода, без повторения полной матрицы |
-| Capture/memory/note/journal | Unicode/multiline, сохранность исходника, no-overwrite, read-only поведение через API | Реальный commit изменения контекста и сохранность постороннего dirty diff |
-| DB authority/constraints | Реальный выбранный движок, транзакции и чтение результата; не mock вызова INSERT | Reopen/restart, потеря обновления между writers; in-memory DB не доказывает durability |
-| Retry и mixed-operation recovery | Ограниченные сценарии отказа по устойчивым границам выбранного протокола | Abrupt termination/restart там, где обычное исключение и `finally` дают другой результат |
-| Backup/restore | Настоящий backup выбранного движка, restore в новое хранилище, проверка данных и ссылок | Реальный файловый режим и требуемый сценарий восстановления, а не проверка одного наличия файла |
-| CLI/bootstrap | Разбор/dispatch каждой команды внутри процесса | Launcher, exit code, stdout/stderr и необходимый путь сохранение→повторное чтение без Python |
+| Scope/identity/traversal | Core input tables; temp FS symlink/escape and no-write checks | Narrow CLI forwarding/error canary, not every ID through subprocess |
+| Scoped warmup | Distinct global/org/project/foreign fixtures, inheritance/inbox exclusion | CLI wiring/output without duplicating the matrix |
+| Capture/memory/note/journal | Unicode/multiline, exact source, no-overwrite, read-only API behavior | Real context commit and preservation of unrelated dirty diff |
+| DB authority/constraints | Real engine, transactions and resulting state, not mocked INSERT | Reopen/restart and competing writers; in-memory is not durability proof |
+| Retry/mixed-operation recovery | Bounded failure scenarios at durable protocol boundaries | Abrupt termination/restart when exceptions/finally behave differently |
+| Backup/restore | Real backup, restore to new storage, validate data/references | Real filesystem mode and required recovery, not file existence alone |
+| CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
 
-Текущие области из ARCHITECTURE не должны превращаться в восемь независимых test runners. Все полезные команды покрываются, но полная матрица ошибок не размножается на каждом уровне. Domain test и boundary-canary могут проходить похожий сценарий, если ловят разные поломки: правило против его неподключения.
+Cover useful commands without replicating the complete error matrix at every level.
+A domain test and boundary canary may overlap when they catch different failures:
+the rule itself versus failure to wire it into the application.
 
-## 5. Правила допуска нового теста
+## 5. Admission of a new test
 
-До правки автор просматривает существующие tests и кратко отвечает в обосновании изменения, не в отдельном registry:
+Before editing, inspect existing tests and briefly answer in the change rationale,
+not a separate registry:
 
-1. **Какой наблюдаемый контракт защищаем?**
-2. **Какую правдоподобную поломку пропускают существующие проверки?**
-3. **Почему выбран самый дешёвый надёжный уровень?** Нельзя ли расширить существующую таблицу?
-4. **Как проверим чувствительность и цену?** Для новой process boundary отдельно объясняется, что нельзя доказать внутри процесса.
+1. Which observable contract is protected?
+2. Which plausible fault do existing tests miss?
+3. Why is this the cheapest reliable level? Can an existing table be extended?
+4. How will sensitivity and cost be checked? Explain separately why a new process
+   boundary cannot be proved in-process.
 
-Если дополнительной защиты нет, новый тест не нужен. Изменение документации или чистый рефакторинг не требуют теста только ради наличия нового test-file.
+No extra protection means no new test. Documentation changes and pure refactors do
+not require new test files merely for appearance.
 
-### Качество и сопровождаемость
+### Quality and maintainability
 
-- Проверяем результат, устойчивое состояние, запрещённый эффект и cleanup; не порядок private-вызовов, если он не часть контракта.
-- Expected задаётся независимо от проверяемого алгоритма. Mock, возвращающий заранее ожидаемое, не доказывает корректность продукта.
-- Не ограничиваемся «не упало», exit 0 или наличием файла, если контракт о содержимом/сохранности. Небольшой launcher-canary может проверять именно запуск, но не выдаётся за проверку хранения.
-- Один тест — понятное поведение, не обязательно один assertion. Позитивный контроль важен: запрет всего подряд не должен пройти как корректная валидация.
-- Не фиксируем целиком случайные IDs, timestamps, внутреннюю SQL-структуру и большие output snapshots. Точное сравнение текста оправдано, когда оно и есть контракт, например сохранение source capture.
-- Допустима небольшая повторяемость setup ради ясности. Общие helpers обслуживают реальные повторяющиеся операции, а не скрывают сценарий за новым DSL.
-- Нет полного Cartesian product на процессах без названного риска взаимодействия. Табличные и property-based проверки тоже ограничены числом примеров, размером/длиной данных; seed воспроизводим, shrinking ограничен.
-- Реальное ожидание заменяется управляемым временем либо сигналом готовности с deadline. Retry-until-green и повышение timeout вместо диагностики не считаются исправлением.
-- Рефакторинг без изменения публичного поведения не должен требовать массового переписывания tests. Если требует — это сигнал о неверной границе тестирования.
+- Assert results, durable state, forbidden effects and cleanup, not private call order
+  unless it is contractual.
+- Specify expected results independently from the tested algorithm. A mock returning
+  the expected answer does not prove the product.
+- Do not stop at no-throw, exit 0 or file existence for a content/preservation contract.
+  A launcher-only canary may check launch but is not evidence of storage behavior.
+- One test means clear behavior, not necessarily one assertion. Include positive
+  controls: rejecting everything must not pass as correct validation.
+- Avoid complete snapshots of random IDs, timestamps, internal SQL and large output.
+  Exact text equality is justified when source fidelity is the contract.
+- Small setup repetition is acceptable. Helpers should serve real repeated operations,
+  not conceal scenarios behind a new DSL.
+- No full process-based Cartesian products without a named interaction risk. Bound
+  tables/property tests by examples and data size/length; reproducible seed, bounded shrinking.
+- Replace waits with controlled time or readiness signals with deadlines. Retry-until-green
+  and timeout increases instead of diagnosis are not fixes.
+- Public-behavior-preserving refactors should not require mass test rewrites; if they
+  do, reconsider the test boundary.
 
-### Доказательство чувствительности
+### Sensitivity evidence
 
-Regression test: red на поломанном поведении → green на исправленном; red должен быть по нужному assertion, не из-за import/setup failure. Если старый код невозможно корректно запустить с новым API, это ограничение указывается, а не объявляется red→green.
+Regression: red on broken behavior, green on the fix. Red must fail at the intended
+assertion, not import/setup. If old code cannot run correctly with the new API,
+report the limitation rather than claiming red→green.
 
-Для критических новых инвариантов — точечная проверка в одноразовой копии: например, допустить чужой scope или повторный append. Нормальная версия проходит, версия с названным нарушением падает. Не мутировать рабочее хранилище или live root. Проверять несколько согласованных рисков, а не генерировать mutants до заданного процента. Mutation-инструмент не обязателен и не добавляется по умолчанию.
+For critical new invariants, use targeted faults in a disposable copy: for example,
+allow foreign scope or repeated append. Normal passes, the specified violation fails.
+Never mutate live storage/root. Check selected agreed risks, not mutants until a
+coverage percentage. Mutation tooling is not mandatory or added by default.
 
-### Удаление и остановка роста
+### Removal and stopping growth
 
-Доказанный дубль можно удалить/объединить: указать, какая оставшаяся проверка сохраняет защиту. Исчезнувший контракт можно убрать вместе с соответствующим тестом. Удаление единственного meaningful assertion ради green запрещено. Нет ни запрета на любое удаление, ни правила «добавил один — удали один», ни auto-pruning по coverage.
+A proven duplicate may be merged/removed, naming the remaining protection. A removed
+contract may lose its test. Never remove the only meaningful assertion for green.
+Neither ban all deletion nor require one deletion per addition; no coverage auto-pruning.
 
-**Stop condition:** согласованные failure modes защищены, чувствительность проверена, обязательный профиль проходит в бюджете. После этого агент не добавляет «ещё comprehensive edge cases» без нового обоснованного риска.
+**Stop:** agreed failure modes are protected, sensitivity checked, required profile
+passes within budget. Do not add more comprehensive edge cases without a new justified risk.
 
-## 6. Ограничение исполнения и роста
+## 6. Execution and growth limits
 
-### Принятая стартовая рамка, не измеренный baseline
+### Accepted initial limits, not measured baseline
 
-Принято 2026-10-02 в общем пакете подготовки M1 (запись §11):
+Accepted in the M1 preparation package on 2026-10-02 (§11):
 
-| Параметр | Принятое значение |
+| Parameter | Accepted value |
 |---|---:|
-| Рабочее время fast | ≤ 5 s |
-| Рабочее время полного обязательного test-профиля | ≤ 30 s |
-| Внешний hard deadline полного test-профиля, включая остановку/cleanup | 60 s |
-| CPU / память всего test scope | 2 CPU / 1 GiB |
-| Kernel tasks всего scope, включая threads | 64 |
-| Одновременно активные test workers / suite-runs на выделенном runner | 1 / 1 |
+| Fast working time | ≤ 5 s |
+| Full mandatory test-profile working time | ≤ 30 s |
+| External hard deadline, including stop/cleanup | 60 s |
+| CPU / memory of the entire test scope | 2 CPU / 1 GiB |
+| Kernel tasks including threads | 64 |
+| Concurrent test workers / suite runs on the dedicated runner | 1 / 1 |
 
-Это принятые стартовые рабочие цели и аварийные пределы, не результат benchmark, не числа из отчёта YM и не измерение стоимости выбранного стека. Аварийный предел применяется с первого безопасного замера; рабочие цели проверяются серией одинаково ограниченных прогонов первого репрезентативного набора. Если рамка не подходит, обсуждаем причину и меняем решение явно, а не автоматически поднимаем предел после failure. Если штатные ограничения/изоляция недоступны, suite не запускается без них; свой supervisor не создаётся.
+These are initial working targets/emergency bounds, not a benchmark or YM numbers.
+Apply hard bounds from the first safe measurement; assess working targets with a
+series of identically bounded representative runs. If unsuitable, discuss the cause
+and explicitly revise the decision, never auto-raise a failed limit. Without standard
+limits/isolation, do not run unbounded and do not build a custom supervisor.
 
-Время полного тестового профиля включает setup/teardown fixtures, admission, fast и boundary. Установка зависимостей и build/typecheck измеряются отдельно и не запускаются заново из каждого test-file. Приняты отдельные пределы: **установка зависимостей — 5 минут; build/typecheck — 60 секунд**. Эти этапы не входят в тестовый бюджет. Нельзя переименованием вынести дорогую работу из измерения и считать suite ускоренным.
+The complete profile includes fixture setup/teardown, admission, fast and boundary.
+Dependency installation and build/typecheck are measured separately, never repeated
+per test file. Their limits remain **installation: 5 minutes; build/typecheck: 60 seconds**.
+Do not relabel expensive work outside the measurement to claim a faster suite.
 
-### Что должно проверяться механически
+### Mechanical checks
 
-- До исполнения: принадлежность файлов профилям, `.only`/`.skip`, nested runner, новые эффектные imports/spawn/workers/network, sleeps, увеличение timeouts/concurrency, изменения discovery/policy/CI. Применять готовые lint/structural инструменты, небольшой checker только для недостающих правил.
-- Проверять также используемые helpers/adapters: fast-тест не становится безопасным лишь потому, что spawn спрятан в другом модуле. Статический фильтр не является доказательством отсутствия динамических эффектов или sandbox.
-- Исполнение в стандартном container/cgroup/CI scope: совокупные CPU/RAM/tasks, отсутствие сети и доступа к личным данным. Внешняя аварийная остановка не зависит от event loop тестируемого Node.
-- Test workspace временный; нет mounts реального home/рабочих проектов, credentials и пользовательских Git hooks/config. Git fixtures используют собственную локальную identity и настройки.
-- Ресурсы освобождаются при success/failure/timeout. Нужен штатный reaper там, где используется контейнер. Оставшийся потомок, OOM, пропущенный обязательный тест или выход за бюджет — не успех, даже при exit 0 основного runner.
-- Лимиты отдельного запуска не заменяют общий предел параллельных запусков на машине. Используется штатная concurrency CI/выделенного worker; не пишем host scheduler.
-- Локальный targeted запуск, `test`, `verify` и CI используют одну принятую политику. Неограниченный прямой `node --test` не признаётся доказательством безопасной проверки; одна строка scripts сама по себе не запрещает агенту обход через bash.
+- Before execution: profile membership, .only/.skip, nested runners, new effectful
+  imports/spawn/workers/network, sleeps, timeout/concurrency increases, discovery/
+  policy/CI changes. Prefer existing lint/structural tools; small checkers only for gaps.
+- Inspect called helpers/adapters too: hidden spawn is still spawn. Static filtering
+  is not proof of no dynamic effects or a sandbox.
+- Standard container/cgroup/CI scope must bound total CPU/RAM/tasks, deny network and
+  personal data access. External emergency termination is independent of Node's event loop.
+- Disposable workspace; no real home/project mounts, credentials or user Git hooks/config.
+  Git fixtures use their own local identity/settings.
+- Cleanup on success/failure/timeout. Use a standard container reaper where needed.
+  Surviving descendants, OOM, missing mandatory tests or exceeded budgets are failure
+  even if the main runner exits zero.
+- Per-run limits do not replace a machine-wide parallel-run cap. Use standard CI/
+  dedicated-worker concurrency; do not write a host scheduler.
+- Targeted, test, verify and CI runs obey one policy. Direct unbounded node --test is
+  not evidence of safe verification; a package script alone does not prevent bash bypass.
 
-Физический контроль запуска требует ограничения среды/полномочий исполнителя. Если агент способен менять CI, лимиты и сам проверяющий checker без независимого допуска, технической защиты от self-bypass нет. Gate должен выполняться из доверенной версии; расширение policy/ресурсов согласуется отдельно; защита required checks должна находиться вне изменяемого агентом diff. Это не глобальная human acceptance всех будущих flow, а граница права менять ограничения.
+Physical launch control needs environment/permission restrictions. An agent able to
+change CI/limits/checker without independent admission can bypass itself. Execute
+the gate from a trusted revision; separately authorize policy/resource expansion;
+protect required checks outside the candidate diff. This is a control-plane permission
+boundary, not universal human acceptance for all future flows.
 
-### Как замечать постепенное разрастание
+### Detecting gradual growth
 
-Из Git, runner и измерений автоматически получать краткий отчёт: base/head и среда; добавленные/изменённые/удалённые cases/files; wall/CPU; peak memory/tasks всего scope; самые дорогие файлы; skips/retries, survivors и изменения лимитов. Test LOC и число cases — сигналы review, не KPI.
+Derive a short report from Git/runner/measurements: base/head and environment; added/
+changed/removed cases/files; wall/CPU; whole-scope peak memory/tasks; expensive files;
+skips/retries/survivors and limit changes. LOC/case count are review signals, not KPIs.
 
-Сравнивать base/head на одинаковой среде; одиночный запуск не выдавать за p95. На старте достаточно небольшого отчёта и серии замеров для значимого роста, без observability-платформы. Peak одного worker не описывает всю группу; сумма RSS тоже не равна cgroup memory.
+Compare base/head in the same environment; one run is not p95. Start with a small
+report and multiple measurements for significant growth, not an observability platform.
+One worker's peak is not the group's; summed RSS is not cgroup memory.
 
-Нужны одновременно абсолютный бюджет и review приращения стоимости: еженедельное обновление baseline не должно узаконивать деградацию. Пока нет измерений разброса, не вводить выдуманный статистический gate «+20% = регрессия». Причина роста рассматривается даже до достижения абсолютного предела.
+Require both an absolute budget and cost-increment review. Weekly baseline updates
+must not normalize degradation. Without variation measurements, do not invent a
+statistical +20% regression gate. Examine growth even below the absolute cap.
 
-## 7. Review сейчас и делегирование позже
+## 7. Review now, delegation later
 
-Нужна независимая проверка **тестового diff**: дополнительный риск, надёжность oracle, чувствительность, минимальный уровень, сопровождаемость, цена и обоснование удаления. Она не заменяется словами автора «всё покрыто». Пока отдельного исполнителя review нет, не выдавать повторное чтение автором за независимую проверку и не запускать сабагентов без запроса.
+Require independent **test-diff** review: additional risk, oracle reliability,
+sensitivity, minimum level, maintainability, cost and removal rationale. Author
+claims do not replace it. Without another reviewer, do not call self-review independent
+or launch subagents without a request.
 
-Будущему юниту достаточно ссылки на политику и короткого требования:
+A future unit needs a policy link and a short instruction:
 
-> Найди существующие проверки. Назови наблюдаемый контракт и поломку, которую они пропускают. Выбери самый дешёвый надёжный уровень; докажи падение по нужной причине. Заверши работу, когда согласованные риски закрыты и обязательный профиль проходит в бюджете. Не расширяй возможности исполнения и лимиты, не ослабляй checker и не добавляй тестовую инфраструктуру ради green.
+> Find existing checks. Name the observable contract and the fault they miss. Choose
+> the cheapest reliable level; prove failure for the intended reason. Stop once agreed
+> risks are covered and the mandatory profile passes within budget. Do not expand
+> execution privileges/limits, weaken the checker or add infrastructure to get green.
 
-Правила специфичны для репозитория mypi, не навязываются автоматически всем рабочим проектам. Приёмка будущего результата по-прежнему определяется юнитом/flow в границах M0; собственная фраза исполнителя «готово» не является evidence.
+These rules are specific to mypi, not automatically imposed on all working projects.
+Future acceptance remains defined by unit/flow contracts; an executor's own statement
+of completion is not evidence.
 
-**Перед делегированием**, а не внутри каждого product test, нужен небольшой bounded eval-набор для автора/reviewer. Начальные ситуации:
+**Before delegation**, not inside every product test, use small bounded author/reviewer
+evals covering:
 
-- новый вход парсера → расширена таблица, нет subprocess;
-- новый CLI launcher → обоснован настоящий boundary-canary, а не только mock;
-- дубль → отклонён; нужный новый риск → принят;
-- self-derived expected или всегда зелёный mock → обнаружен;
-- доказанное удаление дубля → разрешено; удаление единственной защиты → отклонено;
-- увеличение timeout/budget ради green → остановка и объяснение;
-- запрос «улучши coverage» → не начинается бесконтрольная генерация;
-- отсутствие подходящей инфраструктуры → не строится новый supervisor в feature-задаче.
+- New parser input → extend a table, no subprocess.
+- New launcher → justify a real boundary canary, not just a mock.
+- Duplicate → reject; meaningful new risk → accept.
+- Self-derived expected or always-green mock → detect.
+- Proven duplicate deletion → allow; sole protection deletion → reject.
+- Timeout/budget increase for green → stop and explain.
+- Generic coverage request → no uncontrolled generation.
+- Missing infrastructure → no new supervisor in a feature task.
 
-Оценивать diff, команды, артефакты и сохранённый результат, не только текст отчёта агента. Grader защищён от изменения испытуемым; известные хорошие и плохие решения проверяют сам grader. Смысловые оценки калибруются; модельные failures отделяются от ошибок среды. Отдельно ограничиваются trials, время и tokens/стоимость; нет retry-until-green. Эти evals сейчас не реализуются.
+Assess diff, commands, artifacts and saved outcomes, not just prose. Protect the grader
+from the evaluated agent; calibrate it with known good/bad decisions. Calibrate semantic
+scores and distinguish model failures from environment errors. Bound trials/time/
+tokens/cost independently; no retry-until-green. These evals are not implemented here.
 
-## 8. Применение без новой бюрократии
+## 8. Applying the policy without extra bureaucracy
 
-**Принято сейчас:** один источник политики — `docs/TESTING.md`; AGENTS, архитектура и критерии M1 ссылаются на него. Не копировать политику в каждый документ или prompt. Стартовые численные бюджеты §6 приняты последующим пакетом (§11), а не исходным ответом «закрепляем». Локальные ограничения реализованы и проверены в начальном срезе M1; независимое статическое review проведено 2026-10-03 (M1-CYCLE); trusted gate/CI заблокирован подменяемой идентичностью check (M1-CI). Принятие политики и бюджетов не разрешает реализацию.
+One policy source: docs/TESTING.md. AGENTS, architecture and M1 acceptance link to it;
+do not duplicate it in every prompt/document. Numeric budgets in §6 were accepted
+later (§11). Local limits/admission exist; independent static review and current
+evidence are in M1-CYCLE/MCP-CYCLE. The independent trusted issuer remains open in
+M1-CI. Policy acceptance does not authorize implementation.
 
-**В начале разрешённой M1:** вместе с первым вертикальным срезом включить штатный runner, два профиля, простой admission, ограниченный запуск и отчёт стоимости. Не ждать большого suite, но и не строить отдельную платформу тестирования до появления продукта. До приёмки проверить ограничитель на безопасных отрицательных случаях: неизвестный файл/skip, запрещённый эффект, timeout, оставшийся собственный child и попытка ослабить gate. Использовать маленькие ограниченные fixtures, не реальные resource-exhaustion нагрузки на host.
+The original M1 rollout requirement was to ship standard runner, two profiles,
+simple admission, bounded execution and cost reporting with the first vertical slice,
+not after a large suite or as a separate pre-product platform. Before acceptance,
+check safe negative cases: unknown file/skip, forbidden effect, timeout, surviving
+owned child and gate weakening. Use small bounded fixtures, never actual host
+resource-exhaustion workloads. These requirements are not waived by translation.
 
-**До делегирования юнитам:** перенести ссылку/критерии в их контракты и проверить bounded eval-набор. Не требуется создавать flow или юниты только ради тестовой политики.
+Before delegation, put the link/criteria in unit contracts and verify a bounded eval
+set. Do not create flows/units solely for test policy.
 
-Не вводим: ручной каталог owner/ticket/time на каждый test-file, квоту количества тестов, обязательный процент coverage, второй runner, универсальный resource registry, свой supervisor/scheduler, full-repo mutation pipeline, новые тикеты.
+Do not introduce a manual per-file owner/ticket/time catalog, test-count quotas,
+mandatory coverage percentage, second runner, universal resource registry, custom
+supervisor/scheduler, full-repo mutation pipeline or new tickets for policy bookkeeping.
+
+<!-- Historical research and acceptance records below are retained verbatim. -->
 
 ## 9. Источники и запись исследования
 

@@ -28,6 +28,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     const client = new Client({ name: 'test', version: '1' });
     t.after(async () => { await client.close(); assert.equal(stderr, ''); });
     await client.connect(transport);
+    assert.equal(client.getInstructions(), undefined, 'connection must not inject an agent workflow');
     return { client, transport };
   }
   const { client } = await connect(root);

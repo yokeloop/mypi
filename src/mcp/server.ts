@@ -8,9 +8,7 @@ import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 
 export function createServer(filename: string, root?: string) {
-  const server = new McpServer({ name: 'mypi', version: '0.1.0-rc.1' }, {
-    instructions: 'Use explicit scope/key. Resolve project from client working directory, then warmup. Warmup is an index, not full memory. Requests are optional. No automatic retries: partial or connection loss requires DB/files/journal/Git reconciliation. Maintenance requires explicit intent; stop other writers for bootstrap/restore.',
-  });
+  const server = new McpServer({ name: 'mypi', version: '0.1.0-rc.1' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {

@@ -1,69 +1,79 @@
-# MCP mypi
+# mypi MCP
 
-Локальный stdio-сервер в том же пакете, без HTTP/daemon/flow.
-[План](MCP-PLAN.html), [ход, проверки и ограничения](MCP-CYCLE.md).
+Local stdio server in the same package, sharing the typed application API with CLI.
+No HTTP daemon or session orchestrator. [Implementation evidence](MCP-CYCLE.md).
+Development guidance: [AGENTS](../AGENTS.md). The former mandatory agent workflow
+is [withdrawn](AGENT-WORKFLOW.md); the server supplies no workflow instructions.
+The [original MCP plan](MCP-PLAN.html) is historical, including its user-global setup.
 
-## Запуск
+## Start
 
 ```sh
-mise exec -- pnpm install --frozen-lockfile
+timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
 mise exec -- pnpm build
 mise exec -- node dist/src/mcp/main.js
 ```
 
-Последняя команда ожидает JSON-RPC на stdin, а не интерактивный ввод.
-Bin: `mypi-mcp`. Node 24, SDK 1.32.0, Zod 4.6.5.
-DB — действующий XDG_STATE_HOME (fallback ~/.local/state); home — внутри клона,
-оба независимы от cwd клиента. Connect/tools/list не создают DB/home.
+The last command waits for JSON-RPC on stdin, not interactive input. Bin: `mypi-mcp`.
+Node 24; exact dependency versions are in package.json and pnpm-lock.yaml.
+DB uses the server's XDG_STATE_HOME (fallback ~/.local/state); home is inside the
+engine clone. Neither location depends on the client cwd. Connect/tools/list do not
+initialize storage. Bootstrap/restore require explicit intent and no other writers.
 
-## Pi
+## Optional Pi connection
 
-Объедини только запись mypi из [примера](../integrations/pi/mcp.example.json)
-с активным пользовательским `<agent-dir>/mcp.json`, подставив абсолютные пути
-(`mise which node` и собранный entrypoint). Не заменяй другие серверы.
-Добавь [инструкцию](../integrations/pi/mypi-instructions.md) в применяемый
-пользовательский context-файл; учитывай AGENTS.override.md.
-Сначала сохрани локальную копию конфигурации с исходными правами.
-Два инструмента direct: project_resolve, warmup. Остальные — codemode.
-Инструкция не является lifecycle-hook или гарантией автоматического warmup.
+The [example](../integrations/pi/mcp.example.json) describes the mypi server only.
+It does not install an agent workflow, memory warmup, task-registration requirement,
+automatic logging, delegation or Herdr-tab rule. The former
+[instruction template](../integrations/pi/mypi-instructions.md) is retired.
 
-`/reload` подхватит настройку в открытой сессии; `/mcp` показывает состояние,
-`/mcp reconnect mypi` переподключает. После новой сборки перезапусти MCP.
-`pi mcp list` подключается ко **всем** включённым серверам: для проверки только
-mypi используй отдельный временный agent-dir.
-Личный bootstrap требует отдельного явного запроса.
+For an explicitly requested connection, the mypi entry can be merged into the
+chosen Pi MCP configuration using absolute Node 24 and built entrypoint paths.
+Unrelated servers/settings and existing credentials are not part of that change.
+Project settings load after trust; a project entry replaces a global entry of the
+same name. A second server is not needed to change metadata.
 
-## Контракт
+The example exposes project_resolve and warmup directly; other tools are available
+through codemode. Exposure makes tools available, not mandatory. Connecting the
+server neither creates storage nor launches work.
 
-31 инструмент и поля перечислены в плане и в стандартном tools/list.
-Все аргументы strict, неизвестные поля отклоняются, в том числе вложенные.
-Scope — обязательный объект global/org/project; журнал также request или явное
-`"all"`. Project key — код, не org/project. У request_create project обязателен:
-identity или null. Статусы валидирует DB, не enum.
-TextInput — ровно `{text}` или `{file:absolutePath}`; BOM/CRLF сохраняются.
-Context paths относительны home, progress artifacts — папке задачи.
+After an authorized configuration change, `/reload` reloads Pi context/settings;
+`/mcp reconnect mypi` reconnects the server after rebuilding it. An existing
+conversation can retain old instruction text; a fresh session avoids that stale
+context. `pi mcp list` connects to all enabled servers and is not an isolated
+verification command. See the installed Pi MCP/security documentation for setup.
 
-Успех: `{status:"ok",data:...}`. Ошибка инструмента:
-`isError:true`, `{status:"error",message}`. Partial содержит status, message,
-saved, missing, paths и requestId, если он известен.
-structuredContent и JSON в text content совпадают. Внутри data сохраняются
-прежние JSON-формы CLI. Невалидный JSON-RPC остаётся protocol error SDK.
-Неизвестное имя/невалидные аргументы well-formed tools/call получают наш error-envelope.
+## Tool and transport contract
 
-В одном процессе вызовы последовательны, включая async backup.
-Отменённый ожидающий вызов не пишет; начатый синхронный вызов не обещает rollback.
-EOF/SIGTERM прекращают принятие работы, отменяют ожидающие и дожидаются активного
-вызова; принудительное завершение требует сверки неизвестного исхода.
-Межпроцессные транзакции/защита — общие с CLI. Bootstrap/restore требуют остановки
-других писателей. JSON-RPC ID не является ключом идемпотентности.
+31 tools are available through standard tools/list. Inspect live schemas for fields.
+Arguments are strict, including nested fields. Context scopes: global/org/project;
+request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
+explicit `"all"`. A project scope key is its code; request_create.project is org/project
+or null (standalone REQ). Do not invent an org/request reassignment command.
+TextInput is exactly `{text}` or `{file:absolutePath}`; BOM/CRLF are preserved.
+Context paths are home-relative; progress artifact paths are request-directory-relative.
 
-Scope не ACL. Сервер имеет права локального пользователя; file/checkout/backup
-могут обращаться к явно указанным внешним путям. Нет произвольного SQL/shell.
-Read-only hints не являются механизмом авторизации. Записи не объявлены
-идемпотентными, backup не read-only. Ответы не обрезаются сервером.
+Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
+`{status:"error",message}`. Partial includes status/message/saved/missing/paths and
+requestId when known. structuredContent equals parsed JSON in text content. The data
+payload retains CLI JSON shapes. Invalid JSON-RPC remains an SDK protocol error;
+well-formed tools/call validation failures/unknown names use the application envelope.
+Always check isError and structuredContent.status, not promise resolution alone.
 
-## Откат
+Calls within one server are serial, including async backup. A queued cancellation
+does not write; an active synchronous call does not promise rollback. EOF/SIGTERM
+stop new work, cancel queued work and drain active work. Forced termination requires
+reconciliation. CLI/MCP share interprocess transaction guards; a JSON-RPC ID is not
+an idempotency key. Never blindly repeat create/append after an unknown outcome.
 
-Удалить только запись mypi и отмеченный фрагмент инструкции, затем /reload.
-Это не удаляет DB/home. Код возвращать Git revert с соответствующим lockfile
-и новой сборкой; существующие записи сами не откатываются.
+Scope is not an ACL. The server runs with local user permissions; file/checkout/backup
+arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
+Read-only hints are not authorization; writes are not declared idempotent, and backup
+is not read-only. Responses are not truncated by the server.
+
+## Rollback
+
+For a local setup, remove only its mypi entry/installed instruction block, then reload.
+Do not remove global settings without permission. This does not delete DB/home.
+Revert code with its matching lockfile and rebuild if authorized; saved user data does
+not roll back automatically. See [M1-CLI](M1-CLI.md) for partial reconciliation.

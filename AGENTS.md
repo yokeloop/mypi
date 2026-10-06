@@ -1,56 +1,53 @@
 # AGENTS.md — mypi
 
-Правила агента, работающего в корне mypi. Фаза 1: память и проекты, включая простой учёт запросов, без оркестрации.
+## Scope
 
-## Поведение
+mypi provides local memory, projects, request records, CLI and stdio MCP tools.
+This file governs development in this repository, not unrelated Pi sessions.
+The former mandatory memory/task/session workflow has been withdrawn. There is
+no required MCP warmup, request registration, automatic outcome logging, Herdr tab,
+or delegation step before doing work. Follow the user's requested scope and session.
 
-- Разговор на русском, неформальное «ты». Команды — английские идентификаторы.
-- Ответ = форма вопроса. Короткий вопрос — короткий ответ.
-- Что названо — то и весь scope. Не расширять, не нарезать, не заводить тикеты без прямого слова.
-- Перед добавлением поля или правила в конфиг: может ли агент выяснить это сам в момент действия? Если да — поля нет, правила нет.
-- «Готово» называет запись, через которую это проверено. У поведения больше одной точки входа — чинить все, не одну.
-- Не знаю — говорить «не знаю», не соседний известный ответ.
+## Communication and changes
 
-## Архитектурный контракт
+- Write maintained AGENTS files, prompts and agent-facing instructions in English.
+  Respond in the user's language; preserve original source and quotations exactly.
+- Answer the actual request. State uncertainty and blockers; do not turn a backlog
+  item, document or historical approval into permission to execute it.
+- Inspect applicable files and preserve unrelated dirty/staged changes.
+- Do not create tabs, worktrees or subagents unless explicitly requested for the work.
+- Commits, pushes, releases, migrations, bootstrap, restore and external writes need
+  applicable user authorization. Past one-off approval is not a standing grant.
+- Preserve user data and historical artifacts. `home/` is a separate ignored context
+  repository; the SQLite DB is outside both repositories. Neither is engine source.
+  Do not relocate personal data or rewrite immutable source and append-only history.
+- Partial operations or lost connections do not imply rollback. Inspect actual state
+  before repeating a write; report verification and remaining limitations honestly.
 
-- Принятые решения: `docs/M0-CONTRACT.md`; актуальная архитектура: `docs/ARCHITECTURE.md`. M0 закрыт; приёмка — `docs/M0-CONTRACT.md`, §8. Реализация M1 разрешена ответом «начинай»; ход и проверки — `docs/M1-CYCLE.md`; первый срез — `docs/M1-IMPLEMENTATION.md`. Миграция личных данных этим не разрешена. Отдельным ответом «делай все разрешаю» разрешены CI/GitHub App, коммиты движка, отдельная ветка, push и PR в yokeloop/mypi, а следующим ответом «можешь довести все до релиза как считаешь нужным я потом проверю» — также продвижение проверенной ветки и prerelease. RC не означает окончательную приёмку M1 без доверенного issuer. Размещение отдельного Git home/ внутри клона подтверждено; не выносить его наружу.
-- Принятый стек: TypeScript strict, Node.js 24 LTS, ESM/tsc, SQLite + `better-sqlite3`, SQL-миграции без ORM; тесты — `node:test` + `node:assert/strict`. Подробности и открытые решения — `docs/M1-DESIGN.md`, §11. Не Python и не Node-обёртка над Python. Состояния — в авторитетной БД; Markdown — контекст и знания.
-- Package manager новой реализации — pnpm. Принятая архитектура кода — модульный монолит по предметным областям, Ports & Adapters и сценарии внутри модулей. Перед изменением структуры/зависимостей читать `docs/M1-DESIGN.md`; выбор подхода не разрешает реализацию.
-- Первый результат — память и проекты на одной машине, включая простой учёт запросов инженера; управляемое состояние — в БД. Принята DB-карточка с относительным context_dir; исходник/артефакты — в папке задачи, история — в общем append-only JSONL-журнале с помесячной UTC-ротацией: `home/journal/YYYY-MM.jsonl` (`docs/M1-REQUESTS.md`, §7/§12). CLI разрешает scope по БД и потоково читает нужные файлы ротации; индексацию и отдельные журналы задач не вводить. source_text/progress в SQL не дублировать; начальные 10 статусов приняты в `docs/M1-REQUESTS.md`, §3.3/§11. Принят справочник request_statuses(id, code, is_terminal) и FK requests.status_id → request_statuses.id (§18/§19): code переименовывается без изменения карточек; при создании агент/инженер явно задаёт статус, без is_initial/default (§20); допустимость/терминальность читаются из БД, новые значения добавляются транзакционно без миграции схемы, не через фиксированный enum/CHECK IN. Для id всех четырёх таблиц принят INTEGER PRIMARY KEY (§21); минимальная схема/ограничения, путь БД и partial-контракт приняты в `docs/M1-START.md` (§22 M1-REQUESTS). Используемый статус нельзя удалить или изменить у него is_terminal. Статусы не образуют обязательный flow. Flow/сабагенты и автоматическое исполнение — позже; request не обязателен для обычной работы. Основа расширяется по реальной потребности: не закладывать заранее таблицы captures/operations, recovery engine или схему всех будущих flow.
-- Запросы без проекта разрешены: project_id=NULL без фиктивного проекта (§2.5/§16). Приняты REQ-number с отдельной общей нумерацией и папки home/requests/REQ-number-english-slug/ (§17); REQ не выдаётся проектам. Их scope остаётся request, не global, в выборки проекта/org они не входят. Принятое именование проектных задач: буквенный код проекта + номер внутри проекта + короткий английский slug (`MP-23-task-name-example`), правила — `docs/M1-REQUESTS.md`, §2.4/§15. Приняты projects.code (глобально уникален в хранилище, фиксируется после появления задач) и requests.number (с 1 внутри проекта, выдаётся БД в транзакции); ключ CODE-number вычисляется, переименование title не меняет папку. JSONL-оболочка принята (§3.6/§14): обязательные at/scope/event_type/text, необязательный artifacts с путями относительно home; event_type (§13): note/request_created/status_changed, назначается CLI по операции и не запускает flow. Scope global/org/project/request с полями type/key и правилами выборки принят (§3.7/§10); global не означает весь журнал. Именование не разрешает создавать/переключать ветки.
-- Принятый термин — `unit` / «юнит»: роль, интерфейс, ограничения и правила приёмки. Приёмка будущего результата определяется юнитом и выбранным flow; глобальное human-only правило не вводить. Не смешивать юнит с запущенным сабагентом или Pi extension.
-- Для изменений контекстных файлов целевой CLI делает локальный git commit; сетевой sync — отдельно разрешённое действие. Граница Q5 согласована: DB-only операции сохраняются транзакционно, БД и её снимки в git не хранить; backup БД отдельно. Это не разрешение коммитить движок или код проектов.
+## Developing the engine
 
-## Тестирование
+- TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
+  SQL migrations without an ORM, node:test + node:assert/strict.
+- Modular monolith, domain modules with Ports & Adapters and use cases.
+  Read [M1-DESIGN](docs/M1-DESIGN.md) before structural/dependency changes.
+- CLI and MCP share typed application commands. Keep adapters thin; fix every
+  affected entry point. No domain logic in scripts or private cross-module imports.
+- Read [TESTING](docs/TESTING.md) before changing tests or their execution. It is the
+  single test-policy source. Use only disposable data under the approved isolation;
+  if it is unavailable, stop rather than using an unsafe fallback.
+- Build changed code: `mise exec -- pnpm build`.
+  Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
+- Do not restore removed prototype/import compatibility or implement speculative
+  flows, agents, recovery infrastructure or runtime enforcement without a request.
+- Do not modify global Pi settings as incidental repository upkeep. Explicitly
+  requested installation/removal is a separate, narrowly scoped operation.
 
-- Перед изменением тестов или способов их запуска читать `docs/TESTING.md` — единственный источник принятой политики тестирования mypi. Стартовые численные бюджеты приняты (§6/§11 TESTING), локальный ограниченный запуск и admission реализованы; границы защиты и проверки — `docs/M1-CYCLE.md`. Согласование политики само по себе не разрешает реализацию.
+## References
 
-## Память
+- [Architecture](docs/ARCHITECTURE.md), [roadmap](PLAN.md): capabilities and direction.
+- [CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): optional tool/API reference.
+- [Testing](docs/TESTING.md): isolation, budgets and verification.
+- [Workflow withdrawal](docs/AGENT-WORKFLOW.md): previous policy is no longer active.
 
-- `home/` — вложенный git-репозиторий. Данные инженера. Коммитить в git mypi его нельзя.
-- Журнал: только реальные исходы, по строке на исход, ссылки на артефакты по путям.
-  Прошлые записи не переписываются. Тупик с потраченным временем — тоже исход.
-- Journal пишется в той же сессии, пока детали дешёвые. Несколько проектов — запись на каждый.
-- Knowledge: целевой root — `home/projects/<org>/<project>/`; glossary (context.md), ADR и артефакты задач в requests/. Это контекст, не рабочие клоны `<mypi>/projects/`. Очистка исходников движка не разрешает удаление или перемещение личных данных.
-- Warmup — индекс, не память: «что было по X» → читать полные записи и артефакты по путям, не пересказ из дайджеста. В org/project scope наследуется MEMORY родителей, не общий inbox.
-- Capture хранит исходную формулировку без изменений; оформление — отдельно.
-- Терминальные записи не reopen-ятся: продолжение — новая связанная запись.
-
-## Команды CLI
-
-Основной вход — `mise exec -- node dist/src/cli/main.js`; перед запуском изменённого кода нужен `pnpm build`. Синтаксис — `--help` и `docs/M1-CLI.md`. В проекте только M1: прототип, импорт его данных и совместимость прежних форматов удалены по прямому запросу инженера; не восстанавливать их.
-
-- `bootstrap` — явное создание БД и отдельного Git контекста, без сети.
-- `project add/list`, `memory add/show/remove`, `capture`, `note`, `error`, `warmup` — обычная работа без обязательного request.
-- `request create/list/show/status/title/progress/touch`, `status list/add/rename/terminal/remove` — учёт, без исполнения flow.
-- `journal add/read` — общий JSONL; `-s org/project` либо `org:slug`, `project:CODE`, `request:KEY`; весь журнал только `--all`.
-- `context read/commit/restore` — чтение, явное завершение commit после сверки и восстановление mutable-контекста из полной Git-ревизии.
-- `backup`, `restore` — явные системные операции. Restore не перезаписывает существующее состояние.
-- При partial сверять БД/файлы/журнал/Git и завершать недостающее, не повторять создание/append вслепую. Личная инициализация всё ещё требует прямого запроса.
-
-## Границы фазы 1
-
-- Целевая первая поставка: память, проекты и простой учёт запросов на Node.js с БД; без flow, агентов, табов и tracker-обязательности. Функциональная реализация M1 выполнена и проверяется поэтапно — `docs/M1-CYCLE.md`. Окончательная приёмка не закрыта без независимого review и доверенного gate; испытания проводились только на временных данных.
-- Не начинать реализацию или миграцию данных без явного запроса; согласование архитектуры не является таким запросом.
-- `projects/` — рабочие клоны, не коммитить в git mypi, не переключать ветки в них.
-- Внешние записи (GitHub, YouTrack) — только по явному запросу, с указанием цели в ответе.
+Historical cards, reports and branches are evidence of past work, not active agent
+instructions. Connecting the MCP server does not assign work or authorize execution.

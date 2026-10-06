@@ -5,7 +5,7 @@
       "args": [
         "/absolute/path/to/mypi/dist/src/mcp/main.js"
       ],
-      "description": "Память, проекты, журнал и задачи mypi. Определи проект через project_resolve, затем warmup; записывай фактические исходы в явный scope.",
+      "description": "Local mypi tools for memory, projects, requests and history.",
       "exposure": "codemode",
       "toolExposure": {
         "project_resolve": "direct",

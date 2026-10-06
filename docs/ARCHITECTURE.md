@@ -1,69 +1,59 @@
-# mypi — архитектура M1
+# mypi architecture
 
-Локальная система памяти, проектов и простого учёта запросов инженера.
-Реализована на TypeScript strict / Node.js 24 LTS, ESM/tsc, SQLite + better-sqlite3,
-SQL-миграциях без ORM, pnpm. Один пакет: модульный монолит, Ports & Adapters,
-сценарии внутри предметных модулей.
+Local memory, organizations/projects and request accounting. TypeScript strict,
+Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations without ORM.
+One package: modular monolith, Ports & Adapters, use cases within domain modules.
 
-M0 закрыт; исходные решения — [M0-CONTRACT.md](M0-CONTRACT.md).
-Функциональная M1 реализована; опубликован v0.1.0-rc.1, но окончательная приёмка
-остаётся открытой без независимого App issuer. Ход и доказательства — [M1-CYCLE.md](M1-CYCLE.md).
-По прямому запросу инженера поддержка прототипа и импорт его данных удалены;
-актуальная архитектура содержит только M1. Старые записи решений описывают своё время,
-не дополнительные команды текущего продукта.
+[AGENTS](../AGENTS.md) defines development guidance; the former mandatory agent
+workflow is [withdrawn](AGENT-WORKFLOW.md). [PLAN](../PLAN.md) separates implemented capability from future milestones.
+M0 was accepted; M1 is functionally implemented, but final acceptance still needs the
+independent App issuer/trusted gate. [M1-CYCLE](M1-CYCLE.md) and [MCP-CYCLE](MCP-CYCLE.md)
+record evidence. Historical contracts describe their time, not extra current commands.
 
-## 1. Границы
+## 1. Product and operating boundaries
 
-- Проекты и организации, необязательная привязка checkout.
-- Память global/org/project, capture, notes/errors, глоссарий и артефакты.
-- Warmup и чтение истории по scope без скрытых записей.
-- Явные requests, статусы и progress; регистрация не запускает исполнение.
-- Локальные Git commits контекста; SQLite backup и проверяемый restore.
+Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
+scoped warmup/history, request cards/statuses/progress, local context commits,
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
 
-Request не обязателен для обычной работы. Нет flow, runner/LLM, очереди исполнения,
-tracker-обязательности, multi-device, сетевого sync, постоянного сервера или каталога сессий.
-Реализован локальный stdio MCP: 31 инструмент, общий типизированный AppCommand с CLI,
-без HTTP/daemon и управления сессиями. Подключение — [MCP.md](MCP.md), проверки — [MCP-CYCLE.md](MCP-CYCLE.md).
+The memory/request APIs are optional data operations. They do not impose agent
+startup, task registration, logging or Herdr tabs before work. The instruction-driven
+workflow has been withdrawn; existing cards, immutable sources and storage/API
+contracts, including nullable project_id, are unchanged.
 
-## 2. Структура и зависимости
+Flow is part of the intended system. Automated flow execution, agent runner, scoped
+agent permissions, task execution queue, session catalog, multi-device and network
+sync are not implemented. Current scope is data selection, not a security perimeter.
+No mandatory external tracker, HTTP daemon or implied automatic execution.
 
-```text
-mypi/
-├── src/
-│   ├── cli/                       # argv → AppCommand, JSON, exit
-│   ├── mcp/                       # SDK stdio, strict schemas, ответы/очередь
-│   ├── app/                       # композиция, mixed-операции, warmup, backup/restore
-│   ├── modules/
-│   │   ├── projects/              # identity, реестр, scope, checkout
-│   │   ├── requests/              # карточки, нумерация, справочник статусов
-│   │   ├── memory/                # факты
-│   │   ├── inbox/                 # immutable capture
-│   │   └── knowledge/             # journal, notes, errors
-│   ├── infrastructure/            # SQLite, файловые пути/запись, Git
-│   └── shared/                    # общие типы scope, ошибки, partial
-├── test/fast/, test/boundary/      # node:test + node:assert/strict
-├── scripts/                       # только сборка и проверки
-├── docs/, references/             # контракты, инструкции, доказательства, справочники
-├── home/                          # отдельный ignored Git, не submodule
-└── projects/                      # ignored рабочие клоны
-```
+## 2. Code and dependencies
 
 ```text
-CLI / MCP → app → публичные API предметных модулей
-модуль → собственные правила и порты
-адаптер модуля → порты и техническая инфраструктура
-composition root → конкретные адаптеры
+src/
+├── cli/                 # argv -> AppCommand, JSON, exit
+├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
+├── app/                 # composition, mixed operations, warmup, backup/restore
+├── modules/
+│   ├── projects/        # registry, identity, checkout and scope
+│   ├── requests/        # cards, numbering, status dictionary
+│   ├── memory/          # facts
+│   ├── inbox/           # immutable capture
+│   └── knowledge/       # journal, notes and errors
+├── infrastructure/      # SQLite, files and Git
+└── shared/              # scope types, errors and partial
 ```
 
-Domain не делает IO, модули не обходят публичные API соседей. App координирует
-несколько модулей и границ сохранения. CLI не дублирует бизнес-логику;
-импорт модуля не запускает CLI. Направления импортов проверяются dependency-cruiser.
-Без DI-фреймворка, event bus, CQRS, универсальных repositories или recovery engine.
-Подробности — [M1-DESIGN.md](M1-DESIGN.md).
+CLI/MCP → app → public domain APIs. A module uses its own rules/ports; adapters
+implement ports with technical infrastructure; composition roots select adapters.
+Domain rules do not perform IO. Modules do not bypass each other's public API.
+App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.
+Imports do not execute CLI. dependency-cruiser checks directions/cycles.
+No DI framework, event bus, CQRS, generic repository or speculative recovery engine.
+See [M1-DESIGN](M1-DESIGN.md) before changing structure/dependencies.
 
-## 3. Источники данных
+## 3. Data authorities and layout
 
-**SQLite — авторитет состояния и связей:**
+SQLite owns state and relationships:
 
 ```text
 organizations(id, slug)
@@ -73,18 +63,16 @@ requests(id, project_id, number, title, status_id,
          context_dir, created_at, updated_at)
 ```
 
-Четыре STRICT-таблицы, INTEGER PK, FK/unique/check/triggers, транзакционные
-SQL-миграции с user_version. Статусы seed-ятся однократно. Неизвестная новая схема
-отклоняется; readonly не создаёт отсутствующую БД.
+Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
+with user_version. Statuses are seeded once. Future unknown schemas are rejected;
+readonly opens do not create missing DBs. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
+fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
+Git, including symlink aliases; created parent directories 0700 and DB 0600.
 
-Путь: `$XDG_STATE_HOME/mypi/state.sqlite3`, fallback `~/.local/state/mypi/state.sqlite3`.
-БД и её backup находятся вне Git движка и home; пути внутрь них, включая
-symlink aliases, запрещены. Создаваемые родительские каталоги — 0700, БД — 0600.
-
-**Файлы — авторитет контекста и знаний:**
+Files own knowledge and original source:
 
 ```text
-home/
+home/                           # separate ignored Git inside the engine clone
 ├── MEMORY.md
 ├── inbox/<UTC>-<UUID>.md
 ├── notes/<UTC>-<UUID>.md
@@ -96,102 +84,90 @@ home/
     ├── MEMORY.md
     ├── notes/<UTC>-<UUID>.md
     └── <project>/
-        ├── MEMORY.md
-        ├── context.md
-        ├── errors.md
-        ├── notes/<UTC>-<UUID>.md
+        ├── MEMORY.md, context.md, errors.md
+        ├── notes/
         └── requests/CODE-number-slug/
             ├── source.md
             └── <artifact-path>
 ```
 
-Home внутри клона движка — самостоятельный репозиторий; данные в Git движка
-не включаются. `home/projects/` — контекст, `<mypi>/projects/` — рабочие клоны.
-Source/progress не дублируются SQL-полями; отдельного task journal/status.md нет.
-Пользовательские данные этой очисткой не перемещаются и не удаляются.
+home/projects is context, not the working-clone directory projects/. Engine code stays
+in its checkout; using project/request context is not a prerequisite for development.
+Source/progress are not duplicated in SQL fields; no per-task journal/status.md.
+Personal context is not part of the engine repository and is not moved by cleanup.
 
-## 4. Проекты, запросы и статусы
+## 4. Projects, requests and statuses
 
-`org/project` — identity; checkout — необязательный канонический путь, не identity.
-Код проекта уникален, состоит из букв верхнего регистра; REQ зарезервирован.
-Код нельзя менять после появления задач. Title не переименовывает папку/ключ.
+org/project is identity; canonical checkout is optional metadata. Project code is
+unique uppercase letters; REQ is reserved. Code cannot change after tasks exist.
+Title does not rename a key/folder. Request ID and local number are distinct.
+MAX+1 allocation uses BEGIN IMMEDIATE before source creation; request deletion and
+number reuse are not provided. Null project_id uses independent REQ numbering and
+request scope, not a fake project/global scope. The API does not currently reassign it.
 
-Запрос имеет внутренний ID и локальный number. MAX+1 выделяется под BEGIN IMMEDIATE
-до записи source; удаление requests и повторное использование номера не предусмотрены.
-Для project_id=NULL — отдельная нумерация REQ и scope=request, не фиктивный проект.
+Initial status is explicit. DB dictionary, not fixed code enum/pipeline, determines
+validity/terminality. Used statuses cannot be deleted or have terminality changed;
+renaming preserves stable IDs and is not request progress. Same status is a no-op.
+Terminal requests do not reopen; continuation is a new explicitly linked record.
+[M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history.
 
-Начальный статус обязателен. Справочник хранится в БД, не enum кода или pipeline.
-Used status нельзя удалить или изменить его терминальность; rename сохраняет stable ID
-и не считается переходом/активностью задач. Тот же статус — no-op; terminal не reopen.
-Продолжение терминального исхода — новая запись, а не переписывание истории.
-Подробный контракт — [M1-REQUESTS.md](M1-REQUESTS.md).
+## 5. Memory, journal and warmup
 
-## 5. Память, journal и warmup
+Managed MEMORY facts are Markdown lines containing JSON strings (`- "JSON string"`);
+multiline text is escaped and returned exactly. Other Markdown remains context.
+Capture preserves exact original text in an immutable file, including BOM/CRLF.
+Notes have unique paths; errors append rather than rewrite.
 
-Управляемый факт MEMORY — Markdown-строка `- "JSON string"`; multiline экранируется,
-при чтении возвращается точный текст. Остальной Markdown — контекст, не формат факта.
-Capture хранит точный оригинал в отдельном immutable-файле без trim/BOM/CRLF-потерь.
-Notes имеют уникальные пути; errors дописываются, не переписываются.
+Journal: common append-only JSONL, monthly UTC rotation, required at/scope/event_type/
+text and optional home-relative artifacts. Types: note/request_created/status_changed.
+Events do not launch flow. Corrupt/unfinished lines are not silently ignored.
 
-Journal — общий append-only JSONL, UTC-ротация по месяцу; поля at/scope/event_type/text,
-необязательные home-relative artifacts. Типы: note/request_created/status_changed.
-События не запускают исполнение. Повреждённые/незавершённые строки не пропускаются молча.
+Selection: global only global; org includes projects/requests; project includes its
+requests; request only itself; all is explicit. Relations resolve through DB; relevant
+months are streamed and filtered before the overall sort/limit. No SQL history index/copy.
+Warmup inherits parent MEMORY, not global inbox or sibling content. It returns an index
+and paths, not complete history. Reads do not create DB/files. Scope is not an ACL.
 
-Scope: global — только global; org — организация и потомки; project — проект и его
-requests; request — собственная история. Режим all выбирается явно. CLI разрешает
-связи через БД, потоково читает нужные месяцы, фильтрует до общего sort/limit.
-SQL-копии/индекса истории нет.
+## 6. Persistence and partial outcomes
 
-Warmup наследует MEMORY родителей; org/project не получают общий inbox и чужой
-контекст вне своего scope. Выдаёт индекс и пути, не заменяет чтение полных артефактов.
-Нет обращения к прежним Markdown-журналам. Чтение не создаёт файлов/БД.
-Scope — выборка, не файловый sandbox или ACL пользователя.
-
-## 6. Сохранение и partial
-
-- DB-only операции: транзакция; нет зависимости от Git или пустого commit.
-- Изменения контекста: безопасная запись и commit только конкретных файлов.
+- DB-only: transaction, independent of workspace/Git, no empty commit.
+- Context changes: safe file writes and commits of exact operation paths.
 - Request create: source → DB commit → journal → Git.
-- Status/title: DB → journal → Git; progress: файлы/journal → Git → activity.
+- Status/title: DB → journal → Git; progress: files/journal → Git → activity timestamp.
 
-Общей атомарности SQLite/FS/Git нет. Partial сообщает сохранённое и недостающее,
-пути и при наличии requestId; CLI возвращает nonzero, а не ложный успех.
-Нельзя автоматически повторять append/create, откатывать уже сохранённую DB-карточку
-или удалять source. Продолжение — после сверки: commit выбранных файлов,
-строгий adopt-source, фактическая note вместо выдуманного перехода, явный touch.
+No global SQLite/FS/Git atomicity. Partial reports saved/missing work, paths and
+requestId when known. CLI exits nonzero; MCP returns an error/partial envelope.
+Do not automatically repeat append/create, roll back a saved card or delete source.
+Inspect first, then complete checked files' commit, strict source adoption, factual
+recovery note instead of invented transition, or explicit touch as appropriate.
 
-FS запрещает traversal, symlink/hardlink aliases, неявный overwrite. Git сохраняет
-чужой staged diff, не выполняет hooks/fsmonitor/signing/сеть. Private attributes
-предотвращают EOL/encoding/filter-преобразования. Source/inbox неизменяемы;
-journal/errors append-only. Journal committed prefixes проверяются до извлечения
-ссылок на опубликованные материалы. Новая версия материала — новый путь.
-Mutable-контекст восстанавливается новым commit из полной Git-ревизии.
+Filesystem guards reject traversal, symlink/hardlink aliases and implicit overwrite.
+Git preserves unrelated staged changes and avoids hooks/fsmonitor/signing/network.
+Private attributes prevent EOL/encoding/filter transforms. Source/inbox are immutable;
+journal/errors append-only. Committed journal prefixes are checked before extracting
+published artifact references. New versions get new paths. Mutable context can be
+restored from a full Git revision by making a new commit, not rewriting history.
 
-## 7. Backup и восстановление
+## 7. Backup and restore
 
-SQLite backup API под блокировкой cooperating writers; чистый Git bundle контекста;
-checksum manifest появляется после проверки сохранённой пары. Backup DB-only разрешён
-без создания home. Restore — только в отсутствующее состояние, с checksums,
-проверками schema/integrity/FK и source/artifact references. Не затирает текущие данные.
+SQLite backup API with cooperating-writer lock, clean context Git bundle and checksum
+manifest after reference/pair checks. DB-only backup needs no home. Restore only into
+absent DB/home, with checksum/schema/integrity/FK and source/artifact checks; no overwrite.
+Git is not whole-system backup and cannot restore unsaved data. Scheduling, retention,
+network sync and personal initialization require explicit action. See [M1-CLI](M1-CLI.md).
 
-Git не восстанавливает всю систему и незакоммиченный исходник. Backup БД и сетевой sync
-не следуют автоматически из локального commit. Расписание/retention и подключение
-личных данных требуют отдельного действия. Команды — [M1-CLI.md](M1-CLI.md).
+## 8. Verification and future execution
 
-## 8. Проверка и границы готовности
+[TESTING](TESTING.md) is the sole test-policy source: fast/boundary, mandatory verify,
+systemd/cgroup v2 + bubblewrap, no personal data/network. Do not raise limits for green
+or run an unbounded fallback. Admission is not proof of sandbox security.
+Rules are checked through APIs and real SQLite/FS/Git/CLI/MCP boundaries; build-state
+rejects stale dist. Product suites do not run LLMs or nested suites. Ordinary hosted CI
+is not the independent trusted gate ([M1-CI](M1-CI.md)); local file/DB owners and GitHub
+admins remain trusted. Evidence does not claim final production acceptance.
 
-Единственная политика — [TESTING.md](TESTING.md): fast и boundary, обязательный verify,
-systemd/cgroup v2 + bubblewrap, без сети и личных данных. Пределы не повышаются ради green;
-нет неограниченного fallback. Admission не выдаётся за sandbox proof.
-
-Проверяются правила через API, настоящие SQLite/FS/Git/CLI-границы, конкуренция,
-частичные исходы, SIGKILL и backup/restore. Build-state исключает stale dist.
-Тесты не запускают LLM и вложенные suites. Реальные результаты — [M1-CYCLE.md](M1-CYCLE.md).
-
-Обычный hosted CI зелёный для опубликованного RC; независимый required App check
-ещё не введён в эксплуатацию — [M1-CI.md](M1-CI.md). Это не production-ready приёмка.
-Владелец локальных файлов/БД и GitHub admin остаются доверенными сторонами.
-
-Будущие интеграции используют общий API M1. Юнит — роль, интерфейс, ограничения
-и правила приёмки, не процесс сабагента или Pi extension. Flow и его приёмка
-проектируются по отдельной реальной потребности, не глобальному human-only правилу.
+A future unit defines role, interface, restrictions and acceptance. Flow composes units;
+runtime validates permissions/results and persists state. Root/org/project coordination
+and request workers should receive relevant context and explicit capabilities. No
+mandatory LLM process per level, automatic status-triggered execution, process-tree
+ownership guarantee or universal human-only acceptance is implemented or assumed.

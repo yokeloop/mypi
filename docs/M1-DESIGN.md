@@ -1,5 +1,9 @@
 # M1 — технические решения и структура кода
 
+> The former mandatory memory/task/Herdr agent workflow is
+> [withdrawn](AGENT-WORKFLOW.md). Earlier operating instructions below are historical,
+> not current agent policy. Storage contracts and original decisions are unchanged.
+
 Статус: **принятые решения; реализация разрешена отдельным ответом «начинай» и начата** — [M1-IMPLEMENTATION.md](M1-IMPLEMENTATION.md). M0 закрыт; последующие уточнения M1 фиксируются отдельно, исторические записи не переписываются.
 Принято в M1: **pnpm; модульный монолит по предметным областям + Ports & Adapters + сценарии внутри модулей**. Предметные границы, организация каталогов и правила зависимостей ниже приняты как основа; запись выбора — §10. Стек также принят: **TypeScript strict, Node.js 24 LTS, ESM/tsc, SQLite + better-sqlite3, SQL-миграции без ORM, node:test + node:assert/strict**; запись — §11. Минимальная схема/ограничения, путь БД, partial-контракт и стартовые бюджеты приняты в [M1-START.md](M1-START.md). Версии зафиксированы и проверены; модули/CLI M1, backup/restore и локальные проверки реализованы. По прямому запросу инженера прототип, его импорт и совместимость форматов удалены; исторические записи §9–11 не восстанавливают эти сценарии. Актуальные результаты и ограничения защиты — [M1-CYCLE.md](M1-CYCLE.md); первоначальный срез сохранён в M1-IMPLEMENTATION.
 

@@ -1,14 +1,19 @@
 # Node CLI M1
 
-В корне checkout: `mise exec -- pnpm build`, затем `mise exec -- node dist/src/cli/main.js --help`.
-Все результаты — JSON. Ошибка/partial: ненулевой exit и JSON в stderr; stdout не сообщает ложный успех.
-Полный перечень команд — в help; core не вызывает LLM и не запускает flow.
+From the engine checkout: `mise exec -- pnpm build`, then
+`mise exec -- node dist/src/cli/main.js --help`. Results are JSON; error/partial means
+nonzero exit and JSON on stderr, never a false success on stdout. Core does not call
+an LLM or execute flow. Full command syntax is in help.
 
-## Хранилища и обычная работа
+These are optional commands, not an agent startup or task-registration procedure.
+The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
-БД: XDG_STATE_HOME/mypi/state.sqlite3 (fallback ~/.local/state/mypi/state.sqlite3), вне git.
-Контекст: home/ этого checkout. `db init` создаёт только БД; `bootstrap` — БД и отдельный Git контекста,
-без fetch/pull/push. Личная инициализация не выполнялась во время разработки.
+## Storage and context operations
+
+DB: `$XDG_STATE_HOME/mypi/state.sqlite3` (fallback `~/.local/state/mypi/state.sqlite3`),
+outside Git. Context: this checkout's `home/`, a separate Git repository. `db init`
+initializes only DB; `bootstrap` initializes DB/context Git, without fetch/pull/push.
+Use only with explicit intent; stop other writers for bootstrap/restore.
 
 ```text
 project add org/project --code MP [--path /absolute/checkout]
@@ -24,12 +29,15 @@ error org/project "error or dead end"
 warmup [-s org | org/project]
 ```
 
-Без -s память/заметки глобальные. Memory поддерживает многострочные факты; в Markdown они сериализованы JSON-строкой,
-при чтении возвращается точный текст. Остальной Markdown сохраняется как контекст, не распознаётся как управляемые факты. Capture — отдельный
-immutable inbox/*.md с оригиналом, не SQL-копия; BOM/CRLF не удаляются. Notes не перезаписываются при совпадении темы.
-Scoped warmup не включает inbox/чужой проект; это индекс, не замена чтения артефактов.
+Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
+inside Markdown; multiline text is returned exactly. Other Markdown remains context,
+not managed facts. Reread memory show before removing a current numbered item.
+Capture creates a separate immutable inbox/*.md original, not a SQL copy; no BOM/CRLF
+stripping. It does not replace a request card or authorize execution. Notes never
+silently overwrite another note with the same topic. Scoped warmup excludes global
+inbox/unrelated projects; read full artifacts rather than treating its index as memory.
 
-## Запросы и журнал
+## Requests and journal
 
 ```text
 request create --project org/project --title "Title" --status research --slug short-slug --file /path/to/source
@@ -50,46 +58,60 @@ journal read -s project:MP --from 2026-09-01T00:00:00Z --limit 10
 journal read --all --type status_changed
 ```
 
-Артефакты progress: JSON-массив `[{"path":"research/result.md","text":"new content"}]`;
-без text — явная ссылка на существующий файл. Пути относительно папки задачи;
-журнал сохраняет home-relative ссылки. Новое содержимое создаётся без overwrite.
-Status задаётся явно; словарь читается из БД, терминальность использованного значения не меняется.
-REQ имеет отдельную нумерацию. Title не переименовывает папку. Терминальный запрос не reopen-ится.
+These are independent syntax examples, not a mandatory sequence. Both project-linked
+requests and standalone REQ records are supported by the API.
 
-Фильтры журнала: global (по умолчанию), org:slug, project:CODE, request:KEY; org/project разрешается через БД.
-Global не означает весь журнал. Результаты упорядочены по времени; limit выбирает последние записи общей выборки.
+Progress artifacts: JSON array `[{"path":"research/result.md","text":"new content"}]`;
+omit text to reference an existing file. Paths are relative to the request directory;
+journal stores home-relative references. New content is created without overwrite.
+Read the DB status dictionary and choose explicitly; used status terminality cannot
+change. REQ has its own numbering and request scope. Title does not rename the folder;
+terminal requests cannot reopen. Original source is immutable; additional material
+can be stored separately.
 
-## Partial — не повторять команду вслепую
+Journal filters: global (default), org:slug, project:CODE, request:KEY; org/project
+resolves through DB. Global is not the whole journal. Results are time-ordered; limit
+selects the newest entries across the whole filtered selection. Do not duplicate
+request progress by recording the same event in the project journal.
 
-1. Прочитать карточку и конкретные файлы; сверить Git status и журнал.
-2. Если запись уже есть, не дописывать её снова. Завершить только проверенный commit:
+## Partial: reconcile before retrying
+
+1. Read the card and specific files; inspect Git status and journal.
+2. If the entry exists, do not append again. Complete only a verified missing commit:
    `context commit journal/2026-10.jsonl requests/REQ-1-slug/source.md --message "Finish checked partial"`.
-3. Если SQL-карточка отсутствует, но source сохранён, после сверки допустим тот же create с
-   `--adopt-source`: совпадение оригинала проверяется; при изменившейся нумерации/пути операция останавливается.
-4. Для неизвестной истории перехода — note о проверенном текущем состоянии, не выдуманный status_changed.
-5. Если progress-файлы/журнал/Git сохранены, но activity timestamp нет — явный `request touch KEY`.
+3. If the SQL card is absent but source exists, a checked repeat create with
+   `--adopt-source` is possible. Exact source is validated; changed numbering/path
+   stops the operation. Never use adoption as an unchecked retry switch.
+4. For uncertain transition history, record a factual note of observed state, not
+   an invented status_changed event.
+5. If progress artifacts/journal/Git are saved but activity timestamp is missing,
+   explicitly complete it with `request touch KEY`.
 
-`context read path` не создаёт файл; отсутствие — ошибка. `context restore path --revision FULL_SHA`
-восстанавливает mutable-файл (включая удалённый) из сохранённой Git-версии и делает новый commit.
-Commit/restore принимают конкретные файлы, не каталоги. Незакоммиченный/staged preimage не теряется; immutable source/inbox и append-only журналы так не переписываются.
-Данные, которых никогда не было в Git, Git восстановить не может.
+`context read path` does not create files; missing means error. `context restore path
+--revision FULL_SHA` restores a mutable file (including a deleted one) from a saved
+full Git revision in a new commit. Commit/restore take exact files, not directories.
+Dirty/staged preimages are preserved; immutable source/inbox and append-only logs
+cannot be rewritten this way. Git cannot restore data it never contained.
 
-## Backup и restore
+## Backup and restore
 
-`backup /existing-parent/new-backup-directory` использует SQLite backup API, отдельный Git bundle и checksum manifest.
-Cooperating writers блокируются; грязный контекст/битые ссылки требуют сверки. DB-only backup разрешён и без home.
-Snapshot не пишется в git. Manifest появляется последним; неполный backup не выдаётся за пригодный.
+`backup /existing-parent/new-backup-directory` uses SQLite backup API, a separate Git
+bundle and checksum manifest. Cooperating writers are locked; dirty context/broken
+references need reconciliation. DB-only backup is allowed without home. Snapshots
+are outside Git; the manifest is written last. Incomplete backup is not success.
 
-`restore /backup-directory` выполняется в новой установке с отсутствующими БД и home. Он не затирает текущие данные:
-повтор отказывается без изменений. Проверяются hashes, схема/integrity/FK, source и все ссылки на артефакты.
-Старые повреждённые данные сначала отдельно сохраняются оператором; автоматического удаления/retention нет.
+`restore /backup-directory` targets a new installation with absent DB/home. It never
+overwrites current data; repetition refuses without changes. It checks hashes,
+schema/integrity/FKs, source and all artifact references. Preserve damaged data
+separately before recovery; there is no automatic deletion or retention policy.
 
-Git commits контекста имеют identity mypi и не выполняют пользовательские hooks/fsmonitor/signing;
-private Git attributes сохраняют байты без EOL/encoding/filter-преобразований.
-Рабочие clones проектов, ветки и remote sync эти команды не затрагивают.
+Context commits use the mypi identity, without user hooks/fsmonitor/signing; private
+Git attributes preserve exact bytes without EOL/encoding/filter transformations.
+These commands do not modify working clones, branches or remote synchronization.
 
-## Приёмка
+## Verification
 
-`mise exec -- pnpm verify` — admission + fast + boundary под systemd/bubblewrap, без личного home и сети.
-После изменения исходников сначала build; stale dist отвергается. Функциональные проверки и ограничения
-независимого review/trusted gate — [M1-CYCLE.md](M1-CYCLE.md). Численные нормы — только [TESTING.md](TESTING.md).
+`mise exec -- pnpm verify`: admission + fast + boundary under systemd/bubblewrap,
+without personal home/network. Build changed source first; stale dist is rejected.
+[M1-CYCLE](M1-CYCLE.md) and [MCP-CYCLE](MCP-CYCLE.md) record functional checks and
+review/gate limits. Numeric budgets exist only in [TESTING](TESTING.md).
