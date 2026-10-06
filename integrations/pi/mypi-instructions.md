@@ -2,4 +2,5 @@
 
 The mandatory memory/task/session instruction block has been removed.
 This file no longer provides an agent workflow to install in AGENTS.md.
-The optional MCP connection is documented in [MCP.md](../../docs/MCP.md).
+Connecting the optional mypi MCP server does not require warmup, project registration,
+request tracking or automatic writes to the separate `home/` repository.

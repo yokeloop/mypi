@@ -273,11 +273,11 @@ tokens/cost independently; no retry-until-green. These evals are not implemented
 
 ## 8. Applying the policy without extra bureaucracy
 
-One policy source: docs/TESTING.md. AGENTS, architecture and M1 acceptance link to it;
-do not duplicate it in every prompt/document. Numeric budgets in §6 were accepted
-later (§11). Local limits/admission exist; independent static review and current
-evidence are in M1-CYCLE/MCP-CYCLE. The independent trusted issuer remains open in
-M1-CI. Policy acceptance does not authorize implementation.
+One policy source: docs/TESTING.md. Architecture and M1 acceptance link to it;
+AGENTS summarizes execution boundaries without a documentation link. Numeric budgets
+in §6 were accepted later (§11). Local limits/admission exist; independent static
+review and current evidence are in M1-CYCLE/MCP-CYCLE. The independent trusted
+issuer remains open in M1-CI. Policy acceptance does not authorize implementation.
 
 The original M1 rollout requirement was to ship standard runner, two profiles,
 simple admission, bounded execution and cost reporting with the first vertical slice,
