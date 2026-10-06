@@ -16,11 +16,16 @@ or delegation step before doing work. Follow the user's requested scope and sess
   item, document or historical approval into permission to execute it.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs, worktrees or subagents unless explicitly requested for the work.
-- Start a task branch before editing, commit only task-related changes with a
-  descriptive message, push each completed commit immediately, and open a PR for
-  review. Do not merge the PR or change/push `main` without explicit authorization
-  from the engineer for that action. A one-off exception is not standing approval.
-  Apply this workflow to every checkout/worktree touched by the task.
+- For the engine repository, start a task branch before editing, commit only
+  task-related changes with a descriptive message, push each completed commit
+  immediately, and open a PR for review. Do not merge the PR or change/push `main`
+  without explicit authorization from the engineer for that action. Apply this
+  workflow to every engine checkout/worktree touched by the task; one-off approval
+  is not standing permission for another direct-main change.
+- The separate `home/` context repository is a standing exception: work on its
+  `main` directly, commit task-related changes with a descriptive message, and
+  push immediately to `origin/main`, without a task branch or PR. This exception
+  does not authorize direct-main changes in the engine repository.
 - Finish with no uncommitted task changes in any touched repository/worktree.
   Never include unrelated pre-existing changes in a commit or discard them to make
   a tree clean; stop and ask how to handle them. Check status before editing and
