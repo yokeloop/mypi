@@ -4,6 +4,9 @@
 # projects/ — working clones
 /projects/
 
+# Per-checkout Pi instructions are private and must not enter the shared repo
+/.pi/APPEND_SYSTEM.md
+
 # local junk
 .DS_Store
 
