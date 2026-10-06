@@ -48,30 +48,37 @@ or delegation step before doing work. Follow the user's requested scope and sess
 - Partial operations or lost connections do not imply rollback. Inspect actual state
   before repeating a write; report verification and remaining limitations honestly.
 
+## Project setup and maintenance
+
+- For explicitly requested creation, initialization, registration or maintenance of
+  a project, use the [project-management skill](.agents/skills/project-management/SKILL.md).
+  Clarify whether the user means a repository or a mypi registration; neither
+  implies the other. Do not register projects, initialize storage, or start a
+  project-tracking workflow automatically.
+
 ## Developing the engine
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
   SQL migrations without an ORM, node:test + node:assert/strict.
 - Modular monolith, domain modules with Ports & Adapters and use cases.
-  Read [M1-DESIGN](docs/M1-DESIGN.md) before structural/dependency changes.
+  Before structural/dependency changes, inspect current module boundaries and
+  contracts; preserve the separation of domain, application and adapters.
 - CLI and MCP share typed application commands. Keep adapters thin; fix every
   affected entry point. No domain logic in scripts or private cross-module imports.
-- Read [TESTING](docs/TESTING.md) before changing tests or their execution. It is the
-  single test-policy source. Use only disposable data under the approved isolation;
-  if it is unavailable, stop rather than using an unsafe fallback.
+- Before changing tests or their execution, inspect existing tests and their
+  runner. Protect observable behavior at the cheapest reliable level; do not add
+  redundant tests, new runners or higher resource limits just to get green. Use
+  only disposable data under the approved isolation (2 CPU, 1 GiB, 64 tasks,
+  60-second external deadline, one suite run at a time; no network or personal
+  home); if unavailable, stop rather than using an unsafe fallback. Fast tests
+  must not spawn subprocesses; boundary tests may use isolated CLI/Git processes.
+  Do not weaken admission or mandatory checks.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative
   flows, agents, recovery infrastructure or runtime enforcement without a request.
 - Do not modify global Pi settings as incidental repository upkeep. Explicitly
   requested installation/removal is a separate, narrowly scoped operation.
-
-## References
-
-- [Architecture](docs/ARCHITECTURE.md), [roadmap](PLAN.md): capabilities and direction.
-- [CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): optional tool/API reference.
-- [Testing](docs/TESTING.md): isolation, budgets and verification.
-- [Workflow withdrawal](docs/AGENT-WORKFLOW.md): previous policy is no longer active.
 
 Historical cards, reports and branches are evidence of past work, not active agent
 instructions. Connecting the MCP server does not assign work or authorize execution.
