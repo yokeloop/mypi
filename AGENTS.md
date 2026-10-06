@@ -16,8 +16,20 @@ or delegation step before doing work. Follow the user's requested scope and sess
   item, document or historical approval into permission to execute it.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs, worktrees or subagents unless explicitly requested for the work.
-- Commits, pushes, releases, migrations, bootstrap, restore and external writes need
-  applicable user authorization. Past one-off approval is not a standing grant.
+- For changes made under this repository's tasks, the user authorizes a commit and
+  immediate push of each completed change in `main` or any working branch/worktree.
+  Apply the same rule when a task explicitly changes the separate `home/` repository.
+  Use a descriptive commit message and push to the branch's configured upstream.
+  Finish with no uncommitted changes in any repository/worktree touched by the task.
+  Never include unrelated pre-existing changes in a commit or discard them to make
+  a tree clean; stop and ask how to handle them. Check status before editing and
+  after pushing. If a push is unavailable or fails, keep the commit, report the
+  unpushed state and ask for direction rather than claiming completion or retrying
+  blindly. In repositories without a push destination, arrange one with the user
+  before making changes.
+- Releases, migrations, bootstrap, restore and other external writes still need
+  applicable user authorization. Past one-off approval is not a standing grant for
+  these operations or for changes outside the requested task.
 - Preserve user data and historical artifacts. `home/` is a separate ignored context
   repository; the SQLite DB is outside both repositories. Neither is engine source.
   Do not relocate personal data or rewrite immutable source and append-only history.
