@@ -1,5 +1,5 @@
-# home/ — nested git repo of personal data, never commit into mypi git
-/home/
+# home/ — nested git repo or local link to personal data, never commit into mypi git
+/home
 
 # projects/ — working clones
 /projects/

@@ -16,17 +16,29 @@ or delegation step before doing work. Follow the user's requested scope and sess
   item, document or historical approval into permission to execute it.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs, worktrees or subagents unless explicitly requested for the work.
-- For changes made under this repository's tasks, the user authorizes a commit and
-  immediate push of each completed change in `main` or any working branch/worktree.
-  Apply the same rule when a task explicitly changes the separate `home/` repository.
-  Use a descriptive commit message and push to the branch's configured upstream.
-  Finish with no uncommitted changes in any repository/worktree touched by the task.
+- For the engine repository, start a task branch before editing, commit only
+  task-related changes with a descriptive message, push each completed commit
+  immediately, and open a PR for review. Do not merge the PR or change/push `main`
+  without explicit authorization from the engineer for that action. Apply this
+  workflow to every engine checkout/worktree touched by the task; one-off approval
+  is not standing permission for another direct-main change.
+- The separate `home/` context repository is a standing exception: work on its
+  `main` directly, commit task-related changes with a descriptive message, and
+  push immediately to `origin/main`, without a task branch or PR. This exception
+  does not authorize direct-main changes in the engine repository.
+- Finish with no uncommitted task changes in any touched repository/worktree.
   Never include unrelated pre-existing changes in a commit or discard them to make
   a tree clean; stop and ask how to handle them. Check status before editing and
   after pushing. If a push is unavailable or fails, keep the commit, report the
   unpushed state and ask for direction rather than claiming completion or retrying
   blindly. In repositories without a push destination, arrange one with the user
   before making changes.
+- Keep personal Pi instructions outside the shared project policy. The tracked
+  `.pi/APPEND_SYSTEM.md` symlink points to `../home/USER-INSTRUCTIONS.md` in each
+  checkout; only the link is committed, not its private target. Each user supplies
+  their own ignored `home/` repository or local link in every worktree. Pi loads
+  the target only when the project is trusted. Do not commit personal text to the
+  engine repo or automatically inject `MEMORY.md` into the system prompt.
 - Releases, migrations, bootstrap, restore and other external writes still need
   applicable user authorization. Past one-off approval is not a standing grant for
   these operations or for changes outside the requested task.
