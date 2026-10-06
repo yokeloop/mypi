@@ -28,11 +28,12 @@ or delegation step before doing work. Follow the user's requested scope and sess
   unpushed state and ask for direction rather than claiming completion or retrying
   blindly. In repositories without a push destination, arrange one with the user
   before making changes.
-- Keep personal Pi instructions outside the shared project policy. Each checkout
-  may use a local, Git-ignored `.pi/APPEND_SYSTEM.md` pointing to its user's private
-  instruction file; Pi loads it only when the project is trusted. Configure each
-  worktree separately. Do not commit the link or personal text to the engine repo,
-  and do not automatically inject `MEMORY.md` into the system prompt.
+- Keep personal Pi instructions outside the shared project policy. The tracked
+  `.pi/APPEND_SYSTEM.md` symlink points to `../home/USER-INSTRUCTIONS.md` in each
+  checkout; only the link is committed, not its private target. Each user supplies
+  their own ignored `home/` repository or local link in every worktree. Pi loads
+  the target only when the project is trusted. Do not commit personal text to the
+  engine repo or automatically inject `MEMORY.md` into the system prompt.
 - Releases, migrations, bootstrap, restore and other external writes still need
   applicable user authorization. Past one-off approval is not a standing grant for
   these operations or for changes outside the requested task.
