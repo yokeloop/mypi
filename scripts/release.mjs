@@ -144,7 +144,7 @@ async function main() {
   console.log(`Publishing ${tag}...`);
   run('gh', ['release', 'create', tag, '-R', repo, '--verify-tag', '--prerelease',
     '--title', `mypi ${tag}`, '--generate-notes', '--notes',
-    `Not production-ready; the independent trusted merge gate and final M1 acceptance remain open.\n\nHosted verification: ${ci.url}. The package is private and is not published to npm.`], { inherit: true });
+    `Not production-ready; final M1 acceptance remains open.\n\nHosted verification: ${ci.url}. The package is private and is not published to npm.`], { inherit: true });
   const release = JSON.parse(gh('release', 'view', tag, '-R', repo, '--json', 'url,isDraft,tagName'));
   if (release.isDraft || release.tagName !== tag) throw new Error('Release publication not confirmed');
   console.log(`Published: ${release.url}`);

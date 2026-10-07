@@ -15,8 +15,9 @@ Flow is part of the product direction; automated execution/visibility isolation 
 not implemented. See [PLAN](PLAN.md) for milestones without speculative infrastructure.
 
 **Readiness:** the stdio MCP server and withdrawal of the mandatory agent workflow
-are included since v0.1.1. This project is not production-ready: the independent App
-issuer/trusted gate and final M1 acceptance remain open ([M1-CI](docs/M1-CI.md)). The earlier
+are included since v0.1.1. This project is not production-ready: final M1 acceptance
+remains open. CI now runs ordinary bounded PR verification, not the historical
+trusted-base/App-issuer scheme. The earlier
 [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) was a
 release candidate. [Release snapshot](docs/RELEASE.md), [file-map snapshot](docs/FILEMAP.md)
 and [published RC report](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf)
@@ -72,21 +73,22 @@ writes. Non-interactive input is refused. The wizard:
   It preserves unrelated settings and existing package filters. Before modifying
   existing settings, it saves their exact bytes as `settings.json.before-bootstrap`;
   an occupied backup path is a conflict, not permission to overwrite it.
-- Does **not** initialize SQLite, register projects, create remote repositories,
-  commit/push personal files, migrate memory or modify global Pi settings.
+- Shows the SQLite path and initializes the schema when the database file is absent.
+  Uses `$XDG_STATE_HOME/mypi/state.sqlite3`, falling back to
+  `~/.local/state/mypi/state.sqlite3`, the same as CLI/MCP. An existing database is
+  left unchanged: no reset or implicit migration. A file created after the preview
+  causes a refusal rather than an overwrite.
+- Does **not** register projects, create remote repositories, commit/push personal
+  files, migrate existing data or modify global Pi settings.
 
-A configured rerun is a no-op. Close other configuration writers during setup;
+A configured rerun with an existing database is a no-op. Stop other setup/storage writers;
 changed previews are rejected. Errors report partial progress without claiming a
 rollback. Review and commit new files in `home/`, and configure its private remote
 and synchronization yourself; engine Git must never contain personal data.
 
-**This is not the storage command named `bootstrap`.** When you explicitly want to
-initialize the mypi database as well, run the following separately (stop other
-storage writers first):
-
-```bash
-mise exec -- node dist/src/cli/main.js bootstrap
-```
+After successful first-time setup the database is initialized; no second bootstrap
+command is needed. The existing CLI/MCP storage `bootstrap` remains available for
+explicit administrative initialization/migration, without the Pi setup wizard.
 
 ### Existing installations
 
@@ -117,6 +119,21 @@ engine Git. Do not customize files under `integrations/pi/` unless contributing 
 the engine. Package resources load directly from there without being copied into
 home. Use distinct names for personal resources; to replace a built-in resource,
 exclude it via Pi package filters and load your own implementation explicitly.
+
+**Why does Pi discover `integrations/pi`?** The directory name has no special meaning.
+Bootstrap explicitly adds a local package entry to `.pi/settings.json`, for example:
+
+```json
+{ "packages": ["/absolute/path/to/mypi/integrations/pi"] }
+```
+
+Pi reads that directory's `package.json`, whose `pi` manifest declares
+`extensions: ["./extensions/mypi.ts"]` and `skills: ["./skills"]`. After project trust,
+Pi automatically loads the extension and lists the skills' names/descriptions for
+the agent; full skill instructions are read when needed. Without the package entry,
+Pi does not discover this arbitrary directory. MCP tools arrive via the registered
+server, not by scanning a folder of tool files. Their schemas use the configured
+exposure (mostly codemode; project resolution and warmup are direct).
 
 The shipped extension registers the built-in `mypi` MCP server using Node on PATH.
 Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable rather
@@ -184,6 +201,14 @@ timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
 mise exec -- pnpm build
 mise exec -- pnpm verify
 ```
+
+CI runs on `pull_request` and pushes to `main`, checks out the proposed revision,
+installs its frozen lockfile, and runs `bash scripts/ci.sh`. Dependency and script
+changes are normal PR changes: there is no comparison against a separate trusted
+base and no App publisher or privileged `pull_request_target` execution. Credentials
+are not persisted by checkout; job permissions are read-only. Build/test resource
+limits and network/home isolation remain in place. This is ordinary CI, not a
+candidate-independent security attestation.
 
 Read [TESTING](docs/TESTING.md) before test changes. test runs fast only; verify runs
 admission + fast + boundary. Linux user systemd, cgroup v2 and bubblewrap are required;

@@ -4,6 +4,8 @@ import { join, resolve } from 'node:path';
 import { contextGit } from '../infrastructure/git/context-git.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { InputError } from '../shared/errors.js';
+import { initializeState } from './create-app.js';
+import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 
 interface Snapshot { path: string; kind: 'absent' | 'directory' | 'file' | 'link'; content?: string }
 type Change = { path: string; kind: 'directory' | 'file' | 'link'; content: string }
@@ -13,6 +15,7 @@ export interface UserLayerPlan {
   snapshots: Snapshot[];
   changes: Change[];
   initializeGit: boolean;
+  database: { path: string; create: boolean };
 }
 
 function snapshot(path: string): Snapshot {
@@ -32,9 +35,19 @@ function conflict(path: string): never {
 }
 
 /** Read-only preflight. Settings are patched only to add the local package, never reset. */
-export function planUserLayer(checkout: string): UserLayerPlan {
+export function planUserLayer(checkout: string, database: string): UserLayerPlan {
   const root = realpathSync(checkout), home = join(root, 'home'), pi = join(home, 'pi');
-  const plan: UserLayerPlan = { root, snapshots: [], changes: [], initializeGit: false };
+  const filename = externalDatabasePath(database, root);
+  let create = false;
+  try {
+    const stat = lstatSync(filename);
+    if (!stat.isFile() || stat.nlink !== 1) conflict(filename);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    create = true;
+  }
+  const plan: UserLayerPlan = { root, snapshots: [], changes: [], initializeGit: false,
+    database: { path: filename, create } };
   const inspect = (path: string) => {
     const value = snapshot(path); plan.snapshots.push(value); return value;
   };
@@ -105,9 +118,9 @@ export function planUserLayer(checkout: string): UserLayerPlan {
   return plan;
 }
 
-/** Recheck the reviewed plan; no network, DB writes, commits or global Pi configuration. */
+/** Recheck the reviewed plan; create an absent DB only, never reset/migrate an existing one. */
 export function applyUserLayer(plan: UserLayerPlan): string[] {
-  if (JSON.stringify(planUserLayer(plan.root)) !== JSON.stringify(plan)) {
+  if (JSON.stringify(planUserLayer(plan.root, plan.database.path)) !== JSON.stringify(plan)) {
     throw new InputError('User layer changed after preview; rerun bootstrap before applying');
   }
   const saved: string[] = [];
@@ -131,8 +144,12 @@ export function applyUserLayer(plan: UserLayerPlan): string[] {
       contextGit(join(plan.root, 'home')).initialize();
       saved.push(join(plan.root, 'home/.git'));
     }
+    if (plan.database.create) {
+      initializeState(plan.database.path, true);
+      saved.push(plan.database.path);
+    }
     return saved;
   } catch (error) {
-    throw new Error(`Setup stopped: ${String(error)}\nSaved: ${saved.join(', ') || 'nothing'}\nInspect before retrying; no automatic rollback.`);
+    throw new Error(`Setup stopped: ${String(error)}\nSaved: ${saved.join(', ') || 'nothing'}\nInspect ${plan.database.path} and user files before retrying; no automatic rollback.`);
   }
 }

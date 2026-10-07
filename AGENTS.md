@@ -36,7 +36,7 @@ or delegation step before doing work. Follow the user's requested scope and sess
   blindly. In repositories without a push destination, arrange one with the user
   before making changes.
 - Keep personal instructions and resources in the ignored user layer, never in
-  shared engine policy. Do not automatically inject MEMORY into the system prompt.
+  shared engine policy.
 - Releases, migrations, bootstrap, restore and other external writes still need
   applicable user authorization. Past one-off approval is not a standing grant for
   these operations or for changes outside the requested task.
@@ -59,9 +59,10 @@ or delegation step before doing work. Follow the user's requested scope and sess
   use mypi operations for managed memory, DB records and append-only history.
 - `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog. It
   creates missing user-layer resources and a separate home Git on main, connects
-  the built-in package, and installs the links. It does not initialize the DB,
+  the built-in package, installs the links, and initializes SQLite if its file is
+  absent. The preview shows the database path; confirmation authorizes creation.
+  Existing databases are left unchanged, not reset or migrated. Bootstrap does not
   commit, push, create remotes or change global Pi settings. Run it only when asked.
-  Storage initialization is separately authorized via the CLI `bootstrap` command.
 - Bootstrap previews changes, preserves existing personal text and MCP configuration,
   and adds only a missing package entry to settings, saving the original beside it
   as `settings.json.before-bootstrap`. Existing package filters remain unchanged.
@@ -70,7 +71,12 @@ or delegation step before doing work. Follow the user's requested scope and sess
 - An old `.pi` containing only the former instruction symlink, or an empty `.pi`,
   can be converted by the wizard. Other existing `.pi` directories must be reviewed
   and reconciled by the user first; do not silently move arbitrary relative links.
-- Pi loads the user directories and configured local package after project trust.
+- `integrations/` is not a special Pi directory. Bootstrap adds the absolute
+  `integrations/pi` path to `packages` in `.pi/settings.json` (stored in home).
+  Pi reads the package's `package.json` manifest, which declares extensions and
+  skills. After project trust, their discovery is automatic: skill descriptions
+  are visible to the agent, full instructions are loaded when needed, and the
+  extension connects MCP tools. Without the package entry it is not auto-loaded.
   Start with `mise exec -- pi` so child MCP processes find Node 24. The package's
   extension registers `mypi`; a same-name entry in `home/pi/mcp.json` overrides it,
   including `enabled: false`. Shell `pi mcp list` does not load extension servers.
@@ -116,7 +122,9 @@ checkout or implement a task/subagent runner.
   60-second external deadline, one suite run at a time; no network or personal
   home); if unavailable, stop rather than using an unsafe fallback. Fast tests
   must not spawn subprocesses; boundary tests may use isolated CLI/Git processes.
-  Do not weaken admission or mandatory checks.
+  Do not weaken admission or mandatory checks. CI tests the proposed revision
+  with its own locked dependencies and scripts; changes to package.json, lockfiles
+  or build scripts do not require promoting a separate trusted base.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative
