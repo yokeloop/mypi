@@ -11,11 +11,11 @@ for file in "${protected[@]}"; do
 done
 diff -qr "$base/scripts" "$candidate/scripts"
 diff -qr "$base/.github" "$candidate/.github"
-[[ -d "$base/node_modules" && -d "$candidate/src" && -d "$candidate/test" ]]
-[[ -z "$(find "$candidate/src" "$candidate/test" -type l -print -quit)" ]] || { echo 'Symlink in candidate source' >&2; exit 1; }
+[[ -d "$base/node_modules" && -d "$candidate/src" && -d "$candidate/test" && -d "$candidate/integrations" ]]
+[[ -z "$(find "$candidate/src" "$candidate/test" "$candidate/integrations" -type l -print -quit)" ]] || { echo 'Symlink in candidate source' >&2; exit 1; }
 work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mypi-ci.XXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
-cp -a --reflink=auto "$candidate"/{src,test} "$work/"
+cp -a --reflink=auto "$candidate"/{src,test,integrations} "$work/"
 cp -a --reflink=auto "$base"/{scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs} "$work/"
 mkdir "$work/tools" "$work/dist"
 cp --reflink=auto "$(command -v node)" "$work/tools/node"

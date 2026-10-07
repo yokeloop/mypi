@@ -6,18 +6,19 @@ import { relative } from 'node:path';
 import { applyUserLayer, planUserLayer } from '../app/setup-user-layer.js';
 import type { UserLayerPlan } from '../app/setup-user-layer.js';
 
-function Bootstrap({ plan }: { plan: UserLayerPlan }) {
+function Bootstrap({ plan, onComplete }: { plan: UserLayerPlan; onComplete: (message: string) => void }) {
   const { exit } = useApp();
+  const finish = (message: string) => { onComplete(message); exit(); };
   const [busy, setBusy] = useState(false);
   useInput((input, key) => {
     if (busy) return;
     if (input.toLowerCase() === 'n' || key.escape || key.return || (key.ctrl && input === 'c')) {
-      exit('Cancelled; no user files changed.');
+      finish('Cancelled; no user files changed.');
     } else if (input.toLowerCase() === 'y') {
       setBusy(true);
       try {
         const saved = applyUserLayer(plan);
-        exit(saved.length ? 'User layer ready. Review and commit the changes in home/ yourself; no commit or push was made.\nStart Pi from this checkout and approve project trust. In a running session use /reload.\nDatabase untouched. To initialize storage separately: mise exec -- node dist/src/cli/main.js bootstrap'
+        finish(saved.length ? 'User layer ready. Review and commit the changes in home/ yourself; no commit or push was made.\nStart Pi from this checkout and approve project trust. In a running session use /reload.\nDatabase untouched. To initialize storage separately: mise exec -- node dist/src/cli/main.js bootstrap'
           : 'User layer already configured; nothing changed.');
       } catch (error) { exit(error instanceof Error ? error : new Error(String(error))); }
     }
@@ -36,9 +37,10 @@ try {
   if (!process.stdin.isTTY || !process.stdout.isTTY) throw new Error('Bootstrap needs an interactive terminal; no files changed. Run pnpm bootstrap in your terminal.');
   const root = fileURLToPath(new URL('../../../', import.meta.url));
   const plan = planUserLayer(root);
-  const app = render(h(Bootstrap, { plan }), { exitOnCtrlC: false });
-  const result: unknown = await app.waitUntilExit();
-  if (typeof result === 'string') process.stdout.write(result + '\n');
+  let result = '';
+  const app = render(h(Bootstrap, { plan, onComplete: message => { result = message; } }), { exitOnCtrlC: false });
+  await app.waitUntilExit();
+  if (result) process.stdout.write(result + '\n');
 } catch (error) {
   process.stderr.write((error instanceof Error ? error.message : String(error)) + '\n');
   process.exitCode = 1;
