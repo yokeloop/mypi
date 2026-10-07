@@ -1,6 +1,9 @@
 # home/ — nested git repo or local link to personal data, never commit into mypi git
 /home
 
+# .pi/ — local user-layer link/configuration; never claim these paths upstream
+/.pi
+
 # projects/ — working clones
 /projects/
 

@@ -11,7 +11,7 @@ const digest = files => {
 };
 const manifest = 'dist/build-state.json';
 const state = {
-  input: digest([...walk('src'), ...walk('test'), 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']),
+  input: digest([...walk('src'), ...walk('test'), ...walk('integrations'), 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']),
   output: digest(walk('dist').filter(file => file !== manifest)),
 };
 if (process.argv[2] === 'write') writeFileSync(manifest, JSON.stringify(state) + '\n');

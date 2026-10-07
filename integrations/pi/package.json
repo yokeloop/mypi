@@ -1,0 +1,12 @@
+{
+  "name": "mypi-pi",
+  "private": true,
+  "type": "module",
+  "pi": {
+    "extensions": ["./extensions/mypi.ts"],
+    "skills": ["./skills"]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}

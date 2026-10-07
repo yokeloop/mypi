@@ -7,7 +7,7 @@ work="$(mktemp -d "${RUNTIME_DIRECTORY:?systemd runtime directory required}/work
 trap 'rm -rf "$work"' EXIT
 mkdir "$work/tools"
 cp --reflink=auto "$node" "$work/tools/node"
-cp -a --reflink=auto "$root"/{src,test,dist,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs} "$work/"
+cp -a --reflink=auto "$root"/{src,test,dist,scripts,integrations,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs} "$work/"
 group="$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)"
 [[ "$group" == */mypi-tests.service ]] || { echo "Missing bounded systemd unit" >&2; exit 1; }
 bwrap --unshare-all --die-with-parent --new-session --cap-drop ALL --clearenv \
