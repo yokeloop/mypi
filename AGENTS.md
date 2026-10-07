@@ -10,33 +10,40 @@ The former mandatory memory/task/session workflow has been withdrawn. There is
 no required MCP warmup, request registration, automatic outcome logging, Herdr tab,
 or delegation step before doing work. Follow the user's requested scope and session.
 
+## Instruction ownership
+
+- This root `AGENTS.md` owns the engine's baseline workspace rules. Individual
+  developer preferences belong in `home/USER-INSTRUCTIONS.md`, loaded through
+  `.pi/APPEND_SYSTEM.md` via the configured user-layer symlinks.
+- When Pi starts in the configured, trusted workspace, both instruction layers
+  are loaded. They complement each other; neither is a copy or fallback for the
+  other. Do not duplicate a rule in both files, create `home/AGENTS.md` as a third
+  policy layer, or require one file to reread the other just to activate it.
+- Before maintaining instructions, decide who owns the rule: shared engine
+  behavior here, individual preferences in home, project-specific behavior in
+  that project's instructions or flow. Edit the owning source, not every prompt.
+  Skills and other prompts may point to it instead of restating its policy.
+- Do not copy personal paths or preferences into shared engine policy. Changes
+  to this file use the same project workflow as any other engine contribution.
+
 ## Communication and changes
 
 - Write maintained AGENTS files, prompts and agent-facing instructions in English.
-  Respond in the user's language; preserve original source and quotations exactly.
+  Preserve original source and quotations exactly.
 - Answer the actual request. State uncertainty and blockers; do not turn a backlog
   item, document or historical approval into permission to execute it.
+- A new message on another topic does not cancel or suspend earlier requests.
+  Answer it and continue outstanding authorized work unless the user explicitly
+  asks to stop, pause, cancel, or replace it. Do not silently drop pending work
+  or ask for repeated authorization solely because the topic changed. A real
+  blocker still requires reporting or clarification; continuity grants no new scope.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
-- Do not create tabs, worktrees or subagents unless explicitly requested for the work.
-- For the engine repository, start a task branch before editing, commit only
-  task-related changes with a descriptive message, push each completed commit
-  immediately, and open a PR for review. Do not merge the PR or change/push `main`
-  without explicit authorization from the engineer for that action. Apply this
-  workflow to every engine checkout/worktree touched by the task; one-off approval
-  is not standing permission for another direct-main change.
-- The separate `home/` context repository is a standing exception: work on its
-  `main` directly, commit task-related changes with a descriptive message, and
-  push immediately to `origin/main`, without a task branch or PR. This exception
-  does not authorize direct-main changes in the engine repository.
-- Finish with no uncommitted task changes in any touched repository/worktree.
-  Never include unrelated pre-existing changes in a commit or discard them to make
-  a tree clean; stop and ask how to handle them. Check status before editing and
-  after pushing. If a push is unavailable or fails, keep the commit, report the
-  unpushed state and ask for direction rather than claiming completion or retrying
-  blindly. In repositories without a push destination, arrange one with the user
-  before making changes.
-- Keep personal instructions and resources in the ignored user layer, never in
-  shared engine policy.
+- Do not create tabs or subagents unless explicitly requested for the work.
+  Task worktrees follow the common project workflow below.
+- Check Git status before editing and after pushing. If a push is unavailable
+  or fails, keep the work, report its actual state and ask for direction rather
+  than claiming delivery or retrying blindly. Arrange a suitable remote before
+  making repository changes; never silently create a remote or force-push.
 - Releases, migrations, bootstrap, restore and other external writes still need
   applicable user authorization. Past one-off approval is not a standing grant for
   these operations or for changes outside the requested task.
@@ -57,6 +64,14 @@ or delegation step before doing work. Follow the user's requested scope and sess
   User settings, MCP configuration, skills, extensions, prompts and themes belong
   under `home/pi/`. Use normal file tools for these and other ordinary documents;
   use mypi operations for managed memory, DB records and append-only history.
+- Home is the direct-main exception to the project workflow: commit intended
+  user-layer changes on its `main` and push each completed commit immediately to
+  `origin/main`, without a task branch, worktree or PR. Finish home operations
+  with a clean Git status, including intended previously untracked configuration.
+  Review content and ownership before staging; include intended user-layer files
+  rather than leaving them dirty solely because they predate the current request.
+  Ask about unexplained concurrent changes. Never discard data, blindly stage
+  unknown files, or commit secrets, databases or caches to achieve cleanliness.
 - `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog. It
   creates missing user-layer resources and a separate home Git on main, connects
   the built-in package, installs the links, and initializes SQLite if its file is
@@ -80,8 +95,8 @@ or delegation step before doing work. Follow the user's requested scope and sess
   Start with `mise exec -- pi` so child MCP processes find Node 24. The package's
   extension registers `mypi`; a same-name entry in `home/pi/mcp.json` overrides it,
   including `enabled: false`. Shell `pi mcp list` does not load extension servers.
-- Update built-ins in the engine, not by copying them into home. Customize through
-  user resources and explicit Pi package filters in settings. Use distinct resource
+- Customize through user resources and explicit Pi package filters in settings,
+  not by copying built-ins into home. Use distinct resource
   names; do not rely on duplicate-name discovery order. After updating/rebuilding,
   reload or restart Pi. Inspect diagnostics before claiming an integration works.
 - User settings contain the absolute local package path. If a checkout moves, review
@@ -101,12 +116,59 @@ or delegation step before doing work. Follow the user's requested scope and sess
   implies the other. Do not register projects, initialize storage, or start a
   project-tracking workflow automatically.
 
+## Common project workflow
+
+- All project development, including mypi itself, uses a registered project and
+  an independent Git clone, a task branch/worktree, verification, push and PR.
+  Resolve missing setup within the requested scope using the project-management
+  skill; this is not permission to initialize storage or register unrelated projects.
+- Keep base clones in `projects/<organization>/<project>/` and task worktrees
+  alongside them in `projects/<organization>/<project>--<task-slug>/`. These are
+  source directories, not `home/projects/` knowledge. Do not relocate existing
+  checkouts without authorization simply to enforce the naming convention.
+- Before editing, inspect the project's instructions, selected flow, Git status,
+  remote and identity. Create one branch and worktree per task from the appropriate
+  updated base of that project's clone. Do not develop in the base checkout or
+  switch its branch for a task; do not allow concurrent writers in one worktree.
+- Verify repository, branch and worktree association through Git. The current
+  mypi resolver matches one registered path and its descendants, not sibling
+  worktrees. Supply project identity explicitly where needed; neither a directory
+  name nor an enclosing installation's registration proves project membership.
+- Run the project's required checks in the task worktree under its prescribed
+  isolation with disposable test data, not personal runtime data. Commit only
+  task-related changes with descriptive messages, push each completed commit
+  immediately, and open a PR. Finish with no uncommitted task changes. Preserve
+  unrelated changes; never commit or discard someone else's work to clean a tree.
+- Project configuration and the selected flow determine review, merge and delivery.
+  There is no additional universal merge-approval step in these workspace rules;
+  do not invent an automatic merge policy when the project has not defined one.
+- Before removing a worktree or branch, inspect tracked, untracked and ignored
+  files, preserve unique user materials, and verify publication. Follow the
+  requested branch-retention policy; closing a PR does not itself authorize
+  deleting its remote branch or changing a task's DB status.
+- These are working instructions, not a security boundary or an implemented flow
+  runner. Worktrees share Git metadata within a project and do not isolate access.
+
+## Protect the installed engine
+
+- Treat the workspace's installed engine as a tool, not a development checkout.
+  Never edit its source, this `AGENTS.md`, or shipped resources in place; do not
+  apply development patches, switch branches, or create task worktrees from its
+  Git repository. The separate home and ignored project directories are not
+  installed engine source.
+- Develop mypi through the common project workflow in its own clone under
+  `projects/<organization>/`, with Git metadata independent of the installation.
+- After project changes have been merged, update the installed engine only through
+  the applicable update flow: check a clean engine checkout, `git pull --ff-only`,
+  locked dependencies/build as prescribed, then reload/restart and verify. Do not
+  substitute file copying, cherry-picking or a hard reset. Do not connect candidate
+  builds to personal DB/home. Migrations remain separately authorized operations.
+
 ## Developing the engine
 
-These rules govern mypi source, tests, scripts and shipped integrations only. For
-work in `projects/<checkout>`, inspect that repository's own instructions, Git state
-and verification commands. This layout does not authorize parallel writers in one
-checkout or implement a task/subagent runner.
+These additional rules govern mypi source, tests, scripts and shipped integrations
+in project task worktrees. They do not impose mypi's stack or test runner on other
+projects. Inspect each project's own instructions and verification commands.
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
   SQL migrations without an ORM, node:test + node:assert/strict.
