@@ -3,9 +3,14 @@
 The former mandatory mypi agent workflow was withdrawn at the user's explicit
 request during the emergency correction on 2026-10-06.
 
-Project resolution, memory warmup, request registration, outcome logging and
-separate Herdr tabs are no longer prerequisites for agent work. No automatic
-session routing or delegation policy is installed by this repository.
+Automatic project resolution, memory warmup, request registration, outcome logging
+and separate Herdr tabs are not prerequisites for agent work. No automatic session
+routing or delegation policy is installed by this repository.
+
+Current source-development rules are maintained separately in the
+[common project workflow](../AGENTS.md#common-project-workflow), including the
+installed engine's development boundary. That Git/worktree policy does not restore
+the withdrawn memory/task/session automation or implement a flow runner.
 
 The CLI and MCP tools remain available for explicit use. Their data contracts,
 existing requests, history, context files and published artifacts are unchanged.

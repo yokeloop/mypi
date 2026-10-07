@@ -5,7 +5,7 @@ description: Plan and carry out explicitly requested creation, initialization, r
 
 # Project management
 
-Use this workflow only for the part of project setup or maintenance the user actually requested. A repository, a mypi project registration, and mypi's `home/` context are different things. Do not infer permission to create or update one from a request concerning another. Follow the applicable `AGENTS.md` and the user's instructions; this skill does not replace repository-specific Git rules.
+Use this workflow only for the part of project setup or maintenance the user actually requested. A repository, a mypi project registration, and mypi's `home/` context are different things. Do not infer permission to create or update one from a request concerning another. Follow the applicable `AGENTS.md` and the user's instructions; this skill does not replace repository-specific Git rules. The workspace's [common project workflow](../../../../AGENTS.md#common-project-workflow) owns clone/worktree layout and the [instruction ownership rules](../../../../AGENTS.md#instruction-ownership) determine where maintained guidance belongs. Refer to these policies instead of copying them into this skill or personal prompts.
 
 ## Determine the scope
 

@@ -112,7 +112,11 @@ or deletion of arbitrary user configuration is attempted.
 | Extensions | `home/pi/extensions/` |
 | Prompt templates and themes | `home/pi/prompts/`, `home/pi/themes/` |
 | Project knowledge | `home/projects/<org>/<project>/` |
-| Project source code | `projects/<checkout>/`, its own Git |
+| Project source code | `projects/<org>/<project>/`, its own Git |
+| Task worktrees | `projects/<org>/<project>--<task-slug>/` |
+
+For baseline versus personal instruction ownership, see
+[AGENTS.md](AGENTS.md#instruction-ownership).
 
 All of `.pi`, `home/` and `projects/` are permanently reserved user paths, ignored by
 engine Git. Do not customize files under `integrations/pi/` unless contributing to
@@ -158,8 +162,10 @@ precedence over the global file of that name; they are not concatenated.
 
 ### Updating without overwriting customizations
 
-With a clean engine checkout on the release branch, update with a fast-forward pull,
-install the locked dependencies, build, then reload/restart Pi. Updates replace
+The installed engine is not a development checkout; contribute through the
+[common project workflow](AGENTS.md#common-project-workflow). Once changes have
+been merged, update a clean installation on its release branch with
+`git pull --ff-only`, install the locked dependencies, build, then reload/restart Pi. Updates replace
 built-in resources only; they never regenerate user settings or rerun bootstrap.
 Data-format migrations require a separate explicit operation. If the checkout
 moves, review the absolute package path in user settings: bootstrap adds the current
@@ -193,7 +199,7 @@ a GitHub prerelease (no npm publish). Tags are never moved. After a partial remo
 write, inspect the reported state and rerun the same command to continue; it does not
 roll back published refs. This is release automation, not an independent trusted gate.
 
-From the engine checkout:
+From the engine project's task worktree (not the installed workspace):
 
 ```bash
 timeout --kill-after=5s 295s mise install
@@ -244,7 +250,10 @@ mypi/
 │           ├── MEMORY.md, context.md, errors.md
 │           ├── notes/
 │           └── requests/CODE-number-slug/
-└── projects/                    # ignored working clones, not project knowledge
+└── projects/                    # ignored project code, not project knowledge
+    └── <org>/
+        ├── <project>/           # independent base clone
+        └── <project>--<task>/    # task worktree of that clone
 
 $XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
 ```
