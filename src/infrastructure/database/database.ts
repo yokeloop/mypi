@@ -1,5 +1,5 @@
 import Database from 'better-sqlite3';
-import { chmodSync, mkdirSync, readFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, readFileSync, openSync, closeSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 const schemaVersion = 1;
@@ -19,8 +19,10 @@ function version(db: Database.Database): number {
   return db.pragma('user_version', { simple: true }) as number;
 }
 
-export function initializeDatabase(filename: string): void {
+export function initializeDatabase(filename: string, createOnly = false): void {
   mkdirSync(dirname(filename), { recursive: true, mode: 0o700 });
+  // Interactive setup must not open/migrate a database created after its preview.
+  if (createOnly) closeSync(openSync(filename, 'wx', 0o600));
   const db = connect(filename, false, false);
   try {
     db.transaction(() => {

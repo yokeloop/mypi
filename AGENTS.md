@@ -3,7 +3,9 @@
 ## Scope
 
 mypi provides local memory, projects, request records, CLI and stdio MCP tools.
-This file governs development in this repository, not unrelated Pi sessions.
+Pi starts from this checkout as one workspace for all managed projects. These
+workspace rules apply to user-directed work here; engine-development rules below
+apply only when changing mypi itself, not the code in managed project checkouts.
 The former mandatory memory/task/session workflow has been withdrawn. There is
 no required MCP warmup, request registration, automatic outcome logging, Herdr tab,
 or delegation step before doing work. Follow the user's requested scope and session.
@@ -33,12 +35,8 @@ or delegation step before doing work. Follow the user's requested scope and sess
   unpushed state and ask for direction rather than claiming completion or retrying
   blindly. In repositories without a push destination, arrange one with the user
   before making changes.
-- Keep personal Pi instructions outside the shared project policy. The tracked
-  `.pi/APPEND_SYSTEM.md` symlink points to `../home/USER-INSTRUCTIONS.md` in each
-  checkout; only the link is committed, not its private target. Each user supplies
-  their own ignored `home/` repository or local link in every worktree. Pi loads
-  the target only when the project is trusted. Do not commit personal text to the
-  engine repo or automatically inject `MEMORY.md` into the system prompt.
+- Keep personal instructions and resources in the ignored user layer, never in
+  shared engine policy.
 - Releases, migrations, bootstrap, restore and other external writes still need
   applicable user authorization. Past one-off approval is not a standing grant for
   these operations or for changes outside the requested task.
@@ -48,15 +46,67 @@ or delegation step before doing work. Follow the user's requested scope and sess
 - Partial operations or lost connections do not imply rollback. Inspect actual state
   before repeating a write; report verification and remaining limitations honestly.
 
+## User layer: ownership and operation
+
+- Engine resources live in `integrations/pi/`, a local Pi package maintained and
+  updated with mypi. User resources live in `home/pi/`; `.pi` is an ignored local
+  symlink to `home/pi`. Never start tracking `.pi`, `home/` or `projects/` in the
+  engine repository, including in future updates.
+- `home/` is its own Git repository. Personal instructions belong in
+  `home/USER-INSTRUCTIONS.md`; `home/pi/APPEND_SYSTEM.md` links to that file.
+  User settings, MCP configuration, skills, extensions, prompts and themes belong
+  under `home/pi/`. Use normal file tools for these and other ordinary documents;
+  use mypi operations for managed memory, DB records and append-only history.
+- `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog. It
+  creates missing user-layer resources and a separate home Git on main, connects
+  the built-in package, installs the links, and initializes SQLite if its file is
+  absent. The preview shows the database path; confirmation authorizes creation.
+  Existing databases are left unchanged, not reset or migrated. Bootstrap does not
+  commit, push, create remotes or change global Pi settings. Run it only when asked.
+- Bootstrap previews changes, preserves existing personal text and MCP configuration,
+  and adds only a missing package entry to settings, saving the original beside it
+  as `settings.json.before-bootstrap`. Existing package filters remain unchanged.
+  A repeated configured run is a no-op. Conflicts or stale previews require explicit
+  reconciliation; do not delete user configuration to make bootstrap pass.
+- An old `.pi` containing only the former instruction symlink, or an empty `.pi`,
+  can be converted by the wizard. Other existing `.pi` directories must be reviewed
+  and reconciled by the user first; do not silently move arbitrary relative links.
+- `integrations/` is not a special Pi directory. Bootstrap adds the absolute
+  `integrations/pi` path to `packages` in `.pi/settings.json` (stored in home).
+  Pi reads the package's `package.json` manifest, which declares extensions and
+  skills. After project trust, their discovery is automatic: skill descriptions
+  are visible to the agent, full instructions are loaded when needed, and the
+  extension connects MCP tools. Without the package entry it is not auto-loaded.
+  Start with `mise exec -- pi` so child MCP processes find Node 24. The package's
+  extension registers `mypi`; a same-name entry in `home/pi/mcp.json` overrides it,
+  including `enabled: false`. Shell `pi mcp list` does not load extension servers.
+- Update built-ins in the engine, not by copying them into home. Customize through
+  user resources and explicit Pi package filters in settings. Use distinct resource
+  names; do not rely on duplicate-name discovery order. After updating/rebuilding,
+  reload or restart Pi. Inspect diagnostics before claiming an integration works.
+- User settings contain the absolute local package path. If a checkout moves, review
+  that entry before rerunning bootstrap; it does not remove unrelated/stale entries.
+  Secrets belong in environment variables or credential storage, not committed JSON.
+- Inspect Git status separately for engine, home and each checkout. Existing home
+  commits and Git configuration are preserved by setup; configure synchronization
+  explicitly. Context backup requires a clean committed home and supports only the
+  exact `pi/APPEND_SYSTEM.md -> ../USER-INSTRUCTIONS.md` configuration symlink;
+  arbitrary symlinks remain forbidden. Managed context writes never follow links.
+
 ## Project setup and maintenance
 
 - For explicitly requested creation, initialization, registration or maintenance of
-  a project, use the [project-management skill](.agents/skills/project-management/SKILL.md).
+  a project, use the [project-management skill](integrations/pi/skills/project-management/SKILL.md).
   Clarify whether the user means a repository or a mypi registration; neither
   implies the other. Do not register projects, initialize storage, or start a
   project-tracking workflow automatically.
 
 ## Developing the engine
+
+These rules govern mypi source, tests, scripts and shipped integrations only. For
+work in `projects/<checkout>`, inspect that repository's own instructions, Git state
+and verification commands. This layout does not authorize parallel writers in one
+checkout or implement a task/subagent runner.
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
   SQL migrations without an ORM, node:test + node:assert/strict.
@@ -72,7 +122,9 @@ or delegation step before doing work. Follow the user's requested scope and sess
   60-second external deadline, one suite run at a time; no network or personal
   home); if unavailable, stop rather than using an unsafe fallback. Fast tests
   must not spawn subprocesses; boundary tests may use isolated CLI/Git processes.
-  Do not weaken admission or mandatory checks.
+  Do not weaken admission or mandatory checks. CI tests the proposed revision
+  with its own locked dependencies and scripts; changes to package.json, lockfiles
+  or build scripts do not require promoting a separate trusted base.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative

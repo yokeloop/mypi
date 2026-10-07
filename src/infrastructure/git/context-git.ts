@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, openSync, closeSync, readSync, fstatSync, constants } from 'node:fs';
+import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, openSync, closeSync, readSync, readlinkSync, fstatSync, constants } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { join, resolve } from 'node:path';
 import { contextFiles, relativeContextPath } from '../filesystem/context-files.js';
@@ -54,29 +54,42 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       if (!stat.isDirectory() || stat.isSymbolicLink()) throw new InputError('Context Git metadata must be a private directory');
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
   }
-  function check(paths: string[]): void {
+  function inspectRepository(): void {
     ownMetadata();
-    if (!paths.length) throw new InputError('Explicit context paths required');
-    for (const path of paths) { relativeContextPath(path); files.path(path); }
     if (!existsSync(join(root, '.git')) || git(['rev-parse', '--show-toplevel']).trim() !== root) {
       throw new InputError('Context must be its own Git repository');
     }
     if (resolve(root, git(['rev-parse', '--git-common-dir']).trim()) !== join(root, '.git')) throw new InputError('Shared Git metadata is not a private context repository');
+  }
+  function check(paths: string[]): void {
+    if (!paths.length) throw new InputError('Explicit context paths required');
+    for (const path of paths) { relativeContextPath(path); files.path(path); }
+    inspectRepository();
     ensureAttributes();
   }
   return {
+    inspectRepository,
     initialize() {
       files.path('MEMORY.md');
       ownMetadata();
       mkdirSync(root, { recursive: true, mode: 0o700 });
-      if (!existsSync(join(root, '.git'))) git(['init', '--quiet']);
+      if (!existsSync(join(root, '.git'))) git(['init', '--quiet', '--initial-branch=main']);
       check(['MEMORY.md']);
       ensureAttributes();
     },
     head(): string | undefined { return git(['rev-parse', '--verify', '--quiet', 'HEAD'], true).trim() || undefined; },
     cleanAll() {
       check(['MEMORY.md']);
-      for (const path of git(['ls-files', '-z']).split('\0').filter(Boolean)) files.path(path);
+      for (const path of git(['ls-files', '-z']).split('\0').filter(Boolean)) {
+        // The user-layer instruction link is configuration, not a managed context file.
+        // Permit only this exact in-repository link in Git bundles; managed reads/writes
+        // still reject symlinks, and arbitrary links remain forbidden for backups.
+        if (path === 'pi/APPEND_SYSTEM.md' && lstatSync(join(root, path)).isSymbolicLink()
+          && readlinkSync(join(root, path)) === '../USER-INSTRUCTIONS.md') {
+          files.path('pi');
+          if (!files.isFile('USER-INSTRUCTIONS.md')) throw new InputError('Missing personal instructions');
+        } else files.path(path);
+      }
       if (git(['status', '--porcelain=v1', '--untracked-files=all', '--ignored'])) throw new InputError('Dirty context; reconcile before backup');
     },
     bundle(destination: string) { git(['bundle', 'create', destination, 'HEAD']); },

@@ -216,11 +216,12 @@ Do not relabel expensive work outside the measurement to claim a faster suite.
 - Targeted, test, verify and CI runs obey one policy. Direct unbounded node --test is
   not evidence of safe verification; a package script alone does not prevent bash bypass.
 
-Physical launch control needs environment/permission restrictions. An agent able to
-change CI/limits/checker without independent admission can bypass itself. Execute
-the gate from a trusted revision; separately authorize policy/resource expansion;
-protect required checks outside the candidate diff. This is a control-plane permission
-boundary, not universal human acceptance for all future flows.
+CI runs ordinary `pull_request` verification using the proposed revision's locked
+dependencies and scripts. Package, lockfile and script changes do not require a
+separate trusted-base promotion. Build/test isolation and the limits above remain
+mandatory; review changes to them like other code. CI has read-only repository
+permissions and no publisher secrets. It is not a candidate-independent security
+attestation: a contributor can change the checks in a PR, so review still matters.
 
 ### Detecting gradual growth
 
@@ -276,8 +277,9 @@ tokens/cost independently; no retry-until-green. These evals are not implemented
 One policy source: docs/TESTING.md. AGENTS, architecture and M1 acceptance link to it;
 do not duplicate it in every prompt/document. Numeric budgets in §6 were accepted
 later (§11). Local limits/admission exist; independent static review and current
-evidence are in M1-CYCLE/MCP-CYCLE. The independent trusted issuer remains open in
-M1-CI. Policy acceptance does not authorize implementation.
+evidence are in M1-CYCLE/MCP-CYCLE. M1-CI records the historical trusted-base design;
+ordinary bounded PR CI now replaces its promotion requirement. Policy acceptance
+does not authorize unrelated implementation.
 
 The original M1 rollout requirement was to ship standard runner, two profiles,
 simple admission, bounded execution and cost reporting with the first vertical slice,

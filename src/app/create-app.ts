@@ -14,8 +14,8 @@ export function resolveStatePath(env: Readonly<Record<string, string | undefined
   return databasePath(env, home, engineRoot());
 }
 
-export function initializeState(filename: string): void {
-  initializeDatabase(externalDatabasePath(filename, engineRoot()));
+export function initializeState(filename: string, createOnly = false): void {
+  initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
 export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString()) {

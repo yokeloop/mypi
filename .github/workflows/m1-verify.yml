@@ -1,15 +1,14 @@
 name: M1 bounded verification
 on:
-  # Initial publication only: this is NOT a trusted required check.
   push:
-    branches: [main, m1/implementation]
-  pull_request_target:
+    branches: [main]
+  pull_request:
     branches: [main]
     types: [opened, synchronize, reopened, ready_for_review]
 permissions:
   contents: read
 concurrency:
-  group: mypi-trusted-verification
+  group: mypi-bounded-verification
   cancel-in-progress: false
 jobs:
   verify:
@@ -17,17 +16,10 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      # Workflow and tools come from main/base, never from PR-controlled code.
+      # Ordinary PR CI: test the proposed merge, including its lockfile and scripts.
+      # No pull_request_target privileges, repository secrets or publisher job.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
-          ref: ${{ github.event.pull_request.base.sha || github.sha }}
-          path: gate
-          persist-credentials: false
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
-        with:
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          path: candidate
           persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
@@ -36,7 +28,6 @@ jobs:
         with:
           version: '12.6.0'
           run_install: false
-          package_json_file: gate/package.json
       - name: Provision isolated ephemeral runner
         timeout-minutes: 5
         run: |
@@ -51,12 +42,11 @@ jobs:
           sudo systemctl start "user@$(id -u).service"
           echo "XDG_RUNTIME_DIR=/run/user/$(id -u)" >> "$GITHUB_ENV"
           echo "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus" >> "$GITHUB_ENV"
-      - name: Install reviewed base dependencies only
+      - name: Install dependencies from this revision
         timeout-minutes: 5
-        working-directory: gate
         run: timeout --kill-after=5s 295s pnpm install --frozen-lockfile --ignore-pnpmfile
-      - name: Build and verify through reviewed base
-        run: bash gate/scripts/ci.sh "$GITHUB_WORKSPACE/candidate"
+      - name: Build and verify this revision
+        run: bash scripts/ci.sh
       - name: Diagnose isolation failure without loosening it
         if: failure()
         run: |
@@ -66,46 +56,3 @@ jobs:
           grep -H . /proc/self/attr/current
           sysctl kernel.apparmor_restrict_unprivileged_userns || true
           sudo journalctl -k --no-pager -n 100 | grep -E 'apparmor|DENIED|bwrap|audit' || true
-  publish:
-    name: publish-app-verdict
-    needs: verify
-    if: ${{ always() && github.event_name == 'pull_request_target' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 2
-    # Server-side deployment policy: ONLY the branch main, never PR merge refs or tags.
-    # This separate runner never checks out or executes candidate code.
-    environment: mypi-gate
-    permissions: {}
-    steps:
-      - name: Explicitly report missing independent issuer
-        if: ${{ vars.MYPI_GATE_APP_ID == '' }}
-        run: echo '::notice::Independent App issuer is not configured; this is NOT a trusted merge gate.'
-      - uses: actions/create-github-app-token@fee1f7d63c2ff003460e3d139729b119787bc349
-        id: issuer
-        if: ${{ vars.MYPI_GATE_APP_ID != '' }}
-        with:
-          app-id: ${{ vars.MYPI_GATE_APP_ID }}
-          private-key: ${{ secrets.MYPI_GATE_PRIVATE_KEY }}
-          owner: yokeloop
-          repositories: mypi
-          permission-checks: write
-      - uses: actions/github-script@ed597411d8f924073f98dfc5c65a23a2325f34cd
-        if: ${{ steps.issuer.outcome == 'success' }}
-        env:
-          VERIFY_RESULT: ${{ needs.verify.result }}
-        with:
-          github-token: ${{ steps.issuer.outputs.token }}
-          script: |
-            if (context.eventName !== 'pull_request_target' ||
-                process.env.GITHUB_WORKFLOW_REF !== 'yokeloop/mypi/.github/workflows/m1-verify.yml@refs/heads/main') {
-              throw new Error('Unexpected publisher workflow/ref');
-            }
-            const sha = context.payload.pull_request.head.sha;
-            if (!/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid head SHA');
-            await github.rest.checks.create({
-              owner: 'yokeloop', repo: 'mypi', name: 'mypi/verified', head_sha: sha,
-              status: 'completed',
-              conclusion: process.env.VERIFY_RESULT === 'success' ? 'success' : 'failure',
-              details_url: `https://github.com/yokeloop/mypi/actions/runs/${context.runId}`,
-              output: { title: 'Bounded M1 verification', summary: `verify: ${process.env.VERIFY_RESULT}` }
-            });
