@@ -8,7 +8,7 @@ import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 
 export function createServer(filename: string, root?: string) {
-  const server = new McpServer({ name: 'mypi', version: '0.1.3' });
+  const server = new McpServer({ name: 'mypi', version: '0.2.0' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
