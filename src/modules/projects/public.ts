@@ -4,6 +4,9 @@ import type { ProjectScope } from './model.js';
 import type { CheckoutPaths, ProjectStore } from './ports.js';
 
 export type { Project, ProjectScope } from './model.js';
+export { bindRepositoryEvidence } from './repository-binding.js';
+export type { VerifiedRepositoryBinding } from './repository-binding.js';
+export type { RepositoryEvidence, WorktreeEvidence, RepositoryIdentityReader } from './ports.js';
 
 export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
   return {
