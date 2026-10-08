@@ -146,7 +146,16 @@ child.stdout.once('data',()=>{console.log(fs.readlinkSync('/proc/self/ns/pid'));
   assert.equal(blocked.kind, 'deadline');
   assert.match(blocked.stdout.trim(), /^pid:\[\d+\]$/);
   assertNamespaceGone(blocked.stdout.trim());
-  const overflow = await bounded.run({ argv: ['/toolchain/node', '-e', "require('node:fs').writeSync(1,'x'.repeat(2048));Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)"] });
+  // Two raw bytes fit, but decoding two malformed bytes needs six UTF-8 bytes.
+  const textBounded = createLinuxSandbox({ ...configuration, workspace, outputBytes: 3 });
+  const malformed = await textBounded.run({ argv: ['/toolchain/node', '-e', "const fs=require('node:fs');fs.writeSync(1,Buffer.from([0xff]));fs.writeSync(2,Buffer.from([0xff]));process.exit(7)"] });
+  assert.ok(Buffer.byteLength(malformed.stdout) + Buffer.byteLength(malformed.stderr) <= 3, 'returned UTF-8 must respect the combined byte budget');
+  assert.equal(malformed.stdout, '\uFFFD'); assert.equal(malformed.stderr, '');
+  assert.equal(malformed.kind, 'output-limit');
+  assert.equal(malformed.exitCode, 7); assert.equal(malformed.signal, null);
+  // The raw output cap cuts the final multibyte character after its first byte.
+  const overflow = await bounded.run({ argv: ['/toolchain/node', '-e', "require('node:fs').writeSync(1,'x'.repeat(1023)+'é');Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0)"] });
   assert.equal(overflow.kind, 'output-limit');
-  assert.equal(Buffer.byteLength(overflow.stdout) + Buffer.byteLength(overflow.stderr), 1024);
+  assert.ok(Buffer.byteLength(overflow.stdout) + Buffer.byteLength(overflow.stderr) <= 1024);
+  assert.equal(overflow.stdout, 'x'.repeat(1023)); assert.equal(overflow.stderr, '');
 });

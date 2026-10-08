@@ -171,7 +171,19 @@ export function createLinuxSandbox(configuration: LinuxSandboxConfiguration) {
         child.stdin.end(request.stdin);
         child.once('close', (exitCode, signal) => {
           clearTimeout(timer);
-          const base = { stdout: stdout.toString('utf8'), stderr: stderr.toString('utf8'), exitCode, signal };
+          // Malformed bytes can expand to U+FFFD on decoding. Budget returned
+          // UTF-8 too, retaining whole code points with stdout allocated first;
+          // separate streams do not imply a cross-stream time ordering.
+          let remaining = outputBytes;
+          const boundedText = (buffer: Buffer): string => {
+            const text = buffer.toString('utf8');
+            const encoded = Buffer.alloc(Math.min(remaining, Buffer.byteLength(text)));
+            const { read, written } = new TextEncoder().encodeInto(text, encoded);
+            remaining -= written;
+            if (read < text.length) stopped ??= 'output-limit';
+            return encoded.toString('utf8', 0, written);
+          };
+          const base = { stdout: boundedText(stdout), stderr: boundedText(stderr), exitCode, signal };
           if (stopped) return resolve({ ...base, kind: stopped });
           if (launchError) return resolve({ ...base, kind: 'launch-failed', diagnostic: launchError.message });
           // Treat fd3 as possibly accessible to same-uid sandbox code via /proc. Reports

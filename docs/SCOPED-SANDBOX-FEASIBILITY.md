@@ -60,8 +60,14 @@ A small immutable Node PID1 shim spawns the requested command with descriptors
 namespace members, including descendants not in the original process group.
 On timeout/output overflow the host kills bubblewrap; `--die-with-parent` kills
 PID1 and its namespace. Completion waits for the actual subprocess `close` event,
-not a child-supplied success message. Output is bounded jointly, stdin and argv
-are bounded, and diagnostic input has a separate 1 KiB bound. The deadline is a
+not a child-supplied success message. Raw output and the UTF-8 byte length of
+returned stdout/stderr are each bounded jointly. Malformed bytes decode to
+replacement characters; if decoded text exceeds the budget, standard
+`TextEncoder.encodeInto` retains only whole code points, allocating to stdout
+before stderr. Separate streams do not imply cross-stream time ordering. Text
+truncation reports `output-limit` without changing the actual host exit/signal;
+an already-observed deadline remains a deadline. Stdin and argv are bounded,
+and diagnostic input has a separate 1 KiB bound. The deadline is a
 host event-loop timer; this adapter is not a cgroup CPU/memory/task quota manager
 or a defense against kernel failure. The accepted external test resource limits
 remain unchanged and are required for the fixture.
@@ -161,3 +167,25 @@ scoped-session acceptance. No live Pi/model/network call or personal storage
 activation is part of acceptance. Interactive Pi,
 codemode and reload observations remain MP-8/9 requirements, not a waiver for
 missing critical OS proof here.
+
+### Review correction MP6-R0-1
+
+Independent review of `b6b5bcfb38c9a6cbf674f53e89caee93a88a7d43` found that
+limiting raw buffers did not limit the returned strings' UTF-8 byte length:
+malformed bytes or cut multibyte tails can expand to replacement characters.
+The existing output-bound fixture now covers both cases, including a combined
+stdout/stderr budget and preservation of a command's actual nonzero exit.
+Parent ran the regression-only change against unchanged implementation: build
+passed; verify failed exactly at `returned UTF-8 must respect the combined byte
+budget`, with the other 29 checks passing. Evidence: `mp6-utf8-red-build.log` and
+`mp6-utf8-red-verify.log` in the collections above. The correction budgets decoded
+text using the standard encoder; mounts, execution lifetime and test limits are
+unchanged. Parent's corrected build/verify passed all 30 checks (14 fast + 16
+boundary): wall 8684 ms, fast 153 ms, peak memory 432644096 bytes, peak tasks 50.
+The same regression now passes for malformed output and the cut multibyte tail;
+actual exit 7 / signal null is preserved. Evidence: `mp6-utf8-green-build.log` and
+`mp6-utf8-green-verify.log`. Tested source SHA-256:
+`f4853186ae9c3f3a472d82f885ded06f49e5c9dc0b577ba7ed9e161a785d570d`;
+fixture SHA-256:
+`235d53493ec4a85c159ca5747b9c2ffe9faa324c8e72d1eea86b04fd883ac9de`.
+Fresh independent review and final task-head verification remain separate gates.
