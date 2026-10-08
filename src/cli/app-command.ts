@@ -1,5 +1,6 @@
 import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
+import { policyAction, policyPreviewProfile, policyPreviewScope, policyTarget, readPolicyInputFile } from '../app/policy-commands.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
@@ -19,7 +20,16 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     if (a[index] === undefined) throw new InputError('Text or --file required');
     return { text: a[index] };
   }
+  function policyText(index: number): string {
+    const input = source(index);
+    return input.file === undefined ? input.text : readPolicyInputFile(input.file);
+  }
   switch (name) {
+    case 'policy validate': return { name: 'policy_validate', text: policyText(0) };
+    case 'policy explain': return { name: 'policy_explain', action: policyAction(a[0]), target: policyTarget(JSON.parse(required('target'))) };
+    case 'policy preview': return { name: 'policy_preview', text: policyText(1), action: policyAction(a[0]),
+      target: policyTarget(JSON.parse(required('target'))), scope: policyPreviewScope(JSON.parse(required('scope'))),
+      ...(opt('profile') === undefined ? {} : { profile: policyPreviewProfile(opt('profile')) }) };
     case 'bootstrap': return { name: 'bootstrap' };
     case 'capture': return { name: 'capture', source: source(0) };
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };

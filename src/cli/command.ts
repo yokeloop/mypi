@@ -26,6 +26,11 @@ mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | restore <backup-directory>
+mypi policy validate [YAML | --file path]
+mypi policy explain <action> --target JSON
+mypi policy preview <action> [YAML | --file path] --scope JSON --target JSON [--profile standard|isolated]
+Policy diagnostics do not install or enforce policy. Preview is hypothetical; effective explain needs trusted context.
+Legacy commands without trusted context remain unprotected; data scope is not an ACL.
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;
 

@@ -45,13 +45,24 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-31 tools are available through standard tools/list. Inspect live schemas for fields.
+34 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
 or null (standalone REQ). Do not invent an org/request reassignment command.
 TextInput is exactly `{text}` or `{file:absolutePath}`; BOM/CRLF are preserved.
 Context paths are home-relative; progress artifact paths are request-directory-relative.
+
+Policy diagnostics: `policy_validate {text}`, `policy_explain {action,target}` and
+`policy_preview {text,action,target,scope,profile?}`. Policy YAML is text only, never
+an arbitrary host-file path. Targets are untrusted selectors, not verified parents,
+repository evidence or caller claims. Strict schemas reject injected caller/session,
+capabilities, ownership and effective snapshots. See [implemented schema and examples](SCOPED-POLICY-CORE.md).
+Effective explanation uses only a trusted context injected by server construction;
+the ordinary stdio entrypoint has none and denies. Preview is explicitly hypothetical
+(`preview:true`), fixed non-admin, with no ownership/capabilities. All diagnostic
+results state `enforced:false`; validation never installs policy. Context-bearing
+non-diagnostic calls fail unavailable until MP-9 rather than ignoring scope.
 
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
@@ -66,7 +77,7 @@ stop new work, cancel queued work and drain active work. Forced termination requ
 reconciliation. CLI/MCP share interprocess transaction guards; a JSON-RPC ID is not
 an idempotency key. Never blindly repeat create/append after an unknown outcome.
 
-Scope is not an ACL. The server runs with local user permissions; file/checkout/backup
+Scope is not an ACL. Legacy no-context calls remain unprotected. The server runs with local user permissions; file/checkout/backup
 arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
 Read-only hints are not authorization; writes are not declared idempotent, and backup
 is not read-only. Responses are not truncated by the server.

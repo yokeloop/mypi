@@ -1,10 +1,12 @@
 import type { Scope } from '../shared/scope.js';
+import type { PolicyCommand } from './policy-commands.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
 export type ScopeInput = Scope | { reference: string };
 export type Artifact = { path: string; text?: string };
 export type AppCommand =
+  | PolicyCommand
   | { name: 'db_init' | 'bootstrap' | 'status_list' }
   | { name: 'project_list'; org?: string }
   | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }

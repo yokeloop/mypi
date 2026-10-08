@@ -24,6 +24,11 @@ contracts, including nullable project_id, are unchanged.
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
 agent permissions, task execution queue, session catalog, multi-device and network
 sync are not implemented. Current scope is data selection, not a security perimeter.
+The [scoped policy core](SCOPED-POLICY-CORE.md) adds strict YAML validation,
+immutable authorization snapshots, verified repository identity and shared
+validate/explain/preview diagnostics, **not active enforcement**. Trusted context
+is injected out-of-band; context-bearing legacy commands fail unavailable until
+resource enforcement exists. No-context legacy operations remain unprotected.
 No mandatory external tracker, HTTP daemon or implied automatic execution.
 
 ## 2. Code and dependencies
@@ -34,7 +39,8 @@ src/
 ├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
-│   ├── projects/        # registry, identity, checkout and scope
+│   ├── authorization/   # pure policy schema, snapshots, decisions and attenuation
+│   ├── projects/        # registry, identity, checkout, scope and repository evidence
 │   ├── requests/        # cards, numbering, status dictionary
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
@@ -48,6 +54,10 @@ implement ports with technical infrastructure; composition roots select adapters
 Domain rules do not perform IO. Modules do not bypass each other's public API.
 App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.
 Imports do not execute CLI. dependency-cruiser checks directions/cycles.
+Policy text parsing/hashing/loading is separate from subprocess-based repository
+verification; Git verification is not imported through createApp or fast paths.
+AppCommand has an exhaustive effect inventory, not a command-name authorization
+switch: future enforcement must resolve resources and filter results before disclosure.
 No DI framework, event bus, CQRS, generic repository or speculative recovery engine.
 See [M1-DESIGN](M1-DESIGN.md) before changing structure/dependencies.
 

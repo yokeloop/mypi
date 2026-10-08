@@ -1,4 +1,6 @@
 import type { AppCommand } from './commands.js';
+import type { TrustedExecutionContext } from './execution-context.js';
+import { executePolicyCommand } from './policy-commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
 import { backupState, restoreState } from './backup.js';
@@ -7,7 +9,11 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
-export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
+// Context is an out-of-band trusted composition input, never part of AppCommand.
+export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: TrustedExecutionContext): Promise<unknown> {
+  if (c.name === 'policy_validate' || c.name === 'policy_explain' || c.name === 'policy_preview') return executePolicyCommand(c, context);
+  if (context !== undefined) throw new InputError('Scoped command dispatch unavailable until resource enforcement is implemented (MP-9)');
+  // Legacy no-context operations below are UNPROTECTED, not implicitly unrestricted grants.
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);

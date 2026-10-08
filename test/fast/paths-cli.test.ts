@@ -44,6 +44,9 @@ test('CLI parsing is strict without invoking a process for the validation matrix
   }
   for (const args of [
     ['bootstrap'], ['capture', '--file', 'source'], ['warmup', '-s', 'one/project'],
+    ['policy', 'validate', '--file', 'policy.yaml'],
+    ['policy', 'explain', 'data.read', '--target', '{"kind":"global"}'],
+    ['policy', 'preview', 'data.read', '--file', 'policy.yaml', '--scope', '{"kind":"unrestricted"}', '--target', '{"kind":"global"}'],
     ['note', 'title', 'text'], ['error', 'one/project', 'error'],
     ['memory', 'show'], ['memory', 'add', 'fact'], ['memory', 'remove', '1'],
     ['journal', 'add', 'outcome'], ['journal', 'read', '--all'],
@@ -62,6 +65,9 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['project', 'list', '--unknown'],
     ['db', 'init', 'extra'],
     ['unknown'],
+    ['policy', 'explain', 'data.read', '--principal', 'operator'],
+    ['policy', 'preview', 'data.read', '--capabilities', 'administration'],
+    ['policy', 'explain', 'data.read', '--file', 'policy.yaml'],
     ['import', 'legacy', '/tmp/archive', '--codes', '/tmp/codes.json'],
   ]) assert.throws(() => parseCommand(args));
 });

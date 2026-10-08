@@ -27,9 +27,13 @@ const examples: [string, Record<string, unknown>][] = [
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
+  ['policy_validate', { text: 'version: 1' }],
+  ['policy_explain', { action: 'data.read', target: { kind: 'project', project: 'one/project' } }],
+  ['policy_preview', { text: 'version: 1', action: 'data.read', target: { kind: 'project', project: 'one/project' },
+    scope: { kind: 'project', project: 'one/project' }, profile: 'isolated' }],
 ];
-test('31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 31);
+test('34 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 34);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -43,8 +47,19 @@ test('31 independent tool examples retain every field; strict schemas reject unk
     ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
     ['project_resolve', { path: 'relative' }], ['backup', { destination: 'relative' }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
+    ['policy_validate', { file: '/tmp/policy.yaml' }],
+    ['policy_explain', { action: 'data.read', target: { kind: 'project', project: 'one/project', owner: { kind: 'global' } } }],
+    ['policy_explain', { action: 'filesystem.read', target: { kind: 'repository', bindingId: 'b', commonDir: '/repo/.git' } }],
+    ['policy_explain', { action: 'data.read', target: { kind: 'request', key: 'MP-1', project: 'one/project' } }],
+    ['policy_preview', { text: 'version: 1', action: 'data.read', target: { kind: 'global' }, scope: { kind: 'unrestricted', capabilities: ['administration'] } }],
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
+  for (const field of ['caller', 'principal', 'sessionId', 'snapshot', 'capabilities', 'ownedBindingIds']) {
+    for (const name of ['policy_explain', 'policy_preview']) {
+      const args = examples.find(([tool]) => tool === name)![1];
+      assert.throws(() => toolCommand(name, { ...args, [field]: {} }), /Unrecognized/);
+    }
+  }
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
   const translate = (args: string[]) => {
@@ -59,6 +74,15 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
+  for (const [name, args] of examples.filter(([name]) => name.startsWith('policy_'))) {
+    const argv = name === 'policy_validate' ? ['policy', 'validate', String(args['text'])]
+      : name === 'policy_explain' ? ['policy', 'explain', String(args['action']), '--target', JSON.stringify(args['target'])]
+      : ['policy', 'preview', String(args['action']), String(args['text']), '--scope', JSON.stringify(args['scope']),
+        '--target', JSON.stringify(args['target']), '--profile', String(args['profile'])];
+    assert.deepEqual(translate(argv), toolCommand(name, args));
+  }
+  assert.throws(() => translate(['policy', 'explain', 'data.read', '--target', '{"kind":"request","key":"MP-1","owner":{}}']), /Unknown diagnostic field/);
+  assert.throws(() => translate(['policy', 'preview', 'data.read', 'version: 1', '--scope', '{"kind":"unrestricted","capabilities":[]}', '--target', '{"kind":"global"}']), /Unknown diagnostic field/);
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
   const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], requestId: 17 };
