@@ -8,6 +8,9 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'policy validate': [0, 1, ['file'], []],
+  'policy explain': [1, 1, ['target'], []],
+  'policy preview': [1, 2, ['file', 'target', 'scope', 'profile'], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],
   note: [1, 2, ['scope', 'file'], []],
