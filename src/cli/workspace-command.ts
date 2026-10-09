@@ -8,6 +8,10 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'message send': [3, 3, ['ttl-ms'], []],
+  'message list': [1, 1, [], []],
+  'message show': [2, 2, [], []],
+  'message cleanup': [2, 2, [], []],
   'session list': [0, 0, ['project'], ['all', 'archived']],
   'session show': [1, 1, ['project'], ['all']],
   'session archive': [1, 1, ['project'], ['all']],

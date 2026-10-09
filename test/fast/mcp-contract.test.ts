@@ -38,14 +38,18 @@ const examples: [string, Record<string, unknown>][] = [
   ['workspace_inspect', { project: 'one/project' }],
   ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: ['literal[1].txt'], message: 'exact' }],
   ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin' }],
+  ['message_send', { instanceKey: '11111111-1111-4111-8111-111111111111', messageId: 'one', text: 'exact\r\ntext', ttlMs: 1000 }],
+  ['message_list', { receiverNativeSessionId: 'pi-owned-id' }],
+  ['message_show', { receiverNativeSessionId: 'pi-owned-id', messageId: 'one' }],
+  ['message_cleanup', { receiverNativeSessionId: 'pi-owned-id', messageId: 'one' }],
   ['session_list', { project: 'one/project', includeArchived: true }],
   ['session_show', { instanceKey: '11111111-1111-4111-8111-111111111111', all: true }],
   ['session_archive', { instanceKey: '11111111-1111-4111-8111-111111111111', project: 'one/project' }],
   ['policy_validate', { text: 'version: 2' }],
   ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('43 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 43);
+test('47 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 47);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -67,6 +71,10 @@ test('43 independent tool examples retain every field; strict schemas reject unk
     ['home_document_patch', { path: 'doc.md', expected: null, text: 'not creation' }],
     ['home_document_patch', { path: 'doc.md', expected: 'A'.repeat(64), text: '' }],
     ['home_document_patch', { path: 'doc.md', expected: 'abc', text: '' }],
+    ['message_send', { instanceKey: '11111111-1111-4111-8111-111111111111', messageId: 'one', text: 'x', sender: 'invented' }],
+    ['message_send', { instanceKey: '11111111-1111-4111-8111-111111111111', messageId: 'one', text: 'я'.repeat(8193) }],
+    ['message_show', { receiverNativeSessionId: 'pi-owned-id', messageId: '../bad' }],
+    ['message_list', { receiverNativeSessionId: '' }],
     ['session_list', { project: 'one/project', all: true }], ['session_list', { project: 'MP' }],
     ['session_show', { instanceKey: '../escape', all: true }],
     ['session_archive', { instanceKey: '11111111-1111-4111-8111-111111111111', includeArchived: true }],
@@ -86,6 +94,10 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     return appCommand(parsed);
   };
   for (const [argv, name] of [
+    [['message', 'send', '11111111-1111-4111-8111-111111111111', 'one', 'exact\r\ntext', '--ttl-ms', '1000'], 'message_send'],
+    [['message', 'list', 'pi-owned-id'], 'message_list'],
+    [['message', 'show', 'pi-owned-id', 'one'], 'message_show'],
+    [['message', 'cleanup', 'pi-owned-id', 'one'], 'message_cleanup'],
     [['session', 'list', '--project', 'one/project', '--archived'], 'session_list'],
     [['session', 'show', '11111111-1111-4111-8111-111111111111', '--all'], 'session_show'],
     [['session', 'archive', '11111111-1111-4111-8111-111111111111', '--project', 'one/project'], 'session_archive'],

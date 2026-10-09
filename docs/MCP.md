@@ -5,6 +5,8 @@ No HTTP daemon or session orchestrator. [Implementation evidence](MCP-CYCLE.md).
 Development guidance: [AGENTS](../AGENTS.md). The former mandatory agent workflow
 is [withdrawn](AGENT-WORKFLOW.md); the server supplies no workflow instructions.
 The [original MCP plan](MCP-PLAN.html) is historical, including its user-global setup.
+The [local mailbox](MAILBOX.md) documents `message_send/list/show/cleanup`, native
+addressing, ordinary caller metadata and queued/uncertain/handoff limitations.
 
 ## Start
 

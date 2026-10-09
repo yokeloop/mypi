@@ -1,3 +1,4 @@
+import type { MessageCommand } from './mailbox.js';
 import type { SessionCommand } from './session-cards.js';
 import type { Scope } from '../shared/scope.js';
 import type { PolicyCommand } from './policy-commands.js';
@@ -10,6 +11,7 @@ export type ScopeInput = Scope | { reference: string };
 export type Artifact = { path: string; text?: string };
 export type AppCommand =
   | SessionCommand
+  | MessageCommand
   | PolicyCommand
   | WorkspaceOperation
   | { name: 'db_init' | 'bootstrap' | 'status_list' }

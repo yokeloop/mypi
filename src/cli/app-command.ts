@@ -33,6 +33,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' | 'se
   const workspace = () => ({ project: required('project'), ...(opt('base') === undefined ? {} : { baseRoot: opt('base')! }) });
   const sessions = () => ({ ...(opt('project') === undefined ? {} : { project: opt('project')! }), ...(o['all'] ? { all: true } : {}) });
   switch (name) {
+    case 'message send': return { name: 'message_send', instanceKey: a[0]!, messageId: a[1]!, text: a[2]!,
+      ...(opt('ttl-ms') === undefined ? {} : { ttlMs: Number(required('ttl-ms')) }) };
+    case 'message list': return { name: 'message_list', receiverNativeSessionId: a[0]! };
+    case 'message show': return { name: 'message_show', receiverNativeSessionId: a[0]!, messageId: a[1]! };
+    case 'message cleanup': return { name: 'message_cleanup', receiverNativeSessionId: a[0]!, messageId: a[1]! };
     case 'session list': return { name: 'session_list', ...sessions(), ...(o['archived'] ? { includeArchived: true } : {}) };
     case 'session show': return { name: 'session_show', instanceKey: a[0]!, ...sessions() };
     case 'session archive': return { name: 'session_archive', instanceKey: a[0]!, ...sessions() };

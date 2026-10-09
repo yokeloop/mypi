@@ -17,6 +17,9 @@ test('real Node launcher persists projects across independent processes without 
     assert.equal(result.signal, null);
     return result;
   };
+  const messages = run('message', 'list', 'offline-native-id');
+  assert.equal(messages.status, 0, messages.stderr);
+  assert.deepEqual(JSON.parse(messages.stdout), { messages: [], issues: [], truncated: false });
   const sessions = run('session', 'list', '--all');
   assert.equal(sessions.status, 0, sessions.stderr);
   assert.deepEqual(JSON.parse(sessions.stdout), { sessions: [], issues: [], truncated: false });

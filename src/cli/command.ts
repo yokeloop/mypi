@@ -35,6 +35,8 @@ mypi workspace prepare <path> --project org/project [--base clone] --branch task
 mypi workspace inspect [path] --project org/project [--base clone]
 mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
+mypi message send <instance-key> <message-id> <text> [--ttl-ms milliseconds]
+mypi message list <native-session-id> | show <native-session-id> <message-id> | cleanup <native-session-id> <message-id>
 mypi session list [--project org/project | --all] [--archived]
 mypi session show <instance-key> | archive <instance-key> [--project org/project | --all]
 mypi session focus <instance-key> | title <instance-key> <text> [--project org/project | --all]
@@ -51,7 +53,9 @@ Data commands return JSON. pi inherits native terminal IO and exit status (nativ
 Project --cwd must be an existing checkout/worktree root; --base requires --project.
 Session commands default to the selected project; otherwise choose --project or --all.
 Session cards are observations, not transcripts or process-death evidence.
+Messages queue without waking Pi; CLI sender has no inferred native ID. Cleanup forgets selected dedup evidence.
 Set XDG_STATE_HOME to isolated state for development; MYPI_SESSION_DIR overrides the session cache.
+MYPI_MAILBOX_DIR overrides the local mailbox outside engine/context Git.
 `;
 
 export function parseCommand(args: string[]): Command {

@@ -2,25 +2,26 @@ import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-a
 import { existsSync } from 'node:fs';
 import { registerNativePathGuard } from './native-path-guard.js';
 import {
-  MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT, PI_CONTEXT_ENTRY, decodePiContext, encodePiContext, selectPiContext,
+  MYPI_PI_CONTEXT, PI_CONTEXT_ENTRY, decodePiContext, selectPiContext,
 } from '../../../dist/src/app/pi-context.js';
 import type { PiContextSelection } from '../../../dist/src/app/pi-context.js';
+import { nativeCallerEnvironment, sameNativeCaller } from '../../../dist/src/app/pi-message-caller.js';
 
 /** Native branch entries own context; the launch envelope is only a fresh-session handoff. */
 export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string) {
   registerNativePathGuard(pi);
-  let requested: string | undefined;
+  let requested: ReturnType<typeof nativeCallerEnvironment> | undefined;
   let registrationError = false;
   let launchProblem: string | undefined;
 
   function refresh(ctx: ExtensionContext): PiContextSelection {
     const selection = selectPiContext(ctx.sessionManager.getBranch(), ctx.cwd);
-    const envelope = selection.state === 'selected' ? encodePiContext(selection.data) : '';
-    if (envelope !== requested) {
+    const env = nativeCallerEnvironment(selection, ctx.sessionManager.getSessionId());
+    if (!sameNativeCaller(requested, env)) {
       try {
         // Explicit clear prevents inherited process env from reviving an old MCP selection.
         pi.registerMcpServer('mypi', {
-          command: 'node', args: [entry], cwd: root, env: { [MYPI_MCP_CONTEXT]: envelope },
+          command: 'node', args: [entry], cwd: root, env,
           description: 'Local mypi tools for memory, projects, requests and history. No automatic initialization or writes.',
           exposure: 'codemode', toolExposure: { project_resolve: 'direct', warmup: 'direct' },
         });
@@ -29,7 +30,7 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
         registrationError = true;
         ctx.ui.notify('mypi MCP registration failed. Inspect /mcp; server context is not confirmed.', 'error');
       }
-      requested = envelope;
+      requested = env;
     }
     const scope = selection.state === 'selected' ? selection.data.context.scope : undefined;
     const label = scope?.kind === 'project' ? scope.project
