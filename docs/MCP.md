@@ -126,7 +126,7 @@ it does not exclude another explicit current member.
 | `journal_read` | Same defaults and membership; global/own parent-org reads allowed. Explicit `all` is deliberately unguarded, not silently narrowed. |
 | `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
 | `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
-| `error_add`, `workspace_prepare/inspect/verify/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
+| `error_add`, `workspace_prepare/inspect/verify/commit/publish/cleanup_preview` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
 | `session_list/show/archive` | Selected-project default or explicit operator project/all observation filter; no registry membership lookup or ACL. |
 | `home_document_patch`, `home_status`, `home_reconcile` | Explicit home-wide operator routes outside project membership/default guards; no inferred project or project-scoped authority. |
 | `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
@@ -179,13 +179,14 @@ These hints and descriptions are not authorization or runtime activation.
 
 ## Explicit workspace tools
 
-The five tools share [CLI semantics and partial-outcome rules](M1-CLI.md#explicit-git-workspace-helpers):
+The six tools share [CLI semantics and partial-outcome rules](M1-CLI.md#explicit-git-workspace-helpers):
 
 | Tool | Arguments (all required except `?`) |
 | --- | --- |
 | `workspace_prepare` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `startPoint` |
 | `workspace_inspect` | `project`, `baseRoot?`, `worktreeRoot?` |
 | `workspace_verify` | `project`, `baseRoot?`, `worktreeRoot`, `branch` |
+| `workspace_cleanup_preview` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `remote?` |
 | `workspace_commit` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `paths: string[]`, `message` |
 | `workspace_publish` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `remote` |
 
@@ -197,8 +198,14 @@ returns before/head, declared paths and `changed`; unrelated staged entries rema
 Publish returns head, remote name, full ref, confirmed `remoteHead` and separate
 `push` outcome (`not-needed`, `exited-zero`, or `failed-or-uncertain`). Unconfirmed
 post-push state is **partial**, not success, even when the push process exits zero.
-Only inspect is annotated read-only; publish is open-world. No credentials/URLs are
-returned. No automatic checks, requests, branch switching, retries or Git cleanup.
+Inspect and cleanup-preview are annotated read-only/idempotent; verify, publish
+and cleanup-preview are open-world (preview may observe an explicitly selected
+remote). Preview returns bounded inventory, publication and reduced advisory card
+hints, diagnostics, `decision:"manual-review"` and `deletionAuthorized:false`.
+It requires no check cache and never performs cleanup; omitted remote means no
+publication contact. No credentials/URLs are returned. Only explicit verify runs
+project checks; no automatic requests, branch switching, retries or Git cleanup.
+See the [owning helper route](PI-WORK-CONTEXT.md#explicit-workspace-operations).
 
 ## Rollback
 

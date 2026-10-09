@@ -1,3 +1,4 @@
+import { cleanupCardHints } from '../../src/app/workspace-cleanup-preview.js';
 import { observeHerdr } from '../../src/app/herdr-observation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -70,6 +71,26 @@ test('session-cards clock table preserves observed transitions, exact age bounda
     assert.throws(() => schema.parse({ ...result, extra: true }));
   }
   assert.throws(() => sessionResults.session_show.parse({ session: { ...view, card: { ...plain, extra: true } } }));
+});
+
+test('cleanup card hints retain inconclusive observations and match only stored path components', () => {
+  const card = startSessionCard(key, { nativeSessionId: 'contextless', cwd: '/task' }, 1000);
+  for (const [state, now, archived, status] of [
+    ['running', 1000, false, 'running'], ['idle', 1000, false, 'idle'],
+    ['idle', 100000, false, 'stale'], ['closed', 100000, true, 'closed'],
+    ['running', 999, true, 'unknown'],
+  ] as const) {
+    const view = sessionView({ ...card, state }, archived, now);
+    const result = cleanupCardHints('/task', { sessions: [view,
+      { ...view, card: { ...card, cwd: '/task/sub', context: { scope: { kind: 'project', project: 'other/project' } } } },
+      { ...view, card: { ...card, cwd: '/task-sibling' } }, { ...view, card: { ...card, cwd: '/alias' } }],
+    issues: [{ instanceKey: 'unrelated', issue: 'invalid' }], truncated: true });
+    assert.deepEqual(result.hints[0], { instanceKey: key, cwd: '/task', status, archived, ageMs: now >= 1000 ? now - 1000 : null });
+    assert.deepEqual(result.hints.map(hint => hint.cwd), ['/task', '/task/sub']);
+    assert.deepEqual(result.issues, [{ issue: 'invalid' }]);
+    assert.equal(result.truncated, true);
+  }
+  assert.deepEqual(cleanupCardHints('/task', { sessions: [], issues: [], truncated: false }), { hints: [], issues: [], truncated: false });
 });
 
 test('session-cards disposable cache isolates instances, preserves archives/history and reports incomplete observations', t => {

@@ -55,7 +55,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
 
 async function dispatch(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
-  if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_verify' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
+  if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_verify' || c.name === 'workspace_cleanup_preview' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
     return executeWorkspaceOperation(c, filename);
   }
   if (c.name === 'home_status' || c.name === 'home_reconcile') {

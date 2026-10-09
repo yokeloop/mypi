@@ -21,7 +21,7 @@ export function hasMembershipGuard(command: AppCommand): boolean {
   return ['project_list', 'warmup', 'memory_show', 'memory_add', 'memory_remove', 'note_add',
     'journal_add', 'journal_read', 'error_add', 'request_create', 'request_list', 'request_show',
     'request_status', 'request_title', 'request_touch', 'request_progress',
-    'workspace_prepare', 'workspace_inspect', 'workspace_verify', 'workspace_commit', 'workspace_publish'].includes(command.name);
+    'workspace_prepare', 'workspace_inspect', 'workspace_verify', 'workspace_cleanup_preview', 'workspace_commit', 'workspace_publish'].includes(command.name);
 }
 
 /** Observe current registry/card relationships before dispatch; no mutation or Git effects. */
@@ -106,7 +106,7 @@ export function commandMembership(command: AppCommand, app: ReturnType<typeof cr
     }
     case 'request_show': case 'request_status': case 'request_title': case 'request_touch': case 'request_progress':
       check(contains(request(command.key).projectId), `request ${command.key}`); break;
-    case 'workspace_prepare': case 'workspace_inspect': case 'workspace_verify': case 'workspace_commit': case 'workspace_publish':
+    case 'workspace_prepare': case 'workspace_inspect': case 'workspace_verify': case 'workspace_cleanup_preview': case 'workspace_commit': case 'workspace_publish':
     case 'error_add': check(contains(project(command.project).id), `project ${command.project}`); break;
     case 'warmup': case 'memory_show': case 'memory_add': case 'memory_remove': case 'note_add': {
       const input: ScopeInput = command.scope ?? defaultScope;

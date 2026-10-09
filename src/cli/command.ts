@@ -34,6 +34,7 @@ mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <cod
 mypi workspace prepare <path> --project org/project [--base clone] --branch task/name --start refs/heads/main
 mypi workspace inspect [path] --project org/project [--base clone]
 mypi workspace verify --project org/project [--base clone] --worktree path --branch task/name
+mypi workspace cleanup-preview --project org/project [--base clone] --worktree path --branch task/name [--remote origin]
 mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
 mypi message send <instance-key> <message-id> <text> [--ttl-ms milliseconds]

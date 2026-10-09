@@ -37,6 +37,7 @@ const examples: [string, Record<string, unknown>][] = [
   ['workspace_prepare', { project: 'one/project', baseRoot: '/base', worktreeRoot: '/task', branch: 'task/one', startPoint: 'refs/heads/main' }],
   ['workspace_inspect', { project: 'one/project' }],
   ['workspace_verify', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one' }],
+  ['workspace_cleanup_preview', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin' }],
   ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: ['literal[1].txt'], message: 'exact' }],
   ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin' }],
   ['message_send', { instanceKey: '11111111-1111-4111-8111-111111111111', messageId: 'one', text: 'exact\r\ntext', ttlMs: 1000 }],
@@ -49,8 +50,8 @@ const examples: [string, Record<string, unknown>][] = [
   ['policy_validate', { text: 'version: 2' }],
   ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('48 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 48);
+test('49 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 49);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -67,6 +68,8 @@ test('48 independent tool examples retain every field; strict schemas reject unk
     ['workspace_prepare', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one' }],
     ['workspace_verify', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', commands: ['true'] }],
     ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: [], message: 'x' }],
+    ['workspace_cleanup_preview', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', apply: true }],
+    ['workspace_cleanup_preview', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', force: true }],
     ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin', force: true }],
     ['home_document_patch', { path: 'doc.md', text: 'missing preimage' }],
     ['home_document_patch', { path: 'doc.md', expected: 'a'.repeat(64) }],
@@ -106,6 +109,7 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     [['workspace', 'prepare', '/task', '--project', 'one/project', '--base', '/base', '--branch', 'task/one', '--start', 'refs/heads/main'], 'workspace_prepare'],
     [['workspace', 'inspect', '--project', 'one/project'], 'workspace_inspect'],
     [['workspace', 'verify', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one'], 'workspace_verify'],
+    [['workspace', 'cleanup-preview', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--remote', 'origin'], 'workspace_cleanup_preview'],
     [['workspace', 'commit', 'literal[1].txt', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--message', 'exact'], 'workspace_commit'],
     [['workspace', 'publish', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--remote', 'origin'], 'workspace_publish'],
   ] as const) {
@@ -125,6 +129,12 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     assert.deepEqual(command, expected);
     assert.equal(hasMembershipGuard(command), false, 'explicit home-wide operator route, no project default');
   }
+  const previewArgs = ['workspace', 'cleanup-preview', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one'];
+  const preview = { name: 'workspace_cleanup_preview', project: 'one/project', worktreeRoot: '/task', branch: 'task/one' } as const;
+  assert.deepEqual(translate(previewArgs), preview);
+  assert.deepEqual(toolCommand('workspace_cleanup_preview', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one' }), preview);
+  assert.equal(hasMembershipGuard(preview), true);
+  for (const flag of ['--apply', '--force']) assert.throws(() => translate([...previewArgs, flag]));
   assert.deepEqual(translate(['session', 'list']), { name: 'session_list' });
   assert.deepEqual(toolCommand('session_list', {}), { name: 'session_list' });
   assert.throws(() => translate(['session', 'list', '--project', 'one/project', '--all']), /mutually exclusive/);

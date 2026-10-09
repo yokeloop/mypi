@@ -31,9 +31,9 @@ export function workspaceGit(root: string) {
       throw new InputError('Configured Git filters require ordinary Git, not workspace helpers');
     }
   }
-  function status() {
+  function status(read = git) {
     noFilters();
-    return git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--ignore-submodules=all'])
+    return read(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--ignore-submodules=all'])
       .split('\0').filter(Boolean).map(entry => ({ index: entry[0]!, worktree: entry[1]!, path: entry.slice(3) }));
   }
   function observation(): string[] {
@@ -93,8 +93,63 @@ export function workspaceGit(root: string) {
       .update(JSON.stringify([...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))).digest('hex');
     return { content: digest(working), headContent: digest(committed), tracked };
   }
+  function cleanupInventory() {
+    const inventory = { state: 'complete' as 'complete' | 'incomplete', tracked: [] as string[],
+      changes: [] as ReturnType<typeof status>, untracked: [] as string[], ignored: [] as string[], issues: [] as string[] };
+    const incomplete = (message: string) => {
+      inventory.state = 'incomplete';
+      if (!inventory.issues.includes(message)) inventory.issues.push(message);
+    };
+    function read(args: string[]): string {
+      const result = run(args);
+      if (result.error || result.status !== 0) throw new InputError('Cleanup inventory observation unavailable');
+      // Git can omit unreadable directories with exit zero. Keep known stdout,
+      // but never interpret a warning as complete or expose raw transport text.
+      if (result.stderr) incomplete('Git reported an inventory warning; observation is incomplete');
+      return result.stdout;
+    }
+    let count = 0;
+    function bounded<T>(records: T[]): T[] {
+      const remaining = Math.max(0, 10000 - count);
+      count += records.length;
+      if (count > 10000) incomplete('Inventory exceeds 10000 path records; lists are incomplete');
+      return records.slice(0, remaining);
+    }
+    function paths(items: string[]): string[] {
+      const distinct = [...new Set(items)];
+      if (distinct.some(path => path.includes('\ufffd'))) incomplete('Path decoding unavailable');
+      if (distinct.some(path => path.endsWith('/'))) incomplete('Directory or nested repository contents require separate inspection');
+      return bounded(distinct).sort();
+    }
+    const tracked = new Set<string>();
+    for (const args of [['ls-tree', '-r', '-z', 'HEAD'], ['ls-files', '--stage', '-z']]) {
+      try {
+        for (const entry of read(args).split('\0').filter(Boolean)) {
+          const tab = entry.indexOf('\t');
+          tracked.add(entry.slice(tab + 1));
+          if (!/^(100644|100755) /.test(entry)) incomplete('Non-regular tracked material requires separate inspection');
+        }
+      } catch { incomplete('Tracked inventory unavailable: ' + args[0]); }
+    }
+    inventory.tracked = paths([...tracked]);
+    try {
+      const changes = status(read);
+      inventory.changes = bounded(changes);
+      if (changes.some(entry => entry.path.includes('\ufffd'))) incomplete('Path decoding unavailable');
+    } catch { incomplete('Working/index status unavailable'); }
+    for (const kind of ['untracked', 'ignored'] as const) {
+      try { inventory[kind] = paths(read(['ls-files', '--others', ...(kind === 'ignored' ? ['--ignored'] : []), '--exclude-standard', '-z']).split('\0').filter(Boolean)); }
+      catch { incomplete(kind + ' inventory unavailable'); }
+    }
+    try {
+      if (read(['ls-files', '-v', '-z']).split('\0').some(entry => /^[a-zS] /.test(entry))) incomplete('Assume-unchanged or skip-worktree flags require separate inspection');
+      if (read(['ls-files', '--unmerged', '-z'])) incomplete('Unmerged index requires separate inspection');
+    } catch { incomplete('Index flags/conflicts unavailable'); }
+    return inventory;
+  }
   return {
-    head, status, operationState, checkedContent,
+    head, status, operationState, checkedContent, cleanupInventory,
+    observePublication(name: string, remote: string) { return gitPublication(run, name, remote).observe(); },
     checkCachePath: () => git(['rev-parse', '--path-format=absolute', '--git-path', 'mypi-workspace-check.json']).trim(),
     prepare(target: string, name: string, startPoint: string, knownRoots: readonly (string | null)[]) {
       noFilters(); branch(name);

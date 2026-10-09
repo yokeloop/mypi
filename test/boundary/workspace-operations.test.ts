@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { executeWorkspaceOperation } from '../../src/app/workspace-operations.js';
@@ -14,6 +14,9 @@ import { state } from '../support/state.js';
 // One local cycle; no network, model, personal data or subprocess matrix.
 test('workspace helpers preserve unrelated materials through prepare, exact commit and confirmed local publication', async t => {
   const { dir, filename } = state(t);
+  const oldSessionDirectory = process.env['MYPI_SESSION_DIR'], sessionDirectory = join(dir, 'absent-session-cache');
+  process.env['MYPI_SESSION_DIR'] = sessionDirectory;
+  t.after(() => { if (oldSessionDirectory === undefined) delete process.env['MYPI_SESSION_DIR']; else process.env['MYPI_SESSION_DIR'] = oldSessionDirectory; });
   const installed = join(dir, 'engine'), base = join(dir, 'base'), bare = join(dir, 'remote.git');
   const task = join(installed, 'projects', 'task'); // Independent worktrees nested under installation remain supported.
   function git(root: string, ...args: string[]) {
@@ -78,7 +81,49 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
     assert('verification' in result);
     return result.verification.state;
   };
+  function preview(remote?: string) {
+    const indexPath = git(task, 'rev-parse', '--path-format=absolute', '--git-path', 'index').trim();
+    const snapshot = () => ({ index: readFileSync(indexPath), refs: git(base, 'show-ref'),
+      remoteRefs: git(bare, 'for-each-ref', '--format=%(refname) %(objectname)'),
+      registrations: git(base, 'worktree', 'list', '--porcelain', '-z'),
+      cache: existsSync(cachePath) ? readFileSync(cachePath) : null,
+      files: ['ignored.txt', 'unrelated.txt', 'untracked.txt', 'changed.txt'].map(path => existsSync(join(task, path)) ? readFileSync(join(task, path)) : null),
+    });
+    const before = snapshot();
+    const result = executeWorkspaceOperation({ name: 'workspace_cleanup_preview', ...selection,
+      ...(remote === undefined ? {} : { remote }) }, filename, installed);
+    assert('inventory' in result);
+    assert.deepEqual(snapshot(), before, 'preview preserves exact index/cache/file bytes, local/remote refs and worktree registration');
+    assert(!existsSync(sessionDirectory), 'preview must not initialize session observations');
+    assert.equal(result.deletionAuthorized, false);
+    assert.equal(result.decision, 'manual-review');
+    assert(result.diagnostics.some(message => message.includes('never prove writer absence')));
+    return result;
+  }
   assert.equal(checkState(), 'absent'); assert(!existsSync(cachePath), 'inspection does not initialize cache');
+  const initialPreview = preview();
+  assert.equal(initialPreview.publication.state, 'not-observed');
+  assert.equal(initialPreview.inventory.state, 'complete');
+  assert.deepEqual(initialPreview.cards, { hints: [], issues: [], truncated: false });
+  const denied = join(task, 'unreadable');
+  mkdirSync(denied); writeFileSync(join(denied, 'unique.txt'), 'preserve unreadable bytes'); chmodSync(denied, 0);
+  try {
+    const raw = spawnSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-C', task, 'ls-files', '--others', '--exclude-standard', '-z'], {
+      encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
+      env: { PATH: '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+    });
+    assert.equal(raw.status, 0); assert.equal(raw.stdout, ''); assert.match(raw.stderr, /Permission denied/);
+    const deniedPreview = preview();
+    assert.equal(deniedPreview.inventory.state, 'incomplete', 'permission warning is not complete inventory');
+    assert(deniedPreview.inventory.issues.some(issue => issue.includes('inventory warning')));
+    assert(deniedPreview.inventory.tracked.includes('changed.txt'), 'warning retains known material');
+    assert(!JSON.stringify(deniedPreview.inventory).includes(raw.stderr.trim()), 'raw stderr is not disclosed');
+  } finally {
+    chmodSync(denied, 0o700);
+    try { assert.equal(readFileSync(join(denied, 'unique.txt'), 'utf8'), 'preserve unreadable bytes'); }
+    finally { rmSync(denied, { recursive: true }); }
+  }
+  assert.throws(() => executeWorkspaceOperation({ name: 'workspace_cleanup_preview', ...selection, branch: 'wrong' }, filename, installed), /binding unavailable/);
   assert.throws(verify, /stage the project-owned/);
   writeFileSync(join(task, '.mypi-checks.json'), configText);
   assert.throws(verify, /stage the project-owned/, 'untracked configuration is not silently adopted');
@@ -92,6 +137,18 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
   writeFileSync(join(task, 'unrelated.txt'), 'working unrelated\n');
   writeFileSync(join(task, 'untracked.txt'), 'untracked bytes\n'); writeFileSync(join(task, 'ignored.txt'), 'ignored bytes\n');
   const unrelatedIndex = git(task, 'ls-files', '--stage', 'unrelated.txt');
+  const dirtyPreview = preview('origin');
+  assert.equal(dirtyPreview.publication.state, 'missing-ref');
+  assert.equal(dirtyPreview.publication.remoteHead, null);
+  assert(dirtyPreview.inventory.tracked.includes('unrelated.txt'));
+  assert(dirtyPreview.inventory.changes.some(entry => entry.path === 'unrelated.txt' && entry.index === 'M' && entry.worktree === 'M'));
+  assert.deepEqual(dirtyPreview.inventory.untracked, ['untracked.txt']);
+  assert.deepEqual(dirtyPreview.inventory.ignored, ['ignored.txt']);
+  assert(dirtyPreview.diagnostics.some(message => message.includes('may be unique')));
+  assert(dirtyPreview.diagnostics.some(message => message.includes('unknown value')));
+  const unknownPreview = preview('unconfigured');
+  assert.equal(unknownPreview.publication.state, 'unavailable');
+  assert(!JSON.stringify(unknownPreview.publication).includes(bare), 'publication never exposes destination URL');
   writeFileSync(join(task, 'ambiguous.txt'), 'staged preimage\n'); git(task, 'add', 'ambiguous.txt');
   writeFileSync(join(task, 'ambiguous.txt'), 'working version\n');
   const commit = { name: 'workspace_commit' as const, ...selection, paths: ['ambiguous.txt'], message: 'exact files' };
@@ -106,6 +163,12 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
     writeFileSync(join(task, 'changed.txt'), 'hidden change: ' + flag + '\n');
     assert.equal(git(task, 'ls-files', '-v', '--', 'changed.txt'), marker + ' changed.txt\n');
     const flaggedIndex = git(task, 'ls-files', '-v', '--stage', '-z');
+    if (flag === 'assume-unchanged') {
+      const incomplete = preview();
+      assert.equal(incomplete.inventory.state, 'incomplete');
+      assert(incomplete.inventory.issues.some(issue => issue.includes('Assume-unchanged')));
+      assert(incomplete.inventory.ignored.includes('ignored.txt'), 'unsupported status cannot erase known material');
+    }
     assert.throws(() => executeWorkspaceOperation({ ...commit, paths: ['changed.txt'] }, filename, installed),
       error => error instanceof InputError && /assume-unchanged or skip-worktree flags/.test(error.message));
     assert.equal(git(task, 'ls-files', '-v', '--stage', '-z'), flaggedIndex, 'refusal preserves index entries and flags');
@@ -184,6 +247,11 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
   const published = executeWorkspaceOperation(publish, filename, installed);
   assert('remoteHead' in published && published.remoteHead === head && published.push === 'exited-zero');
   assert.equal(git(bare, 'rev-parse', 'refs/heads/task/exact').trim(), head);
+  const publishedPreview = preview('origin');
+  assert.equal(publishedPreview.publication.state, 'matches-head');
+  assert.equal(publishedPreview.publication.remoteHead, head);
+  assert(publishedPreview.inventory.ignored.includes('ignored.txt'));
+  assert.equal(readFileSync(join(task, 'ignored.txt'), 'utf8'), 'ignored bytes\n');
   const again = executeWorkspaceOperation(publish, filename, installed);
   assert('push' in again && again.push === 'not-needed');
   assert(!git(task, 'config', '--list').includes('branch.task/exact.remote='));
@@ -199,6 +267,9 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
   git(remoteTask, 'commit', '--quiet', '--allow-empty', '-m', 'remote advances');
   git(remoteTask, 'push', '--quiet', 'origin', 'HEAD:refs/heads/task/exact');
   const advanced = git(bare, 'rev-parse', 'refs/heads/task/exact').trim();
+  const differentPreview = preview('origin');
+  assert.equal(differentPreview.publication.state, 'different-head');
+  assert.equal(differentPreview.publication.remoteHead, advanced);
   assert.throws(() => executeWorkspaceOperation(publish, filename, installed), error =>
     error instanceof PartialError && error.saved.includes('remoteHead=' + advanced) && error.message.includes('not confirmed'));
   assert.equal(git(bare, 'rev-parse', 'refs/heads/task/exact').trim(), advanced);

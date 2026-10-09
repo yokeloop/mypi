@@ -35,7 +35,7 @@ export function createServer(filename: string, root?: string, context?: WorkCont
     server.registerTool(name, {
       description: tool.description, inputSchema: tool.schema, outputSchema: sessionOutputSchema(name),
       annotations: { readOnlyHint: readonly, destructiveHint: !readonly && name !== 'session_archive',
-        idempotentHint: readonly || name === 'session_archive', openWorldHint: name === 'workspace_verify' || name === 'workspace_publish' || name === 'home_status' || name === 'home_reconcile' || isManagedHomeCommand(name) },
+        idempotentHint: readonly || name === 'session_archive', openWorldHint: name === 'workspace_cleanup_preview' || name === 'workspace_verify' || name === 'workspace_publish' || name === 'home_status' || name === 'home_reconcile' || isManagedHomeCommand(name) },
     }, (args: unknown, extra: { signal: AbortSignal }) => invoke(name, args, extra.signal));
   }
   // McpServer's default call handler emits text-only validation errors. Keep SDK framing,

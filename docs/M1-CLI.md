@@ -66,6 +66,7 @@ mypi workspace inspect /clones/project--task --project org/project --base /clone
 mypi workspace verify --project org/project --base /clones/project --worktree /clones/project--task --branch task/example
 mypi workspace commit src/example.ts 'test/literal[1].ts' --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --message 'Implement example'
 mypi workspace publish --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --remote origin
+mypi workspace cleanup-preview --project org/project --base /clones/project --worktree /clones/project--task --branch task/example [--remote origin]
 ```
 
 These examples are explicit operations, not an automatic workflow or authorization
@@ -116,6 +117,24 @@ cannot be selected. No DB/home/request initialization occurs.
   Current checks must cover the complete HEAD content: a checked working snapshot
   with uncommitted companions cannot certify that partial HEAD. The helper stops
   without staging/discarding those companions or rerunning commands.
+
+- **Cleanup-preview:** read-only linked-task-worktree observation, with no required
+  verification cache. Returns `head`, `operationState`, `inventory` (tracked
+  HEAD/index union, changes, untracked, ignored, complete/incomplete state and
+  issues), `publication`, reduced advisory `cards`, and preservation diagnostics.
+  Lists are bounded to 10000 distinct inventory paths and Git commands to 1 MiB
+  output/3 seconds each; failed, unsupported, truncated or changed-HEAD observations
+  remain incomplete, retaining known entries. Ignored bytes are not read. Unsupported
+  tracked modes, hidden-index flags, conflicts and unexpanded directory entries
+  require separate inspection. Optional `--remote` observes the selected push
+  destination once through the same publication adapter: `not-observed`,
+  `matches-head`, `different-head`, `missing-ref` or `unavailable`; no fetch/push.
+  Card hints expose instance key, stored cwd, status, age and archive flag only;
+  unreadable/truncated observations remain explicit. Always returns
+  `decision:"manual-review"`, `deletionAuthorized:false`, never a safe/delete token.
+  No files, index, refs, registrations, verification/session caches or native
+  histories are changed. See the [owning helper route](PI-WORK-CONTEXT.md#explicit-workspace-operations)
+  for manual-decision and observed-path limitations.
 
 ### Project checks and convenience freshness
 

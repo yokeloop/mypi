@@ -207,17 +207,40 @@ not substitute for these native observations.
 
 ## Explicit workspace operations
 
-The [four shared CLI/MCP helpers](M1-CLI.md#explicit-git-workspace-helpers) offer an
-explicit prepare → inspect → exact-file commit → non-force publish route. They use
-registered project membership and real independent repository/worktree association.
+The [shared CLI/MCP helpers](M1-CLI.md#explicit-git-workspace-helpers) offer the
+recommended explicit prepare → inspect → verify → exact-file commit → non-force
+publish route, followed by **cleanup-preview** before any separately authorized
+manual cleanup decision. The project owns its required commands through the small
+[project-check adapter](M1-CLI.md#project-checks-and-convenience-freshness); a current
+successful result is a content convenience cache, not publication/merge permission.
+Helpers check registered membership and independent repository/worktree association.
 Preparing a worktree does **not** select it in Pi: choose the new worktree through
 the normal context route before native write/edit. Scoped calls check the explicit
-project with the shared warn/block policy; ordinary no-context CLI is still the
-operator route. The helpers do not verify code, run flow, create a request, switch
-base branches, clean other materials, own locks or intercept direct Git/shell.
-Unrelated staged entries and undeclared file bytes are preserved by exact commit;
-partial Git effects require inspection, not automatic retry. This is cooperative
-usability, not isolation or safe concurrent ownership.
+project with the shared warn/block policy; ordinary no-context CLI remains the
+operator route. Unrelated staged entries and undeclared file bytes are preserved
+by exact commit; partial effects require inspection, not automatic retry.
+
+`workspace cleanup-preview` selects one linked task worktree and branch. It reads
+bounded tracked/changed/untracked/ignored inventories and known session path hints.
+Omitting `--remote` leaves publication unobserved without network contact; selecting
+one explicitly observes only its configured push destination's exact branch ref,
+without push/fetch/retry. An equal remote HEAD says nothing about uncommitted files
+or other refs. Unique/unpublished material, ignored contents of unknown value and
+incomplete observations require preservation and manual review, never an empty or
+safe result. The preview always returns `decision:"manual-review"` and
+`deletionAuthorized:false`; there is no apply operation or deletion token.
+
+Card hints include archived and contextless observations whose stored cwd text is
+the worktree or a descendant. This is lexical path matching, not symlink-alias
+coverage or process ownership. Absent, stale, closed, archived, invalid or truncated
+observations cannot prove writer absence. Native histories are not inspected or
+changed. A preview is not an atomic snapshot, backup or lock against concurrent edits.
+
+Helpers do not run an automatic flow, create requests, switch base branches,
+remove worktrees/branches, kill writers or intercept direct Git/shell. Direct tools
+can bypass these checks. This is cooperative usability, not isolation or safe
+concurrent ownership; no new ritual is required for ordinary calls. The separate
+home direct-main route is unaffected by these task-worktree guards.
 
 ## Recommended ordinary home document route
 
