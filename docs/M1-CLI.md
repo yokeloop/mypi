@@ -46,8 +46,11 @@ remote or installation descendant. The installed engine and its shared metadata
 cannot be selected. No DB/home/request initialization occurs.
 
 - **Prepare:** new short local branch and absent target directly under an existing
-  parent, outside existing worktrees/metadata. `--start` accepts a full local
-  `refs/heads/...`, `refs/tags/...` or full commit ID, resolved once before creation.
+  parent, outside existing worktrees/metadata, including the installed engine's
+  canonical Git common directory (also through ordinary symlinks). Independent
+  worktrees nested elsewhere under the installation remain supported. `--start`
+  accepts a full local `refs/heads/...`, `refs/tags/...` or full commit ID, resolved
+  once before creation.
   No fetch, upstream setup or base branch switch; dirty base files are preserved.
 - **Inspect:** omitted path selects base. Reports real HEAD, branch, porcelain
   status, known worktrees (including locked/prunable entries) and operation state.
@@ -58,9 +61,11 @@ cannot be selected. No DB/home/request initialization occurs.
   current branch. Paths are distinct normalized relative literal **files**, not
   recursive directories/pathspecs; quote shell metacharacters. Regular files,
   new nonignored files and tracked deletions are supported. Symlink components,
-  submodules/special files, unfinished Git operations/conflicts and declared staged
-  content differing from working content are refused before staging. Native exact
-  `add`/`commit --only` preserves unrelated staged object IDs/modes and working,
+  submodules/special files, unfinished Git operations/conflicts, declared paths with
+  assume-unchanged/skip-worktree flags, and declared staged content differing from
+  working content are refused before staging or reporting a no-op. Helpers never
+  clear these index flags. Native exact `add`/`commit --only` preserves unrelated
+  staged object IDs/modes and working,
   untracked and ignored bytes (not byte-identical index bookkeeping). Only a real
   declared-difference observation yields a no-op. No add-all/reset/stash occurs.
 - **Publish:** explicit configured remote name, one push destination, current

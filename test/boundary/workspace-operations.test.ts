@@ -1,19 +1,21 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { executeWorkspaceOperation } from '../../src/app/workspace-operations.js';
 import { executeCommand } from '../../src/app/execute-command.js';
 import { PartialError } from '../../src/shared/context.js';
+import { InputError } from '../../src/shared/errors.js';
 import { state } from '../support/state.js';
 
 // Native Git is the oracle for exact-path commit/index preservation and remote ref state.
 // One local cycle; no network, model, personal data or subprocess matrix.
 test('workspace helpers preserve unrelated materials through prepare, exact commit and confirmed local publication', async t => {
   const { dir, filename } = state(t);
-  const installed = join(dir, 'engine'), base = join(dir, 'base'), task = join(dir, 'task'), bare = join(dir, 'remote.git');
+  const installed = join(dir, 'engine'), base = join(dir, 'base'), bare = join(dir, 'remote.git');
+  const task = join(installed, 'projects', 'task'); // Independent worktrees nested under installation remain supported.
   function git(root: string, ...args: string[]) {
     const result = spawnSync('/usr/bin/git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false',
       '-c', 'commit.gpgsign=false', '-C', root, ...args], { encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
@@ -30,6 +32,7 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
     git(root, 'add', '.gitignore', 'changed.txt', 'deleted.txt', 'unrelated.txt', 'ambiguous.txt');
     git(root, 'commit', '--quiet', '-m', 'fixture');
   }
+  mkdirSync(join(installed, 'projects'));
   mkdirSync(bare); git(bare, 'init', '--quiet', '--bare');
   git(base, 'remote', 'add', 'origin', bare);
   const app = createApp(filename, false);
@@ -41,6 +44,16 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   await assert.rejects(executeCommand({ ...prepare, project: 'two/project' }, filename, undefined,
     { scope: { kind: 'project', project: 'one/project' } }), /outside the working selection/);
   assert(!existsSync(task));
+  const metadataAlias = join(dir, 'installed-metadata');
+  symlinkSync(join(installed, '.git'), metadataAlias);
+  const forbiddenTarget = join(metadataAlias, 'forbidden-task');
+  const beforePrepareRefs = git(base, 'show-ref'), beforePrepareWorktrees = git(base, 'worktree', 'list', '--porcelain', '-z');
+  assert.throws(() => executeWorkspaceOperation({ ...prepare, worktreeRoot: forbiddenTarget, branch: 'task/forbidden-metadata' }, filename, installed),
+    error => error instanceof InputError && /protected Git metadata/.test(error.message));
+  assert(!existsSync(forbiddenTarget));
+  assert(!existsSync(join(installed, '.git', 'forbidden-task')));
+  assert.equal(git(base, 'show-ref'), beforePrepareRefs, 'no branch creation before metadata refusal');
+  assert.equal(git(base, 'worktree', 'list', '--porcelain', '-z'), beforePrepareWorktrees, 'no worktree registration before metadata refusal');
   writeFileSync(join(base, 'changed.txt'), 'dirty base remains\n');
   const baseHead = git(base, 'rev-parse', 'HEAD');
   const prepared = executeWorkspaceOperation(prepare, filename, installed);
@@ -68,6 +81,18 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   assert.equal(git(task, 'rev-parse', 'HEAD'), baseHead);
   assert.throws(() => executeWorkspaceOperation({ ...commit, paths: ['ignored.txt'] }, filename, installed), /Ignored or unavailable/);
   assert.equal(git(task, 'ls-files', '--stage'), beforeRefusal);
+  for (const [flag, marker] of [['assume-unchanged', 'h'], ['skip-worktree', 'S']]) {
+    git(task, 'update-index', '--' + flag, '--', 'changed.txt');
+    writeFileSync(join(task, 'changed.txt'), 'hidden change: ' + flag + '\n');
+    assert.equal(git(task, 'ls-files', '-v', '--', 'changed.txt'), marker + ' changed.txt\n');
+    const flaggedIndex = git(task, 'ls-files', '-v', '--stage', '-z');
+    assert.throws(() => executeWorkspaceOperation({ ...commit, paths: ['changed.txt'] }, filename, installed),
+      error => error instanceof InputError && /assume-unchanged or skip-worktree flags/.test(error.message));
+    assert.equal(git(task, 'ls-files', '-v', '--stage', '-z'), flaggedIndex, 'refusal preserves index entries and flags');
+    assert.equal(git(task, 'rev-parse', 'HEAD'), baseHead);
+    assert.equal(readFileSync(join(task, 'changed.txt'), 'utf8'), 'hidden change: ' + flag + '\n');
+    git(task, 'update-index', '--no-' + flag, '--', 'changed.txt'); // Fixture alone reconciles its flag.
+  }
   writeFileSync(join(task, 'changed.txt'), 'changed\n'); rmSync(join(task, 'deleted.txt'));
   git(task, 'add', 'deleted.txt'); // A declared already-staged deletion must work too.
   writeFileSync(join(task, 'literal[1].txt'), 'literal new file\n');

@@ -59,7 +59,7 @@ export function workspaceGit(root: string) {
       try { lstatSync(path); throw new InputError('Prepare requires an absent path'); }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
       if (knownRoots.some(known => known !== null && (path === known || path.startsWith(known + '/') || known.startsWith(path + '/')))) {
-        throw new InputError('Prepare target must be outside existing worktree roots');
+        throw new InputError('Prepare target must be outside existing worktrees and protected Git metadata');
       }
       const result = run(['worktree', 'add', '--quiet', '--no-track', '-b', name, '--', path, start]);
       if (result.error || result.status !== 0) {
@@ -73,6 +73,11 @@ export function workspaceGit(root: string) {
     commit(paths: string[], message: string) {
       noFilters();
       if (operationState().length || git(['ls-files', '--unmerged', '-z'])) throw new InputError('Resolve existing Git operation/conflicts before committing');
+      // -v lowercases assume-unchanged entries; S marks skip-worktree. Neither
+      // permits a reliable declared-file observation, and helpers must not clear them.
+      if (git(['ls-files', '-v', '-z', '--', ...paths]).split('\0').some(entry => /^[a-zS] /.test(entry))) {
+        throw new InputError('Declared paths have assume-unchanged or skip-worktree flags; reconcile explicitly');
+      }
       // Check metadata/file kinds before status/diff/add can inspect working file contents.
       const indexed = new Map(git(['ls-files', '--stage', '-z']).split('\0').filter(Boolean).map(entry => {
         const tab = entry.indexOf('\t'); return [entry.slice(tab + 1), entry.slice(0, tab).split(' ')[0]!] as const;

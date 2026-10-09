@@ -23,7 +23,7 @@ export function executeWorkspaceOperation(command: WorkspaceOperation, filename:
     const reader = repositoryIdentityReader(), worktrees = reader.worktrees(base.baseRoot);
     if (command.name === 'workspace_prepare') {
       const result = workspaceGit(base.baseRoot).prepare(command.worktreeRoot, command.branch, command.startPoint,
-        [...worktrees.map(tree => tree.root), base.commonDir]);
+        [...worktrees.map(tree => tree.root), base.commonDir, reader.inspect(installedEngineRoot).commonDir]);
       try {
         return { ...result, binding: bindings.verify({ project: command.project, baseRoot: base.baseRoot,
           worktreeRoot: result.worktreeRoot, expectedBranch: command.branch }) };
