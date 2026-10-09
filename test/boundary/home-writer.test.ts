@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import type { HomeStatus } from '../../src/shared/home-writer.js';
+import { chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { executeCommand } from '../../src/app/execute-command.js';
 import { createHomeWriter } from '../../src/app/home-writer.js';
@@ -15,11 +17,29 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
   const { dir, filename } = state(t), root = join(dir, 'home');
   const { remote } = configureHome(root), writer = createHomeWriter(root);
   const marker = join(root, '.git/mypi-home-pending.json');
+  const noDatabase = join(dir, 'absent/state.sqlite3');
+  const status = () => executeCommand({ name: 'home_status' }, noDatabase, root) as Promise<HomeStatus>;
+  const reconcile = () => executeCommand({ name: 'home_reconcile' }, noDatabase, root) as Promise<HomeStatus & { reconciled: boolean }>;
+  const hash = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
+  const patch = (path: string, expected: string, text: string) => executeCommand({ name: 'home_document_patch', path, expected, text }, filename, root);
+  const document = 'docs/notes/literal[1].md', original = '\ufefforiginal\r\n';
+  contextFiles(root).create(document, original);
+  chmodSync(join(root, document), 0o755);
+  const protectedDocuments = ['inbox/original.md', 'source.md', 'projects/org/project/errors.md'];
+  for (const path of protectedDocuments) contextFiles(root).create(path, 'preserved');
+  writeFileSync(join(root, 'binary.bin'), Buffer.from([0xff, 0]));
+  contextGit(root).commit([document, ...protectedDocuments, 'binary.bin'], 'Fixture document targets');
+  homeGit(root, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+  const observed = await status();
+  assert.deepEqual(observed, { head: homeGit(root, 'rev-parse', 'HEAD'), pending: null,
+    remoteHead: homeGit(remote, 'rev-parse', 'refs/heads/main'), remoteOutcome: 'matches-local', needsAttention: false });
+  assert.deepEqual(await reconcile(), { ...observed, reconciled: false });
+  assert.equal(existsSync(join(dir, 'absent')), false, 'status/reconcile must not require or create a database');
   const add = (text: string) => executeCommand({ name: 'memory_add', text }, filename, root);
   const initial = homeGit(root, 'rev-parse', 'HEAD');
   const attributes = join(root, '.git/info/attributes'), configured = readFileSync(attributes);
   rmSync(attributes);
-  assert.equal(writer.status().needsAttention, true);
+  assert.equal((await status()).needsAttention, true);
   assert.equal(existsSync(attributes), false, 'status must not repair missing Git attributes');
   await assert.rejects(add('missing setup'), /configured private Git attributes/);
   assert.equal(existsSync(attributes), false, 'managed preflight must not repair missing setup');
@@ -38,11 +58,22 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
   assert.equal(homeGit(root, 'rev-parse', 'HEAD'), initial);
   homeGit(root, 'reset', '--quiet', 'HEAD', '--', 'unrelated.md'); rmSync(join(root, 'unrelated.md'));
 
-  assert.throws(() => writer.run('document_patch', scope => {
-    scope.declare([{ path: 'ordinary.md', expected: 'a'.repeat(64) }]);
-    scope.beforeEffect(); contextFiles(root).create('ordinary.md', 'must not exist');
-  }), /preimage/);
-  assert.equal(existsSync(join(root, 'ordinary.md')), false);
+  await assert.rejects(patch(document, hash('stale'), 'must not write'), /preimage/);
+  await assert.rejects(patch(document, hash(original), '\ud800'), /Unicode/);
+  for (const path of protectedDocuments) {
+    await assert.rejects(patch(path, hash('preserved'), 'rewrite'), /Immutable\/append-only/);
+    assert.equal(readFileSync(join(root, path), 'utf8'), 'preserved');
+  }
+  await assert.rejects(patch('binary.bin', hash(Buffer.from([0xff, 0])), 'rewrite'), /encoded data/);
+  assert.deepEqual(readFileSync(join(root, 'binary.bin')), Buffer.from([0xff, 0]));
+  await assert.rejects(patch('absent.md', hash(''), 'must not create'), /existing tracked/);
+  assert.equal(existsSync(join(root, 'absent.md')), false);
+  writeFileSync(join(root, 'unknown.md'), 'unknown');
+  await assert.rejects(patch('unknown.md', hash('unknown'), 'not adopted'), /existing tracked/);
+  assert.equal(readFileSync(join(root, 'unknown.md'), 'utf8'), 'unknown');
+  rmSync(join(root, 'unknown.md'));
+  await assert.rejects(patch('cache/untouched', hash('ignored cache'), 'not adopted'), /existing tracked|Ignored/);
+  assert.equal(readFileSync(join(root, document), 'utf8'), original);
   assert.equal(homeGit(root, 'rev-parse', 'HEAD'), initial);
   assert.equal(existsSync(marker), false);
   assert.throws(() => writer.run('document_patch', scope => {
@@ -52,6 +83,25 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
   await assert.rejects(add('hidden state'), /index flags/);
   assert.match(homeGit(root, 'ls-files', '-v', '.gitignore'), /^h /, 'writer never clears unsupported flags');
   homeGit(root, 'update-index', '--no-assume-unchanged', '.gitignore');
+
+  const replacement = '\ufeffexact replacement\r\nкириллица\n';
+  const patched = await patch(document, hash(original), replacement) as { path: string; commit: string };
+  assert.deepEqual(patched, { path: document, commit: homeGit(root, 'rev-parse', 'HEAD') });
+  assert.deepEqual(readFileSync(join(root, document)), Buffer.from(replacement));
+  assert.equal(lstatSync(join(root, document)).mode & 0o777, 0o755);
+  assert.match(homeGit(root, 'ls-tree', 'HEAD', '--', document), /^100755 blob /);
+  assert.equal(homeGit(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', patched.commit), document);
+  assert.equal(homeGit(remote, 'rev-parse', 'refs/heads/main'), patched.commit);
+  assert.deepEqual(await patch(document, hash(replacement), replacement), patched);
+  assert.equal(homeGit(root, 'rev-parse', 'HEAD'), patched.commit);
+  assert.equal(homeGit(remote, 'rev-parse', 'refs/heads/main'), patched.commit);
+  assert.equal(existsSync(marker), false, 'no-op must not create a pending operation');
+  const empty = await patch(document, hash(replacement), '') as { commit: string };
+  assert.equal(readFileSync(join(root, document), 'utf8'), '');
+  assert.equal(lstatSync(join(root, document)).mode & 0o777, 0o755);
+  assert.match(homeGit(root, 'ls-tree', 'HEAD', '--', document), /^100755 blob /);
+  assert.equal(homeGit(remote, 'rev-parse', 'refs/heads/main'), empty.commit);
+  assert.equal(existsSync(join(root, 'MEMORY.md')), false, 'ordinary patch is not a memory entry');
 
   await add('first');
   const first = homeGit(root, 'rev-parse', 'HEAD');
@@ -63,7 +113,13 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
   assert.equal(homeGit(remote, 'rev-parse', 'refs/heads/main'), second);
   assert.equal(readFileSync(join(root, 'cache/untouched'), 'utf8'), 'ignored cache');
   assert.equal(existsSync(marker), false);
-  assert.equal(writer.status().needsAttention, false);
+  assert.equal((await status()).needsAttention, false);
+  for (const path of ['MEMORY.md', homeGit(root, 'diff-tree', '--no-commit-id', '--name-only', '-r', second),
+    'projects/org/MEMORY.md', 'projects/org/notes/n.md', 'projects/org/project/MEMORY.md', 'projects/org/project/notes/n.md']) {
+    await assert.rejects(patch(path, hash(''), 'rewrite'), /Managed memory\/notes/);
+  }
+  assert.equal(homeGit(root, 'rev-parse', 'HEAD'), second);
+  assert.equal(existsSync(marker), false);
 
   // Real post-mutation transport loss, confined to this disposable local origin.
   // The same scoped composition is used by executeCommand; no production failure hook.
@@ -85,18 +141,18 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
     assert.equal(error.home!.needsAttention, true);
     return true;
   });
-  const pending = writer.status().pending!, savedHead = homeGit(root, 'rev-parse', 'HEAD');
+  const pending = (await status()).pending!, savedHead = homeGit(root, 'rev-parse', 'HEAD');
   assert.equal(pending.commit, savedHead);
   assert.deepEqual(pending.paths, [card!.contextDir + '/source.md', 'journal/2026-10.jsonl']);
   const journal = readFileSync(join(root, 'journal/2026-10.jsonl'));
   await assert.rejects(add('blocked by pending'), /Pending home operation/);
   await executeCommand({ name: 'project_add', identity: 'independent/project', code: 'IP' }, filename, root);
-  assert.equal(writer.reconcile().reconciled, false);
+  assert.equal((await reconcile()).reconciled, false);
   assert.deepEqual(readFileSync(join(root, 'journal/2026-10.jsonl')), journal);
   renameSync(remote + '-unavailable', remote);
   // Model a push already reaching the destination before its confirmation was lost.
   homeGit(root, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
-  assert.equal(writer.reconcile().reconciled, true);
+  assert.equal((await reconcile()).reconciled, true);
   assert.equal(existsSync(marker), false);
   assert.equal(homeGit(root, 'rev-parse', 'HEAD'), savedHead);
   assert.deepEqual(readFileSync(join(root, 'journal/2026-10.jsonl')), journal);
@@ -107,6 +163,13 @@ test('managed home exact writes preserve conflicts and reconcile publication wit
   await executeCommand({ name: 'request_progress', key: card!.key, text: 'Explicit reference', artifacts: [{ path: 'literal[1].bin' }] }, filename, root);
   assert.deepEqual(readFileSync(join(root, attachment)), Buffer.from([0xff, 0, 1]));
   const publishedHead = homeGit(root, 'rev-parse', 'HEAD');
+  for (const path of [attachment, card!.contextDir + '/source.md', 'journal/2026-10.jsonl']) {
+    const bytes = readFileSync(join(root, path));
+    await assert.rejects(patch(path, hash(bytes), 'rewrite'), /Immutable\/append-only/);
+    assert.deepEqual(readFileSync(join(root, path)), bytes);
+  }
+  assert.equal(homeGit(root, 'rev-parse', 'HEAD'), publishedHead);
+  assert.equal(existsSync(marker), false);
   writeFileSync(join(root, attachment), Buffer.from([1, 2, 3]));
   await assert.rejects(executeCommand({ name: 'request_progress', key: card!.key, text: 'No rewrite', artifacts: [{ path: 'literal[1].bin' }] }, filename, root), /Immutable/);
   assert.equal(homeGit(root, 'rev-parse', 'HEAD'), publishedHead);

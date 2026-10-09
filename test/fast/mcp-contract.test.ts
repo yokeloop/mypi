@@ -9,6 +9,7 @@ import { serialCalls } from '../../src/mcp/serial.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { executePolicyCommand } from '../../src/app/policy-commands.js';
+import { hasMembershipGuard } from '../../src/app/command-membership.js';
 import { validateWorkspaceOperation } from '../../src/app/workspace-commands.js';
 
 const scope = { type: 'project', key: 'MP' };
@@ -27,6 +28,8 @@ const examples: [string, Record<string, unknown>][] = [
   ['request_touch', { key: 'MP-1' }], ['status_list', {}], ['status_add', { code: 'custom', terminal: false }],
   ['status_rename', { code: 'custom', newCode: 'renamed' }], ['status_terminal', { code: 'custom', terminal: true }],
   ['status_remove', { code: 'custom' }], ['context_read', { path: 'MEMORY.md' }],
+  ['home_document_patch', { path: 'docs/notes/literal[1].md', expected: 'a'.repeat(64), text: '\ufeffexact\r\n' }],
+  ['home_status', {}], ['home_reconcile', {}],
   ['context_commit', { paths: ['MEMORY.md'], message: 'reconciled' }],
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
@@ -38,8 +41,8 @@ const examples: [string, Record<string, unknown>][] = [
   ['policy_validate', { text: 'version: 2' }],
   ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('37 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 37);
+test('40 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 40);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -56,6 +59,12 @@ test('37 independent tool examples retain every field; strict schemas reject unk
     ['workspace_prepare', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one' }],
     ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: [], message: 'x' }],
     ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin', force: true }],
+    ['home_document_patch', { path: 'doc.md', text: 'missing preimage' }],
+    ['home_document_patch', { path: 'doc.md', expected: 'a'.repeat(64) }],
+    ['home_document_patch', { path: 'doc.md', expected: null, text: 'not creation' }],
+    ['home_document_patch', { path: 'doc.md', expected: 'A'.repeat(64), text: '' }],
+    ['home_document_patch', { path: 'doc.md', expected: 'abc', text: '' }],
+    ['home_status', { path: 'doc.md' }], ['home_reconcile', { replay: true }],
     ['policy_validate', { file: '/tmp/policy.yaml' }],
     ['policy_explain', { guard: 'unknown' }],
     ['policy_explain', { guard: 'baseCheckoutWrite', file: '/tmp/policy.yaml' }],
@@ -79,6 +88,23 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     const expected = examples.find(([key]) => key === name)!;
     assert.deepEqual(translate([...argv]), { name, ...expected[1] });
   }
+  for (const [argv, expected] of [
+    [['home', 'document-patch', 'docs/notes/literal[1].md', '\ufeffexact\r\n', '--expected', 'a'.repeat(64)],
+      { name: 'home_document_patch', path: 'docs/notes/literal[1].md', expected: 'a'.repeat(64), text: '\ufeffexact\r\n' }],
+    [['home', 'document-patch', 'empty.md', '', '--expected', 'b'.repeat(64)],
+      { name: 'home_document_patch', path: 'empty.md', expected: 'b'.repeat(64), text: '' }],
+    [['home', 'status'], { name: 'home_status' }], [['home', 'reconcile'], { name: 'home_reconcile' }],
+  ] as const) {
+    assert.deepEqual(translate([...argv]), expected);
+    const { name, ...args } = expected;
+    const command = toolCommand(name, args);
+    assert.deepEqual(command, expected);
+    assert.equal(hasMembershipGuard(command), false, 'explicit home-wide operator route, no project default');
+  }
+  assert.throws(() => translate(['home', 'document-patch', 'doc.md', 'text']), /--expected required/);
+  assert.throws(() => translate(['home', 'document-patch', 'doc.md', '--expected', 'a'.repeat(64)]), /argument count/);
+  assert.throws(() => translate(['home', 'status', '--scope', 'one/project']));
+  assert.throws(() => translate(['home', 'reconcile', 'replay']));
   assert.throws(() => translate(['workspace', 'publish', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one']), /--remote required/);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),

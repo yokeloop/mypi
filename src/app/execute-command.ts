@@ -18,7 +18,7 @@ export type { GuardWarningResult, SelectedGuardPolicy } from './command-membersh
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
 const managed = new Set(['capture', 'note_add', 'error_add', 'memory_add', 'memory_remove', 'journal_add',
-  'request_create', 'request_status', 'request_title', 'request_progress']);
+  'request_create', 'request_status', 'request_title', 'request_progress', 'home_document_patch']);
 export function isManagedHomeCommand(name: string): boolean { return managed.has(name); }
 // WorkContext is an out-of-band working selection, not authentication.
 export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
@@ -47,6 +47,10 @@ async function dispatch(c: AppCommand, filename: string, root?: string): Promise
   if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
   if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
     return executeWorkspaceOperation(c, filename);
+  }
+  if (c.name === 'home_status' || c.name === 'home_reconcile') {
+    const writer = createHomeWriter(root ?? defaultContextRoot());
+    return c.name === 'home_status' ? writer.status() : writer.reconcile();
   }
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
@@ -104,6 +108,7 @@ function dispatchWorkspace(c: AppCommand, filename: string, root?: string, write
       case 'request_title': return app.requests.change(c.key, { title: c.title }, c.reason);
       case 'request_touch': return app.requests.touch(c.key);
       case 'request_progress': return app.requests.progress(c.key, c.text, c.artifacts);
+      case 'home_document_patch': return app.patchDocument(c.path, c.expected, c.text);
       case 'context_read': {
         const content = app.read(c.path);
         if (content === undefined) throw new InputError('Missing context file');

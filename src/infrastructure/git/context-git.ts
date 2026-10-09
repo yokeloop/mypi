@@ -68,6 +68,11 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
     }
     if (resolve(root, git(['rev-parse', '--git-common-dir']).trim()) !== join(root, '.git')) throw new InputError('Shared Git metadata is not a private context repository');
   }
+  function mutable(path: string): void {
+    if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path === 'source.md' || path.endsWith('/source.md') || path.endsWith('/errors.md')) {
+      throw new InputError('Immutable/append-only history cannot be restored by rewriting');
+    }
+  }
   function check(paths: string[]): void {
     if (!paths.length) throw new InputError('Explicit context paths required');
     for (const path of paths) { relativeContextPath(path); files.path(path); }
@@ -136,11 +141,15 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       if (git(['status', '--porcelain=v1', '--untracked-files=all', '--ignored'])) throw new InputError('Dirty context; reconcile before backup');
     },
     bundle(destination: string) { git(['bundle', 'create', destination, 'HEAD']); },
-    restoreFile(path: string, revision: string) {
-      check([path]);
-      if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path === 'source.md' || path.endsWith('/source.md') || path.endsWith('/errors.md')) {
-        throw new InputError('Immutable/append-only history cannot be restored by rewriting');
+    documentTarget(path: string) {
+      check([path]); mutable(path);
+      const entry = git(['ls-tree', '-z', 'HEAD', '--', path]);
+      if (!/^100(?:644|755) blob [a-f0-9]+\t/.test(entry) || entry.slice(entry.indexOf('\t') + 1) !== path + '\0' || !files.isFile(path)) {
+        throw new InputError('Document patch requires an existing tracked regular file');
       }
+    },
+    restoreFile(path: string, revision: string) {
+      check([path]); mutable(path);
       if (!/^[a-f0-9]{40,64}$/.test(revision)) throw new InputError('Full commit hash required');
       if (git(['cat-file', '-t', revision + ':' + path]).trim() !== 'blob') throw new InputError('Explicit file path required');
       if (existsSync(files.path(path))) this.clean([path]);

@@ -32,6 +32,8 @@ mypi workspace prepare <path> --project org/project [--base clone] --branch task
 mypi workspace inspect [path] --project org/project [--base clone]
 mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
+mypi home document-patch <path> <text> --expected SHA256
+mypi home status | reconcile
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | restore <backup-directory>
 mypi policy validate [YAML | --file path]

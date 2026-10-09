@@ -34,6 +34,49 @@ stderr are included. New publication failures report acknowledged database saves
 context and Git separately from unconfirmed publication. Never repeat an append or
 request creation merely because a response was lost.
 
+## Ordinary documents and operator inspection
+
+Recommended coordinated route for an authorized ordinary home document change:
+
+```sh
+mypi home document-patch 'docs/literal[1].md' 'complete replacement text' --expected <SHA256>
+mypi home status
+mypi home reconcile
+```
+
+MCP exposes `home_document_patch {path,expected,text}`, `home_status {}` and
+`home_reconcile {}`. `expected` is the lowercase SHA256 of the exact existing bytes,
+not a Git blob hash. Read the document and obtain its byte hash before editing;
+a stale preimage refuses without changing it. Paths are literal home-relative files,
+not pathspecs. Replacement preserves supplied UTF-8 text, BOM and line endings;
+empty text is valid. Atomic replacement preserves the existing ordinary POSIX rwx
+permission bits (not ownership, ACLs or arbitrary metadata). Success returns `{path,commit}`; unchanged text returns the
+current commit without creating another. The patch remains an ordinary file, not
+a memory entry or journal event.
+
+Only existing tracked regular UTF-8 files qualify. There is no creation, deletion,
+file-input, append or diff syntax. Missing/untracked/ignored files, aliases and
+unsupported file kinds are refused, not adopted. Immutable source/inbox, published
+artifacts and append-only journal/errors cannot be patched. Managed `MEMORY.md`
+and `notes/` at global and `projects/<org>[/<project>]/` roots are also excluded from
+this ordinary route; use their managed operations. An ordinary path such as
+`docs/notes/example.md` is not excluded merely by its name. These extra memory/notes
+exclusions do not change explicit maintenance `context restore` compatibility.
+
+All three commands are **home-wide operator routes**, deliberately outside project
+membership/default guards, including when called from a scoped Pi. They infer no
+project and are not project-scoped authority or an ACL. Use only for the requested
+home operation, not as a substitute for guarded project work. Patch uses the same
+writer and setup prerequisites as managed writes (including the existing DB).
+Status/reconcile do not require or create a DB; they still require accessible home
+Git and take the same lock. All three can contact the configured remote. MCP marks
+status read-only; patch and reconcile are not read-only.
+
+Status returns `{head,pending,remoteHead,remoteOutcome,needsAttention}`. Reconcile
+adds `reconciled`; neither repeats a mutation, commit or push. A missing/unknown
+remote observation is not successful publication. Inspect partial `home` details
+and status first after a lost response; never replay the write automatically.
+
 ## Application API and maintenance boundary
 
 `createHomeWriter(root).run(operation, scope => result)` is synchronous. Its scope
@@ -51,8 +94,8 @@ are confined to the declaration with the expected parent (or a no-op commit).
 It returns `reconciled: boolean`; it does not append, commit or push. Unchanged
 referenced artifacts need not appear in the commit diff. Incomplete mutation/DB
 phases, changed destinations and uncertain observations require explicit operator
-disposition rather than automatic recovery. These are application helpers, not
-new CLI/MCP command names yet.
+disposition rather than automatic recovery. The home status/reconcile commands
+expose these same observations without opening the DB.
 
 Reads and DB-only project/status/request-touch operations remain usable while home
 needs attention. `context commit` and `context restore` remain **uncoordinated

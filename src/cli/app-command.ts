@@ -76,6 +76,9 @@ export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' }>): 
       if (!['true', 'false'].includes(a[1]!)) throw new InputError('Use true or false');
       return { name: 'status_terminal', code: a[0]!, terminal: a[1] === 'true' };
     case 'status remove': return { name: 'status_remove', code: a[0]! };
+    case 'home document-patch': return { name: 'home_document_patch', path: a[0]!, text: a[1]!, expected: required('expected') };
+    case 'home status': return { name: 'home_status' };
+    case 'home reconcile': return { name: 'home_reconcile' };
     case 'context read': return { name: 'context_read', path: a[0]! };
     case 'context commit': return { name: 'context_commit', paths: a, message: required('message') };
     case 'context restore': return { name: 'context_restore', path: a[0]!, revision: required('revision') };

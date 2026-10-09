@@ -111,6 +111,23 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       });
     },
     read: files.read,
+    patchDocument(path: string, expected: string, text: string) {
+      if (!writer) throw new InputError('Document patch requires the shared home writer');
+      if (typeof text !== 'string' || Buffer.from(text, 'utf8').toString('utf8') !== text) throw new InputError('Invalid Unicode text');
+      // Only actual global/org/project managed namespaces, not arbitrary docs/notes/.
+      if (/^(?:projects\/[^/]+\/(?:[^/]+\/)?)?(?:MEMORY\.md$|notes\/)/.test(path)) {
+        throw new InputError('Managed memory/notes are not ordinary documents');
+      }
+      return core.serialize(() => {
+        git.documentTarget(path);
+        writer.declare([{ path, expected }]);
+        const old = files.read(path);
+        if (old === undefined) throw new InputError('Document patch requires an existing tracked regular file');
+        if (old === text) return { path, commit: git.head()! };
+        writer.beforeEffect();
+        return { path, commit: changeContext(git, [path], () => files.replace(path, text, old), 'Update document ' + path) };
+      });
+    },
     restoreContext(path: string, revision: string) { return core.serialize(() => git.restoreFile(path, revision)); },
     complete(paths: string[], message: string) {
       return core.serialize(() => git.commit(paths, message));

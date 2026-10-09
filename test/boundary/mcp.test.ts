@@ -43,7 +43,13 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 37);
+  assert.equal(listed.length, 40);
+  for (const name of ['home_document_patch', 'home_status', 'home_reconcile']) {
+    const annotations = listed.find(tool => tool.name === name)!.annotations!;
+    assert.equal(annotations.openWorldHint, true);
+    assert.equal(annotations.readOnlyHint, name === 'home_status');
+    assert.equal(annotations.idempotentHint, name === 'home_status');
+  }
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.idempotentHint, false);
@@ -106,7 +112,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal((await call('memory_show', { scope: { type: 'global' } })).items[1].text, 'warned global fact');
   await warningClient.close();
   const badPolicy = (await connect(root, { ...contextEnv, MYPI_GUARD_POLICY: selectedPolicy })).client;
-  assert.equal((await badPolicy.listTools()).tools.length, 37);
+  assert.equal((await badPolicy.listTools()).tools.length, 40);
   assert((await call('status_list', {}, badPolicy)).length > 0);
   const invalidPolicy = await badPolicy.callTool({ name: 'project_list', arguments: {} });
   assert.equal(invalidPolicy.isError, true);
