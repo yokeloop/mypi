@@ -1,3 +1,5 @@
+import { executeMessageCommand } from './mailbox.js';
+import type { MessageCaller } from './mailbox.js';
 import { executeSessionCommand } from './session-cards.js';
 import type { AppCommand } from './commands.js';
 import type { WorkContext } from '../modules/work-context/public.js';
@@ -23,7 +25,11 @@ const managed = new Set(['capture', 'note_add', 'error_add', 'memory_add', 'memo
 export function isManagedHomeCommand(name: string): boolean { return managed.has(name); }
 // WorkContext is an out-of-band working selection, not authentication.
 export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
-  selectedPolicy?: SelectedGuardPolicy): Promise<unknown> {
+  selectedPolicy?: SelectedGuardPolicy, caller?: MessageCaller): Promise<unknown> {
+  if (c.name === 'message_send' || c.name === 'message_list' || c.name === 'message_show' || c.name === 'message_cleanup') {
+    return executeMessageCommand(c, { ...(context === undefined ? {} : { context }), ...caller },
+      root === undefined ? undefined : { contextRoot: root });
+  }
   if (c.name === 'session_list' || c.name === 'session_show' || c.name === 'session_archive') {
     return executeSessionCommand(c, context, root === undefined ? undefined : { contextRoot: root });
   }

@@ -28,7 +28,9 @@ Flow is part of the intended system. Automated flow execution, agent runner, sco
 agent permissions, task execution queue, authoritative session catalog, multi-device and network
 sync are not implemented. A bounded [session observation cache](SESSION-CARDS.md)
 provides project/default or explicit operator list/show/archive views without
-storing native history or claiming process ownership. Current scope is data selection, not a security perimeter.
+storing native history or claiming process ownership. A bounded local
+[mailbox](MAILBOX.md) queues explicit cooperative messages by native Pi ID without
+starting agents or storing transcripts. Current scope is data selection, not a security perimeter.
 The [cooperative policy core](SCOPED-POLICY-CORE.md) adds strict YAML v2 validation,
 ordinary project/organization/unrestricted working context, verified repository
 association and shared validate/explain diagnostics. Its MP-9 consumers implement
@@ -48,6 +50,7 @@ src/
 ├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
+│   ├── mailbox/         # pure envelope, expiry and observation rules
 │   ├── session-cards/   # pure observation transitions and age, not runtime ownership
 │   ├── work-context/    # pure working selection and warn/block guard settings
 │   ├── projects/        # registry, identity, checkout, scope and repository evidence
