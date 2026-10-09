@@ -96,6 +96,9 @@ explicit administrative initialization/migration, without the Pi setup wizard.
 
 ### Launch Pi with an explicit working context
 
+Start with the [cooperative Pi operator handoff](docs/COOPERATIVE-PI.md) for the
+short launch/worktree route, limitations, disable procedure and activation gates.
+
 After building mypi, `mise exec -- pnpm pi --project org/project` starts the installed
 Pi in that registered checkout. Use `--cwd /clones/project--task` for an existing
 associated worktree root, or `--base /clones/project` to choose an independent clone.
