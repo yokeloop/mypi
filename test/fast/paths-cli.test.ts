@@ -1,11 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, symlinkSync } from 'node:fs';
+import { mkdirSync, readdirSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeState, createApp } from '../../src/app/create-app.js';
 import { databasePath, externalDatabasePath } from '../../src/infrastructure/filesystem/paths.js';
 import { parseCommand } from '../../src/cli/command.js';
+import { preparePiLaunch } from '../../src/app/pi-launcher.js';
 import { state } from '../support/state.js';
 
 test('XDG/default state paths stay outside engine and context, including symlink aliases', t => {
@@ -27,6 +28,49 @@ test('XDG/default state paths stay outside engine and context, including symlink
   const forbidden = fileURLToPath(new URL('../../../forbidden.sqlite3', import.meta.url));
   assert.throws(() => initializeState(forbidden), /outside/);
   assert.throws(() => createApp(forbidden, true), /outside/);
+});
+
+test('Pi launcher arguments keep selection exclusive and native arguments opaque', () => {
+  assert.deepEqual(parseCommand(['pi']), { type: 'pi', args: [] });
+  assert.deepEqual(parseCommand(['pi', '--project', 'one/project', '--base', '/clone', '--cwd', '/task', '--', '--session', 'a b', '--', '-prompt']), {
+    type: 'pi', selection: { kind: 'project', project: 'one/project' }, base: '/clone', cwd: '/task', args: ['--session', 'a b', '--', '-prompt'],
+  });
+  assert.deepEqual(parseCommand(['pi', '--org=one']), { type: 'pi', selection: { kind: 'organization', organization: 'one' }, args: [] });
+  assert.deepEqual(parseCommand(['pi', '--unrestricted', '--', '--help']), { type: 'pi', selection: { kind: 'unrestricted' }, args: ['--help'] });
+  for (const args of [
+    ['--project', 'one/project', '--org', 'one'], ['--project', 'one/project', '--unrestricted'],
+    ['--org', 'one', '--unrestricted'], ['--project', 'one/project', '--project', 'two/project'],
+    ['--cwd', '/a', '--cwd=/b'], ['--unrestricted', '--unrestricted'], ['--org', ''],
+    ['--base', '/clone'], ['--project'], ['--help'], ['--unknown'], ['prompt'],
+  ]) assert.throws(() => parseCommand(['pi', ...args]));
+});
+
+test('Pi unselected/unrestricted need no registry; organization resolves read-only without repository inspection', t => {
+  const { dir, filename } = state(t);
+  const cwd = join(dir, 'cwd');
+  mkdirSync(cwd);
+  const alias = join(dir, 'alias');
+  symlinkSync(cwd, alias);
+  const app = createApp(filename, false);
+  app.projects.add('one/project', 'MP');
+  app.close();
+  const readonly = createApp(filename, true);
+  t.after(() => readonly.close());
+  const registry = { projects: readonly.projects, repositories: { verify(): never { throw new Error('Unexpected repository inspection'); } } };
+  const before = readdirSync(dir);
+  assert.deepEqual(preparePiLaunch({ args: [] }, alias), { cwd, args: [] });
+  assert.deepEqual(preparePiLaunch({ selection: { kind: 'unrestricted' }, args: ['--help'] }, alias), {
+    cwd, args: ['--help'], context: { version: 1, cwd, context: { scope: { kind: 'unrestricted' } } },
+  });
+  assert.deepEqual(preparePiLaunch({ selection: { kind: 'organization', organization: 'one' }, cwd: alias, args: [] }, dir, registry), {
+    cwd, args: [], context: { version: 1, cwd, context: { scope: { kind: 'organization', organization: 'one' } } },
+  });
+  assert.throws(() => preparePiLaunch({ selection: { kind: 'organization', organization: 'missing' }, args: [] }, cwd, registry), /Unknown organization/);
+  assert.throws(() => preparePiLaunch({ selection: { kind: 'project', project: 'one/missing' }, args: [] }, cwd, registry), /Unknown project/);
+  assert.throws(() => preparePiLaunch({ selection: { kind: 'project', project: 'one/project' }, args: [] }, cwd, registry), /no checkout/);
+  assert.throws(() => preparePiLaunch({ cwd: filename, args: [] }, dir), /directory/);
+  assert.throws(() => preparePiLaunch({ cwd: join(dir, 'missing'), args: [] }, dir));
+  assert.deepEqual(readdirSync(dir), before);
 });
 
 test('CLI parsing is strict without invoking a process for the validation matrix', () => {

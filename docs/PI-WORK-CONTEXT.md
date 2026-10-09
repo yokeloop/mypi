@@ -61,6 +61,50 @@ selection. Resume in the correct working directory or start a genuinely new proc
 and session with the desired selection. No automatic context switch or extra command
 framework is provided.
 
+## Terminal launcher
+
+After building once, use `mypi pi` (or `mise exec -- pnpm pi` from the engine):
+
+```sh
+mypi pi --project org/project
+mypi pi --project org/project --base /clones/project --cwd /clones/project--task
+mypi pi --org org --cwd /clones
+mypi pi --unrestricted
+mypi pi -- --help
+mypi pi --project org/project --cwd /clones/project--task -- --continue
+```
+
+`--project`, `--org` and `--unrestricted` are mutually exclusive. Without one,
+context is **unselected**, not inferred from cwd and not implicitly unrestricted.
+Launcher options cannot repeat. Everything after the first `--` is passed unchanged
+to native Pi (including its help, session, tool and resource options).
+
+Project/organization selection requires an existing registry and validates membership.
+A project's base is `--base` or its registered checkout path; default cwd is that
+**chosen base**. `--base` requires `--project`. It explicitly associates an existing
+independent clone with the registration; neither its remote/name nor registry path
+proves ownership. Existing repository checks verify the chosen base and cwd share
+Git metadata and exact worktree membership and do not use installed engine metadata.
+Project `--cwd` must be an existing checkout/worktree **root**, not a subdirectory;
+locked/detached/unavailable bindings are refused. No directory, branch or worktree
+is created or repaired. Base checkout is available for study; MP-9 supplies supported
+write guards/workspace preparation, not this launcher.
+
+Organization, unrestricted and unselected starts use the current directory unless
+`--cwd` selects another existing directory. Paths are canonicalized; unselected and
+unrestricted launch do not open or initialize the DB. Organization context does not
+silently select one of its projects. Choose a concrete project/worktree for changes.
+
+The launcher runs installed `pi` from PATH without a shell, inherits terminal IO and
+native exit status, and forwards termination signals. It explicitly loads the shipped
+extension by its package-relative absolute path, without copying resources or changing
+user/global settings. The package alias invokes already-built mypi; it does not build,
+bootstrap or migrate. Normal native tools, TUI, history and user overrides remain Pi's.
+Native Pi may save its own sessions/settings as usual; this is not an isolation layer.
+Unselected launch clears inherited launch context; selected launch uses the shared
+codec above, never the server-only environment key. A resumed branch remains authority
+even if launcher selection differs. Changing cwd means starting another process.
+
 ## MCP composition and limitations
 
 Each lifecycle selection requests the existing `mypi` registration with an immutable
@@ -97,7 +141,19 @@ native MCP reported it disabled/overridden with no mypi tools. Context added to 
 genuine disposable conversation through public `appendEntry` was fixture setup,
 not launcher behavior or evidence of selected-context fork inheritance.
 
-Prompt-section injection is source-inspected; no in-flight operation/drain behavior
-was exercised. RPC status is not rendered-TUI proof; the real launcher/TUI check
-remains separate. Strict build and pure tables do not substitute for these native
-observations.
+A separate parent-executed, network-free launcher PTY probe exercised the actual
+built CLI and installed Pi: native help without a DB, native parser error exit 1,
+project status in rendered terminal output, raw editor input without submitting a
+prompt, and empty-editor Ctrl-D exit 0. The actual Pi child executable/cwd were
+observed. SIGTERM sent only to the launcher reached Pi's graceful shutdown (native
+exit 0); the Pi child was gone after both exits. This is rendered-output evidence,
+not a full terminal-emulator screenshot or proof of arbitrary descendant cleanup or
+abnormal-signal behavior. No provider call was made by the launcher probe.
+
+Earlier probe revisions incorrectly expected a signal exit and then encountered
+native first-start changelog bookkeeping; neither was a product regression failure.
+The final probe preseeded the current changelog version and confirmed unchanged
+registry, settings, MCP override, base HEAD and selected source hashes. Pi still owns
+its ordinary session/settings writes. Prompt-section injection remains source-inspected;
+no in-flight operation/drain behavior was exercised. Strict build and pure tables do
+not substitute for these native observations.

@@ -57,7 +57,7 @@ test('33 independent tool examples retain every field; strict schemas reject unk
 test('CLI translates to the same subject commands without changing text or default scope', () => {
   const translate = (args: string[]) => {
     const parsed = parseCommand(args);
-    if (parsed.type === 'help') throw new Error('Unexpected help');
+    if (parsed.type === 'help' || parsed.type === 'pi') throw new Error('Expected data command');
     return appCommand(parsed);
   };
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
