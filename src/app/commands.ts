@@ -1,5 +1,6 @@
 import type { Scope } from '../shared/scope.js';
 import type { PolicyCommand } from './policy-commands.js';
+export type { WorkContext } from '../modules/work-context/public.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.

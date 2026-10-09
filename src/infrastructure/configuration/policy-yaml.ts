@@ -10,7 +10,7 @@ function fail(message: string, offset?: number): never {
   throw new InputError(`Invalid policy YAML${offset === undefined ? '' : ` at offset ${offset}`}: ${message}`);
 }
 
-/** Syntax only. The authorization public API owns all policy schema validation. */
+/** Syntax only. The work-context public API owns all policy schema validation. */
 export function parsePolicyYaml(text: string): unknown {
   if (typeof text !== 'string' || Buffer.byteLength(text, 'utf8') > MAX_POLICY_BYTES) {
     fail('expected UTF-8 text of at most 65536 bytes');

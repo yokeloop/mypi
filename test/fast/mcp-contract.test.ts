@@ -6,6 +6,7 @@ import { PartialError } from '../../src/shared/context.js';
 import { serialCalls } from '../../src/mcp/serial.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
+import { executePolicyCommand } from '../../src/app/policy-commands.js';
 
 const scope = { type: 'project', key: 'MP' };
 const examples: [string, Record<string, unknown>][] = [
@@ -27,13 +28,11 @@ const examples: [string, Record<string, unknown>][] = [
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
-  ['policy_validate', { text: 'version: 1' }],
-  ['policy_explain', { action: 'data.read', target: { kind: 'project', project: 'one/project' } }],
-  ['policy_preview', { text: 'version: 1', action: 'data.read', target: { kind: 'project', project: 'one/project' },
-    scope: { kind: 'project', project: 'one/project' }, profile: 'isolated' }],
+  ['policy_validate', { text: 'version: 2' }],
+  ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('34 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 34);
+test('33 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 33);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -48,18 +47,12 @@ test('34 independent tool examples retain every field; strict schemas reject unk
     ['project_resolve', { path: 'relative' }], ['backup', { destination: 'relative' }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
     ['policy_validate', { file: '/tmp/policy.yaml' }],
-    ['policy_explain', { action: 'data.read', target: { kind: 'project', project: 'one/project', owner: { kind: 'global' } } }],
-    ['policy_explain', { action: 'filesystem.read', target: { kind: 'repository', bindingId: 'b', commonDir: '/repo/.git' } }],
-    ['policy_explain', { action: 'data.read', target: { kind: 'request', key: 'MP-1', project: 'one/project' } }],
-    ['policy_preview', { text: 'version: 1', action: 'data.read', target: { kind: 'global' }, scope: { kind: 'unrestricted', capabilities: ['administration'] } }],
+    ['policy_explain', { guard: 'unknown' }],
+    ['policy_explain', { guard: 'baseCheckoutWrite', file: '/tmp/policy.yaml' }],
+    ['policy_explain', { guard: 'baseCheckoutWrite', text: null }],
+    ['policy_preview', { text: 'version: 2' }],
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
-  for (const field of ['caller', 'principal', 'sessionId', 'snapshot', 'capabilities', 'ownedBindingIds']) {
-    for (const name of ['policy_explain', 'policy_preview']) {
-      const args = examples.find(([tool]) => tool === name)![1];
-      assert.throws(() => toolCommand(name, { ...args, [field]: {} }), /Unrecognized/);
-    }
-  }
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
   const translate = (args: string[]) => {
@@ -76,13 +69,39 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
   for (const [name, args] of examples.filter(([name]) => name.startsWith('policy_'))) {
     const argv = name === 'policy_validate' ? ['policy', 'validate', String(args['text'])]
-      : name === 'policy_explain' ? ['policy', 'explain', String(args['action']), '--target', JSON.stringify(args['target'])]
-      : ['policy', 'preview', String(args['action']), String(args['text']), '--scope', JSON.stringify(args['scope']),
-        '--target', JSON.stringify(args['target']), '--profile', String(args['profile'])];
+      : ['policy', 'explain', String(args['guard']), String(args['text'])];
     assert.deepEqual(translate(argv), toolCommand(name, args));
   }
-  assert.throws(() => translate(['policy', 'explain', 'data.read', '--target', '{"kind":"request","key":"MP-1","owner":{}}']), /Unknown diagnostic field/);
-  assert.throws(() => translate(['policy', 'preview', 'data.read', 'version: 1', '--scope', '{"kind":"unrestricted","capabilities":[]}', '--target', '{"kind":"global"}']), /Unknown diagnostic field/);
+  assert.deepEqual(translate(['policy', 'explain', 'baseCheckoutWrite']),
+    toolCommand('policy_explain', { guard: 'baseCheckoutWrite' }));
+  for (const action of ['validate', 'explain']) {
+    const args = action === 'validate' ? [] : ['baseCheckoutWrite'];
+    assert.throws(() => translate(['policy', action, ...args, 'version: 2', '--file', '/tmp/p']), /not both/);
+    assert.throws(() => translate(['policy', action, ...args, 'version: 2', '--file', '']), /not both/);
+    assert.throws(() => translate(['policy', action, ...args, '--file', '']), /--file required/);
+  }
+  assert.throws(() => translate(['policy', 'validate']), /Text or --file required/);
+  assert.throws(() => translate(['policy', 'explain', 'unknown']), /Unknown policy guard/);
+  assert.throws(() => translate(['policy', 'explain', 'baseCheckoutWrite', '--target', '{}']));
+  assert.throws(() => translate(['policy', 'preview']), /Unknown command/);
+});
+test('policy diagnostics default only absent text and never reinterpret incompatible or invalid input', () => {
+  assert.deepEqual(executePolicyCommand({ name: 'policy_explain', guard: 'baseCheckoutWrite' }), {
+    guard: 'baseCheckoutWrite', behavior: 'block',
+    message: 'Configured to block when writing to the base checkout.', diagnostic: 'cooperative',
+  });
+  assert.deepEqual(executePolicyCommand({ name: 'policy_explain', guard: 'baseCheckoutWrite',
+    text: 'version: 2\nguards: {baseCheckoutWrite: warn}' }), {
+    guard: 'baseCheckoutWrite', behavior: 'warn',
+    message: 'Configured to warn when writing to the base checkout.', diagnostic: 'cooperative',
+  });
+  for (const [text, message] of [
+    ['', /expected mapping/], ['version: 1', /version 1 is incompatible/],
+    ['version: 9', /version: expected 2/], ['version: 2\nunknown: true', /unknown field/],
+  ] as const) {
+    assert.throws(() => executePolicyCommand({ name: 'policy_validate', text }), message);
+    assert.throws(() => executePolicyCommand({ name: 'policy_explain', guard: 'baseCheckoutWrite', text }), message);
+  }
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
   const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], requestId: 17 };

@@ -10,7 +10,7 @@ export interface RepositoryBinding extends VerifiedRepositoryBinding {
 }
 export interface RepositoryBindingInput {
   readonly project: string;
-  /** Explicit operator-selected independent clone; registry checkoutPath is not authority. */
+  /** Explicit operator-selected independent clone; checkoutPath alone does not prove association. */
   readonly baseRoot: string;
   readonly worktreeRoot: string;
   /** Short local branch name, without refs/heads/. */
@@ -18,15 +18,13 @@ export interface RepositoryBindingInput {
 }
 
 /**
- * Separate trusted composition: never import this subprocess adapter through createApp
- * or policy parsing. The installation root comes from the host, not tool arguments.
- * All paths must already exist. Base bindings are read-only even with matching branches;
- * workspace.prepare uses them as verified SOURCE evidence, never permission to write it.
+ * Separate Git inspection: never import this subprocess adapter through createApp
+ * or policy parsing. The installation root comes from composition, not tool arguments.
+ * All paths must already exist. Base bindings carry read-only guidance for consumers,
+ * not filesystem permissions. Verification helps avoid selecting the wrong checkout.
  *
- * Revalidate at every future effect boundary. This observation is not a sandbox or a
- * runtime write lease: same-UID metadata changes and path swaps can race these reads.
- * Canonical paths do not detect hardlinked files, bind mounts or changing mount namespaces.
- * Trusted Git metadata, stable directories/mounts and a separate OS boundary are required.
+ * This observation is not ownership or OS isolation. Metadata and paths can change
+ * after inspection; canonical paths do not detect hardlinks or bind mounts.
  */
 export function createRepositoryBindings(
   projects: Pick<ReturnType<typeof createProjects>, 'resolveScope'>,
