@@ -45,7 +45,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-37 tools are available through standard tools/list. Inspect live schemas for fields.
+40 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
@@ -79,7 +79,8 @@ the old connection and does not promise completion or rollback of in-flight writ
 
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
-requestId when known. structuredContent equals parsed JSON in text content. The data
+requestId when known, plus `home` recovery observations for coordinated home partials
+(see [HOME-WRITER](HOME-WRITER.md)). structuredContent equals parsed JSON in text content. The data
 payload retains CLI JSON shapes, including the conditional warning result below.
 Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
@@ -115,6 +116,7 @@ it does not exclude another explicit current member.
 | `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
 | `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
 | `error_add`, `workspace_prepare/inspect/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
+| `home_document_patch`, `home_status`, `home_reconcile` | Explicit home-wide operator routes outside project membership/default guards; no inferred project or project-scoped authority. |
 | `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
 | `project_add`, status mutations, `db_init`, `bootstrap`, `backup`, `restore`, `capture`, `context_commit/restore` | Deliberately unguarded global/maintenance operations; explicit operator discipline remains required. |
 
@@ -144,6 +146,24 @@ These are cooperative checks, not an ACL, a home-writer lock or an assertion tha
 shared home writes are concurrency-safe. Ordinary no-context CLI remains an explicit
 operator route. Direct module calls, raw context paths, shell, foreign MCP and disabled
 extensions are not covered; do not infer universal protection from a guarded call.
+
+## Coordinated home tools
+
+- `home_document_patch {path,expected,text}` replaces one existing tracked ordinary
+  UTF-8 file using its lowercase SHA256 byte preimage. All fields are required;
+  `text` may be empty. Returns `{path,commit}`; unchanged text makes no new commit.
+  Paths are literal home-relative names. No creation/deletion, implicit adoption,
+  memory conversion or immutable/append-only history rewrite is provided.
+- `home_status {}` returns `{head,pending,remoteHead,remoteOutcome,needsAttention}`.
+- `home_reconcile {}` adds `reconciled:boolean`, clearing only an exactly proven
+  published pending marker without repeating mutation, commit or push.
+
+All three are home-wide operator routes, even in scoped Pi. Only status is marked
+read-only; all three have `openWorldHint:true` because they observe/publish to the
+configured remote. Status/reconcile need no DB. Patch uses the same writer/setup
+requirements as participating managed commands. See [HOME-WRITER](HOME-WRITER.md)
+for target exclusions, prerequisites, partial fields and manual maintenance limits.
+These hints and descriptions are not authorization or runtime activation.
 
 ## Explicit workspace tools
 

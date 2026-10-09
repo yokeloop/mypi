@@ -1,7 +1,7 @@
 import { PartialError } from '../shared/context.js';
 import type { ContextHistory } from '../shared/context.js';
 
-// Caller serializes cooperating writers; no retry, operation records or rollback fiction.
+// Caller owns coordination (HomeWriter on managed routes); no retry or rollback fiction here.
 export function changeContext(history: ContextHistory, paths: string[], save: () => void, message: string): string {
   history.clean(paths);
   let saved = false;

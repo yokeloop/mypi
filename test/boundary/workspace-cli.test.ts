@@ -9,6 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { executeCommand as appExecute } from '../../src/app/execute-command.js';
 import type { AppCommand, WorkContext } from '../../src/app/commands.js';
 import { DEFAULT_GUARD_POLICY } from '../../src/modules/work-context/public.js';
+import { configureHome, homeGit } from '../support/home.js';
 
 test('complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-all-'));
@@ -36,6 +37,7 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
     return JSON.parse(JSON.stringify(await executeCommand(command, root + '-state/mypi/state.sqlite3', join(root, 'home'))));
   }
   run(root, ['bootstrap']);
+  configureHome(join(root, 'home'));
   run(root, ['context', 'read', 'missing.md'], 1);
   run(root, ['project', 'add', 'one/project', '--code', 'MP']);
   await cli('memory', 'add', 'global\nline');
@@ -99,6 +101,10 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   writeFileSync(join(root, 'home/.git/index.lock'), 'busy');
   const partial = run(root, ['request', 'status', request.key, 'verified', '--reason', 'verified'], 1);
   assert.equal(partial.status, 'partial'); assert.equal(partial.requestId, request.id);
+  assert.equal(partial.home.needsAttention, true);
+  assert.equal(partial.home.pending.phase, 'mutating');
+  assert.deepEqual(partial.saved, ['database']);
+  assert.deepEqual(partial.missing, ['inspect journal', 'git']);
   assert.equal((await cli('request', 'show', request.key)).status, 'verified');
   rmSync(join(root, 'home/.git/index.lock'));
   const pendingEvent = (await cli('journal', 'read', '-s', 'request:MP-1', '--type', 'status_changed'))[0];
@@ -107,6 +113,11 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   await cli('context', 'commit', log, '--message', 'complete checked partial');
   assert.equal(readFileSync(join(root, 'home', log), 'utf8'), before);
   assert.equal((await cli('journal', 'read', '-s', 'request:MP-1', '--type', 'status_changed')).length, 1);
+  await assert.rejects(cli('memory', 'add', 'must not replay'), /Pending home operation/);
+  // Explicit fixture-operator disposition after inspecting saved DB/journal above.
+  // Maintenance commit does not publish or clear the marker automatically.
+  homeGit(home, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+  rmSync(join(home, '.git/mypi-home-pending.json'));
   assert(!JSON.stringify(await cli('warmup', '-s', 'one/project')).includes('original'));
   await cli('memory', 'remove', '1');
   const snapshot = join(dir, 'snapshot'); await cli('backup', snapshot);

@@ -11,5 +11,6 @@ export function failure(error: unknown): CallToolResult {
   return result(error instanceof PartialError ? {
     status: 'partial', message, saved: error.saved, missing: error.missing, paths: error.paths,
     ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
+    ...(error.home === undefined ? {} : { home: error.home }),
   } : { status: 'error', message }, true);
 }

@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { encodePiContext, MYPI_MCP_CONTEXT } from '../../src/app/pi-context.js';
+import { configureHome, homeGit } from '../support/home.js';
 
 test('real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-'));
@@ -42,10 +43,19 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 37);
+  assert.equal(listed.length, 40);
+  for (const name of ['home_document_patch', 'home_status', 'home_reconcile']) {
+    const annotations = listed.find(tool => tool.name === name)!.annotations!;
+    assert.equal(annotations.openWorldHint, true);
+    assert.equal(annotations.readOnlyHint, name === 'home_status');
+    assert.equal(annotations.idempotentHint, name === 'home_status');
+  }
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.idempotentHint, false);
+  assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.openWorldHint, true);
+  assert.equal(listed.find(t => t.name === 'request_create')!.annotations!.openWorldHint, true);
+  assert.equal(listed.find(t => t.name === 'request_touch')!.annotations!.openWorldHint, false);
   for (const [name, args] of [['memory_add', { text: 'missing scope' }], ['db_init', { unknown: 1 }], ['unknown', {}]] as const) {
     const invalid = await client.callTool({ name, arguments: args });
     assert.equal(invalid.isError, true);
@@ -65,6 +75,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert((await call('status_list')).some((s: { code: string }) => s.code === 'accepted'));
   await call('status_add', { code: 'unused', terminal: false }); await call('status_remove', { code: 'unused' });
   await call('bootstrap');
+  configureHome(home);
   const source = '\ufeff  original\r\nкириллица\n';
   const capture = await call('capture', { source: { text: source } });
   assert.equal((await call('context_read', { path: capture.path })).text, source);
@@ -101,7 +112,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal((await call('memory_show', { scope: { type: 'global' } })).items[1].text, 'warned global fact');
   await warningClient.close();
   const badPolicy = (await connect(root, { ...contextEnv, MYPI_GUARD_POLICY: selectedPolicy })).client;
-  assert.equal((await badPolicy.listTools()).tools.length, 37);
+  assert.equal((await badPolicy.listTools()).tools.length, 40);
   assert((await call('status_list', {}, badPolicy)).length > 0);
   const invalidPolicy = await badPolicy.callTool({ name: 'project_list', arguments: {} });
   assert.equal(invalidPolicy.isError, true);
@@ -116,7 +127,9 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal(partial.isError, true);
   const recovery = partial.structuredContent as Record<string, unknown>;
   assert.deepEqual(recovery, { status: 'partial', message: recovery['message'], saved: ['database'],
-    missing: ['inspect journal', 'git'], paths: [request.contextDir], requestId: request.id });
+    missing: ['inspect journal', 'git'], paths: [request.contextDir], requestId: request.id, home: recovery['home'] });
+  assert.equal((recovery['home'] as { needsAttention: boolean }).needsAttention, true);
+  assert.deepEqual(JSON.parse((partial.content as { text: string }[])[0]!.text), recovery);
   assert.match(String(recovery['message']), /index.lock/);
   rmSync(join(home, '.git/index.lock'));
   assert.equal((await call('request_show', { key: request.key })).status, 'accepted');
@@ -126,6 +139,13 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('context_commit', { paths: [log], message: 'complete inspected partial' });
   await call('request_touch', { key: request.key });
   assert.deepEqual(readFileSync(join(home, log)), before);
+  const blockedPending = await client.callTool({ name: 'request_status', arguments: { key: request.key, status: 'accepted', reason: 'no-op' } });
+  assert.equal(blockedPending.isError, true);
+  assert.match(String((blockedPending.structuredContent as Record<string, unknown>)['message']), /Pending home operation/);
+  // Explicit fixture-operator disposition after verifying DB and journal; raw
+  // maintenance neither auto-publishes nor implicitly clears pending state.
+  homeGit(home, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main');
+  rmSync(join(home, '.git/mypi-home-pending.json'));
   await call('request_status', { key: request.key, status: 'accepted', reason: 'no-op' });
   assert.deepEqual(readFileSync(join(home, log)), before);
   assert.equal((await client.callTool({ name: 'request_status', arguments: { key: request.key, status: 'new', reason: 'reopen' } })).isError, true);
@@ -137,6 +157,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('memory_remove', { scope, number: 1 });
   await call('context_restore', { path: 'projects/one/project/MEMORY.md', revision });
   assert.equal((await call('memory_show', { scope })).items[0].text, 'project fact');
+  homeGit(home, 'push', '--quiet', 'origin', 'HEAD:refs/heads/main'); // Explicit maintenance restore publication.
   const second = (await connect(root)).client;
   // Send requests from two independent MCP processes and a real CLI writer.
   const child = spawn(process.execPath, [join(root, 'dist/src/cli/main.js'), 'request', 'create', 'cli source',

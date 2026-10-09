@@ -219,6 +219,27 @@ Unrelated staged entries and undeclared file bytes are preserved by exact commit
 partial Git effects require inspection, not automatic retry. This is cooperative
 usability, not isolation or safe concurrent ownership.
 
+## Recommended ordinary home document route
+
+For an explicitly requested ordinary home change, use `home_document_patch` (CLI
+`home document-patch`) with a literal home-relative path, exact lowercase SHA256
+preimage of existing bytes and full UTF-8 replacement. This coordinates an existing
+tracked document through the same home writer as managed memory/request calls;
+it does not create a memory record. Missing/untracked documents and managed
+memory/notes, immutable source/published artifacts and append-only history are not
+patch targets. See [HOME-WRITER](HOME-WRITER.md) for setup and exact exclusions.
+
+`home_status` and `home_reconcile` inspect pending/remote outcomes without requiring
+a DB or replaying the failed operation. Reconcile can remove only a proven published
+marker. These three tools are **home-wide operator routes outside project membership
+and defaults**, including in scoped Pi; use only for the authorized home work. They
+are not a project-bound permission or a way to infer authority from the selection.
+
+Native write/edit, shell, custom tool IO, raw APIs and manual Git still bypass the
+home lock. Treat them and context commit/restore as nonconcurrent maintenance, not
+coordinated substitutes or automatic pending recovery. No new native tool, runtime
+replacement, settings change or activation is introduced by this recommendation.
+
 ## MP-9 native hook evidence
 
 For MP-9, a separately authorized parent-executed Pi 1.0.4 RPC probe used exactly one

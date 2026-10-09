@@ -6,7 +6,7 @@ A project-centered memory and request system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
 scoped journal, context Git, backup/restore, explicit Git workspace helpers,
-CLI and 37 stdio MCP tools over one API.
+coordinated home document writes, CLI and 40 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -36,8 +36,11 @@ describe older revisions, not the current operating policy.
   of activity. Request history comes from a shared append-only JSONL journal.
 - **Published artifacts remain addressable.** New versions use new paths. Mutable
   memory/context can change with history; original source and append-only logs cannot.
-- **Saving is not synchronization.** Context writes include local Git commits;
-  DB-only changes use transactions. Network sync requires separate authorization.
+- **Saving has explicit boundaries.** Participating managed home writes and ordinary
+  document patches coordinate exact commits and one bounded publication attempt;
+  they require configured, published home `main`. DB-only changes use transactions.
+  Uncertain outcomes require inspection, not automatic replay. These capabilities
+  do not grant authorization for unrequested writes or remote setup.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
@@ -114,6 +117,18 @@ literal files while preserving unrelated staged content, and publish confirms a
 single non-force remote ref. They do not run checks, create requests, switch the
 base branch, retry, merge or replace normal Git. See [arguments and partial
 outcomes](docs/M1-CLI.md#explicit-git-workspace-helpers).
+
+### Coordinated ordinary home documents
+
+For an authorized change to an existing tracked ordinary UTF-8 document, prefer
+`mypi home document-patch <path> <text> --expected <SHA256>` (MCP
+`home_document_patch`). Supply the exact existing byte hash and full replacement;
+no creation/deletion or managed memory/history rewrite is supported. Inspect
+`home status` / `home reconcile` after uncertain outcomes; they never replay writes.
+These are explicitly **home-wide operator routes**, outside project membership
+and defaults. Native edit/shell/manual Git remain uncoordinated maintenance; do not
+run them concurrently with the writer. See [prerequisites and limits](docs/HOME-WRITER.md).
+No settings change or runtime activation is implied.
 
 ### Existing installations
 

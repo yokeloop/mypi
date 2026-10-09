@@ -5,6 +5,35 @@ From the engine checkout: `mise exec -- pnpm build`, then
 error/partial means nonzero exit and JSON on stderr, never a false success on stdout.
 Core does not call an LLM or execute flow. Full command syntax is in help.
 
+## Managed home write prerequisites
+
+Capture, note/error, memory add/remove, journal add and request create/status/title/
+progress, plus `home document-patch`, now coordinate their mutation → exact commit → bounded non-force push to
+configured origin/main. Home must already be a private repository on published
+`main`; unrelated dirty/staged state is refused, not adopted. Unrelated ignored
+caches remain untouched. An uncertain operation preserves its pending record and
+adds `home` recovery observations to partial JSON; never replay an append blindly.
+DB-only operations remain independent. `context commit`/`context restore` and
+manual edits/Git are uncoordinated maintenance, not automatic pending recovery or
+publication. See [HOME-WRITER](HOME-WRITER.md) for exact boundaries and the typed
+application API and ordinary-document restrictions.
+
+```sh
+mypi home document-patch 'docs/literal[1].md' 'full replacement text' --expected <lowercase-SHA256-of-existing-bytes>
+mypi home status
+mypi home reconcile
+```
+
+Patch requires an existing tracked ordinary UTF-8 file and explicit byte preimage;
+empty replacement is allowed, creation/deletion is not. It returns `{path,commit}`,
+including the current commit for unchanged text. Managed memory/notes and protected
+source/artifacts/history are not ordinary patch targets. Status exposes local HEAD,
+pending record, observed remote HEAD/outcome and `needsAttention`; reconcile adds
+`reconciled` and only clears an exactly proven published marker, without repeating
+mutation/commit/push. These two commands do not require/create a DB. All three are
+home-wide operator routes outside project membership/default guards, not an ACL or
+a project scope override. See [HOME-WRITER](HOME-WRITER.md) before use.
+
 ## Native Pi terminal exception
 
 `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory]

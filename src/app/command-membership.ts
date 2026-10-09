@@ -14,6 +14,8 @@ export interface GuardWarningResult {
 // A consumer may retain a selected-policy load failure without disabling discovery.
 export type SelectedGuardPolicy = GuardPolicy | Error;
 
+// home_document_patch/status/reconcile are explicitly home-wide operator routes,
+// like context maintenance: no project target or inferred membership/default.
 export function hasMembershipGuard(command: AppCommand): boolean {
   if (command.name === 'journal_read' && command.scope === 'all') return false;
   return ['project_list', 'warmup', 'memory_show', 'memory_add', 'memory_remove', 'note_add',

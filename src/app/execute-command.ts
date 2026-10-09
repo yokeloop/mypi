@@ -2,7 +2,10 @@ import type { AppCommand } from './commands.js';
 import type { WorkContext } from '../modules/work-context/public.js';
 import { executePolicyCommand } from './policy-commands.js';
 import { executeWorkspaceOperation } from './workspace-operations.js';
-import { createWorkspace, initializeWorkspace } from './create-workspace.js';
+import { createWorkspace, defaultContextRoot, initializeWorkspace } from './create-workspace.js';
+import { realpathSync } from 'node:fs';
+import { createHomeWriter } from './home-writer.js';
+import type { HomeWriteScope } from '../shared/home-writer.js';
 import { createApp, initializeState } from './create-app.js';
 import { backupState, restoreState } from './backup.js';
 import { inputText } from './input-text.js';
@@ -14,6 +17,9 @@ import { loadSelectedGuardPolicy } from './guard-policy-config.js';
 export type { GuardWarningResult, SelectedGuardPolicy } from './command-membership.js';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
+const managed = new Set(['capture', 'note_add', 'error_add', 'memory_add', 'memory_remove', 'journal_add',
+  'request_create', 'request_status', 'request_title', 'request_progress', 'home_document_patch']);
+export function isManagedHomeCommand(name: string): boolean { return managed.has(name); }
 // WorkContext is an out-of-band working selection, not authentication.
 export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
   selectedPolicy?: SelectedGuardPolicy): Promise<unknown> {
@@ -42,6 +48,10 @@ async function dispatch(c: AppCommand, filename: string, root?: string): Promise
   if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
     return executeWorkspaceOperation(c, filename);
   }
+  if (c.name === 'home_status' || c.name === 'home_reconcile') {
+    const writer = createHomeWriter(root ?? defaultContextRoot());
+    return c.name === 'home_status' ? writer.status() : writer.reconcile();
+  }
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
@@ -64,7 +74,15 @@ async function dispatch(c: AppCommand, filename: string, root?: string): Promise
       return { status: 'ok' };
     } finally { app.close(); }
   }
-  const app = createWorkspace(filename, reads.has(c.name), root);
+  if (!isManagedHomeCommand(c.name)) return dispatchWorkspace(c, filename, root);
+  const home = realpathSync(root ?? defaultContextRoot());
+  return createHomeWriter(home).run(c.name, writer => dispatchWorkspace(c, filename, home, writer));
+}
+
+// Genuinely synchronous: never wrap async dispatch in HomeWriter and release its
+// lock before SQLite/file work finishes. Uncovered async operations stay above.
+function dispatchWorkspace(c: AppCommand, filename: string, root?: string, writer?: HomeWriteScope): unknown {
+  const app = createWorkspace(filename, reads.has(c.name), root, undefined, writer);
   try {
     switch (c.name) {
       case 'capture': return { path: app.capture(inputText(c.source)) };
@@ -90,6 +108,7 @@ async function dispatch(c: AppCommand, filename: string, root?: string): Promise
       case 'request_title': return app.requests.change(c.key, { title: c.title }, c.reason);
       case 'request_touch': return app.requests.touch(c.key);
       case 'request_progress': return app.requests.progress(c.key, c.text, c.artifacts);
+      case 'home_document_patch': return app.patchDocument(c.path, c.expected, c.text);
       case 'context_read': {
         const content = app.read(c.path);
         if (content === undefined) throw new InputError('Missing context file');
