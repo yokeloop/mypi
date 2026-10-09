@@ -122,12 +122,12 @@ cannot be selected. No DB/home/request initialization occurs.
   verification cache. Returns `head`, `operationState`, `inventory` (tracked
   HEAD/index union, changes, untracked, ignored, complete/incomplete state and
   issues), `publication`, reduced advisory `cards`, and preservation diagnostics.
-  Lists are bounded to 10000 distinct inventory paths and Git commands to 1 MiB
-  output/3 seconds each; failed, unsupported, truncated or changed-HEAD observations
-  remain incomplete, retaining known entries. Ignored bytes are not read. Unsupported
-  tracked modes, hidden-index flags, conflicts and unexpanded directory entries
-  require separate inspection. Optional `--remote` observes the selected push
-  destination once through the same publication adapter: `not-observed`,
+  Lists are bounded to 10000 path records (including repeated entries) and Git
+  commands to 1 MiB output/3 seconds each; failed, unsupported, truncated or
+  changed-HEAD observations remain incomplete, retaining known entries. Ignored
+  bytes are not read. Unsupported tracked modes, hidden-index flags, conflicts
+  and unexpanded directory entries require separate inspection. Optional `--remote`
+  observes the selected push destination once through the same publication adapter: `not-observed`,
   `matches-head`, `different-head`, `missing-ref` or `unavailable`; no fetch/push.
   Card hints expose instance key, stored cwd, status, age and archive flag only;
   unreadable/truncated observations remain explicit. Always returns
