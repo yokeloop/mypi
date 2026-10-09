@@ -4,8 +4,8 @@ The runtime cache is a small, rebuildable inventory of observations, **not** an
 identity/ownership registry, process manager, transcript store, lock or ACL.
 Pi owns native session IDs, history and branch working context. Each producer
 instance gets a fresh UUID key, including when reopening the same native session.
-PID and optional Herdr tab ID are hints only. This foundation does not itself
-install lifecycle hooks, timers or Herdr operations.
+PID and optional Herdr tab ID are hints only. The shipped Pi extension observes
+native lifecycle events; it does not perform Herdr operations.
 
 ## Storage and observations
 
@@ -47,6 +47,43 @@ Staleness is a display threshold, not a lease, heartbeat SLA or guarantee of del
 hides only that instance from ordinary lists. Producer updates never touch the
 marker, so later heartbeat does not unarchive it. Unexpected marker types are
 invalid observations. Archive is **not transcript deletion** and does not close Pi.
+
+## Native lifecycle producer (Pi 1.0.4)
+
+The shipped entrypoint registers observation after MP-8 working-context hooks, so
+fresh launch handoff is visible before the first card. Every `session_start`
+(startup/reload/new/resume/fork) creates a fresh instance, including reopening the
+same native session. A startup-only `isIdle() && !hasPendingMessages()` sample
+initializes a ready prompt as idle; otherwise it remains starting. That sample is
+not an `agent_settled` event or proof of future quiescence. During activity,
+`agent_start` records running and only `agent_settled` records final idle.
+`agent_end` does not mark completion, and heartbeat never polls for settlement.
+
+`session_tree`, `session_info_changed`, `before_agent_start`, and activity events
+refresh the complete plain snapshot from the current native branch and readonly
+session ID/file/name. Missing/invalid selection or a cleared title removes the old
+value, rather than reviving a previous project. Tree/title updates keep the same
+instance and activity state. A mismatched native ID disables the old producer.
+Heartbeat retains no native context/session manager: it writes only the latest
+plain snapshot captured by synchronous native events.
+
+`MYPI_SESSION_CARDS` absent or `1` enables the optional producer; `0` disables it
+without constructing a cache or timer. Other values are invalid.
+`MYPI_SESSION_HEARTBEAT_MS` defaults to `30000`, accepting only canonical decimal
+integers from `5000` through `60000`. Invalid configuration warns and disables
+observation for that session start; it does not silently use a fallback interval.
+Staleness remains the independent 90-second display threshold above, not an SLA.
+
+No timer or cache write starts in the extension factory. A successful native start
+owns one unref'ed interval. Replacement and `session_shutdown` clear it and close
+only that instance; repeated cleanup is harmless and obsolete timer callbacks do
+nothing. Optional cache failures clear the timer, release notification callbacks
+and disable that producer until a later session start/reload. They warn at most
+once per affected instance, never make ordinary Pi depend on cache/Herdr, and do
+not fabricate a successful close after failed observation. Existing cards can
+therefore become stale. SIGKILL/power loss need not emit shutdown; neither PID nor
+missing heartbeat proves death, containment or exclusive worktree ownership.
+Disabling/removing the extension does not delete cache cards or native history.
 
 ## CLI and MCP
 
@@ -90,4 +127,9 @@ key isolation, archive-after-heartbeat, bounds, invalid observations, selection 
 native-file preservation. Literal adapter/discovery tests and existing CLI/MCP
 boundary canaries protect routing without DB/home setup. These checks are not
 native extension-load, provider-activity, persistence/resume or Herdr evidence;
-those require separately approved actual native acceptance.
+those require separately approved actual native acceptance. The lifecycle fixture
+also uses a controlled scheduler with actual disposable card files to protect
+startup idle versus settlement, snapshot clearing, one timer, replacement/late
+callbacks, idempotent shutdown and failure disabling. It emits no real Pi events
+and makes no provider-activity claim. Core tsc excludes shipped extension sources;
+actual native extension-load evidence must be recorded separately.

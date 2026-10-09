@@ -2,6 +2,7 @@ import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { registerNativeWorkContext } from './native-work-context.js';
+import { registerNativeSessionCards } from './native-session-cards.js';
 
 /** Context follows Pi's native branch; connection and shutdown remain Pi-owned. */
 export default function (pi: ExtensionAPI) {
@@ -11,4 +12,5 @@ export default function (pi: ExtensionAPI) {
   // Pi may be a standalone Bun executable: process.execPath is not necessarily Node.
   // Starting Pi via mise exec supplies the checkout's pinned Node 24 on PATH.
   registerNativeWorkContext(pi, root, entry);
+  registerNativeSessionCards(pi);
 }

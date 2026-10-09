@@ -5,6 +5,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createSessionCards, parseSessionCard, resolveSessionDirectory } from '../../src/app/session-cards.js';
+import { createSessionLifecycle, sessionHeartbeat } from '../../src/app/session-lifecycle.js';
+import type { SessionEvent } from '../../src/app/session-cards.js';
 import { sessionView, startSessionCard, updateSessionCard } from '../../src/modules/session-cards/public.js';
 import { sessionCardFiles } from '../../src/infrastructure/filesystem/session-cards.js';
 import { sessionResults } from '../../src/mcp/tools/sessions.js';
@@ -148,4 +150,105 @@ test('session-cards disposable cache isolates instances, preserves archives/hist
   const bounded = join(dir, 'bounded'); mkdirSync(join(bounded, 'cards'), { recursive: true });
   for (let i = 0; i < 1001; i++) writeFileSync(join(bounded, 'cards', 'unexpected-' + i), '');
   assert.deepEqual(sessionCardFiles(bounded).scan(), { keys: [], invalid: 1000, truncated: true });
+});
+
+test('session-lifecycle snapshots, timer retirement and optional failure preserve actual instance observations', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-session-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  let now = 1000, warnings = 0;
+  let failure: SessionEvent | 'start' | undefined;
+  const env: Record<string, string | undefined> = { MYPI_SESSION_DIR: join(dir, 'cache') };
+  const cards = createSessionCards({ env, home: join(dir, 'user'), contextRoot: join(dir, 'context'), clock: () => now });
+  const timers: { tick: () => void; stopped: boolean }[] = [];
+  const lifecycle = createSessionLifecycle({ env,
+    start(data) {
+      if (failure === 'start') throw new Error('unavailable');
+      const producer = cards.start(data);
+      return { update(event, snapshot) {
+        if (failure === event) throw new Error('unavailable');
+        producer.update(event, snapshot);
+      } };
+    },
+    schedule(tick, milliseconds) {
+      assert.equal(milliseconds, 30000);
+      assert(timers.every(timer => timer.stopped), 'at most one active timer');
+      const timer = { tick, stopped: false }; timers.push(timer);
+      return () => { assert.equal(timer.stopped, false); timer.stopped = true; };
+    },
+  });
+  const warn = () => { warnings++; };
+  const snapshot = { ...observation, title: 'original' };
+  const view = (instanceKey: string) => cards.show({ all: true, instanceKey }).session!;
+  assert.deepEqual(readdirSync(dir), [], 'factory must not create cache or start timers');
+  assert.equal(timers.length, 0);
+  env['MYPI_SESSION_CARDS'] = '0';
+  lifecycle.start(snapshot, true, warn);
+  assert.deepEqual(readdirSync(dir), []); assert.equal(timers.length, 0);
+  env['MYPI_SESSION_CARDS'] = 'invalid';
+  lifecycle.start(snapshot, true, warn);
+  assert.equal(warnings, 1); assert.equal(timers.length, 0);
+  assert.deepEqual(readdirSync(dir), []);
+  delete env['MYPI_SESSION_CARDS'];
+  lifecycle.start(snapshot, true, warn);
+  const first = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  assert.equal(view(first).status, 'idle', 'initial non-streaming/no-pending sample needs no provider turn');
+  assert.equal(timers.length, 1);
+  now = 2000; lifecycle.update('running', snapshot);
+  now = 3000; timers[0]!.tick();
+  assert.equal(view(first).status, 'running', 'heartbeat cannot claim final settlement');
+  assert.equal(view(first).card.lastSeen, 3000);
+  now = 4000; lifecycle.update('settled', snapshot);
+  assert.equal(view(first).status, 'idle');
+  const cleared = { nativeSessionId: observation.nativeSessionId, cwd: '/task', pid: 123 };
+  lifecycle.update('heartbeat', cleared);
+  now = 5000; timers[0]!.tick();
+  assert.equal(view(first).card.context, undefined); assert.equal(view(first).card.title, undefined);
+  assert.equal(view(first).status, 'idle');
+  assert.equal(cards.list({ project: 'one/project' }).sessions.length, 0);
+  lifecycle.start(snapshot, false, warn);
+  const second = cards.list({ all: true }).sessions.find(item => item.card.instanceKey !== first)!.card.instanceKey;
+  assert.equal(view(first).status, 'closed'); assert.equal(timers[0]!.stopped, true);
+  assert.equal(view(second).status, 'starting', 'pending/streaming startup is not final idle');
+  const beforeLate = view(second);
+  now = 6000; timers[0]!.tick();
+  assert.deepEqual(view(second).card, beforeLate.card, 'late timer cannot write same-native-ID replacement');
+  lifecycle.close(); lifecycle.close();
+  assert.equal(view(second).status, 'closed'); assert.equal(timers[1]!.stopped, true);
+  now = 7000; timers[1]!.tick();
+  assert.equal(view(second).card.lastSeen, 6000);
+
+  lifecycle.start(snapshot, true, warn);
+  const third = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  failure = 'heartbeat'; now = 8000; timers[2]!.tick();
+  assert.equal(warnings, 2); assert.equal(timers[2]!.stopped, true);
+  failure = undefined; now = 100000;
+  timers[2]!.tick(); lifecycle.update('settled', snapshot); lifecycle.close();
+  assert.equal(view(third).card.lastSeen, 7000);
+  assert.equal(view(third).status, 'stale', 'cache failure must not fabricate closed/dead');
+  assert.equal(warnings, 2, 'failed producer stays disabled');
+  lifecycle.start(snapshot, true, warn);
+  const fourth = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  lifecycle.update('running', { ...snapshot, nativeSessionId: 'different-native-id' });
+  assert.equal(warnings, 3); assert.equal(timers[3]!.stopped, true);
+  assert.equal(view(fourth).card.nativeSessionId, observation.nativeSessionId);
+  assert.equal(view(fourth).status, 'idle');
+  failure = 'start';
+  lifecycle.start(snapshot, true, () => { warnings++; throw new Error('UI unavailable'); });
+  assert.equal(warnings, 4); assert.equal(timers.length, 4);
+  failure = undefined;
+  lifecycle.start(snapshot, true, warn);
+  failure = 'close'; lifecycle.close(); lifecycle.close();
+  assert.equal(warnings, 5); assert.equal(timers[4]!.stopped, true);
+  assert.equal(existsSync(join(dir, 'user')), false); assert.equal(existsSync(join(dir, 'context')), false);
+});
+
+test('session-lifecycle configuration accepts only explicit bounded heartbeat and enable settings', () => {
+  assert.equal(sessionHeartbeat({}), 30000);
+  assert.equal(sessionHeartbeat({ MYPI_SESSION_CARDS: '1' }), 30000);
+  assert.equal(sessionHeartbeat({ MYPI_SESSION_CARDS: '0', MYPI_SESSION_HEARTBEAT_MS: 'invalid' }), undefined);
+  for (const raw of ['5000', '30000', '60000']) assert.equal(sessionHeartbeat({ MYPI_SESSION_HEARTBEAT_MS: raw }), Number(raw));
+  for (const raw of ['', '0', '4999', '60001', '05000', '5000.0', '5e3', '+5000', ' 5000', 'Infinity']) {
+    assert.throws(() => sessionHeartbeat({ MYPI_SESSION_HEARTBEAT_MS: raw }), /heartbeat/);
+  }
+  for (const raw of ['', 'true', 'false', '01']) assert.throws(() => sessionHeartbeat({ MYPI_SESSION_CARDS: raw }), /observation/);
 });
