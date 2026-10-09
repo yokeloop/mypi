@@ -15,6 +15,9 @@ record evidence. Historical contracts describe their time, not extra current com
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
 scoped warmup/history, request cards/statuses/progress, local context commits,
 SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
+Native Pi working context supplies supported write/edit guards; contextual application
+calls apply membership/default checks. Explicit workspace helpers prepare, inspect,
+commit exact files and publish a selected ref without running an automatic workflow.
 
 The memory/request APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -26,9 +29,12 @@ agent permissions, task execution queue, session catalog, multi-device and netwo
 sync are not implemented. Current scope is data selection, not a security perimeter.
 The [cooperative policy core](SCOPED-POLICY-CORE.md) adds strict YAML v2 validation,
 ordinary project/organization/unrestricted working context, verified repository
-association and shared validate/explain diagnostics, **not active guard routing**.
-Context-bearing operations are ordinary operations, not blanket-denied. MP-9 will
-add supported guard routing; these settings are not authentication or OS isolation.
+association and shared validate/explain diagnostics. Its MP-9 consumers implement
+[native write/edit guards](PI-WORK-CONTEXT.md#cooperative-native-writeedit-guards),
+[application membership/defaults](MCP.md#cooperative-application-membership-and-defaults)
+and [explicit workspace operations](M1-CLI.md#explicit-git-workspace-helpers).
+Only documented operations are guarded, not blanket-denied. These settings are not
+authentication, a home-writer lock or OS isolation.
 No mandatory external tracker, HTTP daemon or implied automatic execution.
 
 ## 2. Code and dependencies
@@ -56,8 +62,11 @@ App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.
 Imports do not execute CLI. dependency-cruiser checks directions/cycles.
 Guard policy text parsing/loading is separate from subprocess-based repository
 verification; Git verification is not imported through createApp or fast paths.
-CLI/MCP policy diagnostics share the same AppCommand contract. Supported operation
-guards belong to MP-9; no speculative global effect/authority inventory is retained.
+CLI/MCP policy diagnostics and workspace operations share AppCommand contracts.
+Application membership checks use current registry/card relationships before dispatch;
+Git workspace effects remain in separate application composition and a Git adapter.
+Native guards read the current Pi branch selection through a small tool-call adapter.
+There is no universal effect/authority inventory or shell interception.
 No DI framework, event bus, CQRS, generic repository or speculative recovery engine.
 See [M1-DESIGN](M1-DESIGN.md) before changing structure/dependencies.
 
@@ -151,9 +160,12 @@ Do not automatically repeat append/create, roll back a saved card or delete sour
 Inspect first, then complete checked files' commit, strict source adoption, factual
 recovery note instead of invented transition, or explicit touch as appropriate.
 
-Filesystem guards reject traversal, symlink/hardlink aliases and implicit overwrite.
-Git preserves unrelated staged changes and avoids hooks/fsmonitor/signing/network.
-Private attributes prevent EOL/encoding/filter transforms. Source/inbox are immutable;
+For managed home/context persistence, filesystem guards reject traversal,
+symlink/hardlink aliases and implicit overwrite. Context Git preserves unrelated
+staged changes and avoids hooks/fsmonitor/signing/network; private attributes prevent
+EOL/encoding/filter transforms. Separate [workspace helpers](M1-CLI.md#explicit-git-workspace-helpers)
+honor ordinary non-executable text/encoding attributes, and explicit publish uses the
+selected remote transport. Source/inbox are immutable;
 journal/errors append-only. Committed journal prefixes are checked before extracting
 published artifact references. New versions get new paths. Mutable context can be
 restored from a full Git revision by making a new commit, not rewriting history.
