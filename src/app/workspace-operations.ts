@@ -5,6 +5,7 @@ import { validateWorkspaceOperation } from './workspace-commands.js';
 import type { WorkspaceOperation } from './workspace-commands.js';
 import { repositoryIdentityReader } from '../infrastructure/git/repository-identity.js';
 import { workspaceGit } from '../infrastructure/git/workspace-git.js';
+import { workspaceCheck } from '../infrastructure/git/workspace-check.js';
 import { InputError } from '../shared/errors.js';
 import { PartialError } from '../shared/context.js';
 
@@ -39,19 +40,26 @@ export function executeWorkspaceOperation(command: WorkspaceOperation, filename:
         throw new InputError('Selected root is not an associated worktree');
       }
       let mutationUnavailable: string | null = candidate.root === base.baseRoot ? 'Base checkout is read-only for commit/publish' : null;
-      try { bindings.verify({ project: command.project, baseRoot: base.baseRoot, worktreeRoot: root }); }
-      catch { mutationUnavailable = 'Selected worktree binding is unusable (for example locked, detached or prunable)'; }
+      let verification: ReturnType<ReturnType<typeof workspaceCheck>['inspect']> = { state: 'unavailable', cache: null };
+      try {
+        const binding = bindings.verify({ project: command.project, baseRoot: base.baseRoot, worktreeRoot: root });
+        if (!mutationUnavailable) verification = workspaceCheck(candidate.root, binding.id).inspect();
+      } catch { mutationUnavailable = 'Selected worktree binding is unusable (for example locked, detached or prunable)'; }
       const git = workspaceGit(candidate.root);
       let status: ReturnType<typeof git.status> | null = null, statusUnavailable: string | null = null;
       try { status = git.status(); } catch { statusUnavailable = 'Status unavailable (including unsupported configured filters)'; }
       return { project: command.project, baseRoot: base.baseRoot, worktreeRoot: candidate.root,
         branch: candidate.branch, head: candidate.head, worktrees, status, statusUnavailable,
-        operationState: git.operationState(), mutationUnavailable };
+        operationState: git.operationState(), mutationUnavailable, verification };
     }
     const binding = bindings.verify({ project: command.project, baseRoot: base.baseRoot,
       worktreeRoot: root, expectedBranch: command.branch });
     if (binding.worktreeRoot === binding.baseRoot) throw new InputError('Select a linked task worktree, not the base checkout');
     const git = workspaceGit(binding.worktreeRoot);
-    return command.name === 'workspace_commit' ? git.commit(command.paths, command.message) : git.publish(command.branch, command.remote);
+    const check = workspaceCheck(binding.worktreeRoot, binding.id);
+    if (command.name === 'workspace_verify') return check.verify();
+    if (command.name === 'workspace_commit') return git.commit(command.paths, command.message, () => check.requireCurrent());
+    check.requireCurrent(true);
+    return git.publish(command.branch, command.remote);
   } finally { app.close(); }
 }

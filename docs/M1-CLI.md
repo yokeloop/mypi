@@ -63,6 +63,7 @@ The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 ```sh
 mypi workspace prepare /clones/project--task --project org/project --base /clones/project --branch task/example --start refs/heads/main
 mypi workspace inspect /clones/project--task --project org/project --base /clones/project
+mypi workspace verify --project org/project --base /clones/project --worktree /clones/project--task --branch task/example
 mypi workspace commit src/example.ts 'test/literal[1].ts' --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --message 'Implement example'
 mypi workspace publish --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --remote origin
 ```
@@ -85,7 +86,12 @@ cannot be selected. No DB/home/request initialization occurs.
   status, known worktrees (including locked/prunable entries) and operation state.
   An unusable selected binding is marked as unsuitable for mutation; unsupported
   configured filters make status unavailable rather than executing them. This is
-  neither an ownership registry nor a lock/cleanliness guarantee.
+  neither an ownership registry nor a lock/cleanliness guarantee. Also reports
+  local verification as absent/current/stale/failed/interrupted/unavailable;
+  missing-cache reads create nothing.
+- **Verify:** requires the same linked task worktree and explicit branch as commit.
+  Runs the required project commands described below, recording actual exits.
+  Failure is an error, not a caller-supplied successful assertion.
 - **Commit:** requires an associated linked non-base worktree and its explicit
   current branch. Paths are distinct normalized relative literal **files**, not
   recursive directories/pathspecs; quote shell metacharacters. Regular files,
@@ -97,6 +103,8 @@ cannot be selected. No DB/home/request initialization occurs.
   staged object IDs/modes and working,
   untracked and ignored bytes (not byte-identical index bookkeeping). Only a real
   declared-difference observation yields a no-op. No add-all/reset/stash occurs.
+  After exact-path preflight, current successful project checks are required even
+  for a no-op; stale checks refuse before changing the index.
 - **Publish:** explicit configured remote name, one push destination, current
   branch only. URL rewrite/mirror/multiple-destination or remote-name ambiguity
   is refused. Observes the exact remote ref, then at most one non-force push of
@@ -105,6 +113,57 @@ cannot be selected. No DB/home/request initialization occurs.
   equal the target: `push:"exited-zero"` or `"failed-or-uncertain"` records the
   command outcome separately from the confirmed destination. The latter does not
   claim this process caused that state. No automatic retry, merge or rebase.
+  Current checks must cover the complete HEAD content: a checked working snapshot
+  with uncommitted companions cannot certify that partial HEAD. The helper stops
+  without staging/discarding those companions or rerunning commands.
+
+### Project checks and convenience freshness
+
+The project owns a root `.mypi-checks.json`, not registry fields or a flow DSL:
+
+```json
+{"version":1,"commands":[{"argv":["mise","exec","--","pnpm","build"]},{"argv":["mise","exec","--","pnpm","verify"]}]}
+```
+
+These are mypi's existing mandatory build/verify commands, retaining their current
+runner, admission, isolation and external deadlines; the adapter does not replace
+build-state checks. Other projects prescribe their own commands. Missing/invalid
+configuration is unavailable, never a permissive default. Initially **stage** the
+reviewed project-owned configuration (or commit it through ordinary Git); an
+untracked configuration is not implicitly adopted. No caller can supply commands
+or a green flag to `workspace verify`. Version 1 accepts only `version` and a
+nonempty `commands` array (at most 8), each containing only `argv` (1–64 arguments,
+at most 4096 characters each; nonempty executable, no NUL).
+
+Commands run sequentially with the canonical worktree as cwd, inherited process
+environment, no shell interpolation, closed stdin, at most 1 MiB captured output
+and 60 seconds per command. Only argv/exit/outcome are retained, not stdout/stderr
+or environment values. The adapter is not a sandbox or descendant supervisor;
+project commands remain responsible for their prescribed environment and bounds.
+Inherited external environment, installed toolchain and ignored dependency/output
+changes are **not attested**: explicitly reverify after relevant changes there.
+No native UI/provider acceptance is inferred from these command results.
+
+A bounded inventory observes all HEAD/index regular files and all nonignored
+untracked files, including config/lock/new files, their bytes and Git-representable
+executable mode. Deleted files normalize to absence; commit ID and index staging
+are not the content identity. Thus an exact content-equivalent commit reuses the
+successful precommit result, without another suite or empty commit. This is a
+conservative whole-content check, not dependency analysis. Ignored generated files
+are excluded. Symlink/special/submodule content, conflicts, index hidden-file flags,
+configured executable filters, failed observations, over 10000 paths, over 8 MiB
+per file or over 64 MiB working bytes make checks unavailable. Git inventory output
+is also bounded to 1 MiB. Byte-transforming Git attributes can make HEAD differ
+from working bytes and require explicit reconciliation rather than a false match.
+
+The replaceable `mypi-workspace-check.json` lives at Git's resolved **per-worktree**
+metadata path, not in source/home Git or a new evidence DB. It records binding,
+content digest, attempt time and actual command outcomes. An admitted verify writes
+`running` before observing/executing checks, replacing prior green; interruption
+leaves an interrupted attempt, nonzero checks fail, and content changed during
+checks is unavailable. Returning to old bytes after a failed attempt does not
+revive green. This local cache is neither signed attestation nor permission to
+publish/merge, nor a writer lock. Direct shell/Git bypass remains possible.
 
 Helpers disable hooks, fsmonitor, signing and recursive submodule operations.
 Prepare/commit refuse configured executable Git filters; ordinary text/encoding

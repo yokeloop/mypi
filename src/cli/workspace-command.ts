@@ -17,6 +17,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'session archive': [1, 1, ['project'], ['all']],
   'workspace prepare': [1, 1, ['project', 'base', 'branch', 'start'], []],
   'workspace inspect': [0, 1, ['project', 'base'], []],
+  'workspace verify': [0, 0, ['project', 'base', 'worktree', 'branch'], []],
   'workspace commit': [1, Infinity, ['project', 'base', 'worktree', 'branch', 'message'], []],
   'workspace publish': [0, 0, ['project', 'base', 'worktree', 'branch', 'remote'], []],
   'policy validate': [0, 1, ['file'], []],

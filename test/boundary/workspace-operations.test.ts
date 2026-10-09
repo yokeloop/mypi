@@ -23,13 +23,21 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
     assert.equal(result.status, 0, result.error?.message ?? result.stderr);
     return result.stdout;
   }
+  const configText = JSON.stringify({ version: 1, commands: [{ argv: [process.execPath, 'check.cjs'] }] });
   for (const root of [installed, base]) {
     mkdirSync(root);
     git(root, 'init', '--quiet', '--initial-branch=main');
     git(root, 'config', 'user.name', 'Fixture'); git(root, 'config', 'user.email', 'fixture@localhost');
     for (const name of ['changed.txt', 'deleted.txt', 'unrelated.txt', 'ambiguous.txt']) writeFileSync(join(root, name), 'original\n');
-    writeFileSync(join(root, '.gitignore'), 'ignored.txt\n');
-    git(root, 'add', '.gitignore', 'changed.txt', 'deleted.txt', 'unrelated.txt', 'ambiguous.txt');
+    writeFileSync(join(root, '.gitignore'), 'ignored.txt\ncheck-output.json\n');
+    writeFileSync(join(root, 'fixture.lock'), 'locked\n');
+    writeFileSync(join(root, 'check.cjs'), `const fs = require('node:fs');
+const text = fs.readFileSync('changed.txt', 'utf8');
+fs.writeFileSync('check-output.json', JSON.stringify({ text, exitCode: text === 'FAIL' ? 7 : 0 }));
+if (text === 'MUTATE') fs.writeFileSync('changed.txt', 'changed during check');
+process.exitCode = text === 'FAIL' ? 7 : 0;
+`);
+    git(root, 'add', '.gitignore', 'fixture.lock', 'check.cjs', 'changed.txt', 'deleted.txt', 'unrelated.txt', 'ambiguous.txt');
     git(root, 'commit', '--quiet', '-m', 'fixture');
   }
   mkdirSync(join(installed, 'projects'));
@@ -63,6 +71,18 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   assert.equal(readFileSync(join(base, 'changed.txt'), 'utf8'), 'dirty base remains\n');
   assert.equal(readFileSync(join(task, 'changed.txt'), 'utf8'), 'original\n');
   const inspect = () => executeWorkspaceOperation({ name: 'workspace_inspect', ...selection }, filename, installed);
+  const verify = () => executeWorkspaceOperation({ name: 'workspace_verify', ...selection }, filename, installed);
+  const cachePath = git(task, 'rev-parse', '--path-format=absolute', '--git-path', 'mypi-workspace-check.json').trim();
+  const checkState = () => {
+    const result = inspect();
+    assert('verification' in result);
+    return result.verification.state;
+  };
+  assert.equal(checkState(), 'absent'); assert(!existsSync(cachePath), 'inspection does not initialize cache');
+  assert.throws(verify, /stage the project-owned/);
+  writeFileSync(join(task, '.mypi-checks.json'), configText);
+  assert.throws(verify, /stage the project-owned/, 'untracked configuration is not silently adopted');
+  git(task, 'add', '.mypi-checks.json'); // Explicit initial project-owned configuration adoption.
   git(base, 'worktree', 'lock', task);
   const locked = inspect();
   assert('mutationUnavailable' in locked && locked.mutationUnavailable);
@@ -97,11 +117,43 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   git(task, 'add', 'deleted.txt'); // A declared already-staged deletion must work too.
   writeFileSync(join(task, 'literal[1].txt'), 'literal new file\n');
   writeFileSync(join(task, 'literal1.txt'), 'not a pathspec match\n');
-  const result = executeWorkspaceOperation({ ...commit, paths: ['changed.txt', 'deleted.txt', 'literal[1].txt'] }, filename, installed);
+  const exact = { ...commit, paths: ['.mypi-checks.json', 'changed.txt', 'deleted.txt', 'literal[1].txt'] };
+  const beforeCheckIndex = git(task, 'ls-files', '--stage');
+  assert.throws(() => executeWorkspaceOperation(exact, filename, installed), /Checked material unavailable/);
+  assert.equal(git(task, 'ls-files', '--stage'), beforeCheckIndex);
+  assert.throws(() => executeWorkspaceOperation({ name: 'workspace_verify', ...selection, branch: 'wrong' }, filename, installed), /binding unavailable/);
+  verify();
+  assert.equal(checkState(), 'current');
+  assert.deepEqual(JSON.parse(readFileSync(join(task, 'check-output.json'), 'utf8')), { text: 'changed\n', exitCode: 0 });
+  const passedCache = JSON.parse(readFileSync(cachePath, 'utf8'));
+  assert.equal(passedCache.state, 'passed'); assert.equal(passedCache.outcomes[0].exitCode, 0);
+  for (const path of ['fixture.lock', '.mypi-checks.json', 'literal[1].txt']) {
+    const before = readFileSync(join(task, path));
+    writeFileSync(join(task, path), Buffer.concat([before, Buffer.from('\n')]));
+    assert.equal(checkState(), 'stale', path);
+    assert.throws(() => executeWorkspaceOperation({ ...commit, paths: ['changed.txt'] }, filename, installed), /Checked material stale/);
+    assert.equal(git(task, 'ls-files', '--stage'), beforeCheckIndex);
+    writeFileSync(join(task, path), before);
+  }
+  writeFileSync(join(task, 'new-after-check.txt'), 'new'); assert.equal(checkState(), 'stale');
+  rmSync(join(task, 'new-after-check.txt'));
+  writeFileSync(join(task, 'changed.txt'), 'FAIL');
+  assert.throws(verify, /check failed/);
+  assert.deepEqual(JSON.parse(readFileSync(join(task, 'check-output.json'), 'utf8')), { text: 'FAIL', exitCode: 7 });
+  assert.equal(JSON.parse(readFileSync(cachePath, 'utf8')).outcomes[0].exitCode, 7);
+  writeFileSync(join(task, 'changed.txt'), 'changed\n');
+  assert.equal(checkState(), 'failed', 'restoring old content cannot revive a failed attempt');
+  writeFileSync(join(task, 'changed.txt'), 'MUTATE');
+  assert.throws(verify, /changed during verification/);
+  assert.equal(readFileSync(join(task, 'changed.txt'), 'utf8'), 'changed during check');
+  assert.equal(JSON.parse(readFileSync(cachePath, 'utf8')).state, 'unavailable');
+  writeFileSync(join(task, 'changed.txt'), 'changed\n'); verify();
+  const successfulAttempt = readFileSync(cachePath, 'utf8');
+  const result = executeWorkspaceOperation(exact, filename, installed);
   assert('changed' in result && result.changed);
-  const head = git(task, 'rev-parse', 'HEAD').trim();
+  let head = git(task, 'rev-parse', 'HEAD').trim();
   assert.deepEqual(git(task, 'diff-tree', '--no-commit-id', '--name-only', '-r', 'HEAD').trim().split('\n'),
-    ['changed.txt', 'deleted.txt', 'literal[1].txt']);
+    ['.mypi-checks.json', 'changed.txt', 'deleted.txt', 'literal[1].txt']);
   assert.equal(git(task, 'show', 'HEAD:changed.txt'), 'changed\n');
   assert.equal(git(task, 'show', 'HEAD:literal[1].txt'), 'literal new file\n');
   assert.equal(git(task, 'ls-files', '--stage', 'unrelated.txt'), unrelatedIndex);
@@ -111,7 +163,21 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   }
   const noop = executeWorkspaceOperation({ ...commit, paths: ['changed.txt'] }, filename, installed);
   assert('changed' in noop && !noop.changed);
+  assert.equal(checkState(), 'current');
+  assert.equal(readFileSync(cachePath, 'utf8'), successfulAttempt, 'exact commit/noop reuse checked bytes, no rerun');
   const publish = { name: 'workspace_publish' as const, ...selection, remote: 'origin' };
+  assert.throws(() => executeWorkspaceOperation(publish, filename, installed), /uncommitted companion content/);
+  assert.equal(git(bare, 'for-each-ref', '--format=%(refname)'), '');
+  assert.equal(git(task, 'ls-files', '--stage', 'unrelated.txt'), unrelatedIndex);
+  // Only the fixture operator reconciles its intentionally ambiguous index, without changing bytes.
+  git(task, 'add', 'ambiguous.txt', 'unrelated.txt');
+  const companions = ['ambiguous.txt', 'unrelated.txt', 'untracked.txt', 'literal1.txt'];
+  executeWorkspaceOperation({ ...commit, paths: companions }, filename, installed);
+  assert.equal(git(task, 'show', 'HEAD:unrelated.txt'), 'working unrelated\n');
+  assert.equal(git(task, 'show', 'HEAD:untracked.txt'), 'untracked bytes\n');
+  assert.equal(readFileSync(join(task, 'ignored.txt'), 'utf8'), 'ignored bytes\n');
+  assert.equal(readFileSync(cachePath, 'utf8'), successfulAttempt, 'full content-equivalent commit still reuses checks');
+  head = git(task, 'rev-parse', 'HEAD').trim();
   git(base, 'remote', 'add', 'ambiguous', 'origin');
   assert.throws(() => executeWorkspaceOperation({ ...publish, remote: 'ambiguous' }, filename, installed), /ambiguous with a configured remote name/);
   assert.equal(git(bare, 'for-each-ref', '--format=%(refname)'), '');
@@ -125,6 +191,11 @@ test('workspace helpers preserve unrelated materials through prepare, exact comm
   git(base, 'branch', 'remote-ahead', head);
   const remoteTask = join(dir, 'remote-task');
   git(base, 'worktree', 'add', '--quiet', remoteTask, 'remote-ahead');
+  const otherCache = git(remoteTask, 'rev-parse', '--path-format=absolute', '--git-path', 'mypi-workspace-check.json').trim();
+  assert.notEqual(otherCache, cachePath); assert(!existsSync(otherCache));
+  executeWorkspaceOperation({ name: 'workspace_verify', ...selection, worktreeRoot: remoteTask, branch: 'remote-ahead' }, filename, installed);
+  assert.equal(JSON.parse(readFileSync(otherCache, 'utf8')).state, 'passed');
+  assert.equal(readFileSync(cachePath, 'utf8'), successfulAttempt, 'linked worktrees have independent caches');
   git(remoteTask, 'commit', '--quiet', '--allow-empty', '-m', 'remote advances');
   git(remoteTask, 'push', '--quiet', 'origin', 'HEAD:refs/heads/task/exact');
   const advanced = git(bare, 'rev-parse', 'refs/heads/task/exact').trim();

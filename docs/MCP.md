@@ -126,7 +126,7 @@ it does not exclude another explicit current member.
 | `journal_read` | Same defaults and membership; global/own parent-org reads allowed. Explicit `all` is deliberately unguarded, not silently narrowed. |
 | `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
 | `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
-| `error_add`, `workspace_prepare/inspect/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
+| `error_add`, `workspace_prepare/inspect/verify/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
 | `session_list/show/archive` | Selected-project default or explicit operator project/all observation filter; no registry membership lookup or ACL. |
 | `home_document_patch`, `home_status`, `home_reconcile` | Explicit home-wide operator routes outside project membership/default guards; no inferred project or project-scoped authority. |
 | `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
@@ -179,12 +179,13 @@ These hints and descriptions are not authorization or runtime activation.
 
 ## Explicit workspace tools
 
-The four tools share [CLI semantics and partial-outcome rules](M1-CLI.md#explicit-git-workspace-helpers):
+The five tools share [CLI semantics and partial-outcome rules](M1-CLI.md#explicit-git-workspace-helpers):
 
 | Tool | Arguments (all required except `?`) |
 | --- | --- |
 | `workspace_prepare` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `startPoint` |
 | `workspace_inspect` | `project`, `baseRoot?`, `worktreeRoot?` |
+| `workspace_verify` | `project`, `baseRoot?`, `worktreeRoot`, `branch` |
 | `workspace_commit` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `paths: string[]`, `message` |
 | `workspace_publish` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `remote` |
 

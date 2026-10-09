@@ -4,6 +4,7 @@ interface WorkspaceSelection { project: string; baseRoot?: string }
 export type WorkspaceOperation =
   | (WorkspaceSelection & { name: 'workspace_prepare'; worktreeRoot: string; branch: string; startPoint: string })
   | (WorkspaceSelection & { name: 'workspace_inspect'; worktreeRoot?: string })
+  | (WorkspaceSelection & { name: 'workspace_verify'; worktreeRoot: string; branch: string })
   | (WorkspaceSelection & { name: 'workspace_commit'; worktreeRoot: string; branch: string; paths: string[]; message: string })
   | (WorkspaceSelection & { name: 'workspace_publish'; worktreeRoot: string; branch: string; remote: string });
 

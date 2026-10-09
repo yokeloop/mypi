@@ -43,6 +43,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' | 'se
     case 'session archive': return { name: 'session_archive', instanceKey: a[0]!, ...sessions() };
     case 'workspace prepare': return { name: 'workspace_prepare', ...workspace(), worktreeRoot: a[0]!, branch: required('branch'), startPoint: required('start') };
     case 'workspace inspect': return { name: 'workspace_inspect', ...workspace(), ...(a[0] === undefined ? {} : { worktreeRoot: a[0] }) };
+    case 'workspace verify': return { name: 'workspace_verify', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch') };
     case 'workspace commit': return { name: 'workspace_commit', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch'), paths: a, message: required('message') };
     case 'workspace publish': return { name: 'workspace_publish', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch'), remote: required('remote') };
     case 'policy validate': return { name: 'policy_validate', text: policyText(0) };

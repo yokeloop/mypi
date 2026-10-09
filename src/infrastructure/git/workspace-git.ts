@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, lstatSync, realpathSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, realpathSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 import { InputError } from '../../shared/errors.js';
 import { PartialError } from '../../shared/context.js';
@@ -46,8 +47,55 @@ export function workspaceGit(root: string) {
     return ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_START', 'rebase-merge', 'rebase-apply', 'sequencer']
       .filter(name => existsSync(git(['rev-parse', '--path-format=absolute', '--git-path', name]).trim()));
   }
+  function checkedContent() {
+    noFilters();
+    if (operationState().length || git(['ls-files', '--unmerged', '-z'])) throw new InputError('Checked material unavailable: Git operation/conflicts');
+    if (git(['ls-files', '-v', '-z']).split('\0').some(entry => /^[a-zS] /.test(entry))) {
+      throw new InputError('Checked material unavailable: assume-unchanged or skip-worktree flags');
+    }
+    const tree = git(['ls-tree', '-r', '-z', 'HEAD']).split('\0').filter(Boolean);
+    const index = git(['ls-files', '--stage', '-z']).split('\0').filter(Boolean);
+    const committed = new Map<string, [string, string]>();
+    const paths = new Set<string>();
+    for (const entries of [tree, index]) for (const entry of entries) {
+      const tab = entry.indexOf('\t'), fields = entry.slice(0, tab).split(' '), path = entry.slice(tab + 1);
+      if (!['100644', '100755'].includes(fields[0]!)) throw new InputError('Checked material unavailable: only regular files supported');
+      paths.add(path);
+      if (entries === tree) committed.set(path, [fields[0]!, fields[2]!]);
+    }
+    const tracked = new Set(paths);
+    for (const path of git(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) paths.add(path);
+    if (paths.size > 10000) throw new InputError('Checked material unavailable: inventory exceeds 10000 paths');
+    const format = git(['rev-parse', '--show-object-format']).trim();
+    if (!['sha1', 'sha256'].includes(format)) throw new InputError('Checked material unavailable: object format');
+    let bytes = 0;
+    const working = new Map<string, [string, string]>();
+    for (const path of [...paths].sort()) {
+      const segments = path.split('/');
+      if (path.includes('\ufffd') || segments.some(part => !part || part === '.' || part === '..' || part.toLowerCase() === '.git')) throw new InputError('Checked material unavailable: path');
+      try {
+        for (let i = 1; i < segments.length; i++) {
+          if (!lstatSync(join(root, ...segments.slice(0, i))).isDirectory()) throw new InputError('Checked material unavailable: non-directory component');
+        }
+        const file = join(root, path), stat = lstatSync(file);
+        if (!stat.isFile() || stat.size > 8 * 1024 * 1024 || (bytes += stat.size) > 64 * 1024 * 1024) {
+          throw new InputError('Checked material unavailable: file kind or byte limit');
+        }
+        const content = readFileSync(file);
+        if (content.length !== stat.size) throw new InputError('Checked material changed during observation');
+        const oid = createHash(format).update('blob ' + content.length + '\0').update(content).digest('hex');
+        working.set(path, [stat.mode & 0o100 ? '100755' : '100644', oid]);
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT' || !tracked.has(path)) throw error;
+      }
+    }
+    const digest = (files: Map<string, [string, string]>) => createHash('sha256')
+      .update(JSON.stringify([...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0))).digest('hex');
+    return { content: digest(working), headContent: digest(committed), tracked };
+  }
   return {
-    head, status, operationState,
+    head, status, operationState, checkedContent,
+    checkCachePath: () => git(['rev-parse', '--path-format=absolute', '--git-path', 'mypi-workspace-check.json']).trim(),
     prepare(target: string, name: string, startPoint: string, knownRoots: readonly (string | null)[]) {
       noFilters(); branch(name);
       if (startPoint.startsWith('refs/')) git(['check-ref-format', startPoint]);
@@ -71,7 +119,7 @@ export function workspaceGit(root: string) {
       }
       return { status: 'ok' as const, worktreeRoot: path, branch: name, start, head: start };
     },
-    commit(paths: string[], message: string) {
+    commit(paths: string[], message: string, requireCurrentCheck: () => void) {
       noFilters();
       if (operationState().length || git(['ls-files', '--unmerged', '-z'])) throw new InputError('Resolve existing Git operation/conflicts before committing');
       // -v lowercases assume-unchanged entries; S marks skip-worktree. Neither
@@ -110,6 +158,7 @@ export function workspaceGit(root: string) {
         if (staged && git(['diff', '--name-only', '-z', '--', path])) throw new InputError('Declared staged content differs from working file; reconcile explicitly');
         if (staged && !indexed.has(path) && !missing) throw new InputError('Declared staged deletion has a working replacement; reconcile explicitly');
       }
+      requireCurrentCheck();
       const before = head();
       if (!status().some(entry => paths.includes(entry.path))) return { status: 'ok' as const, before, head: before, changed: false, paths };
       try {
