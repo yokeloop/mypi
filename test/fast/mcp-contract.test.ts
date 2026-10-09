@@ -38,11 +38,14 @@ const examples: [string, Record<string, unknown>][] = [
   ['workspace_inspect', { project: 'one/project' }],
   ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: ['literal[1].txt'], message: 'exact' }],
   ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin' }],
+  ['session_list', { project: 'one/project', includeArchived: true }],
+  ['session_show', { instanceKey: '11111111-1111-4111-8111-111111111111', all: true }],
+  ['session_archive', { instanceKey: '11111111-1111-4111-8111-111111111111', project: 'one/project' }],
   ['policy_validate', { text: 'version: 2' }],
   ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('40 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 40);
+test('43 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 43);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -64,6 +67,9 @@ test('40 independent tool examples retain every field; strict schemas reject unk
     ['home_document_patch', { path: 'doc.md', expected: null, text: 'not creation' }],
     ['home_document_patch', { path: 'doc.md', expected: 'A'.repeat(64), text: '' }],
     ['home_document_patch', { path: 'doc.md', expected: 'abc', text: '' }],
+    ['session_list', { project: 'one/project', all: true }], ['session_list', { project: 'MP' }],
+    ['session_show', { instanceKey: '../escape', all: true }],
+    ['session_archive', { instanceKey: '11111111-1111-4111-8111-111111111111', includeArchived: true }],
     ['home_status', { path: 'doc.md' }], ['home_reconcile', { replay: true }],
     ['policy_validate', { file: '/tmp/policy.yaml' }],
     ['policy_explain', { guard: 'unknown' }],
@@ -80,6 +86,9 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     return appCommand(parsed);
   };
   for (const [argv, name] of [
+    [['session', 'list', '--project', 'one/project', '--archived'], 'session_list'],
+    [['session', 'show', '11111111-1111-4111-8111-111111111111', '--all'], 'session_show'],
+    [['session', 'archive', '11111111-1111-4111-8111-111111111111', '--project', 'one/project'], 'session_archive'],
     [['workspace', 'prepare', '/task', '--project', 'one/project', '--base', '/base', '--branch', 'task/one', '--start', 'refs/heads/main'], 'workspace_prepare'],
     [['workspace', 'inspect', '--project', 'one/project'], 'workspace_inspect'],
     [['workspace', 'commit', 'literal[1].txt', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--message', 'exact'], 'workspace_commit'],
@@ -100,6 +109,13 @@ test('CLI preserves text and omissions while explicit MCP scope/project remain r
     const command = toolCommand(name, args);
     assert.deepEqual(command, expected);
     assert.equal(hasMembershipGuard(command), false, 'explicit home-wide operator route, no project default');
+  }
+  assert.deepEqual(translate(['session', 'list']), { name: 'session_list' });
+  assert.deepEqual(toolCommand('session_list', {}), { name: 'session_list' });
+  assert.throws(() => translate(['session', 'list', '--project', 'one/project', '--all']), /mutually exclusive/);
+  assert.throws(() => translate(['session', 'show', '11111111-1111-4111-8111-111111111111', '--archived']));
+  for (const [name, args] of examples.filter(([name]) => name.startsWith('session_'))) {
+    assert.equal(hasMembershipGuard(toolCommand(name, args)), false, 'cache filters require no registry/ACL');
   }
   assert.throws(() => translate(['home', 'document-patch', 'doc.md', 'text']), /--expected required/);
   assert.throws(() => translate(['home', 'document-patch', 'doc.md', '--expected', 'a'.repeat(64)]), /argument count/);

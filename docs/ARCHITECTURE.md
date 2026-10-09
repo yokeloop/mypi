@@ -25,8 +25,10 @@ workflow has been withdrawn; existing cards, immutable sources and storage/API
 contracts, including nullable project_id, are unchanged.
 
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
-agent permissions, task execution queue, session catalog, multi-device and network
-sync are not implemented. Current scope is data selection, not a security perimeter.
+agent permissions, task execution queue, authoritative session catalog, multi-device and network
+sync are not implemented. A bounded [session observation cache](SESSION-CARDS.md)
+provides project/default or explicit operator list/show/archive views without
+storing native history or claiming process ownership. Current scope is data selection, not a security perimeter.
 The [cooperative policy core](SCOPED-POLICY-CORE.md) adds strict YAML v2 validation,
 ordinary project/organization/unrestricted working context, verified repository
 association and shared validate/explain diagnostics. Its MP-9 consumers implement
@@ -46,6 +48,7 @@ src/
 ├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
+│   ├── session-cards/   # pure observation transitions and age, not runtime ownership
 │   ├── work-context/    # pure working selection and warn/block guard settings
 │   ├── projects/        # registry, identity, checkout, scope and repository evidence
 │   ├── requests/        # cards, numbering, status dictionary

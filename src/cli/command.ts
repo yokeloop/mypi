@@ -32,6 +32,8 @@ mypi workspace prepare <path> --project org/project [--base clone] --branch task
 mypi workspace inspect [path] --project org/project [--base clone]
 mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
+mypi session list [--project org/project | --all] [--archived]
+mypi session show <instance-key> | archive <instance-key> [--project org/project | --all]
 mypi home document-patch <path> <text> --expected SHA256
 mypi home status | reconcile
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
@@ -43,7 +45,9 @@ Policy commands are diagnostics, not policy installation.
 Supported contextual operations use cooperative guards; working context is not an ACL.
 Data commands return JSON. pi inherits native terminal IO and exit status (native help: pi -- --help).
 Project --cwd must be an existing checkout/worktree root; --base requires --project.
-Set XDG_STATE_HOME to isolated state for development.
+Session commands default to the selected project; otherwise choose --project or --all.
+Session cards are observations, not transcripts or process-death evidence.
+Set XDG_STATE_HOME to isolated state for development; MYPI_SESSION_DIR overrides the session cache.
 `;
 
 export function parseCommand(args: string[]): Command {

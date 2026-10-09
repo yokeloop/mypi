@@ -43,7 +43,16 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 40);
+  assert.equal(listed.length, 43);
+  for (const name of ['session_list', 'session_show', 'session_archive']) {
+    const annotations = listed.find(tool => tool.name === name)!.annotations!;
+    assert.equal(annotations.readOnlyHint, name !== 'session_archive');
+    assert.equal(annotations.idempotentHint, true);
+    assert.equal(annotations.destructiveHint, false);
+    assert.equal(annotations.openWorldHint, false);
+  }
+  assert.deepEqual(await call('session_list', { all: true }), { sessions: [], issues: [], truncated: false });
+  assert.deepEqual(await call('session_show', { all: true, instanceKey: '11111111-1111-4111-8111-111111111111' }), { session: null, issue: 'missing' });
   for (const name of ['home_document_patch', 'home_status', 'home_reconcile']) {
     const annotations = listed.find(tool => tool.name === name)!.annotations!;
     assert.equal(annotations.openWorldHint, true);
@@ -112,7 +121,8 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal((await call('memory_show', { scope: { type: 'global' } })).items[1].text, 'warned global fact');
   await warningClient.close();
   const badPolicy = (await connect(root, { ...contextEnv, MYPI_GUARD_POLICY: selectedPolicy })).client;
-  assert.equal((await badPolicy.listTools()).tools.length, 40);
+  assert.equal((await badPolicy.listTools()).tools.length, 43);
+  assert.deepEqual(await call('session_list', {}, badPolicy), { sessions: [], issues: [], truncated: false }, 'cache routes bypass registry/policy membership');
   assert((await call('status_list', {}, badPolicy)).length > 0);
   const invalidPolicy = await badPolicy.callTool({ name: 'project_list', arguments: {} });
   assert.equal(invalidPolicy.isError, true);

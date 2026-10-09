@@ -6,7 +6,7 @@ import { loadSelectedGuardPolicy } from '../app/guard-policy-config.js';
 import type { WorkContext } from '../app/commands.js';
 import { tools, toolCommand, readOnly } from './tools.js';
 import type { ToolName } from './tools.js';
-import { output } from './schemas.js';
+import { sessionOutputSchema, sessionResultSchema } from './tools/sessions.js';
 import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 
@@ -22,15 +22,19 @@ export function createServer(filename: string, root?: string, context?: WorkCont
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
       const command = toolCommand(name, args);
-      return await calls.run(signal, async () => success(await executeCommand(command, filename, root, context, policy)));
+      return await calls.run(signal, async () => {
+        const data = await executeCommand(command, filename, root, context, policy);
+        const schema = sessionResultSchema(name);
+        return success(schema ? schema.parse(data) : data);
+      });
     } catch (error) { return failure(error); }
   }
   for (const name of Object.keys(tools) as ToolName[]) {
     const tool = tools[name], readonly = readOnly.has(name);
     server.registerTool(name, {
-      description: tool.description, inputSchema: tool.schema, outputSchema: output,
-      annotations: { readOnlyHint: readonly, destructiveHint: !readonly,
-        idempotentHint: readonly, openWorldHint: name === 'workspace_publish' || name === 'home_status' || name === 'home_reconcile' || isManagedHomeCommand(name) },
+      description: tool.description, inputSchema: tool.schema, outputSchema: sessionOutputSchema(name),
+      annotations: { readOnlyHint: readonly, destructiveHint: !readonly && name !== 'session_archive',
+        idempotentHint: readonly || name === 'session_archive', openWorldHint: name === 'workspace_publish' || name === 'home_status' || name === 'home_reconcile' || isManagedHomeCommand(name) },
     }, (args: unknown, extra: { signal: AbortSignal }) => invoke(name, args, extra.signal));
   }
   // McpServer's default call handler emits text-only validation errors. Keep SDK framing,
