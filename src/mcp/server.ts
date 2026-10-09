@@ -1,15 +1,15 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { executeCommand } from '../app/execute-command.js';
-import type { TrustedExecutionContext } from '../app/execution-context.js';
+import type { WorkContext } from '../app/commands.js';
 import { tools, toolCommand, readOnly } from './tools.js';
 import type { ToolName } from './tools.js';
 import { output } from './schemas.js';
 import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 
-// Only the trusted host may inject context; tool arguments never select a caller.
-export function createServer(filename: string, root?: string, context?: TrustedExecutionContext) {
+// Composition supplies the working selection; tool arguments remain ordinary data.
+export function createServer(filename: string, root?: string, context?: WorkContext) {
   const server = new McpServer({ name: 'mypi', version: '0.2.1' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {

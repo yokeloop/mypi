@@ -1,19 +1,7 @@
-# Inert validation/preview example. This file is not installed or activated.
-version: 1
-defaults:
-  allow: [data.read, filesystem.read, workspace.inspect, policy.validate, policy.explain]
-profiles:
-  standard:
-    isolation: none
-  isolated:
-    isolation: required
-overrides:
-  organizations:
-    example:
-      allow: [data.read, filesystem.read, workspace.inspect, policy.validate, policy.explain]
-  projects:
-    example/demo:
-      allow: [data.read, policy.validate, policy.explain]
-repositories:
-  example/demo:
-    root: /srv/mypi-projects/example/demo
+# Cooperative guard settings, not OS isolation or active routing (MP-9 is pending).
+# Validate/explain only; no automatic installation or migration.
+version: 2
+guards:
+  outsideWorktreeWrite: block
+  baseCheckoutWrite: block
+  foreignMypiTarget: block

@@ -1,5 +1,5 @@
 import type { AppCommand } from './commands.js';
-import type { TrustedExecutionContext } from './execution-context.js';
+import type { WorkContext } from '../modules/work-context/public.js';
 import { executePolicyCommand } from './policy-commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
@@ -9,11 +9,10 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
-// Context is an out-of-band trusted composition input, never part of AppCommand.
-export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: TrustedExecutionContext): Promise<unknown> {
-  if (c.name === 'policy_validate' || c.name === 'policy_explain' || c.name === 'policy_preview') return executePolicyCommand(c, context);
-  if (context !== undefined) throw new InputError('Scoped command dispatch unavailable until resource enforcement is implemented (MP-9)');
-  // Legacy no-context operations below are UNPROTECTED, not implicitly unrestricted grants.
+// WorkContext is an out-of-band working selection, not authentication.
+// MP-9 adds supported guard routing; ordinary operations are unchanged here.
+export async function executeCommand(c: AppCommand, filename: string, root?: string, _context?: WorkContext): Promise<unknown> {
+  if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
