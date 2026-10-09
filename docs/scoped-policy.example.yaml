@@ -1,5 +1,6 @@
-# Cooperative guard settings, not OS isolation or active routing (MP-9 is pending).
-# Validate/explain only; no automatic installation or migration.
+# Inert cooperative guard configuration example, not OS isolation.
+# Existing consumers use it only when explicitly selected via MYPI_GUARD_POLICY.
+# No automatic installation or migration.
 version: 2
 guards:
   outsideWorktreeWrite: block
