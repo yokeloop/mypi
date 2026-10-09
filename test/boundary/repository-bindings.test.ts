@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { createRepositoryBindings } from '../../src/app/repository-bindings.js';
+import { observeWriteWorkspace } from '../../src/app/write-workspace-observation.js';
 import { preparePiLaunch } from '../../src/app/pi-launcher.js';
 import { state } from '../support/state.js';
 
@@ -67,6 +68,10 @@ test('repository bindings use independent canonical identity, exact worktree mem
   }
   const before = files(installed);
   const refs = [installed, base, foreign].map(root => git(root, 'show-ref'));
+  assert.deepEqual(observeWriteWorkspace(task), { selectedRoot: task, baseRoot: base, selectedIsBase: false });
+  assert.deepEqual(observeWriteWorkspace(base), { selectedRoot: base, baseRoot: base, selectedIsBase: true });
+  assert.deepEqual(observeWriteWorkspace(alias), { selectedRoot: base, baseRoot: base, selectedIsBase: true });
+  assert.throws(() => observeWriteWorkspace(join(base, 'vendor')), /Repository evidence unavailable/);
   const binding = bindings.verify(input);
   assert.equal(binding.project, 'one/project');
   assert.equal(binding.baseRoot, base);
@@ -103,11 +108,13 @@ test('repository bindings use independent canonical identity, exact worktree mem
 
   git(base, 'worktree', 'lock', task);
   const locked = files(installed);
+  assert.throws(() => observeWriteWorkspace(task), /Selected worktree observation unavailable/);
   assert.throws(() => bindings.verify(input), /Repository binding unavailable/);
   assert.deepEqual(files(installed), locked);
   git(base, 'worktree', 'unlock', task);
   git(task, 'checkout', '--quiet', '--detach');
   const detached = files(installed);
+  assert.throws(() => observeWriteWorkspace(task), /Selected worktree observation unavailable/);
   assert.throws(() => bindings.verify({ project: input.project, baseRoot: base, worktreeRoot: task }), /Repository binding unavailable/);
   assert.deepEqual(files(installed), detached);
 });
