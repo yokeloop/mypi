@@ -1,3 +1,4 @@
+import { observeHerdr } from '../../src/app/herdr-observation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
@@ -46,11 +47,19 @@ test('session-cards clock table preserves observed transitions, exact age bounda
   assert.deepEqual(parseSessionCard(plain, key), plain);
   for (const change of [{ version: 2 }, { instanceKey: 'another' }, { nativeSessionId: '' }, { cwd: 'relative' },
     { state: ['running'] }, { state: 'dead' }, { lastSeen: -1 }, { startedAt: 1.5 }, { pid: 0 },
-    { nativeSessionFile: '../history' }, { title: null }, { herdrTabId: '' }, { extra: true },
+    { nativeSessionFile: '../history' }, { title: null }, { herdrTabId: '' }, { herdrPaneId: '-bad' }, { herdrSocketPath: 'relative' }, { extra: true },
     { context: { scope: { kind: 'project', project: 'two/project' }, selectedProject: 'one/project' } },
   ]) assert.equal(parseSessionCard({ ...plain, ...change }, key), undefined, JSON.stringify(change));
   assert.equal(parseSessionCard(plain, '../escape'), undefined);
-  const view = sessionView(plain, false, 1000);
+  const hints = observeHerdr({ HERDR_ENV: '1', HERDR_SOCKET_PATH: '/runtime/server.sock', HERDR_PANE_ID: 'opaque:pane',
+    HERDR_TAB_ID: 'opaque:tab', HERDR_WORKSPACE_ID: 'opaque:workspace' });
+  assert.deepEqual(hints, { herdrSocketPath: '/runtime/server.sock', herdrPaneId: 'opaque:pane', herdrTabId: 'opaque:tab' });
+  assert.equal(observeHerdr({ HERDR_ENV: '0' }), undefined);
+  assert.equal(observeHerdr({ HERDR_ENV: '1', HERDR_SOCKET_PATH: '/runtime/server.sock' }), undefined);
+  const withHints = { ...plain, ...hints };
+  assert.deepEqual(parseSessionCard(withHints, key), withHints);
+  assert.deepEqual(parseSessionCard({ ...plain, herdrTabId: 'legacy-tab' }, key), { ...plain, herdrTabId: 'legacy-tab' });
+  const view = sessionView(withHints, false, 1000);
   for (const [schema, result] of [
     [sessionResults.session_list, { sessions: [view], issues: [], truncated: false }],
     [sessionResults.session_show, { session: view }],

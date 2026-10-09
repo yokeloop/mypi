@@ -1,3 +1,5 @@
+import { parseSessionControl } from './session-control-command.js';
+import type { SessionControlCommand } from './session-control-command.js';
 import type { WorkspaceCommand } from './workspace-command.js';
 import type { PiCommand } from './pi-command.js';
 import { parsePiCommand } from './pi-command.js';
@@ -8,12 +10,13 @@ import { InputError } from '../shared/errors.js';
 export type Command =
   | WorkspaceCommand
   | PiCommand
+  | SessionControlCommand
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
   | { type: 'add'; identity: string; code: string; checkoutPath?: string };
 
-export const usage = `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory] [--base clone] [-- Pi arguments...]
+export const usage = `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory] [--base clone] [--allow-observed-session] [--herdr-tab [--title text]] [-- Pi arguments...]
 mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project list [--org <org>]
@@ -34,6 +37,7 @@ mypi workspace commit <files...> --project org/project [--base clone] --worktree
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
 mypi session list [--project org/project | --all] [--archived]
 mypi session show <instance-key> | archive <instance-key> [--project org/project | --all]
+mypi session focus <instance-key> | title <instance-key> <text> [--project org/project | --all]
 mypi home document-patch <path> <text> --expected SHA256
 mypi home status | reconcile
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
@@ -53,6 +57,7 @@ Set XDG_STATE_HOME to isolated state for development; MYPI_SESSION_DIR overrides
 export function parseCommand(args: string[]): Command {
   if (args.length === 0 || (args.length === 1 && args[0] === '--help')) return { type: 'help' };
   const [group, action, ...rest] = args;
+  if (group === 'session' && (action === 'focus' || action === 'title')) return parseSessionControl(action, rest);
   if (group === 'pi') return parsePiCommand(args.slice(1));
   if (group === 'db' && action === 'init' && rest.length === 0) return { type: 'initialize' };
   if (group === 'project' && action === 'list') {

@@ -82,7 +82,7 @@ test('43 independent tool examples retain every field; strict schemas reject unk
 test('CLI preserves text and omissions while explicit MCP scope/project remain required', () => {
   const translate = (args: string[]) => {
     const parsed = parseCommand(args);
-    if (parsed.type === 'help' || parsed.type === 'pi') throw new Error('Expected data command');
+    if (parsed.type === 'help' || parsed.type === 'pi' || parsed.type === 'session-control') throw new Error('Expected data command');
     return appCommand(parsed);
   };
   for (const [argv, name] of [

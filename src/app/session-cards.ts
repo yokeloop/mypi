@@ -1,3 +1,4 @@
+import { herdrId, herdrSocket } from './herdr-observation.js';
 import { randomUUID } from 'node:crypto';
 import { homedir } from 'node:os';
 import { isAbsolute, join, normalize } from 'node:path';
@@ -45,7 +46,7 @@ function epoch(value: unknown): value is number { return typeof value === 'numbe
 /** Stored context is validated, never inferred from a former or foreign selection. */
 export function parseSessionCard(value: unknown, instanceKey: string): SessionCard | undefined {
   if (!mapping(value) || Object.keys(value).some(key => !['version', 'instanceKey', 'nativeSessionId', 'cwd', 'context',
-    'nativeSessionFile', 'title', 'pid', 'herdrTabId', 'state', 'startedAt', 'lastSeen'].includes(key))) return;
+    'nativeSessionFile', 'title', 'pid', 'herdrTabId', 'herdrSocketPath', 'herdrPaneId', 'state', 'startedAt', 'lastSeen'].includes(key))) return;
   try { validateSessionKey(instanceKey); } catch { return; }
   if (value['version'] !== 1 || value['instanceKey'] !== instanceKey || !plain(value['nativeSessionId']) || !path(value['cwd'])
     || !epoch(value['startedAt']) || !epoch(value['lastSeen'])
@@ -53,6 +54,8 @@ export function parseSessionCard(value: unknown, instanceKey: string): SessionCa
   if ('nativeSessionFile' in value && !path(value['nativeSessionFile'])) return;
   if ('title' in value && !plain(value['title'], true)) return;
   if ('herdrTabId' in value && !plain(value['herdrTabId'])) return;
+  if ('herdrPaneId' in value && !herdrId(value['herdrPaneId'])) return;
+  if ('herdrSocketPath' in value && !herdrSocket(value['herdrSocketPath'])) return;
   if ('pid' in value && (!epoch(value['pid']) || value['pid'] === 0)) return;
   const context = 'context' in value ? parsePiContext({ version: 1, cwd: value['cwd'], context: value['context'] }) : undefined;
   if ('context' in value && !context) return;
@@ -61,6 +64,8 @@ export function parseSessionCard(value: unknown, instanceKey: string): SessionCa
     ...(context ? { context: context.context } : {}),
     ...(typeof value['nativeSessionFile'] === 'string' ? { nativeSessionFile: value['nativeSessionFile'] } : {}),
     ...(typeof value['title'] === 'string' ? { title: value['title'] } : {}),
+    ...(typeof value['herdrSocketPath'] === 'string' ? { herdrSocketPath: value['herdrSocketPath'] } : {}),
+    ...(typeof value['herdrPaneId'] === 'string' ? { herdrPaneId: value['herdrPaneId'] } : {}),
     ...(typeof value['pid'] === 'number' ? { pid: value['pid'] } : {}),
     ...(typeof value['herdrTabId'] === 'string' ? { herdrTabId: value['herdrTabId'] } : {}),
   };

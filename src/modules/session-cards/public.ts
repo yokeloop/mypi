@@ -11,6 +11,8 @@ export interface SessionCard {
   readonly title?: string;
   readonly pid?: number;
   readonly herdrTabId?: string;
+  readonly herdrSocketPath?: string;
+  readonly herdrPaneId?: string;
   readonly state: 'starting' | 'running' | 'idle' | 'closed';
   readonly startedAt: number;
   readonly lastSeen: number;

@@ -19,7 +19,8 @@ cache observation failures are reported as issues. Missing reads
 create nothing: no cache directory, database, home Git or repair operation.
 
 `cards/<instanceKey>.json` contains version 1, instanceKey, nativeSessionId, cwd,
-optional MP-8 WorkContext, nativeSessionFile, title, pid and herdrTabId, observed
+optional MP-8 WorkContext, nativeSessionFile, title, pid, herdrTabId,
+herdrPaneId and herdrSocketPath, observed
 state, startedAt and lastSeen (integer epoch milliseconds). The native file is only
 an observed pointer: an empty native conversation might not have been persisted.
 No command reads, copies, deletes or modifies native history. Malformed stored
@@ -133,3 +134,82 @@ startup idle versus settlement, snapshot clearing, one timer, replacement/late
 callbacks, idempotent shutdown and failure disabling. It emits no real Pi events
 and makes no provider-activity claim. Core tsc excludes shipped extension sources;
 actual native extension-load evidence must be recorded separately.
+
+## Explicit launcher choices and optional Herdr (0.8.2)
+
+`mypi pi` inspects nonclosed observations for the exact prepared canonical cwd or
+worktree root, **including archived observations**. Existing observed directories
+are canonicalized too, so symlink spellings match. Unresolvable observed paths make
+the inventory incomplete rather than proving there is no duplicate. Known starting/running/idle,
+stale or unknown cards require a choice: `mypi session focus <key> --all`, another
+verified `--cwd`, or explicit `--allow-observed-session`. This override does not
+bypass repository verification or native guards. Missing/unavailable/invalid or
+truncated cache warns and does not block an otherwise ordinary launch. An empty
+inventory never proves exclusive use. Direct native Pi remains a documented bypass;
+there is no lock, lease, kill, transfer or automatic worktree creation.
+
+```text
+mypi pi [existing launcher options] [--allow-observed-session] --herdr-tab [--title text] [-- native arguments...]
+mypi session focus <instance-key> [--project org/project | --all]
+mypi session title <instance-key> <text> [--project org/project | --all]
+```
+
+These are explicit **CLI terminal controls**, not MCP data tools. Ordinary launch
+keeps native terminal IO/status and needs neither Herdr nor its executable.
+`--title` requires `--herdr-tab`; neither launching nor heartbeat automatically
+creates, focuses or renames a tab. Title changes the Herdr label, not native Pi
+history/title. Focus never implicitly resumes/forks/starts a native conversation.
+Typed application controls accept the same legitimate current-project context or
+explicit project/global view as card inspection. The standalone CLI has no current
+native branch context and requires explicit `--project` or `--all`; it never
+interprets the fresh-launch MYPI_PI_CONTEXT handoff as current selection.
+
+The producer optionally captures `herdrSocketPath`, `herdrPaneId` and `herdrTabId`
+from valid inherited managed-pane context. These are observations, not credentials
+or ownership. Old tab-only cards remain viewable but cannot be controlled. Explicit
+control requires `HERDR_ENV=1`, a normalized absolute `HERDR_SOCKET_PATH` and safe
+opaque caller IDs. `pane current --current` must match caller pane/tab/workspace;
+a moved/stale caller must be refreshed, never replaced by the UI-focused target.
+Target lookup uses the recorded pane and tab on the **same socket namespace**, and
+checks their association. Explicit cross-workspace targets on that server are valid.
+No IDs are derived from prefixes, list order or UI focus. A socket path is not
+server incarnation attestation; these remain cooperative usability checks.
+
+New-tab launch prepares the cwd, caller-selected absolute Pi executable and native
+arguments before effects. It creates a tab in the verified caller workspace with
+`--no-focus`, uses the **returned** root pane, and submits one POSIX-compatible
+quoted command (`cd` to the prepared directory, then `/usr/bin/env` and absolute
+Pi/shipped extension). Native arguments, including quotes, remain single tokens.
+The pane shell must support POSIX quoting; no general shell parser is implemented.
+A supplied title is a bounded plain label. No recursive launcher or custom Pi host
+is used; existing-session context and native history precedence stay Pi-owned.
+
+Only PATH, HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, XDG_DATA_HOME,
+PI_CODING_AGENT_DIR, MYPI_SESSION_DIR, MYPI_SESSION_CARDS,
+MYPI_SESSION_HEARTBEAT_MS and MYPI_GUARD_POLICY are explicitly transferred (unset
+when absent). MYPI_PI_CONTEXT is cleared and then set only to the prepared context.
+Herdr socket/pane/tab/workspace variables come from the **new** pane, not the caller.
+This is not full environment cloning: arbitrary caller-only provider/extension
+variables are not forwarded. Pi's usual credential storage stays Pi-owned. The
+adapter never logs the assembled command/environment, native arguments or raw
+Herdr stderr. There are no new credentials, providers or service processes.
+
+Successful open returns `{status:'submitted',herdrSocketPath,tabId,paneId}`;
+focus/title return `{status:'focused'|'renamed',instanceKey,tabId}`. JSON-producing
+create/lookup/focus/rename require typed positive acknowledgements, never an empty
+stdout fallback. The exact Herdr0.8.2 `pane run` command instead waits for its server
+response and then exits0 with **empty stdout**: submission requires that specific
+CLI receipt, not fabricated protocol JSON. Unexpected output/nonzero/timeout
+remains partial. These results do not attest Pi readiness or rendered UI. Calls
+bound response size and deadline. A mutating call
+with lost/malformed/failed acknowledgement reports nonzero JSON
+`{status:'partial',stage,herdrSocketPath,tabId?,paneId?,message}` even when no created
+IDs are known. Creation and submission are separate effects: inspect the explicit
+server and known IDs before another action. No automatic retry, rollback claim or
+tab deletion occurs.
+
+The cheap injected-runner tables protect command mappings, namespace/association
+checks, cross-workspace targets, quoting and partial reports. They do not prove
+live Herdr syntax, pane shell execution, two actual chats, rendered UI or provider
+activity. Actual native/Herdr acceptance is separate parent-owned disposable work;
+headless acknowledgements and terminal buffers are not graphical-client evidence.

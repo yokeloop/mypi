@@ -25,6 +25,7 @@ const epoch = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 const card = z.strictObject({ version: z.literal(1), instanceKey: key, nativeSessionId: z.string().min(1), cwd: externalPath,
   context: context.optional(), nativeSessionFile: externalPath.optional(), title: z.string().optional(),
   pid: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).optional(), herdrTabId: z.string().min(1).optional(),
+  herdrSocketPath: z.string().min(1).optional(), herdrPaneId: z.string().min(1).optional(),
   state: z.enum(['starting', 'running', 'idle', 'closed']), startedAt: epoch, lastSeen: epoch,
 }).refine(value => parseSessionCard(value, value.instanceKey) !== undefined, 'Invalid session observation');
 const view = z.strictObject({ card, archived: z.boolean(), ageMs: epoch.nullable(), status: z.enum(['starting', 'running', 'idle', 'closed', 'stale', 'unknown']) });

@@ -1,3 +1,4 @@
+import { observeHerdr } from '../../../dist/src/app/herdr-observation.js';
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { createSessionCards } from '../../../dist/src/app/session-cards.js';
 import type { SessionObservation } from '../../../dist/src/app/session-cards.js';
@@ -9,7 +10,7 @@ function observation(ctx: ExtensionContext): SessionObservation {
   const selection = selectPiContext(manager.getBranch(), ctx.cwd);
   const nativeSessionFile = manager.getSessionFile();
   const title = manager.getSessionName();
-  return { nativeSessionId: manager.getSessionId(), cwd: ctx.cwd, pid: process.pid,
+  return { nativeSessionId: manager.getSessionId(), cwd: ctx.cwd, pid: process.pid, ...observeHerdr(process.env),
     ...(nativeSessionFile !== undefined ? { nativeSessionFile } : {}),
     ...(title !== undefined ? { title } : {}),
     ...(selection.state === 'selected' ? { context: selection.data.context } : {}),
