@@ -6,7 +6,7 @@ A project-centered memory and request system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
 scoped journal, context Git, backup/restore, explicit Git workspace helpers,
-coordinated home document writes, CLI and 40 stdio MCP tools over one API.
+coordinated home document writes, CLI and 49 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.

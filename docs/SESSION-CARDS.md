@@ -186,8 +186,10 @@ is used; existing-session context and native history precedence stay Pi-owned.
 
 Only PATH, HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, XDG_DATA_HOME,
 PI_CODING_AGENT_DIR, MYPI_SESSION_DIR, MYPI_SESSION_CARDS,
-MYPI_SESSION_HEARTBEAT_MS and MYPI_GUARD_POLICY are explicitly transferred (unset
-when absent). MYPI_PI_CONTEXT is cleared and then set only to the prepared context.
+MYPI_SESSION_HEARTBEAT_MS, MYPI_MAILBOX_DIR, MYPI_MAILBOX_RECEIVE,
+MYPI_MAILBOX_POLL_MS and MYPI_GUARD_POLICY are explicitly transferred (unset
+when absent). See [MAILBOX](MAILBOX.md) for mailbox configuration.
+MYPI_PI_CONTEXT is cleared and then set only to the prepared context.
 Herdr socket/pane/tab/workspace variables come from the **new** pane, not the caller.
 This is not full environment cloning: arbitrary caller-only provider/extension
 variables are not forwarded. Pi's usual credential storage stays Pi-owned. The

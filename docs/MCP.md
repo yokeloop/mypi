@@ -47,7 +47,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-43 tools are available through standard tools/list. Inspect live schemas for fields.
+49 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
