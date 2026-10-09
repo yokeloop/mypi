@@ -48,13 +48,20 @@ export function workspaceGit(root: string) {
       .filter(name => existsSync(git(['rev-parse', '--path-format=absolute', '--git-path', name]).trim()));
   }
   function checkedContent() {
+    function inventory(args: string[]): string {
+      const result = run(args);
+      // Exit zero can still omit unreadable directories. Never cache partial inventory
+      // as checked content, or expose raw Git stderr in the diagnostic.
+      if (result.error || result.status !== 0 || result.stderr) throw new InputError('Checked material unavailable: Git inventory observation failed');
+      return result.stdout;
+    }
     noFilters();
-    if (operationState().length || git(['ls-files', '--unmerged', '-z'])) throw new InputError('Checked material unavailable: Git operation/conflicts');
-    if (git(['ls-files', '-v', '-z']).split('\0').some(entry => /^[a-zS] /.test(entry))) {
+    if (operationState().length || inventory(['ls-files', '--unmerged', '-z'])) throw new InputError('Checked material unavailable: Git operation/conflicts');
+    if (inventory(['ls-files', '-v', '-z']).split('\0').some(entry => /^[a-zS] /.test(entry))) {
       throw new InputError('Checked material unavailable: assume-unchanged or skip-worktree flags');
     }
-    const tree = git(['ls-tree', '-r', '-z', 'HEAD']).split('\0').filter(Boolean);
-    const index = git(['ls-files', '--stage', '-z']).split('\0').filter(Boolean);
+    const tree = inventory(['ls-tree', '-r', '-z', 'HEAD']).split('\0').filter(Boolean);
+    const index = inventory(['ls-files', '--stage', '-z']).split('\0').filter(Boolean);
     const committed = new Map<string, [string, string]>();
     const paths = new Set<string>();
     for (const entries of [tree, index]) for (const entry of entries) {
@@ -64,7 +71,7 @@ export function workspaceGit(root: string) {
       if (entries === tree) committed.set(path, [fields[0]!, fields[2]!]);
     }
     const tracked = new Set(paths);
-    for (const path of git(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) paths.add(path);
+    for (const path of inventory(['ls-files', '--others', '--exclude-standard', '-z']).split('\0').filter(Boolean)) paths.add(path);
     if (paths.size > 10000) throw new InputError('Checked material unavailable: inventory exceeds 10000 paths');
     const format = git(['rev-parse', '--show-object-format']).trim();
     if (!['sha1', 'sha256'].includes(format)) throw new InputError('Checked material unavailable: object format');
@@ -175,6 +182,14 @@ export function workspaceGit(root: string) {
       return { status: 'ok' as const, worktreeRoot: path, branch: name, start, head: start };
     },
     commit(paths: string[], message: string, requireCurrentCheck: () => void) {
+      function hasContentDiff(path: string, cached = false): boolean {
+        // Numstat computes content differences without refreshing index metadata;
+        // name-only/quiet can report stat-dirty but byte-identical working files.
+        const result = run(['-c', 'diff.autoRefreshIndex=false', 'diff', '--numstat', '--no-ext-diff', '--no-textconv',
+          ...(cached ? ['--cached'] : []), '--', path]);
+        if (result.error || result.signal || result.status !== 0 || result.stderr) throw new InputError('Workspace Git content comparison unavailable');
+        return result.stdout.length > 0; // Mode-only changes have a meaningful 0/0 record too.
+      }
       noFilters();
       if (operationState().length || git(['ls-files', '--unmerged', '-z'])) throw new InputError('Resolve existing Git operation/conflicts before committing');
       // -v lowercases assume-unchanged entries; S marks skip-worktree. Neither
@@ -209,8 +224,8 @@ export function workspaceGit(root: string) {
           const ignored = run(['check-ignore', '--quiet', '--', './' + path], false);
           if (ignored.error || ignored.status !== 1) throw new InputError('Ignored or unavailable new file');
         }
-        const staged = git(['diff', '--cached', '--name-only', '-z', '--', path]);
-        if (staged && git(['diff', '--name-only', '-z', '--', path])) throw new InputError('Declared staged content differs from working file; reconcile explicitly');
+        const staged = hasContentDiff(path, true);
+        if (staged && hasContentDiff(path)) throw new InputError('Declared staged content differs from working file; reconcile explicitly');
         if (staged && !indexed.has(path) && !missing) throw new InputError('Declared staged deletion has a working replacement; reconcile explicitly');
       }
       requireCurrentCheck();

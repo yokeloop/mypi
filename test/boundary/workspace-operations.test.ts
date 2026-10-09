@@ -105,24 +105,6 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
   assert.equal(initialPreview.publication.state, 'not-observed');
   assert.equal(initialPreview.inventory.state, 'complete');
   assert.deepEqual(initialPreview.cards, { hints: [], issues: [], truncated: false });
-  const denied = join(task, 'unreadable');
-  mkdirSync(denied); writeFileSync(join(denied, 'unique.txt'), 'preserve unreadable bytes'); chmodSync(denied, 0);
-  try {
-    const raw = spawnSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-C', task, 'ls-files', '--others', '--exclude-standard', '-z'], {
-      encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
-      env: { PATH: '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
-    });
-    assert.equal(raw.status, 0); assert.equal(raw.stdout, ''); assert.match(raw.stderr, /Permission denied/);
-    const deniedPreview = preview();
-    assert.equal(deniedPreview.inventory.state, 'incomplete', 'permission warning is not complete inventory');
-    assert(deniedPreview.inventory.issues.some(issue => issue.includes('inventory warning')));
-    assert(deniedPreview.inventory.tracked.includes('changed.txt'), 'warning retains known material');
-    assert(!JSON.stringify(deniedPreview.inventory).includes(raw.stderr.trim()), 'raw stderr is not disclosed');
-  } finally {
-    chmodSync(denied, 0o700);
-    try { assert.equal(readFileSync(join(denied, 'unique.txt'), 'utf8'), 'preserve unreadable bytes'); }
-    finally { rmSync(denied, { recursive: true }); }
-  }
   assert.throws(() => executeWorkspaceOperation({ name: 'workspace_cleanup_preview', ...selection, branch: 'wrong' }, filename, installed), /binding unavailable/);
   assert.throws(verify, /stage the project-owned/);
   writeFileSync(join(task, '.mypi-checks.json'), configText);
@@ -200,6 +182,47 @@ process.exitCode = text === 'FAIL' ? 7 : 0;
   }
   writeFileSync(join(task, 'new-after-check.txt'), 'new'); assert.equal(checkState(), 'stale');
   rmSync(join(task, 'new-after-check.txt'));
+  assert.equal(git(task, 'show', ':.mypi-checks.json'), readFileSync(join(task, '.mypi-checks.json'), 'utf8'),
+    'restored configuration has identical index/working bytes despite changed stat metadata');
+  assert.equal(checkState(), 'current');
+  const denied = join(task, 'unreadable');
+  const indexPath = git(task, 'rev-parse', '--path-format=absolute', '--git-path', 'index').trim();
+  const preserved = () => ({ index: readFileSync(indexPath), refs: git(base, 'show-ref'),
+    remoteRefs: git(bare, 'for-each-ref', '--format=%(refname) %(objectname)'),
+    files: ['changed.txt', 'unrelated.txt', 'untracked.txt', 'ignored.txt', 'check-output.json'].map(path => readFileSync(join(task, path))),
+  });
+  const beforeDenied = preserved(), greenCache = readFileSync(cachePath);
+  mkdirSync(denied); writeFileSync(join(denied, 'unique.txt'), 'preserve unreadable bytes'); chmodSync(denied, 0);
+  try {
+    const raw = spawnSync('/usr/bin/git', ['-c', 'core.fsmonitor=false', '-C', task, 'ls-files', '--others', '--exclude-standard', '-z'], {
+      encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
+      env: { PATH: '/usr/bin:/bin', HOME: dir, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' },
+    });
+    assert.equal(raw.status, 0); assert.match(raw.stderr, /Permission denied/);
+    assert(raw.stdout.split('\0').includes('untracked.txt'));
+    assert(!raw.stdout.includes('unreadable/unique.txt'));
+    const deniedPreview = preview();
+    assert.equal(deniedPreview.inventory.state, 'incomplete', 'permission warning is not complete inventory');
+    assert(deniedPreview.inventory.issues.some(issue => issue.includes('inventory warning')));
+    assert(deniedPreview.inventory.tracked.includes('changed.txt'), 'warning retains known material');
+    assert(!JSON.stringify(deniedPreview.inventory).includes(raw.stderr.trim()), 'raw stderr is not disclosed');
+    assert.equal(checkState(), 'unavailable', 'incomplete inventory cannot reuse prior green');
+    assert.throws(() => executeWorkspaceOperation(exact, filename, installed), /Checked material unavailable/);
+    assert.throws(() => executeWorkspaceOperation({ name: 'workspace_publish', ...selection, remote: 'origin' }, filename, installed), /Checked material unavailable/);
+    assert.deepEqual(readFileSync(cachePath), greenCache, 'read-only guards do not replace the cache');
+    assert.deepEqual(preserved(), beforeDenied, 'unavailable guards preserve index, refs and files');
+    assert.throws(verify, error => error instanceof InputError
+      && error.message === 'Checked material unavailable: Git inventory observation failed');
+    const unavailableCache = JSON.parse(readFileSync(cachePath, 'utf8'));
+    assert.equal(unavailableCache.state, 'unavailable');
+    assert.deepEqual(unavailableCache.outcomes, [], 'incomplete inventory refuses before prescribed commands');
+    assert.deepEqual(preserved(), beforeDenied, 'refused verification changes only its attempted cache');
+  } finally {
+    chmodSync(denied, 0o700);
+    try { assert.equal(readFileSync(join(denied, 'unique.txt'), 'utf8'), 'preserve unreadable bytes'); }
+    finally { rmSync(denied, { recursive: true }); }
+  }
+  assert.equal(checkState(), 'unavailable', 'restoring access cannot revive superseded green');
   writeFileSync(join(task, 'changed.txt'), 'FAIL');
   assert.throws(verify, /check failed/);
   assert.deepEqual(JSON.parse(readFileSync(join(task, 'check-output.json'), 'utf8')), { text: 'FAIL', exitCode: 7 });
