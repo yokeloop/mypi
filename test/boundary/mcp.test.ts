@@ -7,6 +7,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { encodePiContext, MYPI_MCP_CONTEXT } from '../../src/app/pi-context.js';
 
 test('real stdio: discovery without initialization, all tools, exact source, scope, partial reconciliation, two clients/CLI and restore', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-'));
@@ -131,16 +132,25 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal((await restoredClient.callTool({ name: 'restore', arguments: { backupDirectory: snapshot } })).isError, true);
 });
 
-test('stdio EOF and SIGTERM exit cleanly without creating state', async t => {
+test('stdio context envelope, EOF and SIGTERM preserve startup and no-state behavior', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-exit-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  for (const mode of ['eof', 'signal']) {
+  for (const mode of ['eof', 'signal', 'invalid-context']) {
+    const context = encodePiContext({ version: 1, cwd: dir, context: { scope: { kind: 'project', project: 'one/project' } } });
     const child = spawn(process.execPath, ['/work/dist/src/mcp/main.js'], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state') },
+      env: { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
+        ...(mode === 'eof' ? {} : { [MYPI_MCP_CONTEXT]: mode === 'signal' ? context : 'malformed' }) },
     });
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
     const exit = once(child, 'exit'); let output = '', errors = '';
     child.stdout.on('data', b => { output += String(b); }); child.stderr.on('data', b => { errors += String(b); });
+    if (mode === 'invalid-context') {
+      const [code, signal] = await exit;
+      assert.equal(code, 1); assert.equal(signal, null); assert.equal(output, '');
+      assert.equal(errors, 'mypi MCP startup failed; check installation and state path.\n');
+      assert.equal(existsSync(join(dir, 'state')), false);
+      continue;
+    }
     const ready = once(child.stdout, 'data');
     child.stdin.write(JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize',
       params: { protocolVersion: '2025-11-25', capabilities: {}, clientInfo: { name: 'test', version: '1' } } }) + '\n');

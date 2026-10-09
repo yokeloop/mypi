@@ -90,6 +90,20 @@ After successful first-time setup the database is initialized; no second bootstr
 command is needed. The existing CLI/MCP storage `bootstrap` remains available for
 explicit administrative initialization/migration, without the Pi setup wizard.
 
+### Launch Pi with an explicit working context
+
+After building mypi, `mise exec -- pnpm pi --project org/project` starts the installed
+Pi in that registered checkout. Use `--cwd /clones/project--task` for an existing
+associated worktree root, or `--base /clones/project` to choose an independent clone.
+`--org org`, `--unrestricted`, and no selection are also supported; no selection
+remains unselected. Native arguments follow `--`, for example `pnpm pi -- --help`.
+
+The alias does not rebuild/bootstrap or create requests/worktrees. It keeps native
+terminal IO/tools/history and explicitly loads the shipped extension without changing
+settings. Context uses the native session branch; never-started conversations are
+not durable. See [launcher and lifecycle details](docs/PI-WORK-CONTEXT.md) and the
+[CLI terminal exception](docs/M1-CLI.md#native-pi-terminal-exception).
+
 ### Existing installations
 
 Reuse an existing ordinary `home/` directory; the wizard preserves personal

@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { createRepositoryBindings } from '../../src/app/repository-bindings.js';
+import { preparePiLaunch } from '../../src/app/pi-launcher.js';
 import { state } from '../support/state.js';
 
 // Real Git is necessary: registry stubs or fake worktree lists cannot prove membership.
@@ -55,6 +56,7 @@ test('repository bindings use independent canonical identity, exact worktree mem
   t.after(() => app.close());
   // Deliberately wrong convenience checkout: it cannot authorize installed source.
   app.projects.add('one/project', 'MP', installed);
+  app.projects.add('one/checkout', 'CP', base);
   const bindings = createRepositoryBindings(app.projects, installed);
   const input = { project: 'one/project', baseRoot: base, worktreeRoot: task, expectedBranch: 'task/binding' };
   function files(root: string): [string, Buffer][] {
@@ -73,6 +75,18 @@ test('repository bindings use independent canonical identity, exact worktree mem
   assert.equal(binding.branch, 'task/binding');
   assert.equal(binding.baseReadOnly, true);
   assert(Object.isFrozen(binding));
+  const registry = { projects: app.projects, repositories: bindings };
+  const launch = { selection: { kind: 'project' as const, project: 'one/project' }, base: alias, args: ['--no-session'] };
+  assert.deepEqual(preparePiLaunch(launch, dir, registry), {
+    cwd: base, args: ['--no-session'], context: { version: 1, cwd: base,
+      context: { scope: { kind: 'project', project: 'one/project' }, selectedProject: 'one/project', worktreeRoot: base } },
+  }, 'explicit base overrides installed registry checkout and becomes default cwd');
+  assert.deepEqual(preparePiLaunch({ ...launch, cwd: task }, dir, registry), {
+    cwd: task, args: ['--no-session'], context: { version: 1, cwd: task,
+      context: { scope: { kind: 'project', project: 'one/project' }, selectedProject: 'one/project', worktreeRoot: task } },
+  });
+  assert.equal(preparePiLaunch({ selection: { kind: 'project', project: 'one/checkout' }, args: [] }, dir, registry).cwd, base);
+  assert.throws(() => preparePiLaunch({ ...launch, cwd: join(base, 'vendor') }, dir, registry), /Repository binding unavailable/);
   assert.deepEqual(bindings.verify({ ...input, baseRoot: alias }), binding);
   assert.equal(bindings.verify({ ...input, worktreeRoot: base, expectedBranch: 'main' }).baseReadOnly, true);
   for (const changed of [

@@ -1,16 +1,20 @@
 import type { WorkspaceCommand } from './workspace-command.js';
+import type { PiCommand } from './pi-command.js';
+import { parsePiCommand } from './pi-command.js';
 import { parseWorkspaceCommand } from './workspace-command.js';
 import { parseArgs } from 'node:util';
 import { InputError } from '../shared/errors.js';
 
 export type Command =
   | WorkspaceCommand
+  | PiCommand
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
   | { type: 'add'; identity: string; code: string; checkoutPath?: string };
 
-export const usage = `mypi db init
+export const usage = `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory] [--base clone] [-- Pi arguments...]
+mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project list [--org <org>]
 mypi bootstrap | warmup [-s org/project]
@@ -31,12 +35,15 @@ mypi policy explain <guard> [YAML | --file path]
 Guards: outsideWorktreeWrite, baseCheckoutWrite, foreignMypiTarget (warn or block).
 Cooperative diagnostics only; no policy installation or operation interception.
 Supported guard routing is planned in MP-9; working context is not an ACL.
-All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
+Data commands return JSON. pi inherits native terminal IO and exit status (native help: pi -- --help).
+Project --cwd must be an existing checkout/worktree root; --base requires --project.
+Set XDG_STATE_HOME to isolated state for development.
 `;
 
 export function parseCommand(args: string[]): Command {
   if (args.length === 0 || (args.length === 1 && args[0] === '--help')) return { type: 'help' };
   const [group, action, ...rest] = args;
+  if (group === 'pi') return parsePiCommand(args.slice(1));
   if (group === 'db' && action === 'init' && rest.length === 0) return { type: 'initialize' };
   if (group === 'project' && action === 'list') {
     const { values, positionals } = parseArgs({ args: rest, options: { org: { type: 'string' } }, allowPositionals: true });

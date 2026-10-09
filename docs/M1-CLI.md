@@ -1,9 +1,30 @@
 # Node CLI M1
 
 From the engine checkout: `mise exec -- pnpm build`, then
-`mise exec -- node dist/src/cli/main.js --help`. Results are JSON; error/partial means
-nonzero exit and JSON on stderr, never a false success on stdout. Core does not call
-an LLM or execute flow. Full command syntax is in help.
+`mise exec -- node dist/src/cli/main.js --help`. Data-command results are JSON;
+error/partial means nonzero exit and JSON on stderr, never a false success on stdout.
+Core does not call an LLM or execute flow. Full command syntax is in help.
+
+## Native Pi terminal exception
+
+`mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory]
+[--base clone] [-- native Pi arguments...]` launches installed Pi with inherited
+terminal IO and exit status, not a JSON result wrapper. For example:
+
+```sh
+mise exec -- pnpm pi --project org/project --cwd /clones/project--task
+mypi pi -- --help
+mypi pi --project org/project -- --continue
+```
+
+The alias uses the existing build only. Project cwd must be an existing checkout/
+worktree root; the chosen base (`--base` or registered checkout) is the default cwd.
+Project/org selection requires existing registration. No selection is unselected;
+unrestricted/unselected do not require a DB. No automatic initialization, request,
+worktree, branch switching or settings installation occurs. Native Pi still owns
+its usual resources/history and can invoke a model when asked. See
+[working context](PI-WORK-CONTEXT.md#terminal-launcher) for exact selection, native
+resume, extension-loading and non-enforcement semantics.
 
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).

@@ -4,7 +4,7 @@ import { policyGuard, readPolicyInputFile } from '../app/policy-commands.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
-export function appCommand(command: Exclude<Command, { type: 'help' }>): AppCommand {
+export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' }>): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
