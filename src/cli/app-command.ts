@@ -4,7 +4,7 @@ import { policyGuard, readPolicyInputFile } from '../app/policy-commands.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
-export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' }>): AppCommand {
+export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' | 'session-control' }>): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
@@ -31,7 +31,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' }>): 
     return a[index];
   }
   const workspace = () => ({ project: required('project'), ...(opt('base') === undefined ? {} : { baseRoot: opt('base')! }) });
+  const sessions = () => ({ ...(opt('project') === undefined ? {} : { project: opt('project')! }), ...(o['all'] ? { all: true } : {}) });
   switch (name) {
+    case 'session list': return { name: 'session_list', ...sessions(), ...(o['archived'] ? { includeArchived: true } : {}) };
+    case 'session show': return { name: 'session_show', instanceKey: a[0]!, ...sessions() };
+    case 'session archive': return { name: 'session_archive', instanceKey: a[0]!, ...sessions() };
     case 'workspace prepare': return { name: 'workspace_prepare', ...workspace(), worktreeRoot: a[0]!, branch: required('branch'), startPoint: required('start') };
     case 'workspace inspect': return { name: 'workspace_inspect', ...workspace(), ...(a[0] === undefined ? {} : { worktreeRoot: a[0] }) };
     case 'workspace commit': return { name: 'workspace_commit', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch'), paths: a, message: required('message') };

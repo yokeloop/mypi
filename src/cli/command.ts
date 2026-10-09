@@ -1,3 +1,5 @@
+import { parseSessionControl } from './session-control-command.js';
+import type { SessionControlCommand } from './session-control-command.js';
 import type { WorkspaceCommand } from './workspace-command.js';
 import type { PiCommand } from './pi-command.js';
 import { parsePiCommand } from './pi-command.js';
@@ -8,12 +10,13 @@ import { InputError } from '../shared/errors.js';
 export type Command =
   | WorkspaceCommand
   | PiCommand
+  | SessionControlCommand
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
   | { type: 'add'; identity: string; code: string; checkoutPath?: string };
 
-export const usage = `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory] [--base clone] [-- Pi arguments...]
+export const usage = `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory] [--base clone] [--allow-observed-session] [--herdr-tab [--title text]] [-- Pi arguments...]
 mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project list [--org <org>]
@@ -32,6 +35,9 @@ mypi workspace prepare <path> --project org/project [--base clone] --branch task
 mypi workspace inspect [path] --project org/project [--base clone]
 mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
 mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
+mypi session list [--project org/project | --all] [--archived]
+mypi session show <instance-key> | archive <instance-key> [--project org/project | --all]
+mypi session focus <instance-key> | title <instance-key> <text> [--project org/project | --all]
 mypi home document-patch <path> <text> --expected SHA256
 mypi home status | reconcile
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
@@ -43,12 +49,15 @@ Policy commands are diagnostics, not policy installation.
 Supported contextual operations use cooperative guards; working context is not an ACL.
 Data commands return JSON. pi inherits native terminal IO and exit status (native help: pi -- --help).
 Project --cwd must be an existing checkout/worktree root; --base requires --project.
-Set XDG_STATE_HOME to isolated state for development.
+Session commands default to the selected project; otherwise choose --project or --all.
+Session cards are observations, not transcripts or process-death evidence.
+Set XDG_STATE_HOME to isolated state for development; MYPI_SESSION_DIR overrides the session cache.
 `;
 
 export function parseCommand(args: string[]): Command {
   if (args.length === 0 || (args.length === 1 && args[0] === '--help')) return { type: 'help' };
   const [group, action, ...rest] = args;
+  if (group === 'session' && (action === 'focus' || action === 'title')) return parseSessionControl(action, rest);
   if (group === 'pi') return parsePiCommand(args.slice(1));
   if (group === 'db' && action === 'init' && rest.length === 0) return { type: 'initialize' };
   if (group === 'project' && action === 'list') {

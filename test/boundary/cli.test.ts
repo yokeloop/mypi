@@ -10,13 +10,20 @@ test('real Node launcher persists projects across independent processes without 
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
+  const env = { PATH: '/work/tools', HOME: dir, MYPI_PI_CONTEXT: 'malformed-fresh-launch-handoff', XDG_STATE_HOME: join(dir, 'state') };
   const run = (...args: string[]) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env, cwd: dir, encoding: 'utf8', timeout: 3000 });
     assert.ifError(result.error);
     assert.equal(result.signal, null);
     return result;
   };
+  const sessions = run('session', 'list', '--all');
+  assert.equal(sessions.status, 0, sessions.stderr);
+  assert.deepEqual(JSON.parse(sessions.stdout), { sessions: [], issues: [], truncated: false });
+  const missingControl = run('session', 'focus', '11111111-1111-4111-8111-111111111111', '--all');
+  assert.equal(missingControl.status, 1);
+  assert.deepEqual(JSON.parse(missingControl.stderr), { status: 'error', message: 'Cannot control session observation: missing' });
+  assert.equal(missingControl.stdout, '');
   assert.equal(run('project', 'list').status, 1);
   assert.equal(existsSync(join(dir, 'state')), false);
   const init = run('db', 'init');

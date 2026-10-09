@@ -1,0 +1,304 @@
+import { observeHerdr } from '../../src/app/herdr-observation.js';
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import fs, { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createSessionCards, parseSessionCard, resolveSessionDirectory } from '../../src/app/session-cards.js';
+import { createSessionLifecycle, sessionHeartbeat } from '../../src/app/session-lifecycle.js';
+import type { SessionEvent } from '../../src/app/session-cards.js';
+import { sessionView, startSessionCard, updateSessionCard } from '../../src/modules/session-cards/public.js';
+import { sessionCardFiles } from '../../src/infrastructure/filesystem/session-cards.js';
+import { sessionResults } from '../../src/mcp/tools/sessions.js';
+
+const key = '11111111-1111-4111-8111-111111111111';
+const observation = { nativeSessionId: 'pi-owned-id', cwd: '/task',
+  context: { scope: { kind: 'project' as const, project: 'one/project' }, worktreeRoot: '/task' }, pid: 123 };
+
+test('session-cards clock table preserves observed transitions, exact age boundary and closed precedence', () => {
+  let card = startSessionCard(key, observation, 1000);
+  assert.equal(sessionView(card, false, 1000).status, 'starting');
+  for (const [event, at, expected] of [
+    ['running', 1100, 'running'], ['heartbeat', 1200, 'running'],
+    ['settled', 1300, 'idle'], ['heartbeat', 1400, 'idle'], ['close', 1500, 'closed'],
+    ['running', 1600, 'closed'], ['settled', 1700, 'closed'],
+  ] as const) {
+    card = updateSessionCard(card, event, at);
+    assert.equal(card.state, expected);
+    assert.equal(card.lastSeen, Math.min(at, 1500));
+    assert.equal(card.instanceKey, key);
+    assert.equal(card.startedAt, 1000);
+  }
+  const idle = { ...card, state: 'idle' as const, lastSeen: 1000 };
+  for (const [now, threshold, expected, age] of [
+    [1000, 90000, 'idle', 0], [91000, 90000, 'idle', 90000], [91001, 90000, 'stale', 90001],
+    [1002, 1, 'stale', 2], [999, 90000, 'unknown', null], [NaN, 90000, 'unknown', null],
+    [Infinity, 90000, 'unknown', null], [1000.5, 90000, 'unknown', null],
+  ] as const) {
+    const view = sessionView(idle, true, now, threshold);
+    assert.deepEqual({ status: view.status, ageMs: view.ageMs, archived: view.archived }, { status: expected, ageMs: age, archived: true });
+  }
+  assert.equal(sessionView(card, false, 1_000_000).status, 'closed');
+  assert.equal(sessionView(card, false, 1499).status, 'unknown');
+  assert.throws(() => sessionView(card, false, 2000, -1));
+  assert.throws(() => startSessionCard(key, observation, NaN));
+  const plain = startSessionCard(key, observation, 1000);
+  assert.deepEqual(parseSessionCard(plain, key), plain);
+  for (const change of [{ version: 2 }, { instanceKey: 'another' }, { nativeSessionId: '' }, { cwd: 'relative' },
+    { state: ['running'] }, { state: 'dead' }, { lastSeen: -1 }, { startedAt: 1.5 }, { pid: 0 },
+    { nativeSessionFile: '../history' }, { title: null }, { herdrTabId: '' }, { herdrPaneId: '-bad' }, { herdrSocketPath: 'relative' }, { extra: true },
+    { context: { scope: { kind: 'project', project: 'two/project' }, selectedProject: 'one/project' } },
+  ]) assert.equal(parseSessionCard({ ...plain, ...change }, key), undefined, JSON.stringify(change));
+  assert.equal(parseSessionCard(plain, '../escape'), undefined);
+  const hints = observeHerdr({ HERDR_ENV: '1', HERDR_SOCKET_PATH: '/runtime/server.sock', HERDR_PANE_ID: 'opaque:pane',
+    HERDR_TAB_ID: 'opaque:tab', HERDR_WORKSPACE_ID: 'opaque:workspace' });
+  assert.deepEqual(hints, { herdrSocketPath: '/runtime/server.sock', herdrPaneId: 'opaque:pane', herdrTabId: 'opaque:tab' });
+  assert.equal(observeHerdr({ HERDR_ENV: '0' }), undefined);
+  assert.equal(observeHerdr({ HERDR_ENV: '1', HERDR_SOCKET_PATH: '/runtime/server.sock' }), undefined);
+  const withHints = { ...plain, ...hints };
+  assert.deepEqual(parseSessionCard(withHints, key), withHints);
+  assert.deepEqual(parseSessionCard({ ...plain, herdrTabId: 'legacy-tab' }, key), { ...plain, herdrTabId: 'legacy-tab' });
+  const view = sessionView(withHints, false, 1000);
+  for (const [schema, result] of [
+    [sessionResults.session_list, { sessions: [view], issues: [], truncated: false }],
+    [sessionResults.session_show, { session: view }],
+    [sessionResults.session_archive, { instanceKey: key, archived: true }],
+  ] as const) {
+    assert.deepEqual(schema.parse(result), result);
+    assert.throws(() => schema.parse({ ...result, extra: true }));
+  }
+  assert.throws(() => sessionResults.session_show.parse({ session: { ...view, card: { ...plain, extra: true } } }));
+});
+
+test('session-cards disposable cache isolates instances, preserves archives/history and reports incomplete observations', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-session-cards-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const runtime = join(dir, 'runtime'), home = join(dir, 'user'), contextRoot = join(dir, 'context');
+  const env = { MYPI_SESSION_DIR: runtime };
+  const originalMkdir = fs.mkdirSync;
+  function duringCacheMkdir<T>(target: string, interleave: () => void, action: () => T): T {
+    let intercepted = 0;
+    const mock = t.mock.method(fs, 'mkdirSync', (...args: Parameters<typeof mkdirSync>) => {
+      if (args[0] === target) { intercepted++; interleave(); }
+      return originalMkdir(...args);
+    });
+    try {
+      syncBuiltinESMExports();
+      return action();
+    } finally {
+      mock.mock.restore();
+      syncBuiltinESMExports();
+      assert.equal(intercepted, 1, 'must exercise the absent-check/mkdir interleaving exactly once');
+    }
+  }
+  let now = 1000;
+  const cards = createSessionCards({ env, home, contextRoot, clock: () => now });
+  assert.deepEqual(cards.list({ all: true }), { sessions: [], issues: [], truncated: false });
+  assert.deepEqual(cards.show({ all: true, instanceKey: key }), { session: null, issue: 'missing' });
+  assert.deepEqual(readdirSync(dir), [], 'inspection must not initialize runtime, DB or home');
+  assert.throws(() => cards.list({}), /concrete project/);
+  assert.throws(() => cards.list({}, { scope: { kind: 'organization', organization: 'one' } }), /concrete project/);
+  assert.throws(() => cards.list({ all: true, project: 'one/project' }), /not both/);
+  assert.throws(() => cards.list({ project: '' }), /identity/);
+  assert.throws(() => cards.show({ all: true, instanceKey: '../escape' }), /instance key/);
+  const nativeSessionFile = join(dir, 'native.jsonl');
+  writeFileSync(nativeSessionFile, 'native history remains byte-for-byte\n');
+  const cardDirectory = join(runtime, 'cards');
+  const old = duringCacheMkdir(cardDirectory, () => originalMkdir(cardDirectory, { mode: 0o700 }),
+    () => cards.start({ ...observation, nativeSessionFile }));
+  assert.deepEqual(JSON.parse(readFileSync(join(cardDirectory, old.instanceKey + '.json'), 'utf8')),
+    { ...observation, nativeSessionFile, version: 1, instanceKey: old.instanceKey, state: 'starting', startedAt: 1000, lastSeen: 1000 });
+  now = 1100;
+  const current = cards.start({ ...observation, nativeSessionFile });
+  const foreign = cards.start({ ...observation, context: { scope: { kind: 'project', project: 'two/project' } } });
+  const unselected = cards.start({ nativeSessionId: 'empty-not-persisted', cwd: '/task' });
+  assert.notEqual(old.instanceKey, current.instanceKey, 'same native session must have distinct observations');
+  assert.deepEqual(cards.list({}, observation.context).sessions.map(v => v.card.instanceKey).sort(), [old.instanceKey, current.instanceKey].sort());
+  assert.equal(cards.list({}, { scope: { kind: 'unrestricted' }, selectedProject: 'one/project' }).sessions.length, 2);
+  assert.equal(cards.list({ all: true }, observation.context).sessions.length, 4);
+  assert.deepEqual(cards.list({ project: 'two/project' }, observation.context).sessions.map(v => v.card.instanceKey), [foreign.instanceKey]);
+  assert.deepEqual(cards.show({ instanceKey: foreign.instanceKey }, observation.context), { session: null, issue: 'outside-selection' });
+  assert.throws(() => cards.archive({ instanceKey: foreign.instanceKey }, observation.context), /outside-selection/);
+  const archiveDirectory = join(runtime, 'archives');
+  assert.deepEqual(duringCacheMkdir(archiveDirectory, () => originalMkdir(archiveDirectory, { mode: 0o700 }),
+    () => cards.archive({ instanceKey: old.instanceKey }, observation.context)), { instanceKey: old.instanceKey, archived: true });
+  const archiveMarker = join(archiveDirectory, old.instanceKey);
+  assert.equal(lstatSync(archiveMarker).isFile(), true);
+  assert.equal(readFileSync(archiveMarker, 'utf8'), '');
+  now = 1200;
+  old.update('running'); old.update('heartbeat');
+  assert.equal(cards.show({ all: true, instanceKey: old.instanceKey }).session!.archived, true);
+  assert.equal(cards.show({ all: true, instanceKey: current.instanceKey }).session!.card.lastSeen, 1100);
+  assert.equal(cards.list({}, observation.context).sessions.length, 1);
+  assert.equal(cards.list({ includeArchived: true }, observation.context).sessions.length, 2);
+  assert.deepEqual(cards.archive({ all: true, instanceKey: old.instanceKey }), { instanceKey: old.instanceKey, archived: true });
+  old.update('close');
+  const closed = readFileSync(join(runtime, 'cards', old.instanceKey + '.json'), 'utf8');
+  now = 1300; old.update('running');
+  assert.equal(readFileSync(join(runtime, 'cards', old.instanceKey + '.json'), 'utf8'), closed);
+  current.update('settled', { nativeSessionId: observation.nativeSessionId, cwd: '/task', title: 'selection cleared' });
+  assert.equal(cards.list({}, observation.context).sessions.length, 0, 'full replacement omits old context');
+  assert.equal(cards.show({ all: true, instanceKey: current.instanceKey }).session!.card.title, 'selection cleared');
+  assert.equal(readFileSync(nativeSessionFile, 'utf8'), 'native history remains byte-for-byte\n');
+  assert.equal(existsSync(home), false); assert.equal(existsSync(contextRoot), false);
+  assert.equal(statSync(join(runtime, 'cards', current.instanceKey + '.json')).mode & 0o777, 0o600);
+  assert.equal(statSync(join(runtime, 'archives', old.instanceKey)).mode & 0o777, 0o600);
+  assert(!readdirSync(join(runtime, 'cards')).some(name => name.endsWith('.tmp')));
+  assert.throws(() => cards.start({ ...observation, title: 'x'.repeat(33 * 1024) }), /32KiB/);
+  assert.equal(readdirSync(join(runtime, 'cards')).length, 4, 'oversized write creates no card');
+  const broken = join(runtime, 'cards', unselected.instanceKey + '.json');
+  for (const text of ['{', 'x'.repeat(33 * 1024), JSON.stringify(startSessionCard(key, observation, 1000)),
+    JSON.stringify({ ...startSessionCard(unselected.instanceKey, observation, 1000), context: null })]) {
+    writeFileSync(broken, text);
+    assert.deepEqual(cards.show({ all: true, instanceKey: unselected.instanceKey }), { session: null, issue: 'invalid' });
+    assert.deepEqual(cards.list({ all: true }).issues, [{ instanceKey: unselected.instanceKey, issue: 'invalid' }]);
+  }
+  rmSync(broken);
+  symlinkSync(nativeSessionFile, broken);
+  assert.deepEqual(cards.show({ all: true, instanceKey: unselected.instanceKey }), { session: null, issue: 'invalid' });
+  rmSync(broken);
+  const marker = join(runtime, 'archives', current.instanceKey);
+  symlinkSync(nativeSessionFile, marker);
+  assert.deepEqual(cards.show({ all: true, instanceKey: current.instanceKey }), { session: null, issue: 'invalid' });
+  assert.throws(() => cards.archive({ all: true, instanceKey: current.instanceKey }), /invalid/);
+  rmSync(marker);
+  mkdirSync(marker);
+  assert.deepEqual(cards.show({ all: true, instanceKey: current.instanceKey }), { session: null, issue: 'invalid' });
+  assert.throws(() => createSessionCards({ env: { MYPI_SESSION_DIR: join(nativeSessionFile, 'child') }, home, contextRoot }), { code: 'ENOTDIR' });
+  const changedParent = join(dir, 'changed-parent');
+  const unavailable = createSessionCards({ env: { MYPI_SESSION_DIR: join(changedParent, 'cache') }, home, contextRoot });
+  writeFileSync(changedParent, 'parent became a file after configuration');
+  assert.deepEqual(unavailable.list({ all: true }), { sessions: [], issues: [{ issue: 'unavailable' }], truncated: false });
+  const invalid = createSessionCards({ env: { MYPI_SESSION_DIR: nativeSessionFile }, home, contextRoot });
+  assert.deepEqual(invalid.list({ all: true }), { sessions: [], issues: [{ issue: 'invalid' }], truncated: false });
+
+  assert.equal(resolveSessionDirectory({}, home, contextRoot), join(home, '.local/state/mypi/sessions'));
+  assert.equal(resolveSessionDirectory({ XDG_STATE_HOME: dir }, home, contextRoot), join(dir, 'mypi/sessions'));
+  const alias = join(dir, 'alias'); mkdirSync(contextRoot); symlinkSync(contextRoot, alias);
+  for (const env of [{ MYPI_SESSION_DIR: '' }, { MYPI_SESSION_DIR: 'relative' }, { XDG_STATE_HOME: 'relative' },
+    { MYPI_SESSION_DIR: join(alias, 'cache') }, { MYPI_SESSION_DIR: fileURLToPath(new URL('../../../cache', import.meta.url)) }]) {
+    assert.throws(() => resolveSessionDirectory(env, home, contextRoot), /absolute|outside/);
+  }
+  const collisionSink = join(dir, 'collision-sink'); mkdirSync(collisionSink);
+  for (const kind of ['file', 'symlink', 'other-error']) {
+    const root = join(dir, 'collision-' + kind), target = join(root, 'cards');
+    const files = sessionCardFiles(root), denied = Object.assign(new Error('denied'), { code: 'EACCES' });
+    duringCacheMkdir(target, () => {
+      if (kind === 'file') writeFileSync(target, 'preserve');
+      else if (kind === 'symlink') symlinkSync(collisionSink, target);
+      else { originalMkdir(target); throw denied; }
+    }, () => assert.throws(() => files.write(key, startSessionCard(key, observation, 1000)),
+      kind === 'other-error' ? (error: unknown) => error === denied : /Expected session cache directory/));
+    if (kind === 'file') assert.equal(readFileSync(target, 'utf8'), 'preserve');
+    else if (kind === 'symlink') assert.equal(lstatSync(target).isSymbolicLink(), true);
+    else assert.deepEqual(readdirSync(target), []);
+  }
+  assert.deepEqual(readdirSync(collisionSink), [], 'a colliding directory symlink must not receive a card');
+  // One bounded inventory, not a subprocess or process-capability matrix.
+  const bounded = join(dir, 'bounded'); mkdirSync(join(bounded, 'cards'), { recursive: true });
+  for (let i = 0; i < 1001; i++) writeFileSync(join(bounded, 'cards', 'unexpected-' + i), '');
+  assert.deepEqual(sessionCardFiles(bounded).scan(), { keys: [], invalid: 1000, truncated: true });
+});
+
+test('session-lifecycle snapshots, timer retirement and optional failure preserve actual instance observations', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-session-lifecycle-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  let now = 1000, warnings = 0;
+  let failure: SessionEvent | 'start' | undefined;
+  const env: Record<string, string | undefined> = { MYPI_SESSION_DIR: join(dir, 'cache') };
+  const cards = createSessionCards({ env, home: join(dir, 'user'), contextRoot: join(dir, 'context'), clock: () => now });
+  const timers: { tick: () => void; stopped: boolean }[] = [];
+  const lifecycle = createSessionLifecycle({ env,
+    start(data) {
+      if (failure === 'start') throw new Error('unavailable');
+      const producer = cards.start(data);
+      return { update(event, snapshot) {
+        if (failure === event) throw new Error('unavailable');
+        producer.update(event, snapshot);
+      } };
+    },
+    schedule(tick, milliseconds) {
+      assert.equal(milliseconds, 30000);
+      assert(timers.every(timer => timer.stopped), 'at most one active timer');
+      const timer = { tick, stopped: false }; timers.push(timer);
+      return () => { assert.equal(timer.stopped, false); timer.stopped = true; };
+    },
+  });
+  const warn = () => { warnings++; };
+  const snapshot = { ...observation, title: 'original' };
+  const view = (instanceKey: string) => cards.show({ all: true, instanceKey }).session!;
+  assert.deepEqual(readdirSync(dir), [], 'factory must not create cache or start timers');
+  assert.equal(timers.length, 0);
+  env['MYPI_SESSION_CARDS'] = '0';
+  lifecycle.start(snapshot, true, warn);
+  assert.deepEqual(readdirSync(dir), []); assert.equal(timers.length, 0);
+  env['MYPI_SESSION_CARDS'] = 'invalid';
+  lifecycle.start(snapshot, true, warn);
+  assert.equal(warnings, 1); assert.equal(timers.length, 0);
+  assert.deepEqual(readdirSync(dir), []);
+  delete env['MYPI_SESSION_CARDS'];
+  lifecycle.start(snapshot, true, warn);
+  const first = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  assert.equal(view(first).status, 'idle', 'initial non-streaming/no-pending sample needs no provider turn');
+  assert.equal(timers.length, 1);
+  now = 2000; lifecycle.update('running', snapshot);
+  now = 3000; timers[0]!.tick();
+  assert.equal(view(first).status, 'running', 'heartbeat cannot claim final settlement');
+  assert.equal(view(first).card.lastSeen, 3000);
+  now = 4000; lifecycle.update('settled', snapshot);
+  assert.equal(view(first).status, 'idle');
+  const cleared = { nativeSessionId: observation.nativeSessionId, cwd: '/task', pid: 123 };
+  lifecycle.update('heartbeat', cleared);
+  now = 5000; timers[0]!.tick();
+  assert.equal(view(first).card.context, undefined); assert.equal(view(first).card.title, undefined);
+  assert.equal(view(first).status, 'idle');
+  assert.equal(cards.list({ project: 'one/project' }).sessions.length, 0);
+  lifecycle.start(snapshot, false, warn);
+  const second = cards.list({ all: true }).sessions.find(item => item.card.instanceKey !== first)!.card.instanceKey;
+  assert.equal(view(first).status, 'closed'); assert.equal(timers[0]!.stopped, true);
+  assert.equal(view(second).status, 'starting', 'pending/streaming startup is not final idle');
+  const beforeLate = view(second);
+  now = 6000; timers[0]!.tick();
+  assert.deepEqual(view(second).card, beforeLate.card, 'late timer cannot write same-native-ID replacement');
+  lifecycle.close(); lifecycle.close();
+  assert.equal(view(second).status, 'closed'); assert.equal(timers[1]!.stopped, true);
+  now = 7000; timers[1]!.tick();
+  assert.equal(view(second).card.lastSeen, 6000);
+
+  lifecycle.start(snapshot, true, warn);
+  const third = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  failure = 'heartbeat'; now = 8000; timers[2]!.tick();
+  assert.equal(warnings, 2); assert.equal(timers[2]!.stopped, true);
+  failure = undefined; now = 100000;
+  timers[2]!.tick(); lifecycle.update('settled', snapshot); lifecycle.close();
+  assert.equal(view(third).card.lastSeen, 7000);
+  assert.equal(view(third).status, 'stale', 'cache failure must not fabricate closed/dead');
+  assert.equal(warnings, 2, 'failed producer stays disabled');
+  lifecycle.start(snapshot, true, warn);
+  const fourth = cards.list({ all: true }).sessions[0]!.card.instanceKey;
+  lifecycle.update('running', { ...snapshot, nativeSessionId: 'different-native-id' });
+  assert.equal(warnings, 3); assert.equal(timers[3]!.stopped, true);
+  assert.equal(view(fourth).card.nativeSessionId, observation.nativeSessionId);
+  assert.equal(view(fourth).status, 'idle');
+  failure = 'start';
+  lifecycle.start(snapshot, true, () => { warnings++; throw new Error('UI unavailable'); });
+  assert.equal(warnings, 4); assert.equal(timers.length, 4);
+  failure = undefined;
+  lifecycle.start(snapshot, true, warn);
+  failure = 'close'; lifecycle.close(); lifecycle.close();
+  assert.equal(warnings, 5); assert.equal(timers[4]!.stopped, true);
+  assert.equal(existsSync(join(dir, 'user')), false); assert.equal(existsSync(join(dir, 'context')), false);
+});
+
+test('session-lifecycle configuration accepts only explicit bounded heartbeat and enable settings', () => {
+  assert.equal(sessionHeartbeat({}), 30000);
+  assert.equal(sessionHeartbeat({ MYPI_SESSION_CARDS: '1' }), 30000);
+  assert.equal(sessionHeartbeat({ MYPI_SESSION_CARDS: '0', MYPI_SESSION_HEARTBEAT_MS: 'invalid' }), undefined);
+  for (const raw of ['5000', '30000', '60000']) assert.equal(sessionHeartbeat({ MYPI_SESSION_HEARTBEAT_MS: raw }), Number(raw));
+  for (const raw of ['', '0', '4999', '60001', '05000', '5000.0', '5e3', '+5000', ' 5000', 'Infinity']) {
+    assert.throws(() => sessionHeartbeat({ MYPI_SESSION_HEARTBEAT_MS: raw }), /heartbeat/);
+  }
+  for (const raw of ['', 'true', 'false', '01']) assert.throws(() => sessionHeartbeat({ MYPI_SESSION_CARDS: raw }), /observation/);
+});

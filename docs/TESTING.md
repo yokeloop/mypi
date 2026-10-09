@@ -116,6 +116,40 @@ Cover useful commands without replicating the complete error matrix at every lev
 A domain test and boundary canary may overlap when they catch different failures:
 the rule itself versus failure to wire it into the application.
 
+### Interactive acceptance through Herdr
+
+For mypi's interactive Pi/Herdr behavior, always create a dedicated, clearly named,
+visible Herdr test tab and exercise the real application through the installed
+Herdr integration/CLI. This is the project's standing authorization for that test
+surface, not for unrelated tabs, subagents or changes to existing user sessions.
+Verify managed caller context, use returned opaque IDs, and preserve unrelated
+panes and configuration. Run scenario setup and relevant verification commands
+from the bench; keep the existing test runner and fast/boundary composition.
+
+- Use the exact candidate with disposable home, settings, DB, repositories and
+  native sessions. Never connect a candidate to personal runtime data. The bench
+  tab can remain available between runs; each test workload and its descendants
+  still obey the resource, deadline and isolation requirements in §6.
+- Preserve real terminal input/output and dimensions. Send native commands, editor
+  input and appropriate keys as a user would, then inspect actual screen output
+  and observable results. Provider prompts need applicable authorization and a
+  bounded budget; they are not required for every UI check. Never log credentials.
+- Read startup errors and dialogs before treating missing lifecycle events as a
+  hang. Check fixture prerequisites, including the stored working directory when
+  reopening native history. Do not rewrite historical data or blindly dismiss
+  unexpected dialogs to get green.
+- Distinguish CLI submission, rendered UI, readiness, provider activity, durable
+  state and normal exit. JSON schemas or exit zero alone do not prove all of them.
+  Headless/RPC/event probes may supplement, but never replace this interactive path.
+- Retain exact candidate identity, concise scenario/results, relevant sanitized
+  screen evidence and failure/cleanup status. Stop on an unexplained failure;
+  inspect actual state before another mutating action. Do not invent a parallel
+  runtime, enlarge limits or build a new supervisor to make acceptance pass.
+
+This procedure supplements mandatory `verify`; it is not a third test profile,
+permission to move checks out of the suite, or a requirement for Herdr during
+ordinary noninteractive development or CI.
+
 ## 5. Admission of a new test
 
 Before editing, inspect existing tests and briefly answer in the change rationale,

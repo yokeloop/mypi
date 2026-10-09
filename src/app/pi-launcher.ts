@@ -4,12 +4,16 @@ import type { WorkScope } from '../modules/work-context/public.js';
 import { InputError } from '../shared/errors.js';
 import { parsePiContext } from './pi-context.js';
 import type { PiContextData } from './pi-context.js';
+import type { SessionList } from './session-cards.js';
 
 export interface PiLaunchOptions {
   readonly selection?: WorkScope;
   readonly cwd?: string;
   readonly base?: string;
   readonly args: readonly string[];
+  readonly allowObservedSession?: boolean;
+  readonly herdrTab?: boolean;
+  readonly title?: string;
 }
 export interface PiLaunchPlan {
   readonly cwd: string;
@@ -47,4 +51,20 @@ export function preparePiLaunch(options: PiLaunchOptions, currentCwd: string, re
   } });
   if (!context) throw new InputError('Invalid Pi working context');
   return { cwd, args: [...options.args], context };
+}
+
+/** Cache advice only. A missed card never proves exclusive use or process death. */
+export function piLaunchObservations(cwd: string, inventory: SessionList, allowObservedSession = false,
+  canonicalize: (directory: string) => string = canonicalDirectory) {
+  const conflicts: { instanceKey: string; status: SessionList['sessions'][number]['status'] }[] = [];
+  let incomplete = inventory.truncated || inventory.issues.length > 0;
+  for (const view of inventory.sessions) {
+    if (view.card.state === 'closed') continue;
+    try {
+      if (canonicalize(view.card.context?.worktreeRoot ?? view.card.cwd) === cwd) {
+        conflicts.push({ instanceKey: view.card.instanceKey, status: view.status });
+      }
+    } catch { incomplete = true; }
+  }
+  return { conflicts, requiresChoice: conflicts.length > 0 && !allowObservedSession, incomplete };
 }

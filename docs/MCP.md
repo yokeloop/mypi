@@ -45,7 +45,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-40 tools are available through standard tools/list. Inspect live schemas for fields.
+43 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
@@ -61,6 +61,13 @@ explain text uses defaults; empty/invalid/v1 text fails. Both results carry
 `diagnostic:"cooperative"`, not a claim of intercepted operations or enforcement.
 There is no separate preview or caller/profile/target interface. See
 [implemented schema and examples](SCOPED-POLICY-CORE.md).
+
+Session observations: `session_list {project?,all?,includeArchived?}` and
+`session_show/session_archive {instanceKey,project?,all?}` use a selected concrete
+project by default, or require an explicit project/all view. These cache-only
+routes bypass DB/home and membership composition. They never read native history;
+issues/truncation mean incomplete inventory, not absence of duplicates. Archive
+hides only one instance and survives heartbeat. See [SESSION-CARDS](SESSION-CARDS.md).
 
 Server construction may supply ordinary `WorkContext` out of band. Supported calls
 use the cooperative membership/default checks below, not authentication. Diagnostics
@@ -94,8 +101,10 @@ an idempotency key. Never blindly repeat create/append after an unknown outcome.
 
 Scope is not an ACL. The server runs with local user permissions; file/checkout/backup
 arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
-Read-only hints are not authorization; writes are not declared idempotent, and backup
-is not read-only. Responses are not truncated by the server.
+Read-only hints are not authorization. Except for the idempotent cache-only
+`session_archive`, writes are not declared idempotent; backup is not read-only.
+Responses are not truncated by the server; session inventory explicitly reports
+its bounded scan via `truncated` and `issues`.
 
 ## Cooperative application membership and defaults
 
@@ -116,6 +125,7 @@ it does not exclude another explicit current member.
 | `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
 | `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
 | `error_add`, `workspace_prepare/inspect/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
+| `session_list/show/archive` | Selected-project default or explicit operator project/all observation filter; no registry membership lookup or ACL. |
 | `home_document_patch`, `home_status`, `home_reconcile` | Explicit home-wide operator routes outside project membership/default guards; no inferred project or project-scoped authority. |
 | `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
 | `project_add`, status mutations, `db_init`, `bootstrap`, `backup`, `restore`, `capture`, `context_commit/restore` | Deliberately unguarded global/maintenance operations; explicit operator discipline remains required. |
