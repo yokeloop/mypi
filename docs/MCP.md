@@ -66,6 +66,17 @@ Server construction may supply ordinary `WorkContext` out of band. It is not
 authentication and does not block or filter ordinary calls in MP-7; supported guard
 routing is pending MP-9. Diagnostics never install configuration.
 
+Native Pi composition uses the non-secret `MYPI_MCP_CONTEXT` environment envelope
+from [Pi working context](PI-WORK-CONTEXT.md). It is canonical base64url UTF-8 JSON
+containing version, Pi cwd and `WorkContext`, decoded once at server startup. Missing
+env keeps legacy behavior; empty string explicitly clears selection. Any other
+malformed supplied value fails startup instead of falling back. This does not change
+stdio framing, storage locations or ordinary tool arguments. The extension requests
+registration on native context changes; same-name user configuration still wins.
+Registration is shown as unconfirmed, not as working routing or enforcement. Existing
+server operations keep their original immutable context; Pi replacement can close
+the old connection and does not promise completion or rollback of in-flight writes.
+
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
 requestId when known. structuredContent equals parsed JSON in text content. The data
