@@ -1,7 +1,8 @@
 import { observeHerdr } from '../../src/app/herdr-observation.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import fs, { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +77,22 @@ test('session-cards disposable cache isolates instances, preserves archives/hist
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const runtime = join(dir, 'runtime'), home = join(dir, 'user'), contextRoot = join(dir, 'context');
   const env = { MYPI_SESSION_DIR: runtime };
+  const originalMkdir = fs.mkdirSync;
+  function duringCacheMkdir<T>(target: string, interleave: () => void, action: () => T): T {
+    let intercepted = 0;
+    const mock = t.mock.method(fs, 'mkdirSync', (...args: Parameters<typeof mkdirSync>) => {
+      if (args[0] === target) { intercepted++; interleave(); }
+      return originalMkdir(...args);
+    });
+    try {
+      syncBuiltinESMExports();
+      return action();
+    } finally {
+      mock.mock.restore();
+      syncBuiltinESMExports();
+      assert.equal(intercepted, 1, 'must exercise the absent-check/mkdir interleaving exactly once');
+    }
+  }
   let now = 1000;
   const cards = createSessionCards({ env, home, contextRoot, clock: () => now });
   assert.deepEqual(cards.list({ all: true }), { sessions: [], issues: [], truncated: false });
@@ -88,7 +105,11 @@ test('session-cards disposable cache isolates instances, preserves archives/hist
   assert.throws(() => cards.show({ all: true, instanceKey: '../escape' }), /instance key/);
   const nativeSessionFile = join(dir, 'native.jsonl');
   writeFileSync(nativeSessionFile, 'native history remains byte-for-byte\n');
-  const old = cards.start({ ...observation, nativeSessionFile });
+  const cardDirectory = join(runtime, 'cards');
+  const old = duringCacheMkdir(cardDirectory, () => originalMkdir(cardDirectory, { mode: 0o700 }),
+    () => cards.start({ ...observation, nativeSessionFile }));
+  assert.deepEqual(JSON.parse(readFileSync(join(cardDirectory, old.instanceKey + '.json'), 'utf8')),
+    { ...observation, nativeSessionFile, version: 1, instanceKey: old.instanceKey, state: 'starting', startedAt: 1000, lastSeen: 1000 });
   now = 1100;
   const current = cards.start({ ...observation, nativeSessionFile });
   const foreign = cards.start({ ...observation, context: { scope: { kind: 'project', project: 'two/project' } } });
@@ -100,7 +121,12 @@ test('session-cards disposable cache isolates instances, preserves archives/hist
   assert.deepEqual(cards.list({ project: 'two/project' }, observation.context).sessions.map(v => v.card.instanceKey), [foreign.instanceKey]);
   assert.deepEqual(cards.show({ instanceKey: foreign.instanceKey }, observation.context), { session: null, issue: 'outside-selection' });
   assert.throws(() => cards.archive({ instanceKey: foreign.instanceKey }, observation.context), /outside-selection/);
-  assert.deepEqual(cards.archive({ instanceKey: old.instanceKey }, observation.context), { instanceKey: old.instanceKey, archived: true });
+  const archiveDirectory = join(runtime, 'archives');
+  assert.deepEqual(duringCacheMkdir(archiveDirectory, () => originalMkdir(archiveDirectory, { mode: 0o700 }),
+    () => cards.archive({ instanceKey: old.instanceKey }, observation.context)), { instanceKey: old.instanceKey, archived: true });
+  const archiveMarker = join(archiveDirectory, old.instanceKey);
+  assert.equal(lstatSync(archiveMarker).isFile(), true);
+  assert.equal(readFileSync(archiveMarker, 'utf8'), '');
   now = 1200;
   old.update('running'); old.update('heartbeat');
   assert.equal(cards.show({ all: true, instanceKey: old.instanceKey }).session!.archived, true);
@@ -155,6 +181,21 @@ test('session-cards disposable cache isolates instances, preserves archives/hist
     { MYPI_SESSION_DIR: join(alias, 'cache') }, { MYPI_SESSION_DIR: fileURLToPath(new URL('../../../cache', import.meta.url)) }]) {
     assert.throws(() => resolveSessionDirectory(env, home, contextRoot), /absolute|outside/);
   }
+  const collisionSink = join(dir, 'collision-sink'); mkdirSync(collisionSink);
+  for (const kind of ['file', 'symlink', 'other-error']) {
+    const root = join(dir, 'collision-' + kind), target = join(root, 'cards');
+    const files = sessionCardFiles(root), denied = Object.assign(new Error('denied'), { code: 'EACCES' });
+    duringCacheMkdir(target, () => {
+      if (kind === 'file') writeFileSync(target, 'preserve');
+      else if (kind === 'symlink') symlinkSync(collisionSink, target);
+      else { originalMkdir(target); throw denied; }
+    }, () => assert.throws(() => files.write(key, startSessionCard(key, observation, 1000)),
+      kind === 'other-error' ? (error: unknown) => error === denied : /Expected session cache directory/));
+    if (kind === 'file') assert.equal(readFileSync(target, 'utf8'), 'preserve');
+    else if (kind === 'symlink') assert.equal(lstatSync(target).isSymbolicLink(), true);
+    else assert.deepEqual(readdirSync(target), []);
+  }
+  assert.deepEqual(readdirSync(collisionSink), [], 'a colliding directory symlink must not receive a card');
   // One bounded inventory, not a subprocess or process-capability matrix.
   const bounded = join(dir, 'bounded'); mkdirSync(join(bounded, 'cards'), { recursive: true });
   for (let i = 0; i < 1001; i++) writeFileSync(join(bounded, 'cards', 'unexpected-' + i), '');

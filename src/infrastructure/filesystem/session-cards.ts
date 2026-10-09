@@ -28,7 +28,10 @@ export function sessionCardFiles(root: string) {
     }
     if (!directory(path)) {
       if (!create) return false;
-      mkdirSync(path, { mode: 0o700 });
+      try { mkdirSync(path, { mode: 0o700 }); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'EEXIST' || !directory(path)) throw error;
+      }
     }
     return true;
   }
