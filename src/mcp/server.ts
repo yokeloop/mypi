@@ -1,6 +1,6 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
-import { executeCommand } from '../app/execute-command.js';
+import { executeCommand, isManagedHomeCommand } from '../app/execute-command.js';
 import type { SelectedGuardPolicy } from '../app/execute-command.js';
 import { loadSelectedGuardPolicy } from '../app/guard-policy-config.js';
 import type { WorkContext } from '../app/commands.js';
@@ -30,7 +30,7 @@ export function createServer(filename: string, root?: string, context?: WorkCont
     server.registerTool(name, {
       description: tool.description, inputSchema: tool.schema, outputSchema: output,
       annotations: { readOnlyHint: readonly, destructiveHint: !readonly,
-        idempotentHint: readonly, openWorldHint: name === 'workspace_publish' },
+        idempotentHint: readonly, openWorldHint: name === 'workspace_publish' || isManagedHomeCommand(name) },
     }, (args: unknown, extra: { signal: AbortSignal }) => invoke(name, args, extra.signal));
   }
   // McpServer's default call handler emits text-only validation errors. Keep SDK framing,

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { tools, toolCommand } from '../../src/mcp/tools.js';
 import { success, failure } from '../../src/mcp/result.js';
 import { PartialError } from '../../src/shared/context.js';
+import type { HomeRecovery } from '../../src/shared/home-writer.js';
+import { output } from '../../src/mcp/schemas.js';
 import { serialCalls } from '../../src/mcp/serial.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
@@ -145,6 +147,17 @@ test('partial is never success; structured and text results agree with every rec
   const result = failure(new PartialError('commit failed', ['database'], ['git'], ['x'], 17));
   assert.equal(result.isError, true); assert.deepEqual(result.structuredContent, expected);
   assert.deepEqual(JSON.parse((result.content[0] as { text: string }).text), expected);
+  assert.deepEqual(output.parse(expected), expected);
+  const home: HomeRecovery = { needsAttention: true, head: 'b'.repeat(40), remoteHead: null, remoteOutcome: 'unknown',
+    pending: { id: 'a2fb6a17-f4b7-4b39-837d-bc994cecc974', operation: 'request_create', paths: ['x'],
+      beforeHead: 'a'.repeat(40), phase: 'publishing', commit: 'b'.repeat(40), destinationId: 'c'.repeat(64) } };
+  const coordinated = failure(new PartialError('commit failed', ['database'], ['git'], ['x'], 17, home));
+  assert.deepEqual(coordinated.structuredContent, { ...expected, home });
+  assert.deepEqual(JSON.parse((coordinated.content[0] as { text: string }).text), { ...expected, home });
+  assert.deepEqual(output.parse(coordinated.structuredContent), { ...expected, home });
+  assert.throws(() => output.parse({ ...expected, home: { ...home, unexpected: true } }), /Unrecognized/);
+  assert.throws(() => output.parse({ ...expected, home: { ...home, pending: { ...home.pending, unexpected: true } } }), /Unrecognized/);
+  assert.throws(() => output.parse({ ...expected, home: { ...home, needsAttention: false } }));
   assert.deepEqual(failure(new Error('bad')).structuredContent, { status: 'error', message: 'bad' });
   assert.deepEqual(success({ path: 'x' }).structuredContent, { status: 'ok', data: { path: 'x' } });
 });

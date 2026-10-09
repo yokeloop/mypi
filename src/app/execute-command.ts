@@ -2,7 +2,10 @@ import type { AppCommand } from './commands.js';
 import type { WorkContext } from '../modules/work-context/public.js';
 import { executePolicyCommand } from './policy-commands.js';
 import { executeWorkspaceOperation } from './workspace-operations.js';
-import { createWorkspace, initializeWorkspace } from './create-workspace.js';
+import { createWorkspace, defaultContextRoot, initializeWorkspace } from './create-workspace.js';
+import { realpathSync } from 'node:fs';
+import { createHomeWriter } from './home-writer.js';
+import type { HomeWriteScope } from '../shared/home-writer.js';
 import { createApp, initializeState } from './create-app.js';
 import { backupState, restoreState } from './backup.js';
 import { inputText } from './input-text.js';
@@ -14,6 +17,9 @@ import { loadSelectedGuardPolicy } from './guard-policy-config.js';
 export type { GuardWarningResult, SelectedGuardPolicy } from './command-membership.js';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
+const managed = new Set(['capture', 'note_add', 'error_add', 'memory_add', 'memory_remove', 'journal_add',
+  'request_create', 'request_status', 'request_title', 'request_progress']);
+export function isManagedHomeCommand(name: string): boolean { return managed.has(name); }
 // WorkContext is an out-of-band working selection, not authentication.
 export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
   selectedPolicy?: SelectedGuardPolicy): Promise<unknown> {
@@ -64,7 +70,15 @@ async function dispatch(c: AppCommand, filename: string, root?: string): Promise
       return { status: 'ok' };
     } finally { app.close(); }
   }
-  const app = createWorkspace(filename, reads.has(c.name), root);
+  if (!isManagedHomeCommand(c.name)) return dispatchWorkspace(c, filename, root);
+  const home = realpathSync(root ?? defaultContextRoot());
+  return createHomeWriter(home).run(c.name, writer => dispatchWorkspace(c, filename, home, writer));
+}
+
+// Genuinely synchronous: never wrap async dispatch in HomeWriter and release its
+// lock before SQLite/file work finishes. Uncovered async operations stay above.
+function dispatchWorkspace(c: AppCommand, filename: string, root?: string, writer?: HomeWriteScope): unknown {
+  const app = createWorkspace(filename, reads.has(c.name), root, undefined, writer);
   try {
     switch (c.name) {
       case 'capture': return { path: app.capture(inputText(c.source)) };

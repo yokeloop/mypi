@@ -5,6 +5,19 @@ From the engine checkout: `mise exec -- pnpm build`, then
 error/partial means nonzero exit and JSON on stderr, never a false success on stdout.
 Core does not call an LLM or execute flow. Full command syntax is in help.
 
+## Managed home write prerequisites
+
+Capture, note/error, memory add/remove, journal add and request create/status/title/
+progress now coordinate their mutation → exact commit → bounded non-force push to
+configured origin/main. Home must already be a private repository on published
+`main`; unrelated dirty/staged state is refused, not adopted. Unrelated ignored
+caches remain untouched. An uncertain operation preserves its pending record and
+adds `home` recovery observations to partial JSON; never replay an append blindly.
+DB-only operations remain independent. `context commit`/`context restore` and
+manual edits/Git are uncoordinated maintenance, not automatic pending recovery or
+publication. See [HOME-WRITER](HOME-WRITER.md) for exact boundaries and the typed
+application status/reconcile API (no new CLI command names in this increment).
+
 ## Native Pi terminal exception
 
 `mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory]

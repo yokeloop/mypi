@@ -13,7 +13,7 @@ record evidence. Historical contracts describe their time, not extra current com
 ## 1. Product and operating boundaries
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
-scoped warmup/history, request cards/statuses/progress, local context commits,
+scoped warmup/history, request cards/statuses/progress, exact context commits and coordinated managed home publication,
 SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
 Native Pi working context supplies supported write/edit guards; contextual application
 calls apply membership/default checks. Explicit workspace helpers prepare, inspect,
@@ -34,7 +34,8 @@ association and shared validate/explain diagnostics. Its MP-9 consumers implemen
 [application membership/defaults](MCP.md#cooperative-application-membership-and-defaults)
 and [explicit workspace operations](M1-CLI.md#explicit-git-workspace-helpers).
 Only documented operations are guarded, not blanket-denied. These settings are not
-authentication, a home-writer lock or OS isolation.
+authentication or OS isolation. The separate [managed home writer](HOME-WRITER.md)
+coordinates only the documented shared CLI/MCP mutation routes.
 No mandatory external tracker, HTTP daemon or implied automatic execution.
 
 ## 2. Code and dependencies
@@ -160,10 +161,19 @@ Do not automatically repeat append/create, roll back a saved card or delete sour
 Inspect first, then complete checked files' commit, strict source adoption, factual
 recovery note instead of invented transition, or explicit touch as appropriate.
 
-For managed home/context persistence, filesystem guards reject traversal,
-symlink/hardlink aliases and implicit overwrite. Context Git preserves unrelated
-staged changes and avoids hooks/fsmonitor/signing/network; private attributes prevent
-EOL/encoding/filter transforms. Separate [workspace helpers](M1-CLI.md#explicit-git-workspace-helpers)
+Shared CLI/MCP managed home writes use one inherited-descriptor Linux advisory lock,
+exact byte-preimage declarations, a bounded pending marker and one observed non-force
+push. They require an already published private main/origin setup; bare workspace
+composition and explicit maintenance commands remain uncoordinated. Unknown outcomes
+block only participating home writes; status/reconcile never replay mutations. See
+[HOME-WRITER](HOME-WRITER.md) for prerequisites, partial fields and bypasses.
+
+For home/context persistence, filesystem guards reject traversal,
+symlink/hardlink aliases and implicit overwrite. Low-level local context commits
+preserve unrelated staged changes and avoid hooks/fsmonitor/signing/network.
+The managed route instead refuses unrelated staged state at admission and separately
+contacts the configured remote for observation/publication. Private context attributes
+prevent EOL/encoding/filter transforms. Separate [workspace helpers](M1-CLI.md#explicit-git-workspace-helpers)
 honor ordinary non-executable text/encoding attributes, and explicit publish uses the
 selected remote transport. Source/inbox are immutable;
 journal/errors append-only. Committed journal prefixes are checked before extracting
