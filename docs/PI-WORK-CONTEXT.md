@@ -205,6 +205,22 @@ its ordinary session/settings writes. Prompt-section injection remains source-in
 no in-flight operation/drain behavior was exercised. Strict build and pure tables do
 not substitute for these native observations.
 
+## Explicit workspace operations
+
+The [four shared CLI/MCP helpers](M1-CLI.md#explicit-git-workspace-helpers) offer an
+explicit prepare → inspect → exact-file commit → non-force publish route. They use
+registered project membership and real independent repository/worktree association.
+Preparing a worktree does **not** select it in Pi: choose the new worktree through
+the normal context route before native write/edit. Scoped calls check the explicit
+project with the shared warn/block policy; ordinary no-context CLI is still the
+operator route. The helpers do not verify code, run flow, create a request, switch
+base branches, clean other materials, own locks or intercept direct Git/shell.
+Unrelated staged entries and undeclared file bytes are preserved by exact commit;
+partial Git effects require inspection, not automatic retry. This is cooperative
+usability, not isolation or safe concurrent ownership.
+
+## MP-9 native hook evidence
+
 For MP-9, a separately authorized parent-executed Pi 1.0.4 RPC probe used exactly one
 real provider request to invoke a disposable orchestration tool. Its genuine
 `ExtensionToolContext.executeTool` calls exercised the actual candidate hook: own

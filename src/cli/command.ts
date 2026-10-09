@@ -28,13 +28,17 @@ mypi request list [--project org/project --status code] | show <key>
 mypi request status <key> <code> --reason text | title <key> <title> --reason text
 mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
+mypi workspace prepare <path> --project org/project [--base clone] --branch task/name --start refs/heads/main
+mypi workspace inspect [path] --project org/project [--base clone]
+mypi workspace commit <files...> --project org/project [--base clone] --worktree path --branch task/name --message text
+mypi workspace publish --project org/project [--base clone] --worktree path --branch task/name --remote origin
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | restore <backup-directory>
 mypi policy validate [YAML | --file path]
 mypi policy explain <guard> [YAML | --file path]
 Guards: outsideWorktreeWrite, baseCheckoutWrite, foreignMypiTarget (warn or block).
-Cooperative diagnostics only; no policy installation or operation interception.
-Supported guard routing is planned in MP-9; working context is not an ACL.
+Policy commands are diagnostics, not policy installation.
+Supported contextual operations use cooperative guards; working context is not an ACL.
 Data commands return JSON. pi inherits native terminal IO and exit status (native help: pi -- --help).
 Project --cwd must be an existing checkout/worktree root; --base requires --project.
 Set XDG_STATE_HOME to isolated state for development.

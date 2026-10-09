@@ -1,5 +1,6 @@
 import type { Scope } from '../shared/scope.js';
 import type { PolicyCommand } from './policy-commands.js';
+import type { WorkspaceOperation } from './workspace-commands.js';
 export type { WorkContext } from '../modules/work-context/public.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
@@ -8,6 +9,7 @@ export type ScopeInput = Scope | { reference: string };
 export type Artifact = { path: string; text?: string };
 export type AppCommand =
   | PolicyCommand
+  | WorkspaceOperation
   | { name: 'db_init' | 'bootstrap' | 'status_list' }
   | { name: 'project_list'; org?: string }
   | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }

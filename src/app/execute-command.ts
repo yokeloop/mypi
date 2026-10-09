@@ -1,6 +1,7 @@
 import type { AppCommand } from './commands.js';
 import type { WorkContext } from '../modules/work-context/public.js';
 import { executePolicyCommand } from './policy-commands.js';
+import { executeWorkspaceOperation } from './workspace-operations.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
 import { backupState, restoreState } from './backup.js';
@@ -38,6 +39,9 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
 
 async function dispatch(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
+  if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
+    return executeWorkspaceOperation(c, filename);
+  }
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);

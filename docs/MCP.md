@@ -45,7 +45,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-33 tools are available through standard tools/list. Inspect live schemas for fields.
+37 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
@@ -114,7 +114,7 @@ it does not exclude another explicit current member.
 | `journal_read` | Same defaults and membership; global/own parent-org reads allowed. Explicit `all` is deliberately unguarded, not silently narrowed. |
 | `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
 | `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
-| `error_add` | Explicit project's actual membership checked. |
+| `error_add`, `workspace_prepare/inspect/commit/publish` | Explicit project's actual membership checked. Workspace mutations additionally require verified independent repository/worktree association. |
 | `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
 | `project_add`, status mutations, `db_init`, `bootstrap`, `backup`, `restore`, `capture`, `context_commit/restore` | Deliberately unguarded global/maintenance operations; explicit operator discipline remains required. |
 
@@ -144,6 +144,28 @@ These are cooperative checks, not an ACL, a home-writer lock or an assertion tha
 shared home writes are concurrency-safe. Ordinary no-context CLI remains an explicit
 operator route. Direct module calls, raw context paths, shell, foreign MCP and disabled
 extensions are not covered; do not infer universal protection from a guarded call.
+
+## Explicit workspace tools
+
+The four tools share [CLI semantics and partial-outcome rules](M1-CLI.md#explicit-git-workspace-helpers):
+
+| Tool | Arguments (all required except `?`) |
+| --- | --- |
+| `workspace_prepare` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `startPoint` |
+| `workspace_inspect` | `project`, `baseRoot?`, `worktreeRoot?` |
+| `workspace_commit` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `paths: string[]`, `message` |
+| `workspace_publish` | `project`, `baseRoot?`, `worktreeRoot`, `branch`, `remote` |
+
+Project is an explicit registered `org/project`, never a remote/directory identity.
+Base defaults only to the registered checkout and is independently verified.
+Prepare returns branch/worktree, pinned start/head and binding. Inspect returns
+observations plus `mutationUnavailable`/`statusUnavailable` diagnostics. Commit
+returns before/head, declared paths and `changed`; unrelated staged entries remain.
+Publish returns head, remote name, full ref, confirmed `remoteHead` and separate
+`push` outcome (`not-needed`, `exited-zero`, or `failed-or-uncertain`). Unconfirmed
+post-push state is **partial**, not success, even when the push process exits zero.
+Only inspect is annotated read-only; publish is open-world. No credentials/URLs are
+returned. No automatic checks, requests, branch switching, retries or Git cleanup.
 
 ## Rollback
 

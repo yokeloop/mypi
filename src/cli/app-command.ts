@@ -30,7 +30,12 @@ export function appCommand(command: Exclude<Command, { type: 'help' | 'pi' }>): 
     if (a[index] === undefined) throw new InputError('Text or --file required');
     return a[index];
   }
+  const workspace = () => ({ project: required('project'), ...(opt('base') === undefined ? {} : { baseRoot: opt('base')! }) });
   switch (name) {
+    case 'workspace prepare': return { name: 'workspace_prepare', ...workspace(), worktreeRoot: a[0]!, branch: required('branch'), startPoint: required('start') };
+    case 'workspace inspect': return { name: 'workspace_inspect', ...workspace(), ...(a[0] === undefined ? {} : { worktreeRoot: a[0] }) };
+    case 'workspace commit': return { name: 'workspace_commit', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch'), paths: a, message: required('message') };
+    case 'workspace publish': return { name: 'workspace_publish', ...workspace(), worktreeRoot: required('worktree'), branch: required('branch'), remote: required('remote') };
     case 'policy validate': return { name: 'policy_validate', text: policyText(0) };
     case 'policy explain': return { name: 'policy_explain', guard: policyGuard(a[0]),
       ...(a[1] === undefined && opt('file') === undefined ? {} : { text: policyText(1) }) };
