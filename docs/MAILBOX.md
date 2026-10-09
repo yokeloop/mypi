@@ -61,12 +61,12 @@ markers are explicit issues, not healthy empty mailboxes. Lists include issues
 and `truncated`; they are not an authoritative complete inventory. Malformed
 outcomes never become success. Wall-clock changes are not delivery guarantees.
 
-The native component's intended public call is `pi.sendMessage` with
+The shipped native extension uses the public call `pi.sendMessage` with
 `deliverAs:'nextTurn', triggerTurn:false`, clearly labeled as another session's
 message. Pi 1.0.4 queues nextTurn messages **in memory** until a later user turn;
 quit or switching sessions may lose pending text even after a handoff receipt.
 There is no automatic resend, model turn or exactly-once processing promise.
-This mailbox component alone does not install a timer or receiver extension.
+The receiver runs code only; no LLM polls the mailbox.
 
 ## Storage, bounds and cleanup
 
@@ -105,14 +105,76 @@ eligibility observation. Cleanup is one explicitly selected ID, never bulk
 history deletion. Unrelated records, original source and native history remain
 untouched; no technical cleanup is an acknowledgment of task completion.
 
+## Native receiver and caller lifecycle
+
+The shipped `mypi` extension registers a mailbox receiver after working-context
+and session-card handlers. Its factory starts nothing. Each `session_start`
+retires the former handle, selects the actual Pi native ID, drains once, then
+starts one unreferenced interval. `session_shutdown` (including switch/reload)
+retires the timer and releases the current-context getter. Late callbacks cannot
+act on a replacement session, even with the same ID. Each claim and synchronous
+handoff rechecks the live public `ctx.sessionManager.getSessionId()`; a mismatch
+retires the receiver and any already claimed record stays uncertain.
+
+`MYPI_MAILBOX_RECEIVE` defaults to `1`; `0` disables receiving without deleting
+anything. `MYPI_MAILBOX_POLL_MS` defaults to `2000`, with strict integer values
+from `1000` through `60000`. The interval is selected on session start/reload;
+changing a valid interval requires another start/reload. Disabled or malformed
+settings retire polling on the next tick. Each drain uses one bounded list and
+at most ten queued-record inspections/claim attempts. Retained issues or
+truncation are not proof of an empty or fully delivered mailbox.
+
+Per-ID contention/invalid records are skipped with at most one warning per
+receiver lifecycle. Public-call errors leave uncertain claims, never retries.
+An unavailable receiver scan, configuration error or failed live-ID getter
+stops polling until the next session start. There is no cleanup, lease, crash
+reclaim, background agent or automatic tab launch. Messages are displayed as
+`mypi.other-session` with exact text and explicit origin, observed destination
+project and cross-project labels. They confer no permission and do not mutate
+the receiver's selected project or prompt instructions.
+
+Native MCP registration includes both the existing working-context envelope and
+`MYPI_MCP_NATIVE_SESSION_ID`, a canonical bounded base64url encoding of the
+actual native ID. Missing/empty ID means no native caller; malformed data fails
+MCP startup rather than silently pretending to be CLI. Registration refreshes
+on native session changes even when the working selection is unchanged. These
+are ordinary claimed metadata, not authentication. A requested registration is
+**not** proof that a server is connected or updated: a same-name user `mcp.json`
+entry takes precedence, including `enabled:false`. Inspect `/mcp`. Independent
+CLI sends still use `kind:cli`; inherited launch context or UI focus is never a
+native sender source. Launcher paths clear inherited MCP caller/context values;
+Herdr explicitly forwards the three mailbox configuration variables above.
+
+## Native acceptance preparation
+
+Follow [the visible Herdr procedure](TESTING.md#interactive-acceptance-through-herdr)
+with two disposable real Pi sessions, shared disposable mailbox/cache and the
+exact built candidate. Preserve actual native IDs from `/session`/observations,
+not invented conversation records. Start idle, send a unique message using a
+selected observation, and inspect queued versus handed-to-Pi outcomes. A native
+command using the public application sender seam can exercise native addressing
+without a model; a CLI send proves only CLI-to-native receiver behavior.
+
+Observe the public `sendMessage` call/options/return independently where needed,
+plus absence of `agent_start`, idle UI and unchanged native history before a user
+turn. In Pi 1.0.4 `ctx.hasPendingMessages()` counts steering/follow-up messages,
+**not** nextTurn custom messages; it cannot prove nextTurn queue state. Do not
+inspect private queues or claim immediate rendered/persisted content. Switch or
+quit normally and confirm no automatic reinjection of a handed/uncertain record.
+Actual MCP sender refresh needs separate native `/mcp`/tool evidence, including
+same-context session changes and possible user overrides; helper tests and a
+CLI send do not prove that a native MCP connection refreshed. No provider turn
+is required for basic handoff acceptance, and model processing is a separate
+explicitly authorized scenario.
+
 ## Native component handoff API
 
 `src/app/mailbox.ts` exports `createMailbox(options?)`, `executeMessageCommand`,
 `MessageCaller`, `MessageEnvelope` and views. Options provide env/home/contextRoot
 and an explicit clock. Factories perform no writes. `MessageCaller` contains
 optional `nativeSessionId` and ordinary `context`; `executeCommand` accepts it as
-its sixth argument, and `createServer` as its fourth. The native integration owns
-refreshing actual native caller metadata on session switches; an environment or
+its sixth argument, and `createServer` as its fourth. The native integration refreshes
+actual native caller metadata on session switches; an environment or
 user-overridden MCP entry is not proof of a fresh connected caller.
 
 `mailbox.receiver(nativeId)` exposes `list()`, `show(messageId)`,

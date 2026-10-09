@@ -1,7 +1,8 @@
 import { isAbsolute } from 'node:path';
 import { InputError } from '../shared/errors.js';
 import type { WorkContext } from '../modules/work-context/public.js';
-import { encodePiContext, MYPI_PI_CONTEXT } from './pi-context.js';
+import { encodePiContext, MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT } from './pi-context.js';
+import { MYPI_MCP_NATIVE_SESSION_ID } from './pi-message-caller.js';
 import type { PiLaunchPlan } from './pi-launcher.js';
 import type { SessionSelection, SessionShow } from './session-cards.js';
 import { herdrId, observeHerdr } from './herdr-observation.js';
@@ -81,7 +82,8 @@ export function controlHerdrSession(command: HerdrControl, env: Readonly<Record<
   return { status: command.action === 'focus' ? 'focused' as const : 'renamed' as const, instanceKey: command.instanceKey, tabId: target.tabId };
 }
 const forwarded = ['PATH', 'HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_DATA_HOME',
-  'PI_CODING_AGENT_DIR', 'MYPI_SESSION_DIR', 'MYPI_SESSION_CARDS', 'MYPI_SESSION_HEARTBEAT_MS', 'MYPI_GUARD_POLICY'] as const;
+  'PI_CODING_AGENT_DIR', 'MYPI_SESSION_DIR', 'MYPI_SESSION_CARDS', 'MYPI_SESSION_HEARTBEAT_MS',
+  'MYPI_MAILBOX_DIR', 'MYPI_MAILBOX_RECEIVE', 'MYPI_MAILBOX_POLL_MS', 'MYPI_GUARD_POLICY'] as const;
 function quote(value: string): string {
   if (value.includes('\0')) throw new InputError('NUL cannot be passed to Herdr');
   return "'" + value.replaceAll("'", "'\\''") + "'";
@@ -91,7 +93,7 @@ export function herdrPiCommand(plan: PiLaunchPlan, executable: string, extension
   env: Readonly<Record<string, string | undefined>>): string {
   if (!isAbsolute(executable) || !isAbsolute(extension)) throw new InputError('Herdr launch requires absolute Pi and extension paths');
   const args = ['/usr/bin/env'];
-  for (const key of [...forwarded, MYPI_PI_CONTEXT]) args.push('-u', key);
+  for (const key of [...forwarded, MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT, MYPI_MCP_NATIVE_SESSION_ID]) args.push('-u', key);
   for (const key of forwarded) if (env[key] !== undefined) args.push(key + '=' + env[key]);
   if (plan.context) args.push(MYPI_PI_CONTEXT + '=' + encodePiContext(plan.context));
   args.push(executable, '--extension', extension, ...plan.args);

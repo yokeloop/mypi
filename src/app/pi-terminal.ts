@@ -6,7 +6,8 @@ import { spawnPi } from '../infrastructure/process/pi-terminal.js';
 import { herdrRunner, resolvePiExecutable } from '../infrastructure/process/herdr.js';
 import { InputError } from '../shared/errors.js';
 import { createApp, resolveStatePath } from './create-app.js';
-import { encodePiContext, MYPI_PI_CONTEXT } from './pi-context.js';
+import { encodePiContext, MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT } from './pi-context.js';
+import { MYPI_MCP_NATIVE_SESSION_ID } from './pi-message-caller.js';
 import { preparePiLaunch, piLaunchObservations } from './pi-launcher.js';
 import type { PiLaunchOptions, PiLaunchPlan } from './pi-launcher.js';
 import { createRepositoryBindings } from './repository-bindings.js';
@@ -41,6 +42,8 @@ export async function launchPi(options: PiLaunchOptions): Promise<{ code: number
   }
   const env = { ...process.env };
   delete env[MYPI_PI_CONTEXT];
+  delete env[MYPI_MCP_CONTEXT];
+  delete env[MYPI_MCP_NATIVE_SESSION_ID];
   if (plan.context) env[MYPI_PI_CONTEXT] = encodePiContext(plan.context);
   const extension = fileURLToPath(new URL('../../../integrations/pi/extensions/mypi.ts', import.meta.url));
   if (options.herdrTab) return openHerdrPi(plan, resolvePiExecutable(env, process.cwd()), extension, env, herdrRunner(env), options.title);

@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { decodePiContext, encodePiContext, mcpWorkContext, parsePiContext, PI_CONTEXT_ENTRY, selectPiContext } from '../../src/app/pi-context.js';
 import { InputError } from '../../src/shared/errors.js';
+import { decodeNativeCaller, encodeNativeCaller, nativeCallerEnvironment, sameNativeCaller } from '../../src/app/pi-message-caller.js';
 
 const data = { version: 1 as const, cwd: '/task', context: { scope: { kind: 'project' as const, project: 'one/a' }, worktreeRoot: '/task' } };
 const own = (value: unknown) => ({ type: 'custom', customType: PI_CONTEXT_ENTRY, data: value });
@@ -40,6 +41,22 @@ test('Pi context validates version, known fields and selection/worktree consiste
   const parsed = parsePiContext(data)!;
   assert.notEqual(parsed.context, data.context);
   assert(Object.isFrozen(parsed) && Object.isFrozen(parsed.context) && Object.isFrozen(parsed.context.scope));
+});
+
+test('native MCP caller is canonical, explicitly cleared and changes with the actual session even in the same context', () => {
+  assert.equal(encodeNativeCaller('pi/sender'), 'cGkvc2VuZGVy');
+  assert.equal(decodeNativeCaller('cGkvc2VuZGVy'), 'pi/sender');
+  assert.equal(decodeNativeCaller(encodeNativeCaller('\ufeff${HOME}/native')), '\ufeff${HOME}/native');
+  assert.equal(decodeNativeCaller(undefined), undefined); assert.equal(decodeNativeCaller(''), undefined);
+  for (const value of ['=', 'a', '_w', 'YQ=', 'YR', 'AA', 'YQ'.repeat(1000)]) assert.throws(() => decodeNativeCaller(value), InputError);
+  for (const value of ['', 'a'.repeat(257), '\u0000', '\ud800']) assert.throws(() => encodeNativeCaller(value), InputError);
+  const first = nativeCallerEnvironment({ state: 'selected', data }, 'pi/sender');
+  assert.equal(first.MYPI_MCP_NATIVE_SESSION_ID, 'cGkvc2VuZGVy');
+  assert.equal(sameNativeCaller(undefined, first), false);
+  assert.equal(sameNativeCaller(first, nativeCallerEnvironment({ state: 'selected', data }, 'pi/sender')), true);
+  assert.equal(sameNativeCaller(first, nativeCallerEnvironment({ state: 'selected', data }, 'other-session')), false);
+  assert.equal(sameNativeCaller(first, nativeCallerEnvironment({ state: 'absent' }, 'pi/sender')), false);
+  assert.deepEqual(nativeCallerEnvironment({ state: 'invalid' }, undefined), { MYPI_MCP_CONTEXT: '', MYPI_MCP_NATIVE_SESSION_ID: '' });
 });
 
 test('Pi envelope escapes MCP interpolation, rejects malformed input, and distinguishes explicit clear', () => {

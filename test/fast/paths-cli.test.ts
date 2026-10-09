@@ -250,8 +250,10 @@ test('Herdr explicit caller/target mappings preserve namespace, cross-workspace 
 test('Herdr shell transport quotes opaque tokens and explicitly clears absent working-context environment', () => {
   const text = herdrPiCommand({ cwd: '/task', args: ["a'b", '$(touch /no)', 'line\nbreak', ''] },
     '/opt/pi', '/pkg/my pi.ts', { HOME: '/home/disposable', MYPI_GUARD_POLICY: '/data/policy with space',
-      MYPI_PI_CONTEXT: 'must-not-leak', HERDR_PANE_ID: 'old-pane', PROVIDER_SECRET: 'must-not-leak' });
-  assert.equal(text, "cd '/task' && '/usr/bin/env' '-u' 'PATH' '-u' 'HOME' '-u' 'XDG_CONFIG_HOME' '-u' 'XDG_CACHE_HOME' '-u' 'XDG_STATE_HOME' '-u' 'XDG_DATA_HOME' '-u' 'PI_CODING_AGENT_DIR' '-u' 'MYPI_SESSION_DIR' '-u' 'MYPI_SESSION_CARDS' '-u' 'MYPI_SESSION_HEARTBEAT_MS' '-u' 'MYPI_GUARD_POLICY' '-u' 'MYPI_PI_CONTEXT' 'HOME=/home/disposable' 'MYPI_GUARD_POLICY=/data/policy with space' '/opt/pi' '--extension' '/pkg/my pi.ts' 'a'\\''b' '$(touch /no)' 'line\nbreak' ''");
+      MYPI_PI_CONTEXT: 'must-not-leak', MYPI_MCP_CONTEXT: 'must-not-leak', MYPI_MCP_NATIVE_SESSION_ID: 'must-not-leak',
+      MYPI_MAILBOX_DIR: '/runtime/mailbox', MYPI_MAILBOX_RECEIVE: '1', MYPI_MAILBOX_POLL_MS: '2000',
+      HERDR_PANE_ID: 'old-pane', PROVIDER_SECRET: 'must-not-leak' });
+  assert.equal(text, "cd '/task' && '/usr/bin/env' '-u' 'PATH' '-u' 'HOME' '-u' 'XDG_CONFIG_HOME' '-u' 'XDG_CACHE_HOME' '-u' 'XDG_STATE_HOME' '-u' 'XDG_DATA_HOME' '-u' 'PI_CODING_AGENT_DIR' '-u' 'MYPI_SESSION_DIR' '-u' 'MYPI_SESSION_CARDS' '-u' 'MYPI_SESSION_HEARTBEAT_MS' '-u' 'MYPI_MAILBOX_DIR' '-u' 'MYPI_MAILBOX_RECEIVE' '-u' 'MYPI_MAILBOX_POLL_MS' '-u' 'MYPI_GUARD_POLICY' '-u' 'MYPI_PI_CONTEXT' '-u' 'MYPI_MCP_CONTEXT' '-u' 'MYPI_MCP_NATIVE_SESSION_ID' 'HOME=/home/disposable' 'MYPI_MAILBOX_DIR=/runtime/mailbox' 'MYPI_MAILBOX_RECEIVE=1' 'MYPI_MAILBOX_POLL_MS=2000' 'MYPI_GUARD_POLICY=/data/policy with space' '/opt/pi' '--extension' '/pkg/my pi.ts' 'a'\\''b' '$(touch /no)' 'line\nbreak' ''");
   const context = herdrPiCommand({ cwd: '/x', args: [], context: { version: 1, cwd: '/x', context: { scope: { kind: 'unrestricted' } } } }, '/opt/pi', '/pkg/mypi.ts', {});
   assert.match(context, /'MYPI_PI_CONTEXT=eyJ2ZXJzaW9uIjoxLCJjd2QiOiIveCIsImNvbnRleHQiOnsic2NvcGUiOnsia2luZCI6InVucmVzdHJpY3RlZCJ9fX0'/);
   assert.throws(() => herdrPiCommand({ cwd: '/x', args: ['\0'] }, '/opt/pi', '/pkg/mypi.ts', {}), /NUL/);

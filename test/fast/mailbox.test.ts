@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMailbox, executeMessageCommand, resolveMailboxDirectory } from '../../src/app/mailbox.js';
 import { createSessionCards } from '../../src/app/session-cards.js';
+import { createMailboxDelivery } from '../../src/app/mailbox-delivery.js';
 import { canCleanMessage, messageView, parseMessageEnvelope, sameMessage } from '../../src/modules/mailbox/public.js';
 
 const envelope = { version: 1 as const, messageId: 'msg-1', receiverNativeSessionId: 'pi/receiver',
@@ -154,6 +155,36 @@ test('mailbox disposable files preserve dedup, claim exclusivity, outcomes and s
   assert.equal(receiver.show('msg-1').issue, 'incomplete');
   assert.throws(() => receiver.claim('msg-1'), /busy or incomplete/);
   rmSync(busy);
+  // Native coordinator uses the actual published receiver protocol, not a second delivery store.
+  let liveId = 'pi/receiver', sends = 0;
+  const delivery = createMailboxDelivery({ env, receiver: mailbox.receiver,
+    schedule: () => () => {},
+    sendMessage(message, settings) {
+      sends++;
+      assert.deepEqual(settings, { deliverAs: 'nextTurn', triggerTurn: false });
+      assert.equal(message.details.messageId, 'msg-1');
+      assert.equal(message.content.endsWith(envelope.text), true);
+      assert.equal(receiver.show('msg-1').message?.status, 'uncertain', 'claim must precede the public call');
+    },
+  });
+  delivery.start(() => liveId, () => {}); delivery.close();
+  assert.equal(sends, 1);
+  assert.deepEqual(JSON.parse(readFileSync(join(record('msg-1'), 'outcome.json'), 'utf8')), { version: 1, handedAt: 2200 });
+  delivery.start(() => liveId, () => {}); delivery.close(); assert.equal(sends, 1, 'no reinjection on restart');
+  mailbox.send({ ...input, messageId: 'native-switch' }, sender);
+  let switchedForwards = 0, switchedSchedules = 0;
+  const switchDelivery = createMailboxDelivery({ env,
+    receiver: id => ({ ...mailbox.receiver(id), claim(messageId) {
+      const handle = mailbox.receiver(id).claim(messageId); liveId = 'other-native'; return handle;
+    } }),
+    schedule: () => { switchedSchedules++; return () => {}; },
+    sendMessage: () => { switchedForwards++; },
+  });
+  switchDelivery.start(() => liveId, () => {}); switchDelivery.close();
+  assert.equal(switchedForwards, 0, 'current native ID changed after claim');
+  assert.equal(switchedSchedules, 0, 'mismatched startup must not schedule');
+  assert.equal(receiver.show('native-switch').message?.status, 'uncertain');
+  assert.equal(existsSync(join(record('native-switch'), 'outcome.json')), false);
   // Malformed/partial entries occupy admission quota, not just valid envelopes.
   for (let i = readdirSync(receiverPath).length; i < 100; i++) mkdirSync(join(receiverPath, digest('reservation-' + i)));
   assert.equal(mailbox.send(input, sender).duplicate, true, 'dedup is still available at capacity');

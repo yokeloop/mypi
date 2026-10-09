@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { registerNativeWorkContext } from './native-work-context.js';
 import { registerNativeSessionCards } from './native-session-cards.js';
+import { registerNativeMailbox } from './native-mailbox.js';
 
 /** Context follows Pi's native branch; connection and shutdown remain Pi-owned. */
 export default function (pi: ExtensionAPI) {
@@ -13,4 +14,5 @@ export default function (pi: ExtensionAPI) {
   // Starting Pi via mise exec supplies the checkout's pinned Node 24 on PATH.
   registerNativeWorkContext(pi, root, entry);
   registerNativeSessionCards(pi);
+  registerNativeMailbox(pi);
 }
