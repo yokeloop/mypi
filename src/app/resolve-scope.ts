@@ -5,7 +5,8 @@ import type { Scope } from '../shared/scope.js';
 import { InputError } from '../shared/errors.js';
 
 type Projects = ReturnType<typeof createProjects>;
-export function resolveScope(input: ScopeInput, projects: Projects): Scope {
+export function resolveScope(input: ScopeInput | undefined, projects: Projects): Scope {
+  if (input === undefined) return { type: 'global' };
   if (!('reference' in input)) return scopeValue(input);
   const value = input.reference;
   if (value === 'global') return { type: 'global' };
@@ -19,9 +20,10 @@ export function resolveScope(input: ScopeInput, projects: Projects): Scope {
   if (resolved.type === 'org') return { type: 'org', key: resolved.slug };
   return { type: 'global' };
 }
-export function contextScope(input: ScopeInput, projects: Projects): string | undefined {
+export function contextScope(input: ScopeInput | undefined, projects: Projects): string | undefined {
   // Context CLI historically takes an organization slug or org/project, not journal syntax.
   // In particular an organization named "global" and an explicit empty string are not defaults.
+  if (input === undefined) return undefined;
   if ('reference' in input) { projects.resolveScope(input.reference); return input.reference; }
   const scope = resolveScope(input, projects);
   if (scope.type === 'global') return undefined;

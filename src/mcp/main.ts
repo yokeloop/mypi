@@ -3,9 +3,14 @@ import { homedir } from 'node:os';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { resolveStatePath } from '../app/create-app.js';
 import { createServer } from './server.js';
+import { MYPI_MCP_CONTEXT, mcpWorkContext } from '../app/pi-context.js';
+import { MYPI_MCP_NATIVE_SESSION_ID, decodeNativeCaller } from '../app/pi-message-caller.js';
 
 try {
-  const { server, stop } = createServer(resolveStatePath(process.env, homedir()));
+  const context = mcpWorkContext(process.env[MYPI_MCP_CONTEXT]);
+  const nativeSessionId = decodeNativeCaller(process.env[MYPI_MCP_NATIVE_SESSION_ID]);
+  const caller = { ...(nativeSessionId === undefined ? {} : { nativeSessionId }), ...(context === undefined ? {} : { context }) };
+  const { server, stop } = createServer(resolveStatePath(process.env, homedir()), undefined, context, caller);
   let closing: Promise<void> | undefined;
   const shutdown = () => closing ??= (async () => {
     await stop();

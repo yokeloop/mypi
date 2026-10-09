@@ -5,28 +5,35 @@ import { join, resolve } from 'node:path';
 import { contextFiles, relativeContextPath } from '../filesystem/context-files.js';
 import { PartialError } from '../../shared/context.js';
 import { InputError } from '../../shared/errors.js';
+import { gitPublication } from './publication.js';
 
-export function contextGit(root: string, published: () => ReadonlySet<string> = () => new Set()) {
+export function contextGit(root: string, published: () => ReadonlySet<string> = () => new Set(), descriptor?: number) {
   root = resolve(root);
   const files = contextFiles(root);
   const attributes = '* -text -filter -ident -working-tree-encoding\n';
-  function ensureAttributes(): void {
+  function ensureAttributes(create = descriptor === undefined): void {
     const info = join(root, '.git/info');
     if (existsSync(info) && lstatSync(info).isSymbolicLink()) throw new InputError('Symlink in Git metadata');
     const path = join(info, 'attributes');
     if (existsSync(path)) {
       if (lstatSync(path).isSymbolicLink() || lstatSync(path).nlink !== 1 || readFileSync(path, 'utf8') !== attributes) throw new InputError('Conflicting context Git attributes');
     } else {
+      if (!create) throw new InputError('Managed home writes require configured private Git attributes');
       mkdirSync(join(root, '.git/info'), { recursive: true });
       writeFileSync(path, attributes, { flag: 'wx', mode: 0o600 });
     }
   }
-  function git(args: string[], missingHead = false): string {
-    const result = spawnSync('git', ['--literal-pathspecs', '-c', 'core.hooksPath=/dev/null',
+  function run(args: string[], literal = true) {
+    return spawnSync('/usr/bin/git', [...(literal ? ['--literal-pathspecs'] : []), '-c', 'core.hooksPath=/dev/null',
       '-c', 'core.fsmonitor=false', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false',
       '-c', 'user.name=mypi', '-c', 'user.email=mypi@localhost', '-C', root, ...args],
-    { encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
-      env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
+    { encoding: 'utf8', timeout: 3000, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024,
+      stdio: descriptor === undefined ? ['ignore', 'pipe', 'pipe'] : ['ignore', 'pipe', 'pipe', descriptor],
+      env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+        GIT_TERMINAL_PROMPT: '0', GIT_NO_REPLACE_OBJECTS: '1', GIT_NO_LAZY_FETCH: '1', GIT_OPTIONAL_LOCKS: '0' } });
+  }
+  function git(args: string[], missingHead = false): string {
+    const result = run(args);
     if (missingHead && result.status === 1 && !result.error) return '';
     if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr.trim() || 'Git failed');
     return result.stdout;
@@ -61,6 +68,11 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
     }
     if (resolve(root, git(['rev-parse', '--git-common-dir']).trim()) !== join(root, '.git')) throw new InputError('Shared Git metadata is not a private context repository');
   }
+  function mutable(path: string): void {
+    if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path === 'source.md' || path.endsWith('/source.md') || path.endsWith('/errors.md')) {
+      throw new InputError('Immutable/append-only history cannot be restored by rewriting');
+    }
+  }
   function check(paths: string[]): void {
     if (!paths.length) throw new InputError('Explicit context paths required');
     for (const path of paths) { relativeContextPath(path); files.path(path); }
@@ -69,6 +81,42 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
   }
   return {
     inspectRepository,
+    publication() { return gitPublication(run, 'main', 'origin'); },
+    writerState() {
+      inspectRepository(); ensureAttributes(false);
+      if (git(['symbolic-ref', '--quiet', 'HEAD']).trim() !== 'refs/heads/main') throw new InputError('Managed home writes require main');
+      const head = this.head();
+      if (!head) throw new InputError('Managed home writes require an existing published HEAD');
+      if (['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'BISECT_START', 'rebase-merge', 'rebase-apply', 'sequencer']
+        .some(name => existsSync(join(root, '.git', name)))) throw new InputError('Resolve existing home Git operation first');
+      if (git(['ls-files', '-v', '-z']).split('\0').some(entry => /^[a-zS] /.test(entry))) {
+        throw new InputError('Unsupported home index flags; reconcile explicitly');
+      }
+      const dirty = git(['status', '--porcelain=v1', '-z', '--untracked-files=all', '--no-renames', '--ignore-submodules=none'])
+        .split('\0').filter(Boolean).map(entry => ({ index: entry[0]!, path: entry.slice(3) }));
+      return { head, dirty };
+    },
+    declared(paths: string[]) {
+      check(paths);
+      for (const path of paths) {
+        const target = files.path(path);
+        if (existsSync(target) && !lstatSync(target).isFile()) throw new InputError('Declared home targets must be regular files');
+        const ignored = run(['check-ignore', '--no-index', '--quiet', '--', './' + path], false);
+        if (ignored.error || ignored.status !== 1) throw new InputError('Ignored or unavailable declared home path');
+        for (const entry of git(['ls-files', '--stage', '-z', '--', path]).split('\0').filter(Boolean)) {
+          if (!/^100(?:644|755) [a-f0-9]+ 0\t/.test(entry)) throw new InputError('Unsupported declared home index entry');
+        }
+        for (const entry of git(['ls-tree', '-z', 'HEAD', '--', path]).split('\0').filter(Boolean)) {
+          if (!/^100(?:644|755) blob /.test(entry)) throw new InputError('Unsupported declared home file kind');
+        }
+      }
+    },
+    exactOperation(before: string, commit: string, paths: string[]) {
+      if (before === commit) return true;
+      if (git(['show', '-s', '--format=%P', commit]).trim() !== before) return false;
+      return git(['diff-tree', '--no-commit-id', '--name-only', '--no-renames', '-r', '-z', commit])
+        .split('\0').filter(Boolean).every(path => paths.includes(path));
+    },
     initialize() {
       files.path('MEMORY.md');
       ownMetadata();
@@ -93,11 +141,15 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       if (git(['status', '--porcelain=v1', '--untracked-files=all', '--ignored'])) throw new InputError('Dirty context; reconcile before backup');
     },
     bundle(destination: string) { git(['bundle', 'create', destination, 'HEAD']); },
-    restoreFile(path: string, revision: string) {
-      check([path]);
-      if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path === 'source.md' || path.endsWith('/source.md') || path.endsWith('/errors.md')) {
-        throw new InputError('Immutable/append-only history cannot be restored by rewriting');
+    documentTarget(path: string) {
+      check([path]); mutable(path);
+      const entry = git(['ls-tree', '-z', 'HEAD', '--', path]);
+      if (!/^100(?:644|755) blob [a-f0-9]+\t/.test(entry) || entry.slice(entry.indexOf('\t') + 1) !== path + '\0' || !files.isFile(path)) {
+        throw new InputError('Document patch requires an existing tracked regular file');
       }
+    },
+    restoreFile(path: string, revision: string) {
+      check([path]); mutable(path);
       if (!/^[a-f0-9]{40,64}$/.test(revision)) throw new InputError('Full commit hash required');
       if (git(['cat-file', '-t', revision + ':' + path]).trim() !== 'blob') throw new InputError('Explicit file path required');
       if (existsSync(files.path(path))) this.clean([path]);

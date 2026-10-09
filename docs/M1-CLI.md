@@ -1,12 +1,203 @@
 # Node CLI M1
 
 From the engine checkout: `mise exec -- pnpm build`, then
-`mise exec -- node dist/src/cli/main.js --help`. Results are JSON; error/partial means
-nonzero exit and JSON on stderr, never a false success on stdout. Core does not call
-an LLM or execute flow. Full command syntax is in help.
+`mise exec -- node dist/src/cli/main.js --help`. Data-command results are JSON;
+error/partial means nonzero exit and JSON on stderr, never a false success on stdout.
+Core does not call an LLM or execute flow. Full command syntax is in help.
+
+## Managed home write prerequisites
+
+Capture, note/error, memory add/remove, journal add and request create/status/title/
+progress, plus `home document-patch`, now coordinate their mutation → exact commit → bounded non-force push to
+configured origin/main. Home must already be a private repository on published
+`main`; unrelated dirty/staged state is refused, not adopted. Unrelated ignored
+caches remain untouched. An uncertain operation preserves its pending record and
+adds `home` recovery observations to partial JSON; never replay an append blindly.
+DB-only operations remain independent. `context commit`/`context restore` and
+manual edits/Git are uncoordinated maintenance, not automatic pending recovery or
+publication. See [HOME-WRITER](HOME-WRITER.md) for exact boundaries and the typed
+application API and ordinary-document restrictions.
+
+```sh
+mypi home document-patch 'docs/literal[1].md' 'full replacement text' --expected <lowercase-SHA256-of-existing-bytes>
+mypi home status
+mypi home reconcile
+```
+
+Patch requires an existing tracked ordinary UTF-8 file and explicit byte preimage;
+empty replacement is allowed, creation/deletion is not. It returns `{path,commit}`,
+including the current commit for unchanged text. Managed memory/notes and protected
+source/artifacts/history are not ordinary patch targets. Status exposes local HEAD,
+pending record, observed remote HEAD/outcome and `needsAttention`; reconcile adds
+`reconciled` and only clears an exactly proven published marker, without repeating
+mutation/commit/push. These two commands do not require/create a DB. All three are
+home-wide operator routes outside project membership/default guards, not an ACL or
+a project scope override. See [HOME-WRITER](HOME-WRITER.md) before use.
+
+## Native Pi terminal exception
+
+`mypi pi [--project org/project | --org org | --unrestricted] [--cwd directory]
+[--base clone] [-- native Pi arguments...]` launches installed Pi with inherited
+terminal IO and exit status, not a JSON result wrapper. For example:
+
+```sh
+mise exec -- pnpm pi --project org/project --cwd /clones/project--task
+mypi pi -- --help
+mypi pi --project org/project -- --continue
+```
+
+The alias uses the existing build only. Project cwd must be an existing checkout/
+worktree root; the chosen base (`--base` or registered checkout) is the default cwd.
+Project/org selection requires existing registration. No selection is unselected;
+unrestricted/unselected do not require a DB. No automatic initialization, request,
+worktree, branch switching or settings installation occurs. Native Pi still owns
+its usual resources/history and can invoke a model when asked. See
+[working context](PI-WORK-CONTEXT.md#terminal-launcher) for exact selection, native
+resume, extension-loading and non-enforcement semantics.
 
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
+
+## Explicit Git workspace helpers
+
+```sh
+mypi workspace prepare /clones/project--task --project org/project --base /clones/project --branch task/example --start refs/heads/main
+mypi workspace inspect /clones/project--task --project org/project --base /clones/project
+mypi workspace verify --project org/project --base /clones/project --worktree /clones/project--task --branch task/example
+mypi workspace commit src/example.ts 'test/literal[1].ts' --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --message 'Implement example'
+mypi workspace publish --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --remote origin
+mypi workspace cleanup-preview --project org/project --base /clones/project --worktree /clones/project--task --branch task/example [--remote origin]
+```
+
+These examples are explicit operations, not an automatic workflow or authorization
+for a network push. All require an existing registered `org/project`. Optional
+`--base` overrides the registered checkout exactly as for `mypi pi`; actual Git
+root/common-directory/worktree association is verified, not inferred from a name,
+remote or installation descendant. The installed engine and its shared metadata
+cannot be selected. No DB/home/request initialization occurs.
+
+- **Prepare:** new short local branch and absent target directly under an existing
+  parent, outside existing worktrees/metadata, including the installed engine's
+  canonical Git common directory (also through ordinary symlinks). Independent
+  worktrees nested elsewhere under the installation remain supported. `--start`
+  accepts a full local `refs/heads/...`, `refs/tags/...` or full commit ID, resolved
+  once before creation.
+  No fetch, upstream setup or base branch switch; dirty base files are preserved.
+- **Inspect:** omitted path selects base. Reports real HEAD, branch, porcelain
+  status, known worktrees (including locked/prunable entries) and operation state.
+  An unusable selected binding is marked as unsuitable for mutation; unsupported
+  configured filters make status unavailable rather than executing them. This is
+  neither an ownership registry nor a lock/cleanliness guarantee. Also reports
+  local verification as absent/current/stale/failed/interrupted/unavailable;
+  missing-cache reads create nothing.
+- **Verify:** requires the same linked task worktree and explicit branch as commit.
+  Runs the required project commands described below, recording actual exits.
+  Failure is an error, not a caller-supplied successful assertion.
+- **Commit:** requires an associated linked non-base worktree and its explicit
+  current branch. Paths are distinct normalized relative literal **files**, not
+  recursive directories/pathspecs; quote shell metacharacters. Regular files,
+  new nonignored files and tracked deletions are supported. Symlink components,
+  submodules/special files, unfinished Git operations/conflicts, declared paths with
+  assume-unchanged/skip-worktree flags, and declared staged content differing from
+  working content are refused before staging or reporting a no-op. Helpers never
+  clear these index flags. Native exact `add`/`commit --only` preserves unrelated
+  staged object IDs/modes and working,
+  untracked and ignored bytes (not byte-identical index bookkeeping). Only a real
+  declared-difference observation yields a no-op. No add-all/reset/stash occurs.
+  After exact-path preflight, current successful project checks are required even
+  for a no-op; stale checks refuse before changing the index.
+- **Publish:** explicit configured remote name, one push destination, current
+  branch only. URL rewrite/mirror/multiple-destination or remote-name ambiguity
+  is refused. Observes the exact remote ref, then at most one non-force push of
+  the observed local commit to that same branch; no tags/upstream changes. An
+  already equal ref returns `push:"not-needed"`. Otherwise post-observation must
+  equal the target: `push:"exited-zero"` or `"failed-or-uncertain"` records the
+  command outcome separately from the confirmed destination. The latter does not
+  claim this process caused that state. No automatic retry, merge or rebase.
+  Current checks must cover the complete HEAD content: a checked working snapshot
+  with uncommitted companions cannot certify that partial HEAD. The helper stops
+  without staging/discarding those companions or rerunning commands.
+
+- **Cleanup-preview:** read-only linked-task-worktree observation, with no required
+  verification cache. Returns `head`, `operationState`, `inventory` (tracked
+  HEAD/index union, changes, untracked, ignored, complete/incomplete state and
+  issues), `publication`, reduced advisory `cards`, and preservation diagnostics.
+  Lists are bounded to 10000 path records (including repeated entries) and Git
+  commands to 1 MiB output/3 seconds each; failed, unsupported, truncated or
+  changed-HEAD observations remain incomplete, retaining known entries. Ignored
+  bytes are not read. Unsupported tracked modes, hidden-index flags, conflicts
+  and unexpanded directory entries require separate inspection. Optional `--remote`
+  observes the selected push destination once through the same publication adapter: `not-observed`,
+  `matches-head`, `different-head`, `missing-ref` or `unavailable`; no fetch/push.
+  Card hints expose instance key, stored cwd, status, age and archive flag only;
+  unreadable/truncated observations remain explicit. Always returns
+  `decision:"manual-review"`, `deletionAuthorized:false`, never a safe/delete token.
+  No files, index, refs, registrations, verification/session caches or native
+  histories are changed. See the [owning helper route](PI-WORK-CONTEXT.md#explicit-workspace-operations)
+  for manual-decision and observed-path limitations.
+
+### Project checks and convenience freshness
+
+The project owns a root `.mypi-checks.json`, not registry fields or a flow DSL:
+
+```json
+{"version":1,"commands":[{"argv":["mise","exec","--","pnpm","build"]},{"argv":["mise","exec","--","pnpm","verify"]}]}
+```
+
+These are mypi's existing mandatory build/verify commands, retaining their current
+runner, admission, isolation and external deadlines; the adapter does not replace
+build-state checks. Other projects prescribe their own commands. Missing/invalid
+configuration is unavailable, never a permissive default. Initially **stage** the
+reviewed project-owned configuration (or commit it through ordinary Git); an
+untracked configuration is not implicitly adopted. No caller can supply commands
+or a green flag to `workspace verify`. Version 1 accepts only `version` and a
+nonempty `commands` array (at most 8), each containing only `argv` (1–64 arguments,
+at most 4096 characters each; nonempty executable, no NUL).
+
+Commands run sequentially with the canonical worktree as cwd, inherited process
+environment, no shell interpolation, closed stdin, at most 1 MiB captured output
+and 60 seconds per command. Only argv/exit/outcome are retained, not stdout/stderr
+or environment values. The adapter is not a sandbox or descendant supervisor;
+project commands remain responsible for their prescribed environment and bounds.
+Inherited external environment, installed toolchain and ignored dependency/output
+changes are **not attested**: explicitly reverify after relevant changes there.
+No native UI/provider acceptance is inferred from these command results.
+
+A bounded inventory observes all HEAD/index regular files and all nonignored
+untracked files, including config/lock/new files, their bytes and Git-representable
+executable mode. Deleted files normalize to absence; commit ID and index staging
+are not the content identity. Thus an exact content-equivalent commit reuses the
+successful precommit result, without another suite or empty commit. This is a
+conservative whole-content check, not dependency analysis. Ignored generated files
+are excluded. Symlink/special/submodule content, conflicts, index hidden-file flags,
+configured executable filters, failed observations, over 10000 paths, over 8 MiB
+per file or over 64 MiB working bytes make checks unavailable. Git inventory output
+is also bounded to 1 MiB. Byte-transforming Git attributes can make HEAD differ
+from working bytes and require explicit reconciliation rather than a false match.
+
+The replaceable `mypi-workspace-check.json` lives at Git's resolved **per-worktree**
+metadata path, not in source/home Git or a new evidence DB. It records binding,
+content digest, attempt time and actual command outcomes. An admitted verify writes
+`running` before observing/executing checks, replacing prior green; interruption
+leaves an interrupted attempt, nonzero checks fail, and content changed during
+checks is unavailable. Returning to old bytes after a failed attempt does not
+revive green. This local cache is neither signed attestation nor permission to
+publish/merge, nor a writer lock. Direct shell/Git bypass remains possible.
+
+Helpers disable hooks, fsmonitor, signing and recursive submodule operations.
+Prepare/commit refuse configured executable Git filters; ordinary text/encoding
+attributes still apply. Commit uses normal configured identity. Only explicit
+publish uses ordinary remote credentials/transport; errors do not echo destination
+URLs or authentication output. Each Git subprocess is bounded to 3 seconds and
+1 MiB output, so slow/unavailable remotes may produce an uncertain result.
+
+Preflight refusals are ordinary errors. Once an effect starts, failure returns
+`partial` with known branch/path/HEAD/status or remote-ref observations in `saved`,
+missing confirmation and affected `paths`. Declared index entries may remain staged
+when commit fails. Prepare failure may leave a branch/worktree. Inspect local
+HEAD/status/worktrees and, for publish, the exact remote ref **before any later
+action**; no rollback or safe replay is implied. No concurrent-writer or race
+containment is promised. Run your approved checks separately before commit/publish.
 
 ## Storage and context operations
 
@@ -115,3 +306,23 @@ These commands do not modify working clones, branches or remote synchronization.
 without personal home/network. Build changed source first; stale dist is rejected.
 [M1-CYCLE](M1-CYCLE.md) and [MCP-CYCLE](MCP-CYCLE.md) record functional checks and
 review/gate limits. Numeric budgets exist only in [TESTING](TESTING.md).
+
+## Cooperative contextual application calls
+
+Ordinary shell CLI calls have no implicit Pi context and remain the explicit operator
+route. A caller supplying `WorkContext` to shared CLI/application dispatch gets the
+[application membership/default table](MCP.md#cooperative-application-membership-and-defaults).
+Omitted scope/project is preserved until dispatch: without context it still means
+global memory/journal or standalone request; with scoped context it selects the
+concrete project or organization default. An organization without selected project
+must supply a project to create a request. Explicit global/null intent is never
+silently retargeted. Existing context CLI `--scope global` still denotes an organization
+named `global`, not the typed global scope; journal `--scope global` denotes global.
+For compatibility, explicit journal `--scope ''` also denotes global, not an omitted
+selection; explicit empty memory/context scope remains invalid.
+
+Allowed results retain their original JSON. A successful warn-mode operation instead
+returns `{data:<original result>,warnings:[{behavior:"warn",guard:"foreignMypiTarget",
+message:...}]}`. Blocks and partial failures retain the existing non-success routes.
+Global maintenance/raw context operations remain deliberately unguarded; this is not
+an ACL or a guarantee of safe concurrent home writes.

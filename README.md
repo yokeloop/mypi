@@ -5,7 +5,8 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 31 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, explicit Git workspace helpers,
+coordinated home document writes, CLI and 49 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -35,8 +36,11 @@ describe older revisions, not the current operating policy.
   of activity. Request history comes from a shared append-only JSONL journal.
 - **Published artifacts remain addressable.** New versions use new paths. Mutable
   memory/context can change with history; original source and append-only logs cannot.
-- **Saving is not synchronization.** Context writes include local Git commits;
-  DB-only changes use transactions. Network sync requires separate authorization.
+- **Saving has explicit boundaries.** Participating managed home writes and ordinary
+  document patches coordinate exact commits and one bounded publication attempt;
+  they require configured, published home `main`. DB-only changes use transactions.
+  Uncertain outcomes require inspection, not automatic replay. These capabilities
+  do not grant authorization for unrequested writes or remote setup.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
@@ -89,6 +93,45 @@ and synchronization yourself; engine Git must never contain personal data.
 After successful first-time setup the database is initialized; no second bootstrap
 command is needed. The existing CLI/MCP storage `bootstrap` remains available for
 explicit administrative initialization/migration, without the Pi setup wizard.
+
+### Launch Pi with an explicit working context
+
+Start with the [cooperative Pi operator handoff](docs/COOPERATIVE-PI.md) for the
+short launch/worktree route, limitations, disable procedure and activation gates.
+
+After building mypi, `mise exec -- pnpm pi --project org/project` starts the installed
+Pi in that registered checkout. Use `--cwd /clones/project--task` for an existing
+associated worktree root, or `--base /clones/project` to choose an independent clone.
+`--org org`, `--unrestricted`, and no selection are also supported; no selection
+remains unselected. Native arguments follow `--`, for example `pnpm pi -- --help`.
+
+The alias does not rebuild/bootstrap or create requests/worktrees. It keeps native
+terminal IO/tools/history and explicitly loads the shipped extension without changing
+settings. Context uses the native session branch; never-started conversations are
+not durable. See [launcher and lifecycle details](docs/PI-WORK-CONTEXT.md) and the
+[CLI terminal exception](docs/M1-CLI.md#native-pi-terminal-exception).
+
+### Explicit workspace helpers
+
+`mypi workspace prepare`, `inspect`, `commit` and `publish` share application
+contracts with MCP. Supply a registered project and an independent base clone;
+prepare creates only the explicitly requested branch/worktree, commit selects
+literal files while preserving unrelated staged content, and publish confirms a
+single non-force remote ref. They do not run checks, create requests, switch the
+base branch, retry, merge or replace normal Git. See [arguments and partial
+outcomes](docs/M1-CLI.md#explicit-git-workspace-helpers).
+
+### Coordinated ordinary home documents
+
+For an authorized change to an existing tracked ordinary UTF-8 document, prefer
+`mypi home document-patch <path> <text> --expected <SHA256>` (MCP
+`home_document_patch`). Supply the exact existing byte hash and full replacement;
+no creation/deletion or managed memory/history rewrite is supported. Inspect
+`home status` / `home reconcile` after uncertain outcomes; they never replay writes.
+These are explicitly **home-wide operator routes**, outside project membership
+and defaults. Native edit/shell/manual Git remain uncoordinated maintenance; do not
+run them concurrently with the writer. See [prerequisites and limits](docs/HOME-WRITER.md).
+No settings change or runtime activation is implied.
 
 ### Existing installations
 

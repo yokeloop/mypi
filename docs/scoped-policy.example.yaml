@@ -1,0 +1,8 @@
+# Inert cooperative guard configuration example, not OS isolation.
+# Existing consumers use it only when explicitly selected via MYPI_GUARD_POLICY.
+# No automatic installation or migration.
+version: 2
+guards:
+  outsideWorktreeWrite: block
+  baseCheckoutWrite: block
+  foreignMypiTarget: block

@@ -13,8 +13,11 @@ record evidence. Historical contracts describe their time, not extra current com
 ## 1. Product and operating boundaries
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
-scoped warmup/history, request cards/statuses/progress, local context commits,
+scoped warmup/history, request cards/statuses/progress, exact context commits and coordinated managed home publication,
 SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
+Native Pi working context supplies supported write/edit guards; contextual application
+calls apply membership/default checks. Explicit workspace helpers prepare, inspect,
+commit exact files and publish a selected ref without running an automatic workflow.
 
 The memory/request APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -22,8 +25,21 @@ workflow has been withdrawn; existing cards, immutable sources and storage/API
 contracts, including nullable project_id, are unchanged.
 
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
-agent permissions, task execution queue, session catalog, multi-device and network
-sync are not implemented. Current scope is data selection, not a security perimeter.
+agent permissions, task execution queue, authoritative session catalog, multi-device and network
+sync are not implemented. A bounded [session observation cache](SESSION-CARDS.md)
+provides project/default or explicit operator list/show/archive views without
+storing native history or claiming process ownership. A bounded local
+[mailbox](MAILBOX.md) queues explicit cooperative messages by native Pi ID without
+starting agents or storing transcripts. Current scope is data selection, not a security perimeter.
+The [cooperative policy core](SCOPED-POLICY-CORE.md) adds strict YAML v2 validation,
+ordinary project/organization/unrestricted working context, verified repository
+association and shared validate/explain diagnostics. Its MP-9 consumers implement
+[native write/edit guards](PI-WORK-CONTEXT.md#cooperative-native-writeedit-guards),
+[application membership/defaults](MCP.md#cooperative-application-membership-and-defaults)
+and [explicit workspace operations](M1-CLI.md#explicit-git-workspace-helpers).
+Only documented operations are guarded, not blanket-denied. These settings are not
+authentication or OS isolation. The separate [managed home writer](HOME-WRITER.md)
+coordinates only the documented shared CLI/MCP mutation routes.
 No mandatory external tracker, HTTP daemon or implied automatic execution.
 
 ## 2. Code and dependencies
@@ -34,7 +50,10 @@ src/
 ├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
-│   ├── projects/        # registry, identity, checkout and scope
+│   ├── mailbox/         # pure envelope, expiry and observation rules
+│   ├── session-cards/   # pure observation transitions and age, not runtime ownership
+│   ├── work-context/    # pure working selection and warn/block guard settings
+│   ├── projects/        # registry, identity, checkout, scope and repository evidence
 │   ├── requests/        # cards, numbering, status dictionary
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
@@ -48,6 +67,13 @@ implement ports with technical infrastructure; composition roots select adapters
 Domain rules do not perform IO. Modules do not bypass each other's public API.
 App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.
 Imports do not execute CLI. dependency-cruiser checks directions/cycles.
+Guard policy text parsing/loading is separate from subprocess-based repository
+verification; Git verification is not imported through createApp or fast paths.
+CLI/MCP policy diagnostics and workspace operations share AppCommand contracts.
+Application membership checks use current registry/card relationships before dispatch;
+Git workspace effects remain in separate application composition and a Git adapter.
+Native guards read the current Pi branch selection through a small tool-call adapter.
+There is no universal effect/authority inventory or shell interception.
 No DI framework, event bus, CQRS, generic repository or speculative recovery engine.
 See [M1-DESIGN](M1-DESIGN.md) before changing structure/dependencies.
 
@@ -141,9 +167,21 @@ Do not automatically repeat append/create, roll back a saved card or delete sour
 Inspect first, then complete checked files' commit, strict source adoption, factual
 recovery note instead of invented transition, or explicit touch as appropriate.
 
-Filesystem guards reject traversal, symlink/hardlink aliases and implicit overwrite.
-Git preserves unrelated staged changes and avoids hooks/fsmonitor/signing/network.
-Private attributes prevent EOL/encoding/filter transforms. Source/inbox are immutable;
+Shared CLI/MCP managed home writes use one inherited-descriptor Linux advisory lock,
+exact byte-preimage declarations, a bounded pending marker and one observed non-force
+push. They require an already published private main/origin setup; bare workspace
+composition and explicit maintenance commands remain uncoordinated. Unknown outcomes
+block only participating home writes; status/reconcile never replay mutations. See
+[HOME-WRITER](HOME-WRITER.md) for prerequisites, partial fields and bypasses.
+
+For home/context persistence, filesystem guards reject traversal,
+symlink/hardlink aliases and implicit overwrite. Low-level local context commits
+preserve unrelated staged changes and avoid hooks/fsmonitor/signing/network.
+The managed route instead refuses unrelated staged state at admission and separately
+contacts the configured remote for observation/publication. Private context attributes
+prevent EOL/encoding/filter transforms. Separate [workspace helpers](M1-CLI.md#explicit-git-workspace-helpers)
+honor ordinary non-executable text/encoding attributes, and explicit publish uses the
+selected remote transport. Source/inbox are immutable;
 journal/errors append-only. Committed journal prefixes are checked before extracting
 published artifact references. New versions get new paths. Mutable context can be
 restored from a full Git revision by making a new commit, not rewriting history.
@@ -167,7 +205,7 @@ is not the independent trusted gate ([M1-CI](M1-CI.md)); local file/DB owners an
 admins remain trusted. Evidence does not claim final production acceptance.
 
 A future unit defines role, interface, restrictions and acceptance. Flow composes units;
-runtime validates permissions/results and persists state. Root/org/project coordination
-and request workers should receive relevant context and explicit capabilities. No
+runtime validates inputs/results and persists state. Root/org/project coordination
+and request workers should receive relevant working context. No
 mandatory LLM process per level, automatic status-triggered execution, process-tree
 ownership guarantee or universal human-only acceptance is implemented or assumed.

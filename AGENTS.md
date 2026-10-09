@@ -39,6 +39,8 @@ or delegation step before doing work. Follow the user's requested scope and sess
   blocker still requires reporting or clarification; continuity grants no new scope.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs or subagents unless explicitly requested for the work.
+  The dedicated mypi interactive-acceptance tab described below is the narrow
+  project-policy exception for tabs, not permission to delegate other work.
   Task worktrees follow the common project workflow below.
 - Check Git status before editing and after pushing. If a push is unavailable
   or fails, keep the work, report its actual state and ask for direction rather
@@ -187,6 +189,10 @@ projects. Inspect each project's own instructions and verification commands.
   Do not weaken admission or mandatory checks. CI tests the proposed revision
   with its own locked dependencies and scripts; changes to package.json, lockfiles
   or build scripts do not require promoting a separate trusted base.
+- For mypi's interactive Pi/Herdr acceptance, always use a dedicated visible Herdr
+  test tab and the real user-facing application. This test tab is authorized by
+  project policy. Follow [the acceptance procedure](docs/TESTING.md#interactive-acceptance-through-herdr);
+  headless events alone do not replace interaction through the terminal.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative

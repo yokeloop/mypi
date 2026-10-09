@@ -15,6 +15,7 @@
   "scripts": {
     "build": "timeout --kill-after=5s 55s bash scripts/build.sh",
     "bootstrap": "pnpm build && node dist/src/cli/bootstrap.js",
+    "pi": "node dist/src/cli/main.js pi",
     "test": "bash scripts/check.sh fast",
     "verify": "bash scripts/check.sh verify",
     "release": "node scripts/release.mjs"
@@ -24,6 +25,7 @@
     "better-sqlite3": "13.0.3",
     "ink": "6.3.1",
     "react": "19.3.0",
+    "yaml": "2.9.1",
     "zod": "4.6.5"
   },
   "devDependencies": {
