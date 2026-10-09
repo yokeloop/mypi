@@ -6,6 +6,9 @@ import { mkdtempSync, rmSync, mkdirSync, cpSync, symlinkSync, writeFileSync, rea
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { executeCommand as appExecute } from '../../src/app/execute-command.js';
+import type { AppCommand, WorkContext } from '../../src/app/commands.js';
+import { DEFAULT_GUARD_POLICY } from '../../src/modules/work-context/public.js';
 
 test('complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-all-'));
@@ -57,6 +60,35 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   const request = await cli('request', 'create', '--file', source, '--project', 'one/project',
     '--title', 'Task', '--slug', 'task', '--status', 'planning');
   assert.equal(request.key, 'MP-1');
+  const selected: WorkContext = { scope: { kind: 'project', project: 'one/project' } };
+  const database = root + '-state/mypi/state.sqlite3', home = join(root, 'home');
+  const contextual = async (args: string[]) => JSON.parse(JSON.stringify(await executeCommand(parseCommand(args), database, home, selected)));
+  const scoped = (command: AppCommand, context = selected, policy = DEFAULT_GUARD_POLICY) => appExecute(command, database, home, context, policy);
+  assert.equal((await contextual(['memory', 'show'])).items[0].text, 'scoped');
+  const inherited = JSON.stringify(await contextual(['warmup']));
+  assert(inherited.includes('global\\nline') && inherited.includes('scoped'));
+  assert.deepEqual((await contextual(['request', 'list'])).map((card: { key: string }) => card.key), ['MP-1']);
+  assert.deepEqual((await contextual(['project', 'list'])).projects.map((p: { code: string }) => p.code), ['MP']);
+  const globalBefore = readFileSync(join(home, 'MEMORY.md'), 'utf8');
+  await assert.rejects(scoped({ name: 'memory_add', scope: { type: 'global' }, text: 'blocked' }), /outside the working selection/);
+  assert.equal(readFileSync(join(home, 'MEMORY.md'), 'utf8'), globalBefore);
+  await assert.rejects(scoped({ name: 'request_create', project: null, title: 'Bad', status: 'new', slug: 'bad',
+    source: { file: join(dir, 'missing-source') } }), /outside the working selection/);
+  const policyFile = join(dir, 'warn.yaml');
+  writeFileSync(policyFile, 'version: 2\nguards: {foreignMypiTarget: warn}\n');
+  const previousPolicy = process.env['MYPI_GUARD_POLICY'];
+  try {
+    process.env['MYPI_GUARD_POLICY'] = policyFile;
+    const warned = await contextual(['memory', 'add', 'warned effect', '-s', 'global/project']);
+    assert.deepEqual(warned.data, { path: 'projects/global/project/MEMORY.md' });
+    assert.equal(warned.warnings[0].guard, 'foreignMypiTarget');
+    assert.equal(warned.warnings[0].behavior, 'warn');
+    assert.equal((await cli('memory', 'show', '-s', 'global/project')).items[0].text, 'warned effect');
+  } finally {
+    if (previousPolicy === undefined) delete process.env['MYPI_GUARD_POLICY']; else process.env['MYPI_GUARD_POLICY'] = previousPolicy;
+  }
+  assert.deepEqual(await scoped({ name: 'memory_show', scope: { type: 'global' } }, { scope: { kind: 'unrestricted' } }),
+    await appExecute({ name: 'memory_show' }, database, home));
   assert.equal((await cli('request', 'list', '--status', 'planning')).length, 1);
   await cli('request', 'title', request.key, 'Renamed', '--reason', 'clarification');
   const artifacts = join(dir, 'artifacts.json');
@@ -82,4 +114,6 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   run(restored, ['restore', snapshot]);
   assert.equal(run(restored, ['request', 'show', request.key]).status, 'verified');
   run(restored, ['restore', snapshot], 1);
+  const standalone = await cli('request', 'create', 'operator source', '--title', 'Standalone', '--slug', 'standalone', '--status', 'new');
+  assert.equal(standalone.projectId, null); assert.equal(standalone.key, 'REQ-1');
 });

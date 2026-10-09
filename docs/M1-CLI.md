@@ -136,3 +136,23 @@ These commands do not modify working clones, branches or remote synchronization.
 without personal home/network. Build changed source first; stale dist is rejected.
 [M1-CYCLE](M1-CYCLE.md) and [MCP-CYCLE](MCP-CYCLE.md) record functional checks and
 review/gate limits. Numeric budgets exist only in [TESTING](TESTING.md).
+
+## Cooperative contextual application calls
+
+Ordinary shell CLI calls have no implicit Pi context and remain the explicit operator
+route. A caller supplying `WorkContext` to shared CLI/application dispatch gets the
+[application membership/default table](MCP.md#cooperative-application-membership-and-defaults).
+Omitted scope/project is preserved until dispatch: without context it still means
+global memory/journal or standalone request; with scoped context it selects the
+concrete project or organization default. An organization without selected project
+must supply a project to create a request. Explicit global/null intent is never
+silently retargeted. Existing context CLI `--scope global` still denotes an organization
+named `global`, not the typed global scope; journal `--scope global` denotes global.
+For compatibility, explicit journal `--scope ''` also denotes global, not an omitted
+selection; explicit empty memory/context scope remains invalid.
+
+Allowed results retain their original JSON. A successful warn-mode operation instead
+returns `{data:<original result>,warnings:[{behavior:"warn",guard:"foreignMypiTarget",
+message:...}]}`. Blocks and partial failures retain the existing non-success routes.
+Global maintenance/raw context operations remain deliberately unguarded; this is not
+an ACL or a guarantee of safe concurrent home writes.

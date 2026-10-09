@@ -1,6 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { executeCommand } from '../app/execute-command.js';
+import type { SelectedGuardPolicy } from '../app/execute-command.js';
+import { loadSelectedGuardPolicy } from '../app/guard-policy-config.js';
 import type { WorkContext } from '../app/commands.js';
 import { tools, toolCommand, readOnly } from './tools.js';
 import type { ToolName } from './tools.js';
@@ -12,10 +14,15 @@ import { serialCalls } from './serial.js';
 export function createServer(filename: string, root?: string, context?: WorkContext) {
   const server = new McpServer({ name: 'mypi', version: '0.2.1' });
   const calls = serialCalls();
+  let policy: SelectedGuardPolicy | undefined;
+  if (context && context.scope.kind !== 'unrestricted') {
+    try { policy = loadSelectedGuardPolicy(process.env); }
+    catch (error) { policy = error instanceof Error ? error : new Error(String(error)); }
+  }
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
       const command = toolCommand(name, args);
-      return await calls.run(signal, async () => success(await executeCommand(command, filename, root, context)));
+      return await calls.run(signal, async () => success(await executeCommand(command, filename, root, context, policy)));
     } catch (error) { return failure(error); }
   }
   for (const name of Object.keys(tools) as ToolName[]) {

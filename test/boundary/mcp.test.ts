@@ -21,9 +21,9 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
   const env = (where: string) => ({ PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
-  async function connect(where: string) {
+  async function connect(where: string, extraEnv: Record<string, string> = {}) {
     const transport = new StdioClientTransport({ command: process.execPath, args: [join(where, 'dist/src/mcp/main.js')],
-      cwd: dir, env: env(where), stderr: 'pipe' });
+      cwd: dir, env: { ...env(where), ...extraEnv }, stderr: 'pipe' });
     let stderr = '';
     transport.stderr?.on('data', b => { stderr += String(b); });
     const client = new Client({ name: 'test', version: '1' });
@@ -81,6 +81,33 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   const request = await call('request_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
   assert.equal(request.key, 'MP-1');
   assert.equal(readFileSync(join(home, request.contextDir, 'source.md'), 'utf8'), source);
+  const contextEnv = { [MYPI_MCP_CONTEXT]: encodePiContext({ version: 1, cwd: dir,
+    context: { scope: { kind: 'project', project: 'one/project' } } }) };
+  const contextual = (await connect(root, contextEnv)).client;
+  assert.deepEqual((await call('request_list', {}, contextual)).map((card: { key: string }) => card.key), ['MP-1']);
+  const blocked = await contextual.callTool({ name: 'memory_add', arguments: { scope: { type: 'global' }, text: 'forbidden' } });
+  assert.equal(blocked.isError, true);
+  assert.match(String((blocked.structuredContent as Record<string, unknown>)['message']), /outside the working selection/);
+  assert.deepEqual((await call('memory_show', { scope: { type: 'global' } })).items.map((item: { text: string }) => item.text), ['parent fact']);
+  await contextual.close();
+  const selectedPolicy = join(dir, 'policy.yaml');
+  writeFileSync(selectedPolicy, 'version: 2\nguards: {foreignMypiTarget: warn}\n');
+  const warningClient = (await connect(root, { ...contextEnv, MYPI_GUARD_POLICY: selectedPolicy })).client;
+  writeFileSync(selectedPolicy, 'invalid policy'); // Existing consumer retains its load-once selection.
+  const warning = await call('memory_add', { scope: { type: 'global' }, text: 'warned global fact' }, warningClient);
+  assert.deepEqual(warning.data, { path: 'MEMORY.md' });
+  assert.equal(warning.warnings.length, 1);
+  assert.equal(warning.warnings[0].behavior, 'warn'); assert.equal(warning.warnings[0].guard, 'foreignMypiTarget');
+  assert.equal((await call('memory_show', { scope: { type: 'global' } })).items[1].text, 'warned global fact');
+  await warningClient.close();
+  const badPolicy = (await connect(root, { ...contextEnv, MYPI_GUARD_POLICY: selectedPolicy })).client;
+  assert.equal((await badPolicy.listTools()).tools.length, 33);
+  assert((await call('status_list', {}, badPolicy)).length > 0);
+  const invalidPolicy = await badPolicy.callTool({ name: 'project_list', arguments: {} });
+  assert.equal(invalidPolicy.isError, true);
+  assert.match(String((invalidPolicy.structuredContent as Record<string, unknown>)['message']), /Invalid guard policy/);
+  assert.equal((await call('context_read', { path: 'MEMORY.md' }, badPolicy)).text.includes('warned global fact'), true);
+  await badPolicy.close();
   await call('request_title', { key: request.key, title: 'Renamed', reason: 'clarified' });
   await call('request_progress', { key: request.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
   assert.equal((await call('request_list', { project: 'one/project' }))[0].title, 'Renamed');

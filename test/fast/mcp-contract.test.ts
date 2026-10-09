@@ -54,7 +54,7 @@ test('33 independent tool examples retain every field; strict schemas reject unk
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
 });
-test('CLI translates to the same subject commands without changing text or default scope', () => {
+test('CLI preserves text and omissions while explicit MCP scope/project remain required', () => {
   const translate = (args: string[]) => {
     const parsed = parseCommand(args);
     if (parsed.type === 'help' || parsed.type === 'pi') throw new Error('Expected data command');
@@ -63,9 +63,14 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
-  assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
+  assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', text: 'fact' });
+  assert.deepEqual(translate(['journal', 'add', 'fact']), { name: 'journal_add', text: 'fact' });
+  assert.deepEqual(translate(['journal', 'add', 'fact', '--scope', '']),
+    { name: 'journal_add', text: 'fact', scope: { type: 'global' } });
+  assert.deepEqual(translate(['journal', 'read', '--scope', 'global']),
+    { name: 'journal_read', scope: { reference: 'global' } });
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
-    { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
+    { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, adoptSource: false });
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
   for (const [name, args] of examples.filter(([name]) => name.startsWith('policy_'))) {
     const argv = name === 'policy_validate' ? ['policy', 'validate', String(args['text'])]

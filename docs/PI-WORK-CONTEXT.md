@@ -155,10 +155,12 @@ default to `block`. `warn` displays a native warning and permits the operation;
 explicit configuration never falls back: native setup reports an error and blocks
 write/edit even in unselected/unrestricted mode, leaving reads and other tools usable.
 Fix the file/selector and reload. Policy is loaded once at extension setup; native
-`/reload` re-reads it. The shared selector is available for subsequent application/MCP
-guard wiring, which this native-path component does not yet implement. Its consumer
-contract is one load per process setup (restart/reconnect to re-read), independently
-of Pi's loaded policy. The absolute selector is inherited normally, not added to the
+`/reload` re-reads it. Scoped application/MCP membership checks use the same selector:
+see the [supported/default/unguarded command table](MCP.md#cooperative-application-membership-and-defaults).
+MCP loads once per scoped consumer setup (restart/reconnect to re-read), independently
+of Pi's loaded policy; direct contextual application/CLI dispatch loads per covered
+command. Invalid application policy fails covered calls, not discovery/unguarded calls;
+no-context/unrestricted application calls retain ordinary behavior. The absolute selector is inherited normally, not added to the
 context codec. There is no watcher, atomic revision or confirmation protocol; a user
 MCP override may provide a different environment.
 

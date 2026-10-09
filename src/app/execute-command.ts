@@ -7,11 +7,36 @@ import { backupState, restoreState } from './backup.js';
 import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
+import { commandMembership, hasMembershipGuard } from './command-membership.js';
+import type { GuardWarningResult, SelectedGuardPolicy } from './command-membership.js';
+import { loadSelectedGuardPolicy } from './guard-policy-config.js';
+export type { GuardWarningResult, SelectedGuardPolicy } from './command-membership.js';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
 // WorkContext is an out-of-band working selection, not authentication.
-// MP-9 adds supported guard routing; ordinary operations are unchanged here.
-export async function executeCommand(c: AppCommand, filename: string, root?: string, _context?: WorkContext): Promise<unknown> {
+export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
+  selectedPolicy?: SelectedGuardPolicy): Promise<unknown> {
+  if (!context || context.scope.kind === 'unrestricted' || !hasMembershipGuard(c)) return dispatch(c, filename, root);
+  const policy = selectedPolicy ?? loadSelectedGuardPolicy(process.env);
+  if (policy instanceof Error) throw policy;
+  const registry = createApp(filename, true);
+  let membership: ReturnType<typeof commandMembership>;
+  try { membership = commandMembership(c, registry, context, policy); } finally { registry.close(); }
+  let data = await dispatch(membership.command, filename, root);
+  if (membership.listProjectIds) {
+    const ids = membership.listProjectIds;
+    if (c.name === 'project_list') {
+      const result = data as { projects: { id: number }[] };
+      data = { ...result, projects: result.projects.filter(p => ids.includes(p.id)) };
+    } else if (c.name === 'request_list') {
+      data = (data as { projectId: number | null }[]).filter(card => card.projectId !== null && ids.includes(card.projectId));
+    }
+  }
+  if (!membership.warnings.length) return data;
+  return { data, warnings: membership.warnings } satisfies GuardWarningResult;
+}
+
+async function dispatch(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
@@ -52,7 +77,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       });
       case 'request_create': return app.requests.create({
         title: c.title, status: c.status, slug: c.slug, source: inputText(c.source),
-        ...(c.project === null ? {} : { project: c.project }),
+        ...(c.project == null ? {} : { project: c.project }),
         ...(c.adoptSource === undefined ? {} : { adoptSource: c.adoptSource }),
       });
       case 'request_list': return app.requests.list(c);

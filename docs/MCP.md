@@ -62,9 +62,9 @@ explain text uses defaults; empty/invalid/v1 text fails. Both results carry
 There is no separate preview or caller/profile/target interface. See
 [implemented schema and examples](SCOPED-POLICY-CORE.md).
 
-Server construction may supply ordinary `WorkContext` out of band. It is not
-authentication and does not block or filter ordinary calls in MP-7; supported guard
-routing is pending MP-9. Diagnostics never install configuration.
+Server construction may supply ordinary `WorkContext` out of band. Supported calls
+use the cooperative membership/default checks below, not authentication. Diagnostics
+never install configuration.
 
 Native Pi composition uses the non-secret `MYPI_MCP_CONTEXT` environment envelope
 from [Pi working context](PI-WORK-CONTEXT.md). It is canonical base64url UTF-8 JSON
@@ -80,7 +80,8 @@ the old connection and does not promise completion or rollback of in-flight writ
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
 requestId when known. structuredContent equals parsed JSON in text content. The data
-payload retains CLI JSON shapes. Invalid JSON-RPC remains an SDK protocol error;
+payload retains CLI JSON shapes, including the conditional warning result below.
+Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
 Always check isError and structuredContent.status, not promise resolution alone.
 
@@ -94,6 +95,55 @@ Scope is not an ACL. The server runs with local user permissions; file/checkout/
 arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
 Read-only hints are not authorization; writes are not declared idempotent, and backup
 is not read-only. Responses are not truncated by the server.
+
+## Cooperative application membership and defaults
+
+No context (including an unselected Pi) and unrestricted context retain ordinary
+operation semantics. A scoped consumer resolves registry project IDs and actual
+request `Card.projectId`; spelling of a directory or request-code prefix does not
+authorize membership. Organization members are observed afresh on each covered call.
+Unknown/inconsistent selected projects fail covered calls without registration or
+storage initialization. `selectedProject` chooses defaults inside an organization;
+it does not exclude another explicit current member.
+
+| Commands | Scoped behavior |
+| --- | --- |
+| `project_list`, `request_list` | Omitted filter selects the concrete selected project, otherwise current organization members. Explicit project/org filters keep their intent; foreign targets warn/block. An explicit own-org project list includes all organization members in organization context, only the own project in project context. |
+| `warmup`, `memory_show` | Application/CLI omitted scope defaults to selected project, otherwise organization. Explicit global and own parent-org reads stay available, including inherited warmup memory; foreign scope warns/blocks. |
+| `memory_add/remove`, `note_add`, `journal_add` | Same omitted default; target membership checked. Explicit global or parent-org writes from project context are foreign; own-org writes in organization context are allowed. Request journal scope uses actual card ownership. |
+| `journal_read` | Same defaults and membership; global/own parent-org reads allowed. Explicit `all` is deliberately unguarded, not silently narrowed. |
+| `request_create` | Application/CLI omitted project defaults to selected project. Organization without concrete selection must supply a project. Explicit null remains standalone and is foreign to scoped selection. No-context/unrestricted omission remains standalone. |
+| `request_show/status/title/touch/progress` | Actual card owner must belong to the working scope; standalone is foreign to scoped selection. |
+| `error_add` | Explicit project's actual membership checked. |
+| `project_resolve`, `status_list`, `context_read`, policy diagnostics | Deliberately unguarded discovery/reads. |
+| `project_add`, status mutations, `db_init`, `bootstrap`, `backup`, `restore`, `capture`, `context_commit/restore` | Deliberately unguarded global/maintenance operations; explicit operator discipline remains required. |
+
+MCP retains **required** explicit scope fields and required nullable
+`request_create.project`; omission is not accepted there. CLI/application omissions
+remain distinguishable from explicit global/null, even though both historically
+had the same no-context result. Existing explicit errors and partial outcomes remain.
+
+`foreignMypiTarget` uses the same v2 `MYPI_GUARD_POLICY` absolute-file selector as
+native write/edit. A scoped MCP consumer loads once at construction, retaining a
+load error for covered calls rather than disabling discovery or unguarded calls.
+Direct contextual application/CLI dispatch loads once per covered command unless
+composition supplies a selected policy/error. An absent selector uses defaults;
+an invalid explicit selector never does. No-context/unrestricted application calls
+do not consume this selector. This differs intentionally from native write/edit,
+where invalid policy also blocks unselected/unrestricted writes.
+
+Block throws the common useful diagnostic before mutation or source-file adoption.
+Warn permits the operation, but **only a successful warned operation** returns the
+application/CLI shape `{data:<normal result>,warnings:[{behavior:"warn",
+guard:"foreignMypiTarget",message:...}]}`. MCP wraps that unchanged shape as
+`{status:"ok",data:{data:<normal result>,warnings:[...]}}`. Normal allowed results
+are unchanged. Errors/partials are never wrapped as successes and retain their
+recovery fields; inspect the actual outcome rather than blindly retrying.
+
+These are cooperative checks, not an ACL, a home-writer lock or an assertion that
+shared home writes are concurrency-safe. Ordinary no-context CLI remains an explicit
+operator route. Direct module calls, raw context paths, shell, foreign MCP and disabled
+extensions are not covered; do not infer universal protection from a guarded call.
 
 ## Rollback
 
