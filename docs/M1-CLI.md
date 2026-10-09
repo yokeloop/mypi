@@ -29,6 +29,69 @@ resume, extension-loading and non-enforcement semantics.
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
+## Explicit Git workspace helpers
+
+```sh
+mypi workspace prepare /clones/project--task --project org/project --base /clones/project --branch task/example --start refs/heads/main
+mypi workspace inspect /clones/project--task --project org/project --base /clones/project
+mypi workspace commit src/example.ts 'test/literal[1].ts' --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --message 'Implement example'
+mypi workspace publish --project org/project --base /clones/project --worktree /clones/project--task --branch task/example --remote origin
+```
+
+These examples are explicit operations, not an automatic workflow or authorization
+for a network push. All require an existing registered `org/project`. Optional
+`--base` overrides the registered checkout exactly as for `mypi pi`; actual Git
+root/common-directory/worktree association is verified, not inferred from a name,
+remote or installation descendant. The installed engine and its shared metadata
+cannot be selected. No DB/home/request initialization occurs.
+
+- **Prepare:** new short local branch and absent target directly under an existing
+  parent, outside existing worktrees/metadata, including the installed engine's
+  canonical Git common directory (also through ordinary symlinks). Independent
+  worktrees nested elsewhere under the installation remain supported. `--start`
+  accepts a full local `refs/heads/...`, `refs/tags/...` or full commit ID, resolved
+  once before creation.
+  No fetch, upstream setup or base branch switch; dirty base files are preserved.
+- **Inspect:** omitted path selects base. Reports real HEAD, branch, porcelain
+  status, known worktrees (including locked/prunable entries) and operation state.
+  An unusable selected binding is marked as unsuitable for mutation; unsupported
+  configured filters make status unavailable rather than executing them. This is
+  neither an ownership registry nor a lock/cleanliness guarantee.
+- **Commit:** requires an associated linked non-base worktree and its explicit
+  current branch. Paths are distinct normalized relative literal **files**, not
+  recursive directories/pathspecs; quote shell metacharacters. Regular files,
+  new nonignored files and tracked deletions are supported. Symlink components,
+  submodules/special files, unfinished Git operations/conflicts, declared paths with
+  assume-unchanged/skip-worktree flags, and declared staged content differing from
+  working content are refused before staging or reporting a no-op. Helpers never
+  clear these index flags. Native exact `add`/`commit --only` preserves unrelated
+  staged object IDs/modes and working,
+  untracked and ignored bytes (not byte-identical index bookkeeping). Only a real
+  declared-difference observation yields a no-op. No add-all/reset/stash occurs.
+- **Publish:** explicit configured remote name, one push destination, current
+  branch only. URL rewrite/mirror/multiple-destination or remote-name ambiguity
+  is refused. Observes the exact remote ref, then at most one non-force push of
+  the observed local commit to that same branch; no tags/upstream changes. An
+  already equal ref returns `push:"not-needed"`. Otherwise post-observation must
+  equal the target: `push:"exited-zero"` or `"failed-or-uncertain"` records the
+  command outcome separately from the confirmed destination. The latter does not
+  claim this process caused that state. No automatic retry, merge or rebase.
+
+Helpers disable hooks, fsmonitor, signing and recursive submodule operations.
+Prepare/commit refuse configured executable Git filters; ordinary text/encoding
+attributes still apply. Commit uses normal configured identity. Only explicit
+publish uses ordinary remote credentials/transport; errors do not echo destination
+URLs or authentication output. Each Git subprocess is bounded to 3 seconds and
+1 MiB output, so slow/unavailable remotes may produce an uncertain result.
+
+Preflight refusals are ordinary errors. Once an effect starts, failure returns
+`partial` with known branch/path/HEAD/status or remote-ref observations in `saved`,
+missing confirmation and affected `paths`. Declared index entries may remain staged
+when commit fails. Prepare failure may leave a branch/worktree. Inspect local
+HEAD/status/worktrees and, for publish, the exact remote ref **before any later
+action**; no rollback or safe replay is implied. No concurrent-writer or race
+containment is promised. Run your approved checks separately before commit/publish.
+
 ## Storage and context operations
 
 DB: `$XDG_STATE_HOME/mypi/state.sqlite3` (fallback `~/.local/state/mypi/state.sqlite3`),
@@ -136,3 +199,23 @@ These commands do not modify working clones, branches or remote synchronization.
 without personal home/network. Build changed source first; stale dist is rejected.
 [M1-CYCLE](M1-CYCLE.md) and [MCP-CYCLE](MCP-CYCLE.md) record functional checks and
 review/gate limits. Numeric budgets exist only in [TESTING](TESTING.md).
+
+## Cooperative contextual application calls
+
+Ordinary shell CLI calls have no implicit Pi context and remain the explicit operator
+route. A caller supplying `WorkContext` to shared CLI/application dispatch gets the
+[application membership/default table](MCP.md#cooperative-application-membership-and-defaults).
+Omitted scope/project is preserved until dispatch: without context it still means
+global memory/journal or standalone request; with scoped context it selects the
+concrete project or organization default. An organization without selected project
+must supply a project to create a request. Explicit global/null intent is never
+silently retargeted. Existing context CLI `--scope global` still denotes an organization
+named `global`, not the typed global scope; journal `--scope global` denotes global.
+For compatibility, explicit journal `--scope ''` also denotes global, not an omitted
+selection; explicit empty memory/context scope remains invalid.
+
+Allowed results retain their original JSON. A successful warn-mode operation instead
+returns `{data:<original result>,warnings:[{behavior:"warn",guard:"foreignMypiTarget",
+message:...}]}`. Blocks and partial failures retain the existing non-success routes.
+Global maintenance/raw context operations remain deliberately unguarded; this is not
+an ACL or a guarantee of safe concurrent home writes.

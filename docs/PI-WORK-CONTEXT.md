@@ -34,8 +34,8 @@ Native status shows the selection (or reason it is unselected) and MCP
 `requested/unconfirmed`, never an assertion of active routing. Before an agent turn,
 a short `mypi_work_context` prompt section describes the current branch selection,
 cwd and ordinary workflow. It does not replace other prompt sections or enforce
-write guards. Organization work needs a concrete project/worktree before changes;
-base checkouts remain available for study. Supported guards belong to MP-9.
+write guards itself. Organization work needs a concrete project/worktree before changes;
+base checkouts remain available for study. The supported native hook below handles write/edit.
 
 ## Application/launcher contract
 
@@ -87,8 +87,8 @@ proves ownership. Existing repository checks verify the chosen base and cwd shar
 Git metadata and exact worktree membership and do not use installed engine metadata.
 Project `--cwd` must be an existing checkout/worktree **root**, not a subdirectory;
 locked/detached/unavailable bindings are refused. No directory, branch or worktree
-is created or repaired. Base checkout is available for study; MP-9 supplies supported
-write guards/workspace preparation, not this launcher.
+is created or repaired. Base checkout is available for study; the native hook supplies
+supported write guards, not this launcher.
 
 Organization, unrestricted and unselected starts use the current directory unless
 `--cwd` selects another existing directory. Paths are canonicalized; unselected and
@@ -122,6 +122,53 @@ The public registration API exposes no effective connection/override confirmatio
 so status stays unconfirmed even after registration returns. Use native `/mcp` for
 actual connection diagnostics; registration failures are shown as errors. There is
 no invented acknowledgement protocol, broker or security boundary.
+
+## Cooperative native write/edit guards
+
+The `tool_call` hook reads the **current branch selection on every call**. It does
+not replace tools. With a scoped selection it observes real local Git metadata,
+primary base identity and exact usable worktree membership. Directory names, remote
+URLs and lexical installation descendants do not establish repository identity.
+The selected project association comes from MP-8 launch selection, not a new DB
+lookup in this hook. This is cooperative guidance, not authentication of branch entries.
+
+| Condition | Response |
+| --- | --- |
+| Valid selected task, target inside it (even task nested under base) | Allow |
+| Selected primary/base checkout | `baseCheckoutWrite` |
+| Task selected, target outside task but inside its observed base | `baseCheckoutWrite` |
+| Other target, or scoped missing/unusable worktree/path observation | `outsideWorktreeWrite` |
+| Absent/invalid/cwd-mismatch selection | Ordinary unselected Pi; existing context warning |
+| Unrestricted selection | No project path restriction |
+| Read/search or tools other than native `write`/`edit` | No path guard |
+
+For Linux Pi 1.0.4 the adapter matches write/edit path spelling: leading `@`, `~`
+and `~/`, `file://` URLs, and Pi's Unicode-space normalization. It then canonicalizes
+the existing target or nearest existing ancestor of a new path, following ordinary
+symlinks. Dangling links or unavailable observations yield the configured unusable
+response. No race, mount or hardlink containment is promised.
+
+Set optional **absolute file path** `MYPI_GUARD_POLICY=/path/to/policy.yaml` in the
+launch environment to select MP-7 YAML version 2. With no selector all three guards
+default to `block`. `warn` displays a native warning and permits the operation;
+`block` returns a tool-call refusal with guidance. Empty/relative/missing/invalid
+explicit configuration never falls back: native setup reports an error and blocks
+write/edit even in unselected/unrestricted mode, leaving reads and other tools usable.
+Fix the file/selector and reload. Policy is loaded once at extension setup; native
+`/reload` re-reads it. Scoped application/MCP membership checks use the same selector:
+see the [supported/default/unguarded command table](MCP.md#cooperative-application-membership-and-defaults).
+MCP loads once per scoped consumer setup (restart/reconnect to re-read), independently
+of Pi's loaded policy; direct contextual application/CLI dispatch loads per covered
+command. Invalid application policy fails covered calls, not discovery/unguarded calls;
+no-context/unrestricted application calls retain ordinary behavior. The absolute selector is inherited normally, not added to the
+context codec. There is no watcher, atomic revision or confirmation protocol; a user
+MCP override may provide a different environment.
+
+Pi 1.0.4 documents nested `ctx.executeTool` calls (including codemode orchestration)
+as passing through the same tool-call hook. Only nested calls actually dispatched to
+native write/edit are covered, not arbitrary foreign MCP IO. Shell, direct custom-tool
+IO, normal Git, disabled extensions, later input-changing extensions and user overrides
+remain outside this guidance. This is not a sandbox or concurrent home-write guarantee.
 
 ## Acceptance evidence boundary
 
@@ -157,3 +204,38 @@ registry, settings, MCP override, base HEAD and selected source hashes. Pi still
 its ordinary session/settings writes. Prompt-section injection remains source-inspected;
 no in-flight operation/drain behavior was exercised. Strict build and pure tables do
 not substitute for these native observations.
+
+## Explicit workspace operations
+
+The [four shared CLI/MCP helpers](M1-CLI.md#explicit-git-workspace-helpers) offer an
+explicit prepare → inspect → exact-file commit → non-force publish route. They use
+registered project membership and real independent repository/worktree association.
+Preparing a worktree does **not** select it in Pi: choose the new worktree through
+the normal context route before native write/edit. Scoped calls check the explicit
+project with the shared warn/block policy; ordinary no-context CLI is still the
+operator route. The helpers do not verify code, run flow, create a request, switch
+base branches, clean other materials, own locks or intercept direct Git/shell.
+Unrelated staged entries and undeclared file bytes are preserved by exact commit;
+partial Git effects require inspection, not automatic retry. This is cooperative
+usability, not isolation or safe concurrent ownership.
+
+## MP-9 native hook evidence
+
+For MP-9, a separately authorized parent-executed Pi 1.0.4 RPC probe used exactly one
+real provider request to invoke a disposable orchestration tool. Its genuine
+`ExtensionToolContext.executeTool` calls exercised the actual candidate hook: own
+write and edit produced the expected bytes; a base edit was refused with unchanged
+bytes; `@~/` foreign and ordinary-symlink writes were refused with absent targets.
+Refusals included the specific mypi diagnostics, not merely arbitrary tool errors.
+The driver independently rechecked file effects and unchanged base HEAD. The fixture
+aborted the active turn and returned `terminate: true`; one request callback, one
+HTTP 200 response, one invocation/turn, settled state and normal shutdown were
+observed, with no retry or follow-up provider request. Source/build/fixture hashes
+stayed unchanged and the parent removed the disposable credential copy.
+
+This bounded native probe complements the 27 fast and 17 boundary checks; it is not
+part of the network-free product suite, rendered-TUI evidence or adversarial
+containment. Other spelling/policy cases have core-table coverage, not additional
+native smoke claims. Command contexts and RPC have no public tool-execution API:
+the abandoned no-model command proposal was not executed or counted as acceptance.
+No further provider request is authorized by this evidence.

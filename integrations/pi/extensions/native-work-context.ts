@@ -1,5 +1,6 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { existsSync } from 'node:fs';
+import { registerNativePathGuard } from './native-path-guard.js';
 import {
   MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT, PI_CONTEXT_ENTRY, decodePiContext, encodePiContext, selectPiContext,
 } from '../../../dist/src/app/pi-context.js';
@@ -7,6 +8,7 @@ import type { PiContextSelection } from '../../../dist/src/app/pi-context.js';
 
 /** Native branch entries own context; the launch envelope is only a fresh-session handoff. */
 export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string) {
+  registerNativePathGuard(pi);
   let requested: string | undefined;
   let registrationError = false;
   let launchProblem: string | undefined;

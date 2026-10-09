@@ -1,8 +1,19 @@
 import { closeSync, constants, fstatSync, openSync, readSync } from 'node:fs';
 import { MAX_POLICY_BYTES, parsePolicyYaml } from '../infrastructure/configuration/policy-yaml.js';
-import { normalizeGuardPolicy } from '../modules/work-context/public.js';
+import { isAbsolute } from 'node:path';
+import { DEFAULT_GUARD_POLICY, normalizeGuardPolicy } from '../modules/work-context/public.js';
 import type { GuardPolicy } from '../modules/work-context/public.js';
 import { InputError } from '../shared/errors.js';
+
+export const MYPI_GUARD_POLICY = 'MYPI_GUARD_POLICY';
+
+/** Load once at consumer setup. An explicit bad selector must never become defaults. */
+export function loadSelectedGuardPolicy(env: Readonly<Record<string, string | undefined>>): GuardPolicy {
+  const path = env[MYPI_GUARD_POLICY];
+  if (path === undefined) return DEFAULT_GUARD_POLICY;
+  if (!isAbsolute(path) || path.includes('\0')) throw new InputError('MYPI_GUARD_POLICY must be an absolute policy file path');
+  return loadGuardPolicyConfiguration(path);
+}
 
 /** Validate syntax and schema without reading or installing configuration. */
 export function validateGuardPolicyText(text: string): GuardPolicy {

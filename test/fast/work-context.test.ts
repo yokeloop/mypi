@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DEFAULT_GUARD_POLICY, normalizeGuardPolicy, explainGuard, scopeContainsProject } from '../../src/modules/work-context/public.js';
-import type { GuardName, WorkContext, WorkScope } from '../../src/modules/work-context/public.js';
+import { DEFAULT_GUARD_POLICY, normalizeGuardPolicy, explainGuard, scopeContainsProject, decideWorktreeWrite } from '../../src/modules/work-context/public.js';
+import type { GuardName, WorkContext, WorkScope, WorktreeWriteCondition } from '../../src/modules/work-context/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
 test('work-context selection uses current organization observations without runtime prerequisites', () => {
@@ -60,5 +60,24 @@ test('work-context guard policy defaults, explicit responses and schema diagnost
   ];
   for (const [value, message] of invalid) {
     assert.throws(() => normalizeGuardPolicy(value), error => error instanceof InputError && message.test(error.message));
+  }
+});
+
+test('worktree write conditions share configured guard responses', () => {
+  const conditions: readonly [WorktreeWriteCondition, GuardName | undefined][] = [
+    ['own-task', undefined], ['base', 'baseCheckoutWrite'],
+    ['outside', 'outsideWorktreeWrite'], ['unusable', 'outsideWorktreeWrite'],
+  ];
+  for (const [condition, guard] of conditions) {
+    for (const behavior of ['warn', 'block'] as const) {
+      const decision = decideWorktreeWrite(normalizeGuardPolicy({ version: 2,
+        guards: { baseCheckoutWrite: behavior, outsideWorktreeWrite: behavior } }), condition);
+      if (guard === undefined) assert.deepEqual(decision, { behavior: 'allow' });
+      else {
+        assert.equal(decision.behavior, behavior);
+        assert('guard' in decision && decision.guard === guard);
+        assert('message' in decision && /mypi:/.test(decision.message));
+      }
+    }
   }
 });

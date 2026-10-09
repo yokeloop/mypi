@@ -7,6 +7,7 @@ import { serialCalls } from '../../src/mcp/serial.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { executePolicyCommand } from '../../src/app/policy-commands.js';
+import { validateWorkspaceOperation } from '../../src/app/workspace-commands.js';
 
 const scope = { type: 'project', key: 'MP' };
 const examples: [string, Record<string, unknown>][] = [
@@ -28,11 +29,15 @@ const examples: [string, Record<string, unknown>][] = [
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
+  ['workspace_prepare', { project: 'one/project', baseRoot: '/base', worktreeRoot: '/task', branch: 'task/one', startPoint: 'refs/heads/main' }],
+  ['workspace_inspect', { project: 'one/project' }],
+  ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: ['literal[1].txt'], message: 'exact' }],
+  ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin' }],
   ['policy_validate', { text: 'version: 2' }],
   ['policy_explain', { guard: 'outsideWorktreeWrite', text: 'version: 2' }],
 ];
-test('33 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 33);
+test('37 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 37);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -46,6 +51,9 @@ test('33 independent tool examples retain every field; strict schemas reject unk
     ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
     ['project_resolve', { path: 'relative' }], ['backup', { destination: 'relative' }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
+    ['workspace_prepare', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one' }],
+    ['workspace_commit', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: [], message: 'x' }],
+    ['workspace_publish', { project: 'one/project', worktreeRoot: '/task', branch: 'task/one', remote: 'origin', force: true }],
     ['policy_validate', { file: '/tmp/policy.yaml' }],
     ['policy_explain', { guard: 'unknown' }],
     ['policy_explain', { guard: 'baseCheckoutWrite', file: '/tmp/policy.yaml' }],
@@ -54,18 +62,33 @@ test('33 independent tool examples retain every field; strict schemas reject unk
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
 });
-test('CLI translates to the same subject commands without changing text or default scope', () => {
+test('CLI preserves text and omissions while explicit MCP scope/project remain required', () => {
   const translate = (args: string[]) => {
     const parsed = parseCommand(args);
     if (parsed.type === 'help' || parsed.type === 'pi') throw new Error('Expected data command');
     return appCommand(parsed);
   };
+  for (const [argv, name] of [
+    [['workspace', 'prepare', '/task', '--project', 'one/project', '--base', '/base', '--branch', 'task/one', '--start', 'refs/heads/main'], 'workspace_prepare'],
+    [['workspace', 'inspect', '--project', 'one/project'], 'workspace_inspect'],
+    [['workspace', 'commit', 'literal[1].txt', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--message', 'exact'], 'workspace_commit'],
+    [['workspace', 'publish', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one', '--remote', 'origin'], 'workspace_publish'],
+  ] as const) {
+    const expected = examples.find(([key]) => key === name)!;
+    assert.deepEqual(translate([...argv]), { name, ...expected[1] });
+  }
+  assert.throws(() => translate(['workspace', 'publish', '--project', 'one/project', '--worktree', '/task', '--branch', 'task/one']), /--remote required/);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
-  assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
+  assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', text: 'fact' });
+  assert.deepEqual(translate(['journal', 'add', 'fact']), { name: 'journal_add', text: 'fact' });
+  assert.deepEqual(translate(['journal', 'add', 'fact', '--scope', '']),
+    { name: 'journal_add', text: 'fact', scope: { type: 'global' } });
+  assert.deepEqual(translate(['journal', 'read', '--scope', 'global']),
+    { name: 'journal_read', scope: { reference: 'global' } });
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
-    { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
+    { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, adoptSource: false });
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
   for (const [name, args] of examples.filter(([name]) => name.startsWith('policy_'))) {
     const argv = name === 'policy_validate' ? ['policy', 'validate', String(args['text'])]
@@ -84,6 +107,20 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.throws(() => translate(['policy', 'explain', 'unknown']), /Unknown policy guard/);
   assert.throws(() => translate(['policy', 'explain', 'baseCheckoutWrite', '--target', '{}']));
   assert.throws(() => translate(['policy', 'preview']), /Unknown command/);
+});
+test('workspace arguments preserve literal names and reject implicit revisions or unsafe file selections', () => {
+  const command = { name: 'workspace_commit' as const, project: 'one/project', worktreeRoot: '/task', branch: 'task/one', paths: ['literal[1].txt'], message: 'exact' };
+  validateWorkspaceOperation(command);
+  for (const paths of [[], ['a', 'a'], ['/absolute'], ['../escape'], ['dir/../file'], ['.git/config'], ['dir//file'], ['a\0b']]) {
+    assert.throws(() => validateWorkspaceOperation({ ...command, paths }));
+  }
+  for (const startPoint of ['main', 'HEAD~1', '--all', 'refs/remotes/origin/main']) {
+    assert.throws(() => validateWorkspaceOperation({ name: 'workspace_prepare', project: command.project,
+      worktreeRoot: '/task', branch: command.branch, startPoint }));
+  }
+  for (const startPoint of ['refs/heads/main', 'refs/tags/v1', 'a'.repeat(40)]) {
+    validateWorkspaceOperation({ name: 'workspace_prepare', project: command.project, worktreeRoot: '/task', branch: command.branch, startPoint });
+  }
 });
 test('policy diagnostics default only absent text and never reinterpret incompatible or invalid input', () => {
   assert.deepEqual(executePolicyCommand({ name: 'policy_explain', guard: 'baseCheckoutWrite' }), {

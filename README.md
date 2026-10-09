@@ -5,7 +5,8 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 31 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, explicit Git workspace helpers,
+CLI and 37 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -103,6 +104,16 @@ terminal IO/tools/history and explicitly loads the shipped extension without cha
 settings. Context uses the native session branch; never-started conversations are
 not durable. See [launcher and lifecycle details](docs/PI-WORK-CONTEXT.md) and the
 [CLI terminal exception](docs/M1-CLI.md#native-pi-terminal-exception).
+
+### Explicit workspace helpers
+
+`mypi workspace prepare`, `inspect`, `commit` and `publish` share application
+contracts with MCP. Supply a registered project and an independent base clone;
+prepare creates only the explicitly requested branch/worktree, commit selects
+literal files while preserving unrelated staged content, and publish confirms a
+single non-force remote ref. They do not run checks, create requests, switch the
+base branch, retry, merge or replace normal Git. See [arguments and partial
+outcomes](docs/M1-CLI.md#explicit-git-workspace-helpers).
 
 ### Existing installations
 

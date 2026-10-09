@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
-import { loadGuardPolicyConfiguration, validateGuardPolicyText } from '../../src/app/guard-policy-config.js';
+import { loadGuardPolicyConfiguration, validateGuardPolicyText, loadSelectedGuardPolicy } from '../../src/app/guard-policy-config.js';
 import { MAX_POLICY_BYTES } from '../../src/infrastructure/configuration/policy-yaml.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -41,6 +41,11 @@ test('selected guard policy files are bounded UTF-8 regular files and are never 
     guards: { outsideWorktreeWrite: 'block', baseCheckoutWrite: 'warn', foreignMypiTarget: 'warn' },
   };
   assert.deepEqual(loadGuardPolicyConfiguration(path), expected);
+  assert.deepEqual(loadSelectedGuardPolicy({ MYPI_GUARD_POLICY: path }), expected);
+  assert.equal(loadSelectedGuardPolicy({}).guards.baseCheckoutWrite, 'block');
+  for (const value of ['', 'policy.yaml', join(directory, 'missing.yaml')]) {
+    assert.throws(() => loadSelectedGuardPolicy({ MYPI_GUARD_POLICY: value }), InputError);
+  }
   assert.deepEqual(loadGuardPolicyConfiguration(relative(process.cwd(), path)), expected);
   symlinkSync(path, join(directory, 'alias.yaml'));
   assert.deepEqual(loadGuardPolicyConfiguration(join(directory, 'alias.yaml')), expected);
@@ -65,6 +70,7 @@ test('selected guard policy files are bounded UTF-8 regular files and are never 
       assert.match(error.message, message);
       return true;
     });
+    assert.throws(() => loadSelectedGuardPolicy({ MYPI_GUARD_POLICY: path }), message);
     assert.deepEqual(readFileSync(path), Buffer.from(content), 'invalid input must not be repaired');
   }
   assert.deepEqual(readdirSync(directory), ['alias.yaml', 'policy.yaml']);

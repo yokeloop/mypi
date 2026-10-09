@@ -15,11 +15,11 @@ import { state } from '../support/state.js';
 
 // Wiring canary, not a second policy matrix. Shared dispatch transitively uses
 // Git adapters, so it belongs in boundary even though diagnostics spawn nothing.
-test('CLI and MCP share cooperative diagnostics and ordinary context-bearing operations', async t => {
+test('CLI and MCP share cooperative diagnostics and contextual project filtering', async t => {
   const { dir, filename } = state(t), root = join(dir, 'absent-home');
   const registry = createApp(filename, false);
   t.after(() => registry.close());
-  registry.projects.add('one/project', 'MP');
+  const own = registry.projects.add('one/project', 'MP');
   registry.projects.add('other/project', 'OP');
   const context: WorkContext = { scope: { kind: 'project', project: 'one/project' } };
   const text = 'version: 2\nguards: {outsideWorktreeWrite: warn}\n', file = join(dir, 'policy.yaml');
@@ -33,10 +33,11 @@ test('CLI and MCP share cooperative diagnostics and ordinary context-bearing ope
   assert.deepEqual(await run(parseCommand(['policy', 'explain', 'outsideWorktreeWrite', '--file', file]), filename, root, context), explanation);
   await assert.rejects(run(parseCommand(['policy', 'validate', '--file', join(dir, 'missing.yaml')]), filename, root, context), /Policy input unavailable/);
 
-  // MP-9 routing is pending: selection does not silently filter or deny ordinary calls.
+  // Only contextual lists are filtered; ordinary operator and global commands remain usable.
   const listed = await executeCommand({ name: 'project_list' }, filename, root);
   assert.equal((listed as { projects: unknown[] }).projects.length, 2);
-  assert.deepEqual(await run(parseCommand(['project', 'list']), filename, root, context), listed);
+  const selected = { projects: [own] };
+  assert.deepEqual(await run(parseCommand(['project', 'list']), filename, root, context), selected);
   await run(parseCommand(['status', 'add', 'custom']), filename, root, context);
   assert.ok((await executeCommand({ name: 'status_list' }, filename) as { code: string }[]).some(s => s.code === 'custom'));
   await assert.rejects(executeCommand({ name: 'project_add', identity: 'invalid', code: 'BAD' }, filename, root, context));
@@ -49,7 +50,7 @@ test('CLI and MCP share cooperative diagnostics and ordinary context-bearing ope
   const explained = await client.callTool({ name: 'policy_explain', arguments: { guard: 'outsideWorktreeWrite', text } });
   assert.deepEqual(explained.structuredContent, { status: 'ok', data: explanation });
   const ordinaryCall = await client.callTool({ name: 'project_list', arguments: {} });
-  assert.deepEqual(ordinaryCall.structuredContent, { status: 'ok', data: listed });
+  assert.deepEqual(ordinaryCall.structuredContent, { status: 'ok', data: selected });
   const invalid = await client.callTool({ name: 'policy_validate', arguments: { text: 'version: 1' } });
   assert.equal(invalid.isError, true);
   assert.match(String((invalid.structuredContent as Record<string, unknown>)['message']), /version 1 is incompatible/);

@@ -1,11 +1,12 @@
 # Cooperative policy core (MP-7)
 
-**Working context and configuration diagnostics, not active guard routing or OS
-isolation.** This slice does not install a launcher, session registry, policy
-watcher or Pi integration. Ordinary CLI/MCP operations continue using local-user
-permissions with or without a working context. MP-9 will add supported guard
-routing; the configuration below does not yet intercept operations. Shell or
-other clients are not contained by these cooperative settings.
+**Working context and configuration diagnostics, not OS isolation.** The MP-7
+slice introduced the core below without active guard routing or Pi integration.
+Current consumers add [native write/edit guards](PI-WORK-CONTEXT.md#cooperative-native-writeedit-guards),
+[application membership/default checks](MCP.md#cooperative-application-membership-and-defaults)
+and [four explicit workspace helpers](M1-CLI.md#explicit-git-workspace-helpers).
+Operations still use local-user permissions; shell and other clients are not
+contained. There is no session registry or policy watcher.
 
 ## Working context
 
@@ -24,9 +25,10 @@ leases or attenuation. Project/organization selection does not require a sandbox
 Data-selection `Scope` remains a separate API and is not an ACL.
 
 `executeCommand`, CLI `run` and MCP `createServer` accept an optional out-of-band
-`WorkContext`. This is working selection, not authentication. MP-7 does not use it
-to filter results or block ordinary operations; existing data/argument validation
-still applies. No context wrapper, resolver or fake runtime identity is required.
+`WorkContext`. This is working selection, not authentication. MP-7 initially left
+ordinary operations unchanged; current consumers apply only the documented coverage
+and defaults linked above. Existing data/argument validation still applies.
+No context wrapper, resolver or fake runtime identity is required.
 
 ## Guard policy YAML v2
 
@@ -59,6 +61,14 @@ file with the byte limit above. Missing, unreadable or invalid selected files fa
 there is no fallback, implicit home read, write, install or repair. Ordinary relative
 paths and symlink aliases are allowed: this is not a UID/ancestor trust hierarchy.
 `DEFAULT_GUARD_POLICY` is for absent configuration, not invalid input.
+
+The consumer selector `MYPI_GUARD_POLICY` is distinct from that direct loader API:
+it requires an **absolute** file path. Native extension setup and scoped MCP setup
+load independently once; direct contextual application/CLI dispatch loads per
+covered command unless composition supplies a selected policy/error. Invalid explicit
+configuration never becomes defaults. See the [consumer behavior and reload limits](PI-WORK-CONTEXT.md#cooperative-native-writeedit-guards),
+including the intentional native/application difference for unselected or unrestricted
+calls. Diagnostics do not install or activate this selector.
 
 ## Shared diagnostics and transports
 
@@ -103,5 +113,6 @@ Read-only Git inspection uses sanitized environment/config, fixed local commands
 3-second hard kill and 1 MiB output per invocation, no shell/hooks/filters/network
 or mutation. This prevents selecting the wrong checkout; it does not establish
 ownership, a runtime write lease or adversarial containment. Repository metadata and
-paths can change after inspection. MP-7 does not connect candidate configuration
-to personal runtime data or implement workspace helpers/guard enforcement.
+paths can change after inspection. MP-7 supplied only association observations;
+current consumers reuse them for the supported guards and explicit workspace helpers
+linked above, without a runtime lease or concurrent-writer guarantee.
