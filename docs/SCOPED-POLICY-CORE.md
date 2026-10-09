@@ -4,7 +4,7 @@
 slice introduced the core below without active guard routing or Pi integration.
 Current consumers add [native write/edit guards](PI-WORK-CONTEXT.md#cooperative-native-writeedit-guards),
 [application membership/default checks](MCP.md#cooperative-application-membership-and-defaults)
-and [four explicit workspace helpers](M1-CLI.md#explicit-git-workspace-helpers).
+and [explicit workspace helpers](M1-CLI.md#explicit-git-workspace-helpers).
 Operations still use local-user permissions; shell and other clients are not
 contained. There is no session registry or policy watcher.
 
