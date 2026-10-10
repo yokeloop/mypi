@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -10,7 +10,11 @@ test('real Node launcher persists projects across independent processes without 
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
-  const env = { PATH: '/work/tools', HOME: dir, MYPI_PI_CONTEXT: 'malformed-fresh-launch-handoff', XDG_STATE_HOME: join(dir, 'state') };
+  const binding = join(dir, 'binding.json');
+  writeFileSync(binding, JSON.stringify({ version: 1, engineRoot: '/work', homeRoot: join(dir, 'home'),
+    database: join(dir, 'state/mypi/state.sqlite3'), stateRoot: join(dir, 'state/mypi') }));
+  const env = { PATH: '/work/tools', HOME: dir, MYPI_PI_CONTEXT: 'malformed-fresh-launch-handoff',
+    MYPI_INSTALLATION_FILE: binding, XDG_STATE_HOME: join(dir, 'state') };
   const run = (...args: string[]) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env, cwd: dir, encoding: 'utf8', timeout: 3000 });
     assert.ifError(result.error);

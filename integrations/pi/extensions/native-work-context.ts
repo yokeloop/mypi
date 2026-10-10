@@ -8,7 +8,7 @@ import type { PiContextSelection } from '../../../dist/src/app/pi-context.js';
 import { nativeCallerEnvironment, sameNativeCaller } from '../../../dist/src/app/pi-message-caller.js';
 
 /** Native branch entries own context; the launch envelope is only a fresh-session handoff. */
-export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string) {
+export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string, installationEnv: NodeJS.ProcessEnv = process.env) {
   registerNativePathGuard(pi);
   let requested: ReturnType<typeof nativeCallerEnvironment> | undefined;
   let registrationError = false;
@@ -16,7 +16,7 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
 
   function refresh(ctx: ExtensionContext): PiContextSelection {
     const selection = selectPiContext(ctx.sessionManager.getBranch(), ctx.cwd);
-    const env = nativeCallerEnvironment(selection, ctx.sessionManager.getSessionId());
+    const env = { ...installationEnv, ...nativeCallerEnvironment(selection, ctx.sessionManager.getSessionId()) };
     if (!sameNativeCaller(requested, env)) {
       try {
         // Explicit clear prevents inherited process env from reviving an old MCP selection.

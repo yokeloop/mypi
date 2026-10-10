@@ -18,8 +18,8 @@ function observation(ctx: ExtensionContext): SessionObservation {
 }
 
 /** Register after native work context: its fresh launch handoff precedes observation. */
-export function registerNativeSessionCards(pi: ExtensionAPI) {
-  const lifecycle = createSessionLifecycle({ env: process.env, start: data => createSessionCards().start(data),
+export function registerNativeSessionCards(pi: ExtensionAPI, env: NodeJS.ProcessEnv = process.env, contextRoot?: string) {
+  const lifecycle = createSessionLifecycle({ env, start: data => createSessionCards({ env, contextRoot }).start(data),
     schedule(callback, milliseconds) {
       const timer = setInterval(callback, milliseconds);
       timer.unref();

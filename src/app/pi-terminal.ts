@@ -1,11 +1,11 @@
-import { homedir } from 'node:os';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnPi } from '../infrastructure/process/pi-terminal.js';
 import { herdrRunner, resolvePiExecutable } from '../infrastructure/process/herdr.js';
 import { InputError } from '../shared/errors.js';
-import { createApp, resolveStatePath } from './create-app.js';
+import { createApp } from './create-app.js';
+import { installationEnvironment, resolveInstallation } from './installation.js';
 import { encodePiContext, MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT } from './pi-context.js';
 import { MYPI_MCP_NATIVE_SESSION_ID } from './pi-message-caller.js';
 import { preparePiLaunch, piLaunchObservations } from './pi-launcher.js';
@@ -19,9 +19,10 @@ import type { HerdrControl, HerdrSubmission } from './herdr.js';
 export async function launchPi(options: PiLaunchOptions): Promise<{ code: number | null; signal: NodeJS.Signals | null } | HerdrSubmission> {
   if (options.title !== undefined && !options.herdrTab) throw new InputError('--title requires --herdr-tab');
   const engineRoot = fileURLToPath(new URL('../../../', import.meta.url));
+  const installation = resolveInstallation(engineRoot, process.env);
   let plan: PiLaunchPlan;
   if (options.selection?.kind === 'project' || options.selection?.kind === 'organization') {
-    const app = createApp(resolveStatePath(process.env, homedir()), true);
+    const app = createApp(installation.database, true);
     try {
       plan = preparePiLaunch(options, process.cwd(), { projects: app.projects,
         repositories: createRepositoryBindings(app.projects, engineRoot) });
@@ -29,7 +30,7 @@ export async function launchPi(options: PiLaunchOptions): Promise<{ code: number
   } else plan = preparePiLaunch(options, process.cwd());
   let inventory;
   try {
-    const cards = createSessionCards();
+    const cards = createSessionCards({ env: installationEnvironment(installation, process.env), contextRoot: installation.homeRoot });
     inventory = cards.list({ all: true, includeArchived: true });
     if (!existsSync(join(cards.directory, 'cards'))) inventory.issues.push({ issue: 'missing' });
   }
@@ -40,7 +41,7 @@ export async function launchPi(options: PiLaunchOptions): Promise<{ code: number
     throw new InputError('Known session observations for this worktree: ' + JSON.stringify(observations.conflicts)
       + '. Choose session focus <key> --all, another --cwd, or explicit --allow-observed-session. Stale/unknown is not death.');
   }
-  const env = { ...process.env };
+  const env = installationEnvironment(installation, process.env);
   delete env[MYPI_PI_CONTEXT];
   delete env[MYPI_MCP_CONTEXT];
   delete env[MYPI_MCP_NATIVE_SESSION_ID];
@@ -52,5 +53,7 @@ export async function launchPi(options: PiLaunchOptions): Promise<{ code: number
 
 export function controlSessionTerminal(command: HerdrControl) {
   // The fresh-launch handoff is not current native branch context for an independent CLI.
-  return controlHerdrSession(command, process.env, herdrRunner(process.env), createSessionCards());
+  const installation = resolveInstallation(fileURLToPath(new URL('../../../', import.meta.url)), process.env);
+  return controlHerdrSession(command, process.env, herdrRunner(process.env),
+    createSessionCards({ env: installationEnvironment(installation, process.env), contextRoot: installation.homeRoot }));
 }

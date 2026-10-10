@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { PartialError } from '../shared/context.js';
-import { homedir } from 'node:os';
-import { resolveStatePath } from '../app/create-app.js';
+import { fileURLToPath } from 'node:url';
+import { resolveInstallation, installationEnvironment } from '../app/installation.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 import { HerdrPartialError } from '../app/herdr.js';
@@ -18,8 +18,11 @@ try {
     process.stdout.write(JSON.stringify(controlSessionTerminal(command)) + '\n');
   } else {
     // Help must work without a configured home, initialized DB or any filesystem changes.
-    const output = command.type === 'help' ? { usage } : await run(command,
-      resolveStatePath(process.env, homedir()));
+    const output = command.type === 'help' ? { usage } : await (async () => {
+      const installation = resolveInstallation(fileURLToPath(new URL('../../../', import.meta.url)), process.env);
+      return run(command, installation.database, installation.homeRoot, undefined,
+        { env: installationEnvironment(installation, process.env), contextRoot: installation.homeRoot });
+    })();
     process.stdout.write(JSON.stringify(output) + '\n');
   }
 } catch (error) {

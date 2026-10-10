@@ -7,7 +7,7 @@ import { repositoryIdentityReader } from '../infrastructure/git/repository-ident
 import { workspaceGit } from '../infrastructure/git/workspace-git.js';
 import { workspaceCheck } from '../infrastructure/git/workspace-check.js';
 import { createSessionCards } from './session-cards.js';
-import type { SessionList } from './session-cards.js';
+import type { SessionList, SessionCardsOptions } from './session-cards.js';
 import { cleanupCardHints } from './workspace-cleanup-preview.js';
 import type { CleanupPublication } from './workspace-cleanup-preview.js';
 import { InputError } from '../shared/errors.js';
@@ -15,7 +15,7 @@ import { PartialError } from '../shared/context.js';
 
 /** Effectful composition, deliberately separate from command parsing and registry creation. */
 export function executeWorkspaceOperation(command: WorkspaceOperation, filename: string,
-  installedEngineRoot = fileURLToPath(new URL('../../../', import.meta.url))) {
+  installedEngineRoot = fileURLToPath(new URL('../../../', import.meta.url)), cache?: SessionCardsOptions) {
   validateWorkspaceOperation(command);
   const app = createApp(filename, true);
   try {
@@ -74,7 +74,7 @@ export function executeWorkspaceOperation(command: WorkspaceOperation, filename:
         } catch { publication.state = 'unavailable'; }
       }
       let observations: SessionList;
-      try { observations = createSessionCards().list({ all: true, includeArchived: true }); }
+      try { observations = createSessionCards(cache).list({ all: true, includeArchived: true }); }
       catch { observations = { sessions: [], issues: [{ issue: 'unavailable' as const }], truncated: false }; }
       const cards = cleanupCardHints(binding.worktreeRoot, observations);
       try {

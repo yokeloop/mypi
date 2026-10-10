@@ -18,6 +18,9 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
     const root = join(dir, name); mkdirSync(root);
     cpSync('/work/dist', join(root, 'dist'), { recursive: true });
     symlinkSync('/work/node_modules', join(root, 'node_modules'));
+    writeFileSync(join(root, '.mypi-local.json'), JSON.stringify({ version: 1, engineRoot: root,
+      homeRoot: join(root, 'home'), database: join(dir, name + '-state/mypi/state.sqlite3'),
+      stateRoot: join(dir, name + '-state/mypi') }));
     return root;
   }
   const root = installation('engine');
