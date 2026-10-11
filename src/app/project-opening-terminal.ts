@@ -7,6 +7,7 @@ import { repositoryIdentityReader } from '../infrastructure/git/repository-ident
 import { launchPi } from './pi-terminal.js';
 export { ObservedSessionConflict } from './pi-terminal.js';
 import { inspectProjectPiPackages } from './project-pi-packages.js';
+import { InputError } from '../shared/errors.js';
 
 export function projectOpeningChoices(installation: Installation, project?: string, worktree?: string): ProjectOpeningSelection {
   const app = createApp(installation.database, true);
@@ -24,5 +25,6 @@ export async function openProjectPi(installation: Installation, callerCwd: strin
   const receipt = await launchPi({ selection: { kind: 'project', project }, cwd: selection.choice.worktree,
     args: [], herdrTab: true, title: `${project} (${selection.choice.branch})`, allowObservedSession },
     { cwd: callerCwd, installation });
+  if (!('status' in receipt)) throw new InputError('Herdr launch returned no tab submission; inspect target before retrying');
   return { state: 'submitted' as const, choice: selection.choice, receipt };
 }
