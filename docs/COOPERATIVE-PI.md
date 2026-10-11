@@ -19,6 +19,16 @@ cwd/context/native ID and `/mcp`; a submission is not readiness. Partial Herdr
 IDs need inspection before another attempt. Known observed sessions are not
 killed. Without Herdr, ordinary Pi and local CLI remain usable.
 
+The installed Pi still owns the native UI and session. Its project-open command
+and tool delegate SQLite/Git/Herdr work to a bounded Node 24 child through this
+engine's compiled CLI, after native startup build admission (not a separate
+build check on every open). Launch with Node 24 on PATH, e.g. `mise exec -- pi`.
+The child checks the captured installation binding and uses the actual caller
+cwd; a changed binding is a diagnostic, not permission to adopt another engine.
+Cancellation before effects is safe, but abort/timeout after dispatch can leave
+an uncertain result or known Herdr handles. Inspect actual state before deciding
+whether another attempt is appropriate; no rollback or automatic retry is promised.
+
 The optional explicit launcher and local administrative CLI are:
 
 ```sh
