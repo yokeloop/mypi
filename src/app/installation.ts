@@ -32,6 +32,13 @@ function contains(parent: string, child: string): boolean {
   const within = relative(parent, child);
   return within === '' || (!isAbsolute(within) && within !== '..' && !within.startsWith('..' + sep));
 }
+/** A database is a file; it cannot stand in for any required runtime directory. */
+export function validateInstallationStateLayout(database: string, stateRoot: string): void {
+  const directories = [stateRoot, join(stateRoot, 'sessions'), join(stateRoot, 'mailbox')];
+  if (directories.some(directory => contains(database, canonicalFuturePath(directory)))) {
+    throw new InputError('Database file cannot equal or contain a runtime state or cache directory; choose separate paths');
+  }
+}
 /** Does not open the database or create any paths. */
 export function composeInstallation(binding: InstallationBinding, engineRoot: string, configPath: string,
   env: Readonly<Record<string, string | undefined>> = {}): Installation {
@@ -42,6 +49,7 @@ export function composeInstallation(binding: InstallationBinding, engineRoot: st
   const stateRoot = externalStatePath(externalStatePath(binding.stateRoot, engine, 'Runtime state'), home, 'Runtime state');
   const sessionDirectory = externalStatePath(externalStatePath(join(stateRoot, 'sessions'), engine, 'Session cache'), home, 'Session cache');
   const mailboxDirectory = externalStatePath(externalStatePath(join(stateRoot, 'mailbox'), engine, 'Mailbox'), home, 'Mailbox');
+  validateInstallationStateLayout(database, stateRoot);
   for (const [key, expected] of [['MYPI_SESSION_DIR', sessionDirectory], ['MYPI_MAILBOX_DIR', mailboxDirectory]] as const) {
     if (env[key] !== undefined && externalStatePath(env[key], engine, key) !== expected) {
       throw new InputError(`${key} conflicts with selected installation; unset it or select matching stateRoot`);

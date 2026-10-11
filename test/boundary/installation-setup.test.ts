@@ -89,6 +89,33 @@ test('setup preimage changes, conflicting targets and existing DB remain untouch
   assert.throws(() => planInstallation(root, choices), /Nonstandard/);
   assert.equal(readFileSync(join(root, '.pi'), 'utf8'), 'keep');
 });
+test('setup refuses database file/cache-directory collisions before writes, but permits a separate DB beneath stateRoot', t => {
+  const { dir, home, engine } = fixture(t), root = engine('engine'), runtime = join(dir, 'runtime');
+  const base: SetupChoices = { homeMode: 'existing', homeRoot: home, databaseMode: 'new',
+    database: runtime, stateRoot: runtime };
+  const conflicting = [
+    base,
+    { ...base, database: join(dir, 'parent.sqlite3'), stateRoot: join(dir, 'parent.sqlite3/cache') },
+    { ...base, database: join(runtime, 'sessions') },
+    { ...base, database: join(runtime, 'mailbox') },
+  ];
+  for (const choices of conflicting) {
+    assert.throws(() => planInstallation(root, choices), /Database file cannot equal or contain/);
+    assert(!existsSync(choices.database));
+    assert(!existsSync(join(root, '.pi')));
+    assert(!existsSync(join(root, '.mypi-local.json')));
+  }
+  const alias = join(dir, 'runtime-alias');
+  mkdirSync(runtime); symlinkSync(runtime, alias);
+  assert.throws(() => planInstallation(root, { ...base, database: join(alias, 'sessions') }), /Database file cannot equal or contain/);
+  const valid = { ...base, database: join(runtime, 'data/state.sqlite3') };
+  const plan = planInstallation(root, valid);
+  assert(!existsSync(valid.database));
+  applyInstallation(plan);
+  assert.equal(resolveInstallation(root, {}).sessionDirectory, join(runtime, 'sessions'));
+  assert(existsSync(valid.database));
+});
+
 test('new home and known agent engine filters are previewed; explicit refresh preserves local custom settings', t => {
   const { dir, engine } = fixture(t), root = engine('current'), older = engine('older'), home = join(dir, 'fresh');
   const old = join(older, 'integrations/pi');

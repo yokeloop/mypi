@@ -6,7 +6,7 @@ import { contextGit } from '../infrastructure/git/context-git.js';
 import { canonicalFuturePath, externalStatePath } from '../infrastructure/filesystem/paths.js';
 import { openDatabase } from '../infrastructure/database/database.js';
 import { initializeState } from './create-app.js';
-import { composeInstallation, validateInstallation } from './installation.js';
+import { composeInstallation, validateInstallation, validateInstallationStateLayout } from './installation.js';
 import type { InstallationBinding } from './installation.js';
 import { InputError } from '../shared/errors.js';
 
@@ -174,6 +174,7 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
   }
   const db = externalStatePath(externalStatePath(choices.database, engine, 'Database'), home, 'Database');
   const stateRoot = externalStatePath(externalStatePath(choices.stateRoot, engine, 'Runtime state'), home, 'Runtime state');
+  validateInstallationStateLayout(db, stateRoot);
   const homePi = join(home, 'pi'), bindingPath = join(engine, '.mypi-local.json');
   const localPiStatus = stamp(localPi);
   if (localPiStatus.kind === 'file') throw new InputError('Nonstandard .pi configuration requires reconciliation');

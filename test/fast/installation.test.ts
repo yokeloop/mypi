@@ -29,6 +29,10 @@ test('explicit binding selects one engine and external data without touching DB 
   writeFileSync(fileA, JSON.stringify(binding(a, join(dir, 'alias/db.sqlite3'))));
   assert.throws(() => resolveInstallation(a, {}), /outside/);
   assert.equal(readFileSync(fileB, 'utf8'), JSON.stringify(binding(b, dbB)));
+  writeFileSync(fileA, JSON.stringify({ ...binding(a, dbA), stateRoot: dbA }));
+  assert.throws(() => resolveInstallation(a, {}), /Database file cannot equal or contain/);
+  writeFileSync(fileA, JSON.stringify({ ...binding(a, join(dir, 'runtime/data.sqlite3')), stateRoot: join(dir, 'runtime') }));
+  assert.equal(resolveInstallation(a, {}).sessionDirectory, join(dir, 'runtime/sessions'));
   mkdirSync(join(dir, 'cache'));
   symlinkSync(a, join(dir, 'cache/sessions'));
   writeFileSync(fileA, JSON.stringify({ ...binding(a, dbA), stateRoot: join(dir, 'cache') }));
