@@ -52,9 +52,9 @@ export function registerNativeProjectOpen(pi: ExtensionAPI, installation: Instal
   });
   pi.registerTool({
     name: 'mypi_project_open', label: 'Open mypi project',
-    description: 'List registered project/worktree candidates or open an explicit existing project and absolute worktree in a new Herdr tab. Never creates a worktree or request.',
+    description: 'List registered project/worktree candidates or open an explicit existing project and absolute worktree in a new Herdr tab. Never creates a worktree or request. Opening another session despite an observed session requires prior explicit operator approval; an ordinary request to open a project is not that approval.',
     parameters: Type.Object({ project: Type.Optional(Type.String()), worktree: Type.Optional(Type.String()),
-      allowObservedSession: Type.Optional(Type.Boolean()) }),
+      allowObservedSession: Type.Optional(Type.Boolean({ description: 'Set true only after prior explicit operator approval to open another session despite an observed session. An ordinary project-open request is not approval; otherwise leave false/omit and report the conflict.' })) }),
     execute: async (_toolCallId, params, signal, _onUpdate, ctx) => {
       try {
         if (signal?.aborted) throw new Error('Opening cancelled before effects');
