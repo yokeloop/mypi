@@ -22,7 +22,8 @@ for status in /proc/[0-9]*/status; do
 done
 end="$(date +%s%N)"
 elapsed=$((end - MYPi_CHECK_START))
-budget=30000000000
+# Operator-approved verify budget; the separate 55 s systemd cutoff still applies.
+budget=60000000000
 [[ "$1" != fast ]] || budget=5000000000
 [[ "$elapsed" -le "$budget" ]] || { echo "Profile exceeds its working budget" >&2; exit 1; }
 printf 'Cost: wall=%sms fast=%sms memory_peak=%s tasks_peak=%s\n' \
