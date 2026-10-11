@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, readdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import { lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, readdirSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { cloneHome, homeOrigin } from '../infrastructure/git/clone-home.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
@@ -53,6 +53,49 @@ function json(path: string): Record<string, unknown> {
   const data: unknown = JSON.parse(readFileSync(path, 'utf8')) as unknown;
   if (!data || typeof data !== 'object' || Array.isArray(data)) throw new InputError('Expected JSON object: ' + path);
   return data as Record<string, unknown>;
+}
+function inspectAgentSettings(path: string): { config: Record<string, unknown>; observations: Stamp[] } {
+  const observations: Stamp[] = [], seen = new Set<string>();
+  let current = path;
+  for (let depth = 0; depth < 40; depth++) {
+    // Capture parent links too: the apparent Pi agent directory may itself be linked.
+    for (let parent = dirname(current); parent !== dirname(parent); parent = dirname(parent)) {
+      let metadata: ReturnType<typeof lstatSync>;
+      try { metadata = lstatSync(parent); }
+      catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ENOENT') continue; // An unconfigured agent directory is normal.
+        throw new InputError('Pi agent settings parent link cannot be resolved; reconcile before bootstrap');
+      }
+      if (metadata.isSymbolicLink()) {
+        if (!observations.some(item => item.path === parent)) observations.push({ path: parent, kind: 'link', digest: readlinkSync(parent) });
+        try { realpathSync(parent); }
+        catch { throw new InputError('Pi agent settings parent link cannot be resolved; reconcile before bootstrap'); }
+      }
+    }
+    if (seen.has(current)) throw new InputError('Pi agent settings link loops; reconcile its target before bootstrap');
+    seen.add(current);
+    let value: Stamp;
+    try { value = stamp(current); }
+    catch { throw new InputError('Pi agent settings link cannot be resolved to a regular file'); }
+    observations.push(value);
+    if (value.kind === 'absent') {
+      if (current !== path) throw new InputError('Pi agent settings link is dangling; reconcile its target before bootstrap');
+      return { config: {}, observations };
+    }
+    if (value.kind === 'file') {
+      let resolved: string;
+      try { resolved = realpathSync(current); }
+      catch { throw new InputError('Pi agent settings link cannot be resolved; reconcile before bootstrap'); }
+      if (resolved !== current && !observations.some(item => item.path === resolved)) observations.push(stamp(resolved));
+      if (!statSync(current).isFile()) throw new InputError('Pi agent settings target must be a regular file');
+      try { return { config: json(current), observations }; }
+      catch { throw new InputError('Pi agent settings must be a readable JSON object; reconcile before bootstrap'); }
+    }
+    if (value.kind !== 'link') throw new InputError('Pi agent settings target must be a regular file');
+    try { current = resolve(realpathSync(dirname(current)), value.digest!); }
+    catch { throw new InputError('Pi agent settings parent link cannot be resolved; reconcile before bootstrap'); }
+  }
+  throw new InputError('Pi agent settings link chain is too deep; reconcile before bootstrap');
 }
 function checkedPath(path: string, name: string): void {
   if (!isAbsolute(path) || path.includes('\0')) throw new InputError(name + ' must be an explicit absolute path');
@@ -143,7 +186,7 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
     db, dirname(db), stateRoot, bindingPath, localPi, join(localPi, 'settings.json'),
     join(localPi, 'APPEND_SYSTEM.md'), join(localPi, 'mcp.json'), join(localPi, '.mypi-setup.json'),
     join(engine, 'integrations/pi/package.json'), ...['extensions', 'skills', 'prompts', 'themes'].map(key => join(homePi, key)),
-    ...(choices.agentSettingsPath ? [choices.agentSettingsPath] : [])].map(stamp);
+    ].map(stamp);
   const kind = (path: string) => observations.find(value => value.path === path)!.kind;
   if (choices.homeMode === 'existing') {
     if (kind(home) !== 'directory' || kind(join(home, '.git')) !== 'directory') throw new InputError('Existing home must be its own local Git repository');
@@ -180,8 +223,9 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
   const saved = kind(join(localPi, '.mypi-setup.json')) === 'file' ? json(join(localPi, '.mypi-setup.json')) : undefined;
   const localSettingsInput = saved && typeof saved['localSettingsInput'] === 'string' ? saved['localSettingsInput'] : localSettings;
   const warnings: string[] = [];
-  const agentSettings = choices.agentSettingsPath && kind(choices.agentSettingsPath) === 'file' ? json(choices.agentSettingsPath) : {};
-  if (choices.agentSettingsPath && !['file', 'absent'].includes(kind(choices.agentSettingsPath))) throw new InputError('Pi agent settings must be a regular file or absent');
+  const inspected = choices.agentSettingsPath ? inspectAgentSettings(choices.agentSettingsPath) : { config: {}, observations: [] };
+  observations.push(...inspected.observations);
+  const agentSettings = inspected.config;
   if (agentSettings['packages'] !== undefined && !Array.isArray(agentSettings['packages'])) throw new InputError('Invalid agent Pi package list');
   const globalKnown = ((agentSettings['packages'] ?? []) as unknown[]).map(entry => packageEntry(entry, dirname(choices.agentSettingsPath!)))
     .filter(entry => enginePackage(source(entry)));
@@ -224,7 +268,7 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
       && resolve(localPi, readlinkSync(join(localPi, 'APPEND_SYSTEM.md'))) === appendLink)) {
     warnings.push('Existing project APPEND_SYSTEM.md is retained; selected-home instructions are NOT linked. Reconcile explicitly if you want to change this choice.');
   }
-  const consulted = observations.filter(item => item.path === choices.agentSettingsPath || item.path.endsWith('/package.json')
+  const consulted = observations.filter(item => inspected.observations.includes(item) || item.path.endsWith('/package.json')
     || ['extensions', 'skills', 'prompts', 'themes'].some(key => item.path === join(homePi, key)));
   const sourcesHash = createHash('sha256').update(JSON.stringify(consulted)).digest('hex');
   const globalChanged = !!saved && (saved['globalSources'] !== JSON.stringify(knownGlobalSources) || saved['sourcesHash'] !== sourcesHash);

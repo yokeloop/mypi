@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readlinkSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readlinkSync, symlinkSync, unlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -129,6 +129,82 @@ test('new home and known agent engine filters are previewed; explicit refresh pr
   const resourceRefresh = planInstallation(root, { ...reuse, refreshProjection: true });
   assert((JSON.parse(resourceRefresh.settings).skills as string[]).includes(join(home, 'pi/skills')));
   applyInstallation(resourceRefresh);
+});
+
+test('linked ordinary agent settings retain apparent relative base and stale-link/target refusal without writes', t => {
+  const { dir, home, engine } = fixture(t), root = engine('engine');
+  const agent = join(dir, 'agent'), dotfiles = join(dir, 'dotfiles');
+  mkdirSync(agent); mkdirSync(dotfiles);
+  const old = join(agent, 'legacy'); mkdirSync(old);
+  writeFileSync(join(old, 'package.json'), '{"name":"mypi-pi"}');
+  const target = join(dotfiles, 'settings.json'), alternate = join(dotfiles, 'alternate.json'), link = join(agent, 'settings.json');
+  const contents = JSON.stringify({ packages: [{ source: './legacy', extensions: [] }], skills: ['+./shared'] });
+  writeFileSync(target, contents); writeFileSync(alternate, contents);
+  symlinkSync('../dotfiles/settings.json', link);
+  const choices: SetupChoices = { homeMode: 'existing', homeRoot: home, databaseMode: 'new',
+    database: join(dir, 'selected.sqlite3'), stateRoot: join(dir, 'runtime'), agentSettingsPath: link };
+  const plan = planInstallation(root, choices);
+  assert.deepEqual(plan.knownGlobalSources, [old]); // Source is relative to apparent agent/, not dotfiles/.
+  assert.deepEqual(JSON.parse(plan.settings).packages[0], { source: old, extensions: [], skills: [], prompts: [], themes: [] });
+  assert.equal(readFileSync(target, 'utf8'), contents);
+  assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.pi')));
+  writeFileSync(target, contents + ' ');
+  assert.throws(() => applyInstallation(plan), /changed since preview/);
+  assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.pi')));
+  writeFileSync(target, contents);
+  unlinkSync(link); symlinkSync('../dotfiles/alternate.json', link);
+  assert.throws(() => applyInstallation(plan), /changed since preview/);
+  assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.mypi-local.json')));
+  const revised = planInstallation(root, choices);
+  applyInstallation(revised);
+  assert.equal(readlinkSync(link), '../dotfiles/alternate.json');
+  assert.equal(readFileSync(alternate, 'utf8'), contents);
+  const reuse = { ...choices, databaseMode: 'existing' as const };
+  assert.deepEqual(applyInstallation(planInstallation(root, reuse)), []);
+  writeFileSync(alternate, JSON.stringify({ packages: [{ source: './legacy', extensions: [], skills: [] }] }));
+  assert.throws(() => planInstallation(root, reuse), /explicit refresh choice/);
+  const refresh = planInstallation(root, { ...reuse, refreshProjection: true });
+  assert.equal(refresh.knownGlobalSources[0], old);
+  applyInstallation(refresh);
+  assert.equal(readlinkSync(link), '../dotfiles/alternate.json');
+  assert.equal(readFileSync(target, 'utf8'), contents);
+});
+
+test('unusable linked agent settings refuse without setup effects; absent regular settings stay optional', t => {
+  const { dir, home, engine } = fixture(t), root = engine('engine');
+  const agent = join(dir, 'agent'); mkdirSync(agent);
+  const link = join(agent, 'settings.json');
+  const choices: SetupChoices = { homeMode: 'existing', homeRoot: home, databaseMode: 'new',
+    database: join(dir, 'selected.sqlite3'), stateRoot: join(dir, 'runtime'), agentSettingsPath: link };
+  assert.equal(planInstallation(root, choices).knownGlobalSources.length, 0);
+  assert.equal(planInstallation(root, { ...choices, agentSettingsPath: join(dir, 'new-agent/settings.json') }).knownGlobalSources.length, 0);
+  writeFileSync(link, '{}');
+  chmodSync(agent, 0o111);
+  try { assert.equal(planInstallation(root, choices).knownGlobalSources.length, 0); }
+  finally { chmodSync(agent, 0o700); }
+  unlinkSync(link);
+  for (const [target, diagnostic] of [['missing.json', /dangling/], ['settings.json', /loops/], ['.', /regular file/]] as const) {
+    symlinkSync(target, link);
+    assert.throws(() => planInstallation(root, choices), diagnostic);
+    assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.pi')));
+    unlinkSync(link);
+  }
+});
+
+test('agent-directory symlink retargeting with identical settings bytes invalidates reviewed preview', t => {
+  const { dir, home, engine } = fixture(t), root = engine('engine');
+  const first = join(dir, 'dotfiles-a'), second = join(dir, 'dotfiles-b'), alias = join(dir, 'agent');
+  mkdirSync(first); mkdirSync(second);
+  writeFileSync(join(first, 'settings.json'), '{}'); writeFileSync(join(second, 'settings.json'), '{}');
+  symlinkSync(first, alias);
+  const choices: SetupChoices = { homeMode: 'existing', homeRoot: home, databaseMode: 'new',
+    database: join(dir, 'selected.sqlite3'), stateRoot: join(dir, 'runtime'), agentSettingsPath: join(alias, 'settings.json') };
+  const plan = planInstallation(root, choices);
+  unlinkSync(alias); symlinkSync(second, alias);
+  assert.throws(() => applyInstallation(plan), /changed since preview/);
+  assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.mypi-local.json')));
+  assert.equal(readFileSync(join(first, 'settings.json'), 'utf8'), '{}');
+  assert.equal(readFileSync(join(second, 'settings.json'), 'utf8'), '{}');
 });
 
 test('local bare remote is cloned only after first approval and reviewed before binding', t => {
