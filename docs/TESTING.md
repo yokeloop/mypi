@@ -219,20 +219,28 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ## 6. Execution and growth limits
 
-### Accepted initial limits, not measured baseline
+### Current limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11):
+Initial limits were accepted in the M1 preparation package on 2026-10-02 (§11).
+On 2026-10-11 the operator explicitly raised the full-profile working budget from
+30 s to 60 s after MP-15 CI passed all 81 assertions but exceeded the old budget.
+This revises the working-budget decision, not the independent emergency bounds:
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 30 s |
+| Full mandatory test-profile working time | ≤ 60 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
 | Concurrent test workers / suite runs on the dedicated runner | 1 / 1 |
 
-These are initial working targets/emergency bounds, not a benchmark or YM numbers.
+The 60 s working-budget check does not grant a full 60 s execution window:
+systemd still stops the workload at 55 s, with up to 5 s for termination, within
+the unchanged 60 s external deadline. That earlier cutoff takes precedence.
+Fast remains 5 s; CPU, memory, tasks, concurrency and isolation are unchanged.
+
+These are policy working targets/emergency bounds, not a benchmark or YM numbers.
 Apply hard bounds from the first safe measurement; assess working targets with a
 series of identically bounded representative runs. If unsuitable, discuss the cause
 and explicitly revise the decision, never auto-raise a failed limit. Without standard
