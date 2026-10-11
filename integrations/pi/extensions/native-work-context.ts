@@ -1,14 +1,16 @@
 import type { ExtensionAPI, ExtensionContext } from '@earendil-works/pi-coding-agent';
 import { existsSync } from 'node:fs';
+import { resolveInstallation } from '../../../dist/src/app/installation.js';
+import { canonicalDirectory } from '../../../dist/src/infrastructure/filesystem/paths.js';
 import { registerNativePathGuard } from './native-path-guard.js';
 import {
-  MYPI_PI_CONTEXT, PI_CONTEXT_ENTRY, decodePiContext, selectPiContext,
+  MYPI_PI_CONTEXT, PI_CONTEXT_ENTRY, decodePiContext, selectPiContext, rootDefaultPiContext,
 } from '../../../dist/src/app/pi-context.js';
 import type { PiContextSelection } from '../../../dist/src/app/pi-context.js';
 import { nativeCallerEnvironment, sameNativeCaller } from '../../../dist/src/app/pi-message-caller.js';
 
 /** Native branch entries own context; the launch envelope is only a fresh-session handoff. */
-export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string) {
+export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string, installationEnv: NodeJS.ProcessEnv = process.env) {
   registerNativePathGuard(pi);
   let requested: ReturnType<typeof nativeCallerEnvironment> | undefined;
   let registrationError = false;
@@ -16,7 +18,7 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
 
   function refresh(ctx: ExtensionContext): PiContextSelection {
     const selection = selectPiContext(ctx.sessionManager.getBranch(), ctx.cwd);
-    const env = nativeCallerEnvironment(selection, ctx.sessionManager.getSessionId());
+    const env = { ...installationEnv, ...nativeCallerEnvironment(selection, ctx.sessionManager.getSessionId()) };
     if (!sameNativeCaller(requested, env)) {
       try {
         // Explicit clear prevents inherited process env from reviving an old MCP selection.
@@ -54,7 +56,23 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
         if (data.cwd === ctx.cwd) pi.appendEntry(PI_CONTEXT_ENTRY, data);
         else launchProblem = 'launch cwd mismatch';
       } catch { launchProblem = 'invalid launch context'; }
-    } else if (event.reason === 'startup' && handoff !== undefined && selectPiContext(manager.getBranch(), ctx.cwd).state === 'absent') {
+    } else {
+      let rootCwd = false;
+      try { rootCwd = canonicalDirectory(ctx.cwd) === canonicalDirectory(root); }
+      catch { launchProblem = 'root cwd not confirmed'; }
+      const newSession = event.reason === 'new' && !manager.getHeader()?.parentSession
+        && manager.getEntries().every(item => item.type === 'model_change' || item.type === 'thinking_level_change');
+      let configured = false;
+      if (rootCwd && (fresh || newSession)) {
+        try { configured = resolveInstallation(root, process.env).engineRoot === canonicalDirectory(root); }
+        catch { launchProblem = 'installation not configured'; }
+      }
+      if (rootDefaultPiContext({ reason: event.reason, fresh: fresh || newSession, root: rootCwd,
+        configured, handoff, selection: selectPiContext(manager.getBranch(), ctx.cwd) })) {
+        pi.appendEntry(PI_CONTEXT_ENTRY, { version: 1, cwd: ctx.cwd, context: { scope: { kind: 'unrestricted' } } });
+      }
+    }
+    if (event.reason === 'startup' && handoff !== undefined && !fresh && selectPiContext(manager.getBranch(), ctx.cwd).state === 'absent') {
       launchProblem = 'existing or ambiguous session; launch context ignored';
     }
     const selection = refresh(ctx);

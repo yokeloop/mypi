@@ -10,7 +10,7 @@ export function canonicalDirectory(input: string): string {
 }
 
 // Resolve the existing ancestor too: lexical containment misses symlinked state roots.
-function canonicalFuturePath(input: string): string {
+export function canonicalFuturePath(input: string): string {
   const suffix: string[] = [];
   let path = resolve(input);
   while (!existsSync(path)) {

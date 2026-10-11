@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decodePiContext, encodePiContext, mcpWorkContext, parsePiContext, PI_CONTEXT_ENTRY, selectPiContext } from '../../src/app/pi-context.js';
+import { decodePiContext, encodePiContext, mcpWorkContext, parsePiContext, PI_CONTEXT_ENTRY, selectPiContext, rootDefaultPiContext } from '../../src/app/pi-context.js';
 import { InputError } from '../../src/shared/errors.js';
 import { decodeNativeCaller, encodeNativeCaller, nativeCallerEnvironment, sameNativeCaller } from '../../src/app/pi-message-caller.js';
 
@@ -41,6 +41,22 @@ test('Pi context validates version, known fields and selection/worktree consiste
   const parsed = parsePiContext(data)!;
   assert.notEqual(parsed.context, data.context);
   assert(Object.isFrozen(parsed) && Object.isFrozen(parsed.context) && Object.isFrozen(parsed.context.scope));
+});
+
+test('native root default requires positive fresh configured root and no handoff or saved branch', () => {
+  const valid = { state: 'selected' as const, data };
+  const absent = { state: 'absent' as const };
+  const input = { reason: 'startup', fresh: true, root: true, configured: true, selection: absent };
+  assert.equal(rootDefaultPiContext(input), true);
+  assert.equal(rootDefaultPiContext({ ...input, reason: 'new' }), true);
+  assert.equal(rootDefaultPiContext({ ...input, reason: 'new', handoff: 'old-launch-selection' }), true);
+  assert.equal(rootDefaultPiContext({ ...input, reason: 'new', root: false, handoff: 'old-launch-selection' }), false);
+  for (const override of [{ handoff: 'valid' }, { handoff: 'invalid' }, { selection: valid },
+    { selection: { state: 'invalid' as const } }, { selection: { state: 'cwd-mismatch' as const } },
+    { fresh: false }, { root: false }, { configured: false }, { reason: 'resume' },
+    { reason: 'fork' }, { reason: 'reload' }, { reason: 'tree' }]) {
+    assert.equal(rootDefaultPiContext({ ...input, ...override }), false, JSON.stringify(override));
+  }
 });
 
 test('native MCP caller is canonical, explicitly cleared and changes with the actual session even in the same context', () => {

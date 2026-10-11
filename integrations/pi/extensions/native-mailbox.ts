@@ -3,10 +3,10 @@ import { createMailbox } from '../../../dist/src/app/mailbox.js';
 import { createMailboxDelivery } from '../../../dist/src/app/mailbox-delivery.js';
 
 /** No resources at factory time; each session start supplies its own live public getter. */
-export function registerNativeMailbox(pi: ExtensionAPI) {
+export function registerNativeMailbox(pi: ExtensionAPI, env: NodeJS.ProcessEnv = process.env, contextRoot?: string) {
   const delivery = createMailboxDelivery({
-    env: process.env,
-    receiver: id => createMailbox().receiver(id),
+    env,
+    receiver: id => createMailbox({ env, contextRoot }).receiver(id),
     sendMessage: (message, options) => pi.sendMessage(message, options),
     schedule(callback, milliseconds) {
       const timer = setInterval(callback, milliseconds);

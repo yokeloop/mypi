@@ -70,9 +70,12 @@ The receiver runs code only; no LLM polls the mailbox.
 
 ## Storage, bounds and cleanup
 
-`MYPI_MAILBOX_DIR` overrides `$XDG_STATE_HOME/mypi/mailbox`, defaulting to
-`~/.local/state/mypi/mailbox`. The path must be absolute and outside both the
-engine and configured context repository, including existing symlink aliases.
+User-facing CLI/MCP/native entry resolves mailbox storage from the selected
+installation's `stateRoot/mailbox`; explicit `MYPI_MAILBOX_DIR` must match it or
+startup refuses, never falling back to personal XDG state. Low-level mailbox
+APIs still accept explicit fixture-supplied paths for tests/maintenance. The
+path must be absolute and outside both the engine and selected context Git,
+including existing symlink aliases.
 No database or native transcript is used. Receiver/message directory names are
 SHA-256 encodings of the **literal** IDs; hashes are path encodings, not authority.
 

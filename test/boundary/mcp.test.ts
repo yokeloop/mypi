@@ -17,6 +17,9 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     const root = join(dir, name); mkdirSync(root);
     cpSync('/work/dist', join(root, 'dist'), { recursive: true });
     symlinkSync('/work/node_modules', join(root, 'node_modules'));
+    writeFileSync(join(root, '.mypi-local.json'), JSON.stringify({ version: 1, engineRoot: root,
+      homeRoot: join(root, 'home'), database: join(dir, name + '-state/mypi/state.sqlite3'),
+      stateRoot: join(dir, name + '-state/mypi') }));
     return root;
   }
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
@@ -205,10 +208,13 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
 test('stdio context envelope, EOF and SIGTERM preserve startup and no-state behavior', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-exit-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const binding = join(dir, 'binding.json');
+  writeFileSync(binding, JSON.stringify({ version: 1, engineRoot: '/work', homeRoot: join(dir, 'home'),
+    database: join(dir, 'state/mypi/state.sqlite3'), stateRoot: join(dir, 'state/mypi') }));
   for (const mode of ['eof', 'signal', 'invalid-context']) {
     const context = encodePiContext({ version: 1, cwd: dir, context: { scope: { kind: 'project', project: 'one/project' } } });
     const child = spawn(process.execPath, ['/work/dist/src/mcp/main.js'], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
+      env: { PATH: '/work/tools:/usr/bin', HOME: dir, MYPI_INSTALLATION_FILE: binding, XDG_STATE_HOME: join(dir, 'state'),
         ...(mode === 'eof' ? {} : { [MYPI_MCP_CONTEXT]: mode === 'signal' ? context : 'malformed' }) },
     });
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });

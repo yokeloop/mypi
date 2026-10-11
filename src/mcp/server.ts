@@ -1,4 +1,5 @@
 import type { MessageCaller } from '../app/mailbox.js';
+import type { SessionCardsOptions } from '../app/session-cards.js';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { executeCommand, isManagedHomeCommand } from '../app/execute-command.js';
@@ -12,7 +13,7 @@ import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 
 // Composition supplies the working selection; tool arguments remain ordinary data.
-export function createServer(filename: string, root?: string, context?: WorkContext, caller?: MessageCaller) {
+export function createServer(filename: string, root?: string, context?: WorkContext, caller?: MessageCaller, cache?: SessionCardsOptions) {
   const server = new McpServer({ name: 'mypi', version: '0.2.1' });
   const calls = serialCalls();
   let policy: SelectedGuardPolicy | undefined;
@@ -24,7 +25,7 @@ export function createServer(filename: string, root?: string, context?: WorkCont
     try {
       const command = toolCommand(name, args);
       return await calls.run(signal, async () => {
-        const data = await executeCommand(command, filename, root, context, policy, caller);
+        const data = await executeCommand(command, filename, root, context, policy, caller, cache);
         const schema = sessionResultSchema(name);
         return success(schema ? schema.parse(data) : data);
       });

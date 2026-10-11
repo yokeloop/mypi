@@ -7,24 +7,50 @@ Preparation, delivery for review, and activation are separate gates (see below).
 
 ## Start and resume
 
-Use an already built engine, installed Pi and registered project with an independent
-clone. These commands do not initialize storage, create requests or prepare worktrees:
+After explicit `pnpm bootstrap` selection and `pnpm build`, start ordinary `pi`
+from the configured engine root; fresh root context is unrestricted. Use `/mcp`
+to confirm the actual connection after trusting the project. A registered project
+and associated independent clone are needed for scoped work. For an existing
+worktree, `/mypi open [org/project]` selects a project/worktree and submits a new
+Herdr tab, leaving the original chat open. The model-callable `mypi_project_open`
+first lists choices, then takes explicit `project` and absolute `worktree` (and
+`allowObservedSession` only on explicit approval). Check the submitted tab's
+cwd/context/native ID and `/mcp`; a submission is not readiness. Partial Herdr
+IDs need inspection before another attempt. Known observed sessions are not
+killed. Without Herdr, ordinary Pi and local CLI remain usable.
+
+The installed Pi still owns the native UI and session. Its project-open command
+and tool delegate SQLite/Git/Herdr work to a bounded Node 24 child through this
+engine's compiled CLI, after native startup build admission (not a separate
+build check on every open). Launch with Node 24 on PATH, e.g. `mise exec -- pi`.
+The child checks the captured installation binding and uses the actual caller
+cwd; a changed binding is a diagnostic, not permission to adopt another engine.
+Cancellation before effects is safe, but abort/timeout after dispatch can leave
+an uncertain result or known Herdr handles. Inspect actual state before deciding
+whether another attempt is appropriate; no rollback or automatic retry is promised.
+
+The optional explicit launcher and local administrative CLI are:
 
 ```sh
-mypi pi --project org/project --base /clones/project --cwd /clones/project--task
-mypi pi --project org/project --base /clones/project --cwd /clones/project--task -- --continue
+mise exec -- pnpm mypi --help
+mise exec -- pnpm pi --project org/project --base /clones/project --cwd /clones/project--task
+mise exec -- pnpm pi --project org/project --base /clones/project --cwd /clones/project--task -- --continue
 ```
+
+These commands do not initialize storage, create requests or prepare worktrees.
 
 `--cwd` is an existing associated worktree **root**; without it the chosen base is
 available for study. Native options follow `--`: use `--resume` for Pi's picker or
 `--session /path/to/session.jsonl` for a known saved conversation. `/session` shows
 the native ID/file. `--org org` needs a concrete project/worktree before changes;
-`--unrestricted` removes project filtering. No selection means unselected, not
-unrestricted. The engine's `mise exec -- pnpm pi` alias uses the same launcher.
+`--unrestricted` removes project filtering. Without an explicit launcher selection,
+scoped cwd does not imply unrestricted; only fresh ordinary Pi in the configured
+engine root gets that default. The `pnpm pi` alias uses the explicit launcher.
 
 Selection lives in the current native branch, not a mypi session database. Resume,
 reload, tree and fork follow that branch; missing/invalid/foreign-cwd entries clear
-selection rather than revive another project. `/new` is unselected. To change cwd
+selection rather than revive another project. `/new` at the configured root
+is unrestricted; in a task cwd it is not auto-escalated. To change cwd
 or choose a different project, start a new process/session. A conflicting launcher
 selection never overwrites resumed context. Pi 1.0.4 does not persist an otherwise
 empty conversation just for custom entries. See [native context and launch](PI-WORK-CONTEXT.md).

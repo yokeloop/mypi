@@ -141,10 +141,22 @@ from the bench; keep the existing test runner and fast/boundary composition.
 - Distinguish CLI submission, rendered UI, readiness, provider activity, durable
   state and normal exit. JSON schemas or exit zero alone do not prove all of them.
   Headless/RPC/event probes may supplement, but never replace this interactive path.
-- Retain exact candidate identity, concise scenario/results, relevant sanitized
-  screen evidence and failure/cleanup status. Stop on an unexplained failure;
-  inspect actual state before another mutating action. Do not invent a parallel
-  runtime, enlarge limits or build a new supervisor to make acceptance pass.
+- Record the actual Herdr server/socket and returned workspace, pane and tab IDs
+  when creating each visible test tab; title or current focus does not establish
+  ownership. Retain exact candidate identity, concise scenario/results, relevant
+  sanitized screen evidence and failure/cleanup status. Stop on an unexplained
+  failure; inspect actual state before another mutating action. Do not invent a
+  parallel runtime, enlarge limits or build a new supervisor to make acceptance pass.
+- On success, failure, timeout or interruption, save evidence and native history
+  first, then normally exit the owned application and close its owned test tab
+  when no work remains there. Tab closure is not proof of normal application exit.
+  Confirm removal through Herdr readback. If closure fails or ownership/identity
+  is uncertain, report the exact retained target and inspect state before retrying.
+  Never close the operator's chat, foreign or unknown tabs or terminate unrelated
+  processes. Do not delete histories, logs, fixtures, Git branches/worktrees or
+  user data with the tab. An explicit request to retain a tab for manual inspection
+  is an exception: record it and who will close the tab. Cleanup is part of test
+  completion, not a later optional housekeeping pass.
 
 This procedure supplements mandatory `verify`; it is not a third test profile,
 permission to move checks out of the suite, or a requirement for Herdr during

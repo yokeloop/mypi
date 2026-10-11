@@ -13,8 +13,11 @@ branch**. The last matching entry wins; an invalid last entry does not revive an
 older valid one. Startup/resume/reload/fork and tree navigation reconstruct from
 `getBranch()`. An absent, invalid or foreign-cwd entry clears the selection and
 requests an explicitly unselected MCP configuration. A fork/clone inherits context
-only when its native branch actually contains the entry. `/new` remains unselected.
-Changing cwd requires a new Pi process; it is never simulated inside the extension.
+only when its native branch actually contains the entry. Fresh ordinary Pi at the
+configured engine root default to unrestricted when no explicit handoff wins.
+`/new` there starts unrestricted, ignoring any old startup handoff; `/new` in a
+task cwd does not auto-escalate. Changing cwd requires a
+new Pi process; it is never simulated inside the extension.
 
 A launch envelope is used only for a genuinely fresh startup: the native session
 file does not exist, there is no parent session, and native entries contain only
@@ -63,7 +66,10 @@ framework is provided.
 
 ## Terminal launcher
 
-After building once, use `mypi pi` (or `mise exec -- pnpm pi` from the engine):
+After explicit installation setup and building, run ordinary `mise exec -- pi`
+from the configured engine root for a fresh unrestricted chat. `mise exec -- pnpm
+mypi --help` is the checkout-local CLI. The explicit launcher `mise exec -- pnpm
+pi` remains available (examples below show its CLI spelling `mypi pi`):
 
 ```sh
 mypi pi --project org/project
@@ -75,8 +81,8 @@ mypi pi --project org/project --cwd /clones/project--task -- --continue
 ```
 
 `--project`, `--org` and `--unrestricted` are mutually exclusive. Without one,
-context is **unselected**, not inferred from cwd and not implicitly unrestricted.
-Launcher options cannot repeat. Everything after the first `--` is passed unchanged
+the explicit launcher is **unselected** (except a native fresh configured-root
+start without a handoff), not inferred from a task cwd. Launcher options cannot repeat. Everything after the first `--` is passed unchanged
 to native Pi (including its help, session, tool and resource options).
 
 Project/organization selection requires an existing registry and validates membership.
@@ -98,8 +104,10 @@ silently select one of its projects. Choose a concrete project/worktree for chan
 The launcher runs installed `pi` from PATH without a shell, inherits terminal IO and
 native exit status, and forwards termination signals. It explicitly loads the shipped
 extension by its package-relative absolute path, without copying resources or changing
-user/global settings. The package alias invokes already-built mypi; it does not build,
-bootstrap or migrate. Normal native tools, TUI, history and user overrides remain Pi's.
+user/global settings. The package alias requires this checkout's current build; missing/stale output
+fails with a `pnpm build` diagnostic, never runs old dist. It does not build,
+bootstrap or migrate. The native TypeScript entry likewise checks the build before
+importing compiled adapters; core build success alone does not prove native loading. Normal native tools, TUI, history and user overrides remain Pi's.
 Native Pi may save its own sessions/settings as usual; this is not an isolation layer.
 Unselected launch clears inherited launch context; selected launch uses the shared
 codec above, never the server-only environment key. A resumed branch remains authority

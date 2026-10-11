@@ -56,8 +56,9 @@ Project --cwd must be an existing checkout/worktree root; --base requires --proj
 Session commands default to the selected project; otherwise choose --project or --all.
 Session cards are observations, not transcripts or process-death evidence.
 Messages queue without waking Pi; CLI sender has no inferred native ID. Cleanup forgets selected dedup evidence.
-Set XDG_STATE_HOME to isolated state for development; MYPI_SESSION_DIR overrides the session cache.
-MYPI_MAILBOX_DIR overrides the local mailbox outside engine/context Git.
+Run pnpm bootstrap once in this installation to explicitly choose home, external database and state root.
+MYPI_INSTALLATION_FILE selects an absolute binding associated with this engine; no personal XDG data is adopted.
+MYPI_SESSION_DIR and MYPI_MAILBOX_DIR must match the selected runtime directories or be unset.
 `;
 
 export function parseCommand(args: string[]): Command {

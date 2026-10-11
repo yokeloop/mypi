@@ -9,9 +9,11 @@ native lifecycle events; it does not perform Herdr operations.
 
 ## Storage and observations
 
-`MYPI_SESSION_DIR` selects an absolute cache directory. When absent, the default is
-`$XDG_STATE_HOME/mypi/sessions`, or `~/.local/state/mypi/sessions` without XDG state
-configuration. An explicitly empty/relative override is an error. Existing ancestor
+User-facing CLI/MCP/native entry resolves cache from this installation's bound
+`stateRoot/sessions`. `MYPI_SESSION_DIR` must match that selected directory if
+explicitly set; a conflicting, empty or relative value is an error, not a fallback
+to a personal XDG location. Explicit low-level cache APIs may still accept
+fixture-supplied paths for isolated tests/maintenance. Existing ancestor
 aliases are resolved; engine and context repository containment is rejected. These
 are cooperative filesystem checks, not race-resistant containment. Invalid path
 configuration/canonicalization fails before constructing the cache API; later
@@ -185,7 +187,7 @@ A supplied title is a bounded plain label. No recursive launcher or custom Pi ho
 is used; existing-session context and native history precedence stay Pi-owned.
 
 Only PATH, HOME, XDG_CONFIG_HOME, XDG_CACHE_HOME, XDG_STATE_HOME, XDG_DATA_HOME,
-PI_CODING_AGENT_DIR, MYPI_SESSION_DIR, MYPI_SESSION_CARDS,
+PI_CODING_AGENT_DIR, MYPI_INSTALLATION_FILE, MYPI_SESSION_DIR, MYPI_SESSION_CARDS,
 MYPI_SESSION_HEARTBEAT_MS, MYPI_MAILBOX_DIR, MYPI_MAILBOX_RECEIVE,
 MYPI_MAILBOX_POLL_MS and MYPI_GUARD_POLICY are explicitly transferred (unset
 when absent). See [MAILBOX](MAILBOX.md) for mailbox configuration.

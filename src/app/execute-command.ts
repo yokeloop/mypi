@@ -1,6 +1,7 @@
 import { executeMessageCommand } from './mailbox.js';
 import type { MessageCaller } from './mailbox.js';
 import { executeSessionCommand } from './session-cards.js';
+import type { SessionCardsOptions } from './session-cards.js';
 import type { AppCommand } from './commands.js';
 import type { WorkContext } from '../modules/work-context/public.js';
 import { executePolicyCommand } from './policy-commands.js';
@@ -25,21 +26,21 @@ const managed = new Set(['capture', 'note_add', 'error_add', 'memory_add', 'memo
 export function isManagedHomeCommand(name: string): boolean { return managed.has(name); }
 // WorkContext is an out-of-band working selection, not authentication.
 export async function executeCommand(c: AppCommand, filename: string, root?: string, context?: WorkContext,
-  selectedPolicy?: SelectedGuardPolicy, caller?: MessageCaller): Promise<unknown> {
+  selectedPolicy?: SelectedGuardPolicy, caller?: MessageCaller, cache?: SessionCardsOptions): Promise<unknown> {
   if (c.name === 'message_send' || c.name === 'message_list' || c.name === 'message_show' || c.name === 'message_cleanup') {
     return executeMessageCommand(c, { ...(context === undefined ? {} : { context }), ...caller },
-      root === undefined ? undefined : { contextRoot: root });
+      cache ?? (root === undefined ? undefined : { contextRoot: root }));
   }
   if (c.name === 'session_list' || c.name === 'session_show' || c.name === 'session_archive') {
-    return executeSessionCommand(c, context, root === undefined ? undefined : { contextRoot: root });
+    return executeSessionCommand(c, context, cache ?? (root === undefined ? undefined : { contextRoot: root }));
   }
-  if (!context || context.scope.kind === 'unrestricted' || !hasMembershipGuard(c)) return dispatch(c, filename, root);
+  if (!context || context.scope.kind === 'unrestricted' || !hasMembershipGuard(c)) return dispatch(c, filename, root, cache);
   const policy = selectedPolicy ?? loadSelectedGuardPolicy(process.env);
   if (policy instanceof Error) throw policy;
   const registry = createApp(filename, true);
   let membership: ReturnType<typeof commandMembership>;
   try { membership = commandMembership(c, registry, context, policy); } finally { registry.close(); }
-  let data = await dispatch(membership.command, filename, root);
+  let data = await dispatch(membership.command, filename, root, cache);
   if (membership.listProjectIds) {
     const ids = membership.listProjectIds;
     if (c.name === 'project_list') {
@@ -53,10 +54,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   return { data, warnings: membership.warnings } satisfies GuardWarningResult;
 }
 
-async function dispatch(c: AppCommand, filename: string, root?: string): Promise<unknown> {
+async function dispatch(c: AppCommand, filename: string, root?: string, cache?: SessionCardsOptions): Promise<unknown> {
   if (c.name === 'policy_validate' || c.name === 'policy_explain') return executePolicyCommand(c);
   if (c.name === 'workspace_prepare' || c.name === 'workspace_inspect' || c.name === 'workspace_verify' || c.name === 'workspace_cleanup_preview' || c.name === 'workspace_commit' || c.name === 'workspace_publish') {
-    return executeWorkspaceOperation(c, filename);
+    return executeWorkspaceOperation(c, filename, undefined, cache);
   }
   if (c.name === 'home_status' || c.name === 'home_reconcile') {
     const writer = createHomeWriter(root ?? defaultContextRoot());

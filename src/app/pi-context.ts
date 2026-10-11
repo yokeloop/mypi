@@ -84,6 +84,13 @@ export function selectPiContext(branch: readonly PiBranchEntry[], cwd: string): 
   return data.cwd === cwd ? { state: 'selected', data } : { state: 'cwd-mismatch' };
 }
 
+/** Only positive fresh/new native evidence permits a root default. Saved entries and handoffs win. */
+export function rootDefaultPiContext(input: { reason: string; fresh: boolean; root: boolean;
+  configured: boolean; handoff?: string; selection: PiContextSelection }): boolean {
+  return input.root && input.configured && input.fresh && (input.reason === 'startup' || input.reason === 'new')
+    && (input.reason === 'new' || input.handoff === undefined) && input.selection.state === 'absent';
+}
+
 /** Missing means legacy composition; empty is an explicit clear, not a malformed-envelope fallback. */
 export function mcpWorkContext(envelope: string | undefined): WorkContext | undefined {
   return envelope === undefined || envelope === '' ? undefined : decodePiContext(envelope).context;
