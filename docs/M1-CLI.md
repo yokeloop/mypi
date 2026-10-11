@@ -46,11 +46,16 @@ mypi pi -- --help
 mypi pi --project org/project -- --continue
 ```
 
-The alias uses the existing build only. Project cwd must be an existing checkout/
+The alias checks this checkout's build and fails with a `pnpm build` diagnostic
+instead of running stale dist. `mise exec -- pnpm mypi --help` is the local
+administrative route; no global `mypi` is required. Ordinary `mise exec -- pi`
+from the configured engine root starts fresh unrestricted without this launcher;
+use `/mcp` to confirm connection. Project cwd must be an existing checkout/
 worktree root; the chosen base (`--base` or registered checkout) is the default cwd.
-Project/org selection requires existing registration. No selection is unselected;
-unrestricted/unselected do not require a DB. No automatic initialization, request,
-worktree, branch switching or settings installation occurs. Native Pi still owns
+Project/org selection requires existing registration. An explicitly selected
+project/org wins; no selection in another cwd does not elevate a task to
+unrestricted. No automatic initialization, request, worktree, branch switching
+or settings installation occurs. Native Pi still owns
 its usual resources/history and can invoke a model when asked. See
 [working context](PI-WORK-CONTEXT.md#terminal-launcher) for exact selection, native
 resume, extension-loading and non-enforcement semantics.
@@ -201,10 +206,13 @@ containment is promised. Run your approved checks separately before commit/publi
 
 ## Storage and context operations
 
-DB: `$XDG_STATE_HOME/mypi/state.sqlite3` (fallback `~/.local/state/mypi/state.sqlite3`),
-outside Git. Context: this checkout's `home/`, a separate Git repository. `db init`
-initializes only DB; `bootstrap` initializes DB/context Git, without fetch/pull/push.
-Use only with explicit intent; stop other writers for bootstrap/restore.
+DB and home are selected explicitly by this engine's ignored `.mypi-local.json`
+(`engineRoot`, `homeRoot`, external `database`, external `stateRoot`). Missing or
+invalid binding does not adopt an XDG personal DB. `stateRoot/sessions` and
+`stateRoot/mailbox` hold default native runtime state. The setup wizard
+(`pnpm bootstrap`) selects new/existing/cloned home and new/existing DB through
+reviewed previews; CLI `mypi db init`/`mypi bootstrap` remain explicit storage
+administration, not the wizard. Stop other writers for bootstrap/restore.
 
 ```text
 project add org/project --code MP [--path /absolute/checkout]

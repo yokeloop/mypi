@@ -91,14 +91,16 @@ requests(id, project_id, number, title, status_id,
 
 Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
-readonly opens do not create missing DBs. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
-fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
-Git, including symlink aliases; created parent directories 0700 and DB 0600.
+readonly opens do not create missing DBs. User entrypoints use the database
+selected in this engine's ignored `.mypi-local.json`; low-level APIs can accept
+explicit paths for tests/maintenance. No user-entrypoint personal XDG fallback.
+DB/snapshots must be outside engine/context Git, including symlink aliases;
+created parent directories 0700 and DB 0600.
 
 Files own knowledge and original source:
 
 ```text
-home/                           # separate ignored Git inside the engine clone
+<selected home Git>/              # independent context repository; may be ignored engine/home
 ├── MEMORY.md
 ├── inbox/<UTC>-<UUID>.md
 ├── notes/<UTC>-<UUID>.md

@@ -18,9 +18,14 @@ mise exec -- node dist/src/mcp/main.js
 
 The last command waits for JSON-RPC on stdin, not interactive input. Bin: `mypi-mcp`.
 Node 24; exact dependency versions are in package.json and pnpm-lock.yaml.
-DB uses the server's XDG_STATE_HOME (fallback ~/.local/state); home is inside the
-engine clone. Neither location depends on the client cwd. Connect/tools/list do not
-initialize storage. Bootstrap/restore require explicit intent and no other writers.
+User-facing CLI/MCP data operations resolve the configured engine's ignored
+`.mypi-local.json` (or an explicit absolute `MYPI_INSTALLATION_FILE` for that same
+engine) for the selected external SQLite database, separate home Git and runtime
+state root. No personal XDG fallback or implicit DB initialization occurs.
+Explicit low-level APIs accepting fixture-supplied paths remain available for
+tests/maintenance; they do not change entrypoint selection. Neither selected
+location depends on client cwd. Connect/tools/list do not initialize storage.
+Bootstrap/restore require explicit intent and no other writers.
 
 ## Optional Pi connection
 
