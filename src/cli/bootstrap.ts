@@ -1,136 +1,296 @@
 #!/usr/bin/env node
-import { createElement as h, useState } from 'react';
-import { Box, Text, render, useApp, useInput } from 'ink';
+import { createElement as h, useEffect, useRef, useState } from 'react';
+import { Box, Text, render, useApp, useInput, useStdin, useStdout } from 'ink';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
-import { join, isAbsolute } from 'node:path';
-
+import { dirname, join } from 'node:path';
 import { planInstallation, applyInstallation, planHomeClone, applyHomeClone } from '../app/setup-installation.js';
-import type { HomeClonePlan } from '../app/setup-installation.js';
 import type { SetupChoices, InstallationPlan } from '../app/setup-installation.js';
+import { observeSetup, browseSetupDirectory, validateSetupChoice, setupProblem } from '../app/setup-observation.js';
+import type { SetupProblem } from '../app/setup-observation.js';
+import { normalizeSetupPath, suggestSetupPaths } from '../app/setup-paths.js';
+import { initialWizard, advance, back, move, setHome, setStorage, editFromPreview, returnFromEdit, afterHomeClone, clonedHomeMatchesSelection } from './bootstrap-model.js';
+import type { Wizard } from './bootstrap-model.js';
+import { insert, editKey, complete as completePath, displayEditor } from './bootstrap-editor.js';
+import type { Editor } from './bootstrap-editor.js';
+import { pickerItems, entryIsDirectory } from './bootstrap-picker.js';
+import type { Picker, PickerKind } from './bootstrap-picker.js';
+import { shiftViewport, visibleSegment } from './bootstrap-viewport.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
-type Field = 'homeMode' | 'homeRoot' | 'remote' | 'databaseMode' | 'database' | 'stateRoot';
-const fields: Field[] = ['homeMode', 'homeRoot', 'remote', 'databaseMode', 'database', 'stateRoot'];
-function fieldAt(index: number, answers: Partial<SetupChoices>): Field | undefined {
-  let pos = index;
-  for (const field of fields) {
-    if (field === 'remote' && answers.homeMode !== 'clone') continue;
-    if (pos-- === 0) return field;
-  }
-}
-function prompt(field: Field): string {
-  switch (field) {
-    case 'homeMode': return 'Home repository: new / existing / clone';
-    case 'homeRoot': return 'Home destination (absolute path; clone/new require absent destination)';
-    case 'remote': return 'Git remote to clone (local path or URL)';
-    case 'databaseMode': return 'Database: new / existing';
-    case 'database': return 'External SQLite database file (absolute path)';
-    case 'stateRoot': return 'External runtime state root (absolute path)';
-  }
-}
-function accepted(field: Field, input: string): boolean {
-  return field === 'homeMode' ? ['new', 'existing', 'clone'].includes(input) : field === 'databaseMode'
-    ? ['new', 'existing'].includes(input) : field === 'remote' ? !!input : isAbsolute(input) && !input.includes('\0');
-}
-function choices(answers: Partial<SetupChoices>): SetupChoices {
-  if (!answers.homeMode || !answers.homeRoot || !answers.databaseMode || !answers.database || !answers.stateRoot) throw new Error('Complete all setup choices');
-  return { homeMode: answers.homeMode, homeRoot: answers.homeRoot, databaseMode: answers.databaseMode,
-    database: answers.database, stateRoot: answers.stateRoot,
-    ...(answers.homeMode === 'clone' ? { remote: answers.remote } : {}),
-    agentSettingsPath: join(process.env['PI_CODING_AGENT_DIR'] || join(homedir(), '.pi', 'agent'), 'settings.json') };
+const userHome = homedir();
+const observation = observeSetup(root);
+const defaults = suggestSetupPaths(observation.engineRoot, userHome, process.env['XDG_STATE_HOME']);
+type PathField = 'homeRoot' | 'database' | 'stateRoot' | 'remote';
+const agentSettingsPath = join(process.env['PI_CODING_AGENT_DIR'] || join(userHome, '.pi', 'agent'), 'settings.json');
+function selected(w: Wizard): SetupChoices {
+  const a = w.answers;
+  if (!a.homeMode || !a.homeRoot || !a.databaseMode || !a.database || !a.stateRoot) throw new Error('Заполните все пути до просмотра');
+  return { homeMode: a.homeMode, homeRoot: a.homeRoot, databaseMode: a.databaseMode,
+    database: a.database, stateRoot: a.stateRoot, ...(a.homeMode === 'clone' && !w.cloned ? { remote: a.remote } : {}),
+    agentSettingsPath };
 }
 function Bootstrap({ complete }: { complete: (message: string) => void }) {
-  const { exit } = useApp();
-  const [answers, setAnswers] = useState<Partial<SetupChoices>>({});
-  const [step, setStep] = useState(0);
-  const [text, setText] = useState('');
-  const [error, setError] = useState('');
+  const { exit } = useApp(), { stdout } = useStdout(), { internal_eventEmitter } = useStdin();
+  const [w, setW] = useState(() => initialWizard(observation.binding));
+  const [problem, setProblem] = useState<SetupProblem | undefined>(observation.problem);
   const [plan, setPlan] = useState<InstallationPlan>();
-  const [phase, setPhase] = useState<'questions' | 'clone' | 'preview'>('questions');
-  const [cloned, setCloned] = useState<string>();
-  const [clonePlan, setClonePlan] = useState<HomeClonePlan>();
-  const [attempted, setAttempted] = useState(false);
-  const field = fieldAt(step, answers);
+  const [refresh, setRefresh] = useState(false);
+  const [picker, setPicker] = useState<Picker>();
+  const [editor, setEditor] = useState<Editor>();
+  const [editingField, setEditingField] = useState<PathField>();
+  useEffect(() => {
+    if (!editingField) return;
+    // Ink strips Home/End sequences from useInput's input and exposes no key flags for them.
+    const onRaw = (data: string | Buffer) => {
+      const sequence = String(data);
+      if (['\u001b[H', '\u001bOH', '\u001b[1~', '\u001b[7~'].includes(sequence)) setEditor(value => value ? editKey(value, 'home') : value);
+      if (['\u001b[F', '\u001bOF', '\u001b[4~', '\u001b[8~'].includes(sequence)) setEditor(value => value ? editKey(value, 'end') : value);
+    };
+    internal_eventEmitter.on('input', onRaw);
+    return () => { internal_eventEmitter.off('input', onRaw); };
+  }, [editingField, internal_eventEmitter]);
+  const [completions, setCompletions] = useState<string[]>([]);
+  const [completionIndex, setCompletionIndex] = useState(0);
+  const [pending, setPending] = useState<'clone' | 'apply'>();
+  const controller = useRef<AbortController | undefined>(undefined);
+  const cloneAttempt = useRef(false);
+  const applyAttempt = useRef(false);
   const finish = (message: string) => { complete(message); exit(); };
-  useInput((input, key) => {
-    if (key.escape || (key.ctrl && input === 'c')) {
-      finish(attempted ? 'Setup effects may already have occurred. Inspect paths in the reported result before retrying.'
-        : cloned ? `Cancelled; cloned home remains at ${cloned}. No database or binding was created.` : 'Cancelled; no setup files changed.'); return;
-    }
-    if (phase === 'questions') {
-      if (input.toLowerCase() === 'r' && error.includes('explicit refresh choice') && answers.stateRoot) {
-        try { const selected = { ...choices(answers), refreshProjection: true };
-          setPlan(planInstallation(root, selected)); setPhase('preview'); setError('Explicit refreshed projection: inspect all selected resources before approving.');
-        } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-        return;
-      }
-      if (!field) return;
-      if (key.backspace || key.delete) { setText(value => value.slice(0, -1)); return; }
-      if (key.return) {
-        if (!text && step > 0) { setStep(step - 1); setError('Go back: enter a replacement value.'); return; }
-        const value = text.trim();
-        if (!accepted(field, value)) { setError('Invalid choice; enter an exact mode or absolute path.'); return; }
-        const next = { ...answers, [field]: value };
-        setAnswers(next); setText(''); setError('');
-        if (field === 'stateRoot') {
-          try {
-            const selected = choices(next);
-            if (selected.homeMode === 'clone') {
-              setClonePlan(planHomeClone(root, selected.homeRoot, selected.remote!)); setPhase('clone');
-            } else { setPlan(planInstallation(root, selected)); setPhase('preview'); }
-          } catch (e) { setError(e instanceof Error ? e.message : String(e)); setStep(step - 1); }
-        } else setStep(step + 1);
-        return;
-      }
-      if (!key.ctrl && !key.meta && input) setText(value => value + input);
-      return;
-    }
-    if (attempted) { setError('Effects may already have occurred; exit and inspect actual paths before a fresh preview. No automatic retry.'); return; }
-    if (input.toLowerCase() === 'b' || key.leftArrow) {
-      if (phase === 'clone' || !cloned) { setPhase('questions'); setStep(0); setText(''); setError('Re-enter choices from home mode.'); }
-      else setError('Clone already exists. Cancel and rerun with existing-home mode to change selection.');
-      return;
-    }
-    if (input.toLowerCase() !== 'y') {
-      if (input.toLowerCase() === 'n' || key.return) finish(attempted ? 'Setup effects may already have occurred. Inspect the reported partial paths before retrying.'
-        : cloned ? `Cancelled; cloned home remains at ${cloned}. No database or binding was created.` : 'Cancelled; no setup files changed.');
+  const beginEdit = (field: PathField, value = '') => { setEditingField(field); setEditor({ text: value, cursor: Array.from(value).length }); setCompletions([]); setCompletionIndex(0); setProblem(undefined); };
+  const browse = (field: PathField, kind: PickerKind) => {
+    const path = field === 'remote' ? root : dirname(w.answers[field] || (field === 'homeRoot' ? defaults.homeRoot : defaults.database || root));
+    const page = browseSetupDirectory(path, '', 0, 40);
+    setEditingField(field); setPicker({ path, kind, page, query: '', offset: 0, selection: 0 }); setProblem(page.error ? { code: 'invalid-path', field: field === 'remote' ? 'remote' : field, message: page.error, actions: ['change'] } : undefined);
+  };
+  const updatePicker = (path: string, query = '', offset = 0) => {
+    const page = browseSetupDirectory(path, query, offset, 40);
+    setPicker(p => p ? { ...p, path: page.error ? p.path : page.path, query, offset, selection: 0, page } : p);
+    setProblem(page.error ? { code: 'invalid-path', message: page.error, actions: ['change'] } : undefined);
+  };
+  const nextAfterPath = (v: Wizard, field: PathField): Wizard => {
+    if (v.editing) return returnFromEdit(v);
+    if (field === 'homeRoot') return advance(v, v.answers.homeMode === 'clone' ? 'remote' : 'storage');
+    if (field === 'remote') return advance(v, 'cloneConsent');
+    if (field === 'database') return advance(v, v.storage === 'custom' ? 'stateRoot' : 'preview');
+    return advance(v, 'preview');
+  };
+  const preview = (next: Wizard, refreshChoice = refresh) => {
+    if (!clonedHomeMatchesSelection(next)) {
+      setPlan(undefined);
+      setProblem({ code: 'local-conflict', field: 'homeRoot', message: `Выбранный home отличается от уже клонированного ${next.cloned}. Проверьте clone; для другого home начните новый запуск.`, actions: ['inspect'] });
+      setW({ ...next, screen: 'preview', selection: 0 });
       return;
     }
     try {
-      if (phase === 'clone' && clonePlan) {
-        setAttempted(true);
-        const destination = applyHomeClone(clonePlan);
-        setCloned(destination); setClonePlan(undefined); setPhase('preview');
-        const selected = choices(answers);
-        const existing: SetupChoices = { homeMode: 'existing', homeRoot: destination,
-          databaseMode: selected.databaseMode, database: selected.database, stateRoot: selected.stateRoot,
-          ...(selected.agentSettingsPath ? { agentSettingsPath: selected.agentSettingsPath } : {}) };
-        setPlan(planInstallation(root, existing)); setError('Clone retained. Review actual selected-home resources before approving second stage.'); setAttempted(false);
-      } else if (plan) {
-        setAttempted(true);
-        const saved = applyInstallation(plan);
-        finish(saved.length ? `Installation ready. Saved: ${saved.join(', ')}. No Git commit/push or global Pi settings change was made.` : 'Installation already configured; nothing changed.');
+      const choices = selected(next);
+      choices.refreshProjection = refreshChoice;
+      const p = planInstallation(root, choices); setPlan(p); setProblem(undefined);
+      setW({ ...next, screen: 'preview', selection: 0, editing: false });
+    } catch (error) { setPlan(undefined); setProblem(setupProblem(error)); setW({ ...next, screen: 'preview', selection: 0 }); }
+  };
+  const acceptPath = (field: PathField, input: string) => {
+    let value: string;
+    try { value = field === 'remote' && !input.startsWith('/') && !input.startsWith('~') && !input.startsWith('.') ? input : normalizeSetupPath(input, root, userHome); }
+    catch (error) { setProblem(setupProblem(error)); return; }
+    if (field === 'remote' && !value) { setProblem({ code: 'invalid-path', field, message: 'Укажите Git URL или локальный репозиторий', actions: ['change'] }); return; }
+    const next = { ...w, answers: { ...w.answers, [field]: value } };
+    if (field !== 'remote') {
+      const issue = validateSetupChoice(root, next.answers);
+      if (issue) { setProblem(issue); return; }
+    }
+    setProblem(undefined); setPicker(undefined); setEditor(undefined); setEditingField(undefined);
+    const advanced = nextAfterPath(next, field);
+    if (advanced.screen === 'preview') preview(advanced); else setW(advanced);
+  };
+  const goBack = () => {
+    if (w.cloned && w.screen === 'storage') {
+      setProblem({ code: 'local-conflict', field: 'homeRoot', message: `Home уже клонирован: ${w.cloned}. Измените БД/runtime или выберите «Отмена»; для другого home начните новый запуск. Clone останется на месте.`, actions: ['inspect'] });
+      return;
+    }
+    setW(back(w)); setProblem(undefined);
+  };
+  const quit = () => finish(applyAttempt.current ? `Применение было начато; проверьте реальные пути home ${w.answers.homeRoot}, БД ${w.answers.database}, runtime ${w.answers.stateRoot}, .pi и привязку. Частичный результат не откатан.` : w.cloned ? `Отменено. Клонированный home остаётся: ${w.cloned}. БД и привязка не созданы.` :
+    cloneAttempt.current ? `Операция клонирования была начата; проверьте ${w.answers.homeRoot}. Повтор без проверки небезопасен.` : 'Отменено до записи настройки.');
+  const menu = (() => {
+    switch (w.screen) {
+      case 'start': return observation.status === 'configured' ? ['Уже настроено — показать текущие пути', 'Подготовить обновлённый обзор', 'Проверить настройку заново', 'Отмена'] : ['Продолжить настройку', 'Отмена'];
+      case 'homeMode': return ['Создать новый home в ./home [рекомендуется]', 'Выбрать существующий Git home', 'Клонировать home из Git', 'Назад', 'Отмена'];
+      case 'homeRoot': return [`Использовать предложенный путь: ${w.answers.homeRoot || defaults.homeRoot}`, 'Выбрать папку…', 'Ввести путь…', 'Назад', 'Отмена'];
+      case 'remote': return ['Ввести Git URL / путь', 'Выбрать локальный репозиторий…', 'Назад'];
+      case 'cloneConsent': return ['Назад — ничего не клонировать', `Клонировать только home: ${w.answers.homeRoot}`, 'Отмена'];
+      case 'storage': return [`Новая БД и рекомендуемый runtime: ${defaults.database || 'требуется выбрать путь'}`, 'Выбрать существующую БД', 'Настроить пути отдельно', w.cloned ? 'Назад (home уже клонирован; другой — новый запуск)' : 'Назад', 'Отмена'];
+      case 'database': return [`Использовать путь: ${w.answers.database || defaults.database || 'не задан'}`, 'Выбрать файл или новую папку…', 'Ввести путь…', 'Назад'];
+      case 'stateRoot': return [`Использовать путь: ${w.answers.stateRoot || defaults.stateRoot || 'не задан'}`, 'Выбрать папку…', 'Ввести путь…', 'Назад'];
+      case 'preview': return ['Назад', 'Изменить home', 'Изменить БД', 'Изменить runtime', 'Подробности ресурсов и всех путей', 'Подготовить обновлённый обзор', 'Продолжить к подтверждению', 'Отмена'];
+      case 'applyConsent': return ['Назад — не применять', 'Применить настройку', 'Отмена'];
+      case 'done': return ['Готово'];
+    }
+  })();
+  const [details, setDetails] = useState(false);
+  const [detailIndex, setDetailIndex] = useState(0);
+  const [horizontal, setHorizontal] = useState(0);
+  useInput((input, key) => {
+    if (pending) { if (pending === 'clone' && (key.escape || key.ctrl && input === 'c')) { controller.current?.abort(); setProblem({ code: 'clone-uncertain', field: 'homeRoot', message: 'Запрошена остановка. Ожидаем Git; проверьте папку после результата.', actions: ['inspect'] }); } return; }
+    if (key.ctrl && input === 'c') { quit(); return; }
+    if (picker) {
+      if (key.escape) { setPicker(undefined); return; }
+      if (key.leftArrow || key.rightArrow) { setHorizontal(n => shiftViewport(n, key.rightArrow ? 1 : -1, stdout.columns || 80)); return; }
+      if (key.upArrow || key.downArrow) { setHorizontal(0); setPicker(p => p ? { ...p, selection: Math.max(0, Math.min(pickerItems(p, userHome, root).length - 1, p.selection + (key.upArrow ? -1 : 1))) } : p); return; }
+      if (key.backspace || key.delete) { updatePicker(picker.path, picker.query.slice(0, -1)); return; }
+      if (key.return) {
+        const item = pickerItems(picker, userHome, root)[picker.selection];
+        if (!item) return;
+        if (item.action === 'back') { setPicker(undefined); return; }
+        if (item.action === 'previous' || item.action === 'next') { updatePicker(picker.path, picker.query, item.action === 'previous' ? Math.max(0, picker.offset - 40) : picker.page.nextOffset ?? 0); return; }
+        if (item.action === 'manual' || item.action === 'child') { const value = item.action === 'child' ? picker.path + '/' : ''; setPicker(undefined); beginEdit(editingField!, value); return; }
+        if (item.action === 'use') { if (picker.kind !== 'file') acceptPath(editingField!, picker.path); return; }
+        if (item.action === 'entry') {
+          const entry = picker.page.entries.find(e => e.path === item.path);
+          if (entry?.error) { setProblem({ code: 'invalid-path', message: entry.error, actions: ['change'] }); return; }
+          if (entry && entryIsDirectory(entry)) { updatePicker(entry.path); return; }
+          if (entry?.kind === 'file' || entry?.targetKind === 'file') { if (picker.kind === 'file' || editingField === 'remote') acceptPath(editingField!, entry.path); else setProblem({ code: 'invalid-path', message: 'Требуется папка, не файл', actions: ['change'] }); }
+          return;
+        }
+        if (item.path) updatePicker(item.path);
+        return;
       }
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      if (input && !key.ctrl && !key.meta) updatePicker(picker.path, picker.query + input);
+      return;
+    }
+    if (editor && editingField) {
+      if (key.escape) { if (completions.length) { setCompletions([]); return; } setEditor(undefined); setEditingField(undefined); return; }
+      if (completions.length && (key.upArrow || key.downArrow)) { setCompletionIndex(i => (i + (key.upArrow ? -1 : 1) + completions.length) % completions.length); return; }
+      if (key.return && completions.length) {
+        const name = completions[completionIndex];
+        if (name) { setEditor(completePath(editor, [name]).editor); setCompletions([]); setCompletionIndex(0); }
+        return;
+      }
+      if (key.return) { acceptPath(editingField, editor.text.trim() || (editingField === 'homeRoot' ? w.answers.homeRoot || defaults.homeRoot : editingField === 'database' ? w.answers.database || defaults.database || '' : editingField === 'stateRoot' ? w.answers.stateRoot || defaults.stateRoot || '' : '')); return; }
+      if (key.tab && editingField !== 'remote') {
+        try { const path = normalizeSetupPath(editor.text.slice(0, Array.from(editor.text).slice(0, editor.cursor).join('').lastIndexOf('/') + 1) || '.', root, userHome);
+          const before = Array.from(editor.text).slice(0, editor.cursor).join('');
+          const prefix = before.slice(before.lastIndexOf('/') + 1);
+          const entries = browseSetupDirectory(path, prefix, 0, 200);
+          const result = completePath(editor, entries.entries.map(e => e.name));
+          if (entries.nextOffset === undefined) setEditor(result.editor);
+          setCompletions(entries.nextOffset !== undefined ? [] : result.matches.length > 1 ? result.matches : []);
+          setCompletionIndex(0);
+          if (entries.nextOffset !== undefined) setProblem({ code: 'invalid-path', message: 'Больше 200 совпадений; уточните начало имени для Tab или используйте фильтр выбора папки.', actions: ['change'] });
+          if (entries.error) setProblem({ code: 'invalid-path', message: entries.error, actions: ['change'] });
+        } catch (error) { setProblem(setupProblem(error)); }
+        return;
+      }
+      const action = key.leftArrow ? 'left' : key.rightArrow ? 'right' : key.backspace ? 'backspace' : key.delete ? 'delete' : undefined;
+      if (action) { setEditor(editKey(editor, action)); setCompletions([]); return; }
+      if (!key.ctrl && !key.meta && input) { setEditor(insert(editor, input)); setCompletions([]); }
+      return;
+    }
+    if (key.escape) { if (w.screen === 'start') quit(); else goBack(); return; }
+    if (key.upArrow || key.downArrow) { setHorizontal(0); setW(move(w, key.upArrow ? -1 : 1, menu.length)); return; }
+    if (key.leftArrow || key.rightArrow) { setHorizontal(n => shiftViewport(n, key.rightArrow ? 1 : -1, stdout.columns || 80)); return; }
+    if (details && (key.pageUp || key.pageDown)) { setDetailIndex(n => Math.max(0, Math.min(detailList.length - 1, n + (key.pageDown ? 1 : -1)))); setHorizontal(0); return; }
+    if (!key.return) return;
+    const index = w.selection;
+    if (w.screen === 'start') {
+      if (index === menu.length - 1) { quit(); return; }
+      if (observation.status === 'configured' && index < 2) { setRefresh(index === 1); preview(w, index === 1); return; }
+      setW(advance(w, 'homeMode')); return;
+    }
+    if (index === menu.indexOf('Отмена')) { quit(); return; }
+    if (index === menu.indexOf('Назад') || menu[index]?.startsWith('Назад')) { goBack(); return; }
+    if (w.screen === 'homeMode') {
+      const mode = (['new', 'existing', 'clone'] as const)[index];
+      if (mode) { const candidate = mode === 'existing' ? observation.homeCandidates.find(c => c.kind === 'eligible')?.path : undefined;
+        setW(advance(setHome(w, mode, candidate || (mode === 'existing' ? undefined : defaults.homeRoot)), 'homeRoot')); } return;
+    }
+    if (w.screen === 'homeRoot' || w.screen === 'database' || w.screen === 'stateRoot') {
+      const field = w.screen;
+      if (index === 0) acceptPath(field, w.answers[field] || (field === 'homeRoot' ? defaults.homeRoot : field === 'database' ? defaults.database || '' : defaults.stateRoot || ''));
+      if (index === 1) browse(field, field === 'database' ? (w.answers.databaseMode === 'existing' ? 'file' : 'future-file') : field === 'homeRoot' && w.answers.homeMode === 'existing' ? 'directory' : 'future-directory');
+      if (index === 2) beginEdit(field, w.answers[field] || '');
+      return;
+    }
+    if (w.screen === 'remote') { if (index === 0) beginEdit('remote', w.answers.remote || ''); else if (index === 1) browse('remote', 'directory'); return; }
+    if (w.screen === 'cloneConsent') {
+      if (index !== 1) return;
+      if (cloneAttempt.current && problem?.code !== 'clone-aborted') { setProblem({ code: 'clone-uncertain', field: 'homeRoot', message: `Проверьте результат clone в ${w.answers.homeRoot}; повтор не разрешён в этом сеансе.`, actions: ['inspect'] }); return; }
+      try {
+        const clone = planHomeClone(root, w.answers.homeRoot!, w.answers.remote!);
+        controller.current = new AbortController(); cloneAttempt.current = true; setPending('clone'); setProblem(undefined);
+        void applyHomeClone(clone, controller.current.signal).then(destination => {
+          setW(current => afterHomeClone(current, destination));
+        }).catch(error => setProblem(setupProblem(error))).finally(() => setPending(undefined));
+      } catch (error) { setProblem(setupProblem(error)); }
+      return;
+    }
+    if (w.screen === 'storage') {
+      if (index > 2) return;
+      const storage = (['recommended', 'existing', 'custom'] as const)[index];
+      if (!storage) return;
+      const next = setStorage(w, storage, defaults);
+      if (storage === 'recommended' && !defaults.database) { setProblem({ code: 'invalid-path', field: 'stateRoot', message: defaults.problem?.message || 'Выберите путь БД и runtime вручную', actions: ['change'] }); setW(advance(next, 'database')); }
+      else if (storage === 'recommended') preview(advance(next, 'preview'));
+      else setW(advance(next, 'database'));
+      return;
+    }
+    if (w.screen === 'preview') {
+      if (index >= 1 && index <= 3) {
+        if (index === 1 && w.cloned) { setProblem({ code: 'local-conflict', field: 'homeRoot', message: `Clone уже сохранён: ${w.cloned}. Завершите сценарий; для другого home начните новый.`, actions: ['inspect'] }); return; }
+        setW(editFromPreview(w, (['homeRoot', 'database', 'stateRoot'] as const)[index - 1]!)); return; }
+      if (index === 4) { setDetails(!details); setDetailIndex(0); setHorizontal(0); return; }
+      if (index === 5) { setRefresh(true); preview(w, true); return; }
+      if (index === 6 && plan && !applyAttempt.current) { setW(advance(w, 'applyConsent')); return; }
+    }
+    if (w.screen === 'applyConsent' && index === 1 && plan) {
+      if (applyAttempt.current) { setProblem({ code: 'stale', message: 'После попытки записи проверьте реальные пути перед новым запуском.', actions: ['inspect'] }); return; }
+      applyAttempt.current = true; setPending('apply');
+      try { const saved = applyInstallation(plan); finish(saved.length ? `Настройка готова. Создано/изменено: ${saved.join(', ')}. Запустите mise exec -- pi. Проекты не зарегистрированы; Git commit/push и глобальные настройки Pi не менялись.` : 'Уже настроено; файлов не изменяли. Запустите mise exec -- pi.'); }
+      catch (error) { setProblem(setupProblem(error)); setW({ ...w, screen: 'preview', selection: 0 }); }
+      finally { setPending(undefined); }
+    }
   });
+  const width = stdout.columns || 80, height = stdout.rows || 24;
+  const detailList = plan ? [
+    `Home (${plan.choices.homeMode}): ${plan.binding.homeRoot}`,
+    `БД (${plan.choices.databaseMode}): ${plan.binding.database}`,
+    `Runtime: ${plan.binding.stateRoot}`,
+    `Git origin: ${plan.remote || 'не указан'}`,
+    `Пакет: ${join(root, 'integrations/pi')}`,
+    `Глобальные источники: ${plan.knownGlobalSources.join(', ') || 'нет'}`,
+    `Настройки Pi: ${plan.agentSettingsPath || 'нет'}`,
+    `Общие настройки home (не меняются): ${join(plan.binding.homeRoot, 'pi/settings.json')}`,
+    ...plan.changes.map(change => 'Будет изменено: ' + change),
+    ...plan.warnings.map(warning => 'Предупреждение: ' + warning)] : [];
+  const items = picker ? pickerItems(picker, userHome, root) : menu.map(label => ({ label }));
+  const focus = picker ? picker.selection : w.selection;
+  const windowSize = Math.max(3, Math.min(7, height - 13));
+  const begin = Math.max(0, Math.min(focus - Math.floor(windowSize / 2), items.length - windowSize));
+  const lines = items.slice(begin, begin + windowSize);
+  const safe = (text: string) => text.length > width - 3 ? text.slice(0, Math.max(4, width - 5)) + '…' : text;
+  const focused = items[focus]?.label || '';
+  const focusedPath = picker ? pickerItems(picker, userHome, root)[focus]?.path || focused : focused;
+  const segment = (text: string) => visibleSegment(text, horizontal, width);
   return h(Box, { flexDirection: 'column' },
-    h(Text, { bold: true }, 'mypi — installation setup'),
-    phase === 'questions' ? h(Text, null, `${prompt(field!)}: ${text}█ (Enter; empty Enter goes back; Esc cancels)`) :
-      phase === 'clone' ? h(Text, null, `Clone ONLY ${answers.remote} into absent ${answers.homeRoot}. No DB/binding/project settings yet. Confirm clone? [y/N] (b back, Esc cancel)`) :
-        h(Box, { flexDirection: 'column' },
-          h(Text, null, `Engine: ${plan?.binding.engineRoot}`), h(Text, null, `Home: ${plan?.binding.homeRoot} (${plan?.remote ?? 'no origin'})`),
-          h(Text, null, `Database: ${plan?.binding.database} (${plan?.choices.databaseMode})`),
-          h(Text, null, `Runtime state: ${plan?.binding.stateRoot}`),
-          h(Text, null, `Engine package: ${join(root, 'integrations/pi')}`),
-          h(Text, null, `Pi agent settings inspected: ${plan?.agentSettingsPath ?? 'none'}`),
-          h(Text, null, `Known global engine sources to shadow: ${plan?.knownGlobalSources.join(', ') || 'none'}`),
-          h(Text, null, `Shared home settings: ${join(plan?.binding.homeRoot ?? '', 'pi/settings.json')} (never modified)`),
-          h(Text, null, 'Project APPEND_SYSTEM overrides agent append; home mcp.json overrides package MCP.'),
-          ...(plan?.warnings ?? []).map((warning, index) => h(Text, { key: index, color: 'yellow' }, warning)),
-          ...(plan?.changes ?? []).map((change, index) => h(Text, { key: index }, `  ${change}`)),
-          h(Text, { color: 'yellow' }, 'Apply after rechecking preview? [y/N] (b back, Esc cancel)')),
-    error ? h(Text, { color: 'red' }, error.includes('explicit refresh choice') ? error + ' Press r to request an explicit refreshed preview.' : error) : null);
+    h(Text, { bold: true }, `mypi — Настройка / ${picker ? 'Выбор пути' : w.screen}`),
+    h(Text, null, safe(`Checkout: ${root}`)),
+    h(Text, null, safe(picker ? `Текущая папка: ${picker.path}` : w.screen === 'start' ? `Состояние: ${observation.status}` :
+      w.screen === 'storage' ? w.cloned ? 'Clone сохранён; дальше только БД/runtime. Отмена оставит home.' : 'БД хранит данные; runtime — служебные файлы. Авторизация Pi не меняется.' :
+      w.screen === 'cloneConsent' ? 'Только clone home; БД и привязка пока не создаются.' : 'Выберите действие; пока ничего не создаём.')),
+    w.screen === 'cloneConsent' ? h(Text, null, `Git источник [←→ ${horizontal}]: ${segment(w.answers.remote || '')}`) : null,
+    picker ? h(Text, null, `Фильтр: ${picker.query || '(все)'} · ${picker.page.total} элементов · страница ${picker.offset + 1}–${Math.min(picker.offset + 40, picker.page.total)}`) : null,
+    editor ? h(Text, null, `Путь/адрес [курсор ${editor.cursor}/${Array.from(editor.text).length}]: ${displayEditor({ text: Array.from(editor.text).slice(Math.max(0, editor.cursor - Math.max(8, width - 48)), editor.cursor + 8).join(''), cursor: Math.min(editor.cursor, Math.max(8, width - 48)) })}`) : null,
+    ...(!editor ? lines.map((item, i) => h(Text, { key: begin + i, bold: begin + i === focus }, `${begin + i === focus ? '›' : ' '} ${safe(item.label)}`)) : []),
+    !editor ? h(Text, null, `Выбрано ${focus + 1}/${items.length} [←→ ${horizontal}]: ${segment(focusedPath)}`) : null,
+    completions.length ? h(Text, null, `Совпадение ${completionIndex + 1}/${completions.length} [↑↓, Enter]: ${safe(completions[completionIndex] || '')}`) : null,
+    (w.screen === 'preview' || w.screen === 'applyConsent') && plan ? h(Box, { flexDirection: 'column' },
+      h(Text, null, safe(`Пути и изменения: ${detailList.length}; предупреждений: ${plan.warnings.length}. PgUp/PgDn листать.`)),
+      h(Text, null, details ? `Подробность ${detailIndex + 1}/${detailList.length}: ${segment(detailList[detailIndex] || '')}` :
+        safe(`Home ${plan.binding.homeRoot}; БД ${plan.binding.database}; runtime ${plan.binding.stateRoot}`))) : null,
+    problem ? h(Text, { color: 'red' }, `Ошибка [←→ ${horizontal}]: ${segment(`${problem.field || 'Настройка'}: ${problem.message} · ${problem.actions.join(', ')}`)}`) : null,
+    pending ? h(Text, null, safe(pending === 'clone' ? `Git clone выполняется: ${w.answers.homeRoot}. Esc/Ctrl+C — запросить остановку; дождитесь результата.` : 'Применяем настройку; отмена не откатывает уже выполненные действия.')) : null,
+    h(Text, { dimColor: true }, editor ? '←→ курсор · Home/End · Tab · Enter принять · Esc назад' :
+      picker ? '↑↓ выбор · Enter открыть · Esc назад · ←→ путь' : '↑↓ выбор · Enter · Esc назад · Ctrl+C отмена · ←→ путь'));
 }
 try {
   if (process.argv.length !== 2) throw new Error('Usage: pnpm bootstrap (interactive terminal required)');

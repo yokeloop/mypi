@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readlinkSync, symlinkSync, unlinkSync, chmodSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, existsSync, readlinkSync, symlinkSync, unlinkSync, chmodSync, watch } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -234,7 +234,57 @@ test('agent-directory symlink retargeting with identical settings bytes invalida
   assert.equal(readFileSync(join(second, 'settings.json'), 'utf8'), '{}');
 });
 
-test('local bare remote is cloned only after first approval and reviewed before binding', t => {
+async function markerReady(directory: string, marker: string): Promise<void> {
+  if (existsSync(marker)) return;
+  await new Promise<void>((resolve, reject) => {
+    const watcher = watch(directory, (_, name) => { if (name === 'started') { cleanup(); resolve(); } });
+    const deadline = setTimeout(() => { cleanup(); reject(new Error('Git shim did not start')); }, 2000);
+    function cleanup() { clearTimeout(deadline); watcher.close(); }
+    if (existsSync(marker)) { cleanup(); resolve(); }
+  });
+}
+test('in-flight clone cancellation preserves partial destination and terminates owned helpers', async t => {
+  const { dir, engine } = fixture(t), root = engine('engine'), destination = join(dir, 'partial');
+  const bin = join(dir, 'bin'); mkdirSync(bin);
+  const marker = join(dir, 'started');
+  const shim = join(bin, 'git');
+  writeFileSync(shim, `#!/usr/bin/env node\nconst fs=require('node:fs'); const cp=require('node:child_process');\nfs.mkdirSync(process.argv[process.argv.length-1]);\nconst helper=cp.spawn('/bin/sleep',['30'],{stdio:'ignore'});\nfs.writeFileSync(${JSON.stringify(marker)}, String(helper.pid));\nsetInterval(()=>{},1000);\n`, { mode: 0o755 });
+  const prior = process.env['PATH'];
+  process.env['PATH'] = bin + ':' + prior;
+  t.after(() => { if (prior === undefined) delete process.env['PATH']; else process.env['PATH'] = prior; });
+  const plan = planHomeClone(root, destination, 'unused-local');
+  const controller = new AbortController();
+  const started = Date.now();
+  const clone = applyHomeClone(plan, controller.signal);
+  void clone.catch(() => {});
+  try {
+    await markerReady(dir, marker);
+    assert(existsSync(marker), 'shim started and created helper');
+    controller.abort();
+    await assert.rejects(clone, /outcome uncertain/);
+    assert(Date.now() - started < 5000, 'clone cancellation settled');
+  } finally { controller.abort(); await clone.catch(() => {}); }
+  assert(existsSync(destination), 'partial destination must be retained');
+  const pid = Number(readFileSync(marker, 'utf8'));
+  // Linux may briefly retain a reparented zombie; no running helper is permitted.
+  const proc = `/proc/${pid}/stat`;
+  if (existsSync(proc)) assert.equal(readFileSync(proc, 'utf8').split(') ')[1]?.[0], 'Z');
+});
+
+test('failed Git leader cannot leave an owned helper running', async t => {
+  const { dir, engine } = fixture(t), root = engine('engine'), destination = join(dir, 'partial');
+  const bin = join(dir, 'bin'); mkdirSync(bin);
+  const marker = join(dir, 'started');
+  writeFileSync(join(bin, 'git'), `#!/usr/bin/env node\nconst fs=require('node:fs'); const cp=require('node:child_process');\nfs.mkdirSync(process.argv[process.argv.length-1]);\nconst helper=cp.spawn('/bin/sleep',['30'],{stdio:'ignore'});\nfs.writeFileSync(${JSON.stringify(marker)},String(helper.pid));\nprocess.exit(1);\n`, { mode: 0o755 });
+  const prior = process.env['PATH']; process.env['PATH'] = bin + ':' + prior;
+  t.after(() => { if (prior === undefined) delete process.env['PATH']; else process.env['PATH'] = prior; });
+  await assert.rejects(applyHomeClone(planHomeClone(root, destination, 'unused-local')), /outcome uncertain/);
+  assert(existsSync(marker));
+  const proc = `/proc/${Number(readFileSync(marker, 'utf8'))}/stat`;
+  if (existsSync(proc)) assert.equal(readFileSync(proc, 'utf8').split(') ')[1]?.[0], 'Z');
+});
+
+test('local bare remote is cloned only after first approval and reviewed before binding', async t => {
   const { dir, home, engine } = fixture(t), root = engine('engine'), bare = join(dir, 'bare.git'), destination = join(dir, 'cloned');
   git('init', '--bare', '--quiet', bare);
   git('-C', home, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'add', '.');
@@ -246,10 +296,13 @@ test('local bare remote is cloned only after first approval and reviewed before 
   assert(!existsSync(destination));
   assert.throws(() => planInstallation(root, { homeMode: 'clone', homeRoot: destination, remote: bare,
     databaseMode: 'new', database: join(dir, 'new.sqlite3'), stateRoot: join(dir, 'runtime') }), /separate first-stage/);
-  applyHomeClone(clone);
+  const cancelled = new AbortController(); cancelled.abort();
+  await assert.rejects(applyHomeClone(clone, cancelled.signal), /cancelled before start/);
+  assert(!existsSync(destination));
+  await applyHomeClone(clone);
   assert(existsSync(join(destination, '.git')));
   // Reusing an occupied clone is rejected by setup planning; Git itself may accept empty destinations.
-  assert.throws(() => applyHomeClone(clone), /absent/);
+  await assert.rejects(applyHomeClone(clone), /absent/);
   const choices: SetupChoices = { homeMode: 'existing', homeRoot: destination, databaseMode: 'new', database: join(dir, 'new.sqlite3'), stateRoot: join(dir, 'runtime') };
   const plan = planInstallation(root, choices);
   assert(!existsSync(choices.database)); assert(!existsSync(join(root, '.mypi-local.json')));

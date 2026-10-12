@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, readdirSync, renameSync, statSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { cloneHome, homeOrigin } from '../infrastructure/git/clone-home.js';
+import { cloneHome, homeOrigin, CloneStartError } from '../infrastructure/git/clone-home.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
 import { canonicalFuturePath, externalStatePath } from '../infrastructure/filesystem/paths.js';
 import { openDatabase } from '../infrastructure/database/database.js';
@@ -9,6 +9,7 @@ import { initializeState } from './create-app.js';
 import { composeInstallation, validateInstallation, validateInstallationStateLayout } from './installation.js';
 import type { InstallationBinding } from './installation.js';
 import { InputError } from '../shared/errors.js';
+import { SetupError } from './setup-problem.js';
 
 export interface SetupChoices {
   homeMode: 'new' | 'existing' | 'clone';
@@ -166,20 +167,19 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
   checkedPath(choices.homeRoot, 'Home'); checkedPath(choices.database, 'Database'); checkedPath(choices.stateRoot, 'State root');
   if (!['new', 'existing', 'clone'].includes(choices.homeMode) || !['new', 'existing'].includes(choices.databaseMode)) throw new InputError('Select home and database modes');
   if (choices.remote !== undefined) throw new InputError('Remote is valid only for the separate clone preview');
+  validateSetupLocation(engine, choices.homeMode, choices.homeRoot, 'homeRoot');
   const home = canonicalFuturePath(choices.homeRoot);
-  const fromHome = relative(home, engine), fromEngine = relative(engine, home);
-  if (fromHome === '' || (!fromHome.startsWith('..' + sep) && fromHome !== '..' && !isAbsolute(fromHome))
-    || (home !== join(engine, 'home') && fromEngine !== '..' && !fromEngine.startsWith('..' + sep) && !isAbsolute(fromEngine))) {
-    throw new InputError('Home repository must be separate from engine repository or the ignored engine/home');
-  }
+  validateSetupLocation(engine, choices.databaseMode, choices.database, 'database', home);
+  validateSetupLocation(engine, 'existing', choices.stateRoot, 'stateRoot', home);
   const db = externalStatePath(externalStatePath(choices.database, engine, 'Database'), home, 'Database');
   const stateRoot = externalStatePath(externalStatePath(choices.stateRoot, engine, 'Runtime state'), home, 'Runtime state');
-  validateInstallationStateLayout(db, stateRoot);
+  try { validateInstallationStateLayout(db, stateRoot); }
+  catch { throw new SetupError('invalid-path', 'Database file cannot equal or contain a runtime state or cache directory; choose separate paths', 'database', ['change']); }
   const homePi = join(home, 'pi'), bindingPath = join(engine, '.mypi-local.json');
   const localPiStatus = stamp(localPi);
-  if (localPiStatus.kind === 'file') throw new InputError('Nonstandard .pi configuration requires reconciliation');
+  if (localPiStatus.kind === 'file') throw new SetupError('local-conflict', 'Nonstandard .pi configuration requires reconciliation', 'binding', ['reconcile']);
   if (localPiStatus.kind === 'link' && resolve(engine, readlinkSync(localPi)) !== homePi) {
-    throw new InputError('Existing .pi link selects a different home; reconcile explicitly');
+    throw new SetupError('local-conflict', 'Existing .pi link selects a different home; reconcile explicitly', 'homeRoot', ['reconcile']);
   }
   if (choices.agentSettingsPath !== undefined) checkedPath(choices.agentSettingsPath, 'Pi agent settings');
   const observations = [home, join(home, '.git'), join(home, 'USER-INSTRUCTIONS.md'), homePi,
@@ -189,17 +189,6 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
     join(engine, 'integrations/pi/package.json'), ...['extensions', 'skills', 'prompts', 'themes'].map(key => join(homePi, key)),
     ].map(stamp);
   const kind = (path: string) => observations.find(value => value.path === path)!.kind;
-  if (choices.homeMode === 'existing') {
-    if (kind(home) !== 'directory' || kind(join(home, '.git')) !== 'directory') throw new InputError('Existing home must be its own local Git repository');
-    contextGit(home).inspectRepository();
-  } else if (kind(home) !== 'absent') throw new InputError('New/clone home destination must be absent');
-  if (choices.databaseMode === 'existing') {
-    if (kind(db) !== 'file') throw new InputError('Selected existing database must be a regular file');
-    const database = openDatabase(db, true);
-    try { if (database.pragma('quick_check', { simple: true }) !== 'ok') throw new InputError('Existing database integrity check failed'); }
-    finally { database.close(); }
-  } else if (kind(db) !== 'absent') throw new InputError('New database destination must be absent');
-  if (kind(stateRoot) !== 'absent' && kind(stateRoot) !== 'directory') throw new InputError('State root must be a directory or absent');
   if (kind(join(homePi, 'APPEND_SYSTEM.md')) === 'link' && readlinkSync(join(homePi, 'APPEND_SYSTEM.md')) !== '../USER-INSTRUCTIONS.md') {
     throw new InputError('Nonstandard selected-home instruction link requires reconciliation');
   }
@@ -208,7 +197,7 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
   if (kind(home) === 'directory') composeInstallation(binding, engine, bindingPath);
   const existingBinding = kind(bindingPath) === 'file';
   if (existingBinding && JSON.stringify(validateInstallation(json(bindingPath))) !== JSON.stringify(binding)) {
-    throw new InputError('Existing installation binding differs; reconcile explicitly before changing selection');
+    throw new SetupError('local-conflict', 'Existing installation binding differs; reconcile explicitly before changing selection', 'binding', ['reconcile']);
   }
   if (!existingBinding && kind(bindingPath) !== 'absent') throw new InputError('Conflicting installation binding');
   const piKind = kind(localPi), legacy = piKind === 'link';
@@ -274,11 +263,11 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
   const sourcesHash = createHash('sha256').update(JSON.stringify(consulted)).digest('hex');
   const globalChanged = !!saved && (saved['globalSources'] !== JSON.stringify(knownGlobalSources) || saved['sourcesHash'] !== sourcesHash);
   if (saved && saved['settingsHash'] !== observations.find(item => item.path === join(localPi, 'settings.json'))?.digest) {
-    throw new InputError('Local settings changed since setup; reconcile explicitly before rerunning');
+    throw new SetupError('local-conflict', 'Local settings changed since setup; reconcile explicitly before rerunning', 'binding', ['reconcile']);
   }
   const homeChanged = !!saved && saved['homeSettingsHash'] !== createHash('sha256').update(sourceSettings).digest('hex');
   if ((homeChanged || globalChanged) && !choices.refreshProjection) {
-    throw new InputError('Selected home/global settings changed; rerun bootstrap with explicit refresh choice to review updated projection');
+    throw new SetupError('refresh-required', 'Selected home/global settings changed; rerun bootstrap with explicit refresh choice to review updated projection', undefined, ['refresh-preview']);
   }
   const finalSettings = saved && !homeChanged && !globalChanged ? localSettings : projectedSettings;
   const changes = [
@@ -300,6 +289,47 @@ export function planInstallation(engineRoot: string, choices: SetupChoices): Ins
     legacy, existingBinding, changes, warnings };
 }
 
+export function validateSetupLocation(engineRoot: string, mode: 'new' | 'existing', input: string, field: 'homeRoot' | 'database' | 'stateRoot', homeRoot?: string): void {
+  try { checkedPath(input, field); }
+  catch { throw new SetupError('invalid-path', `${field} must be an explicit absolute path`, field, ['change']); }
+  let path: string;
+  try { path = canonicalFuturePath(input); }
+  catch { throw new SetupError('invalid-path', `Cannot resolve ${field}: ${input}`, field, ['change']); }
+  if (field !== 'homeRoot') {
+    try {
+      externalStatePath(path, engineRoot, field);
+      if (homeRoot) externalStatePath(path, homeRoot, field);
+    } catch { throw new SetupError('invalid-path', `${field} must be outside checkout and home: ${path}`, field, ['change']); }
+  }
+  if (field === 'homeRoot') {
+    const engine = realpathSync(engineRoot), fromHome = relative(path, engine), fromEngine = relative(engine, path);
+    if (fromHome === '' || (fromHome !== '..' && !fromHome.startsWith('..' + sep) && !isAbsolute(fromHome))
+      || (path !== join(engine, 'home') && fromEngine !== '..' && !fromEngine.startsWith('..' + sep) && !isAbsolute(fromEngine))) {
+      throw new SetupError('invalid-path', 'Home repository must be separate from engine repository or the ignored engine/home', field, ['change']);
+    }
+  }
+  const entry = stamp(path);
+  if (field === 'stateRoot') {
+    if (entry.kind !== 'absent' && entry.kind !== 'directory') throw new SetupError('occupied', 'State root must be a directory or absent: ' + path, field, ['change']);
+    return;
+  }
+  if (mode === 'new' && entry.kind !== 'absent') throw new SetupError('occupied', `${field === 'homeRoot' ? 'New/clone home' : 'New database'} destination must be absent: ${path}`, field, ['change']);
+  if (mode === 'existing' && (field === 'database' ? entry.kind !== 'file' :
+    entry.kind !== 'directory' || stamp(join(path, '.git')).kind !== 'directory')) {
+    throw new SetupError('missing', `Selected existing ${field === 'homeRoot' ? 'home Git repository' : 'database file'} is unavailable: ${path}`, field, ['change']);
+  }
+  if (field === 'homeRoot' && mode === 'existing') {
+    try { contextGit(path).inspectRepository(); }
+    catch { throw new SetupError('invalid-path', 'Existing home must be its own local Git repository: ' + path, field, ['change']); }
+  }
+  if (field === 'database' && mode === 'existing') {
+    try { const database = openDatabase(path, true); try {
+      if (database.pragma('quick_check', { simple: true }) !== 'ok') throw new Error('integrity check failed');
+    } finally { database.close(); } }
+    catch { throw new SetupError('invalid-path', 'Existing database version or integrity check failed: ' + path, field, ['change']); }
+  }
+}
+
 export interface HomeClonePlan { engineRoot: string; destination: string; remote: string; preimage: Stamp }
 /** First stage: no remote probes or clone side effects before explicit approval. */
 export function planHomeClone(engineRoot: string, destination: string, remote: string): HomeClonePlan {
@@ -317,12 +347,16 @@ export function planHomeClone(engineRoot: string, destination: string, remote: s
   return { engineRoot: engine, destination: home, remote, preimage };
 }
 /** Reports partial clone path even if Git returns an error after creating the destination. */
-export function applyHomeClone(plan: HomeClonePlan): string {
+export async function applyHomeClone(plan: HomeClonePlan, signal?: AbortSignal): Promise<string> {
+  if (signal?.aborted) throw new SetupError('clone-aborted', 'Clone cancelled before start; no clone attempted', 'homeRoot', ['retry']);
   if (JSON.stringify(planHomeClone(plan.engineRoot, plan.destination, plan.remote)) !== JSON.stringify(plan)) {
-    throw new InputError('Clone destination changed since preview; no clone attempted');
+    throw new SetupError('stale', 'Clone destination changed since preview; no clone attempted', 'homeRoot', ['inspect']);
   }
-  try { cloneHome(plan.remote, plan.destination); }
-  catch (error) { throw new Error(`Clone outcome uncertain at ${plan.destination}: ${String(error)}. Inspect the destination; do not replay blindly.`); }
+  try { await cloneHome(plan.remote, plan.destination, signal); }
+  catch (error) {
+    if (error instanceof CloneStartError) throw new SetupError('clone-aborted', `Clone did not start at ${plan.destination}; no clone attempted`, 'homeRoot', ['retry']);
+    throw new SetupError('clone-uncertain', `Clone outcome uncertain at ${plan.destination}. Inspect the destination; do not replay blindly.`, 'homeRoot', ['inspect']);
+  }
   return plan.destination;
 }
 

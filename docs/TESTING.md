@@ -162,6 +162,28 @@ This procedure supplements mandatory `verify`; it is not a third test profile,
 permission to move checks out of the suite, or a requirement for Herdr during
 ordinary noninteractive development or CI.
 
+### Bootstrap wizard terminal acceptance
+
+Bootstrap is a separate Ink CLI, not the native Pi/Herdr session UI. In addition
+to mandatory isolated `build` and `verify`, exercise the exact compiled wizard in
+a real, disposable terminal/PTY under the same isolation and deadlines in §6.
+Model tests and headless events do not establish keyboard or rendering behavior.
+Check recommended new setup without typing modes or absolute paths; browser
+navigation/filter/pages, manual checkout-relative and `~/` paths, Tab completion,
+Unicode editing, Back/edit-from-preview and full-path inspection at 80×24 and
+60×20. Verify safe default on effect confirmation, separate clone-only and
+installation consents, retained clone on cancellation, stale/conflict refusal,
+configured no-op and visible refresh. Inspect both screen output and disposable
+filesystem/binding state; do not infer a successful setup merely from exit zero.
+A forced clone stop/failure can leave an uncertain destination: preserve and
+inspect it, without automatic replay. Use only local Git fixtures, no personal
+home/DB or remote network. These bounded probes are separate from `verify`; a
+successful local fixture does not establish network clone/auth or exhaustive
+Unicode/terminal behavior. A Pi/Herdr interaction, when tested, still follows
+the dedicated visible-tab procedure above. Record candidate, dimensions, keys,
+observed effects, normal exit and owned fixture cleanup; do not claim task
+acceptance or delivery without independent review and fresh delivery CI.
+
 ## 5. Admission of a new test
 
 Before editing, inspect existing tests and briefly answer in the change rationale,
