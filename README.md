@@ -62,9 +62,9 @@ mise exec -- pi
 
 The interactive wizard shows this checkout and its setup state, then offers
 menus for a new independent home Git, an existing home Git or a Git clone. Use
-↑/↓ and Enter to select; Esc goes back, Ctrl+C cancels, and visible Back/Cancel
-actions are available. The recommended new home is `./home` in this checkout.
-Storage offers a new SQLite DB with a recommended runtime directory, an existing
+↑/↓ and Enter to select; Esc goes back before effects, Ctrl+C cancels, and
+visible Back/Cancel actions are available. The recommended new home is `./home`
+in this checkout. Storage offers a new SQLite DB with a recommended runtime directory, an existing
 DB, or separate path choices. The suggestions for a new checkout are
 `<state-base>/mypi/installations/<checkout-name>-<path-hash>/state.sqlite3` and
 `.../runtime`, where `<state-base>` is absolute `XDG_STATE_HOME` if set, otherwise
@@ -84,11 +84,13 @@ matches). Empty Enter accepts a shown suggestion, not Back. In long-path views,
 in the preview before applying. Some underlying diagnostics remain in English.
 
 Clone has its **own** safe-default confirmation to create only home; it does not
-consent to DB creation or installation binding. After clone, review storage and
-confirm installation separately. At the final confirmation, Enter initially
-selects Back, not Apply; explicitly select the effect action. Back/editing in the
-preview retains unrelated choices and generates a new preview. Applying rechecks
-for changed inputs and refuses stale/conflicting choices. Cancel before effects
+consent to DB creation or installation binding. After a successful clone, Back/Esc
+cannot return to pre-clone home/source selection: DB/runtime choices and review
+remain editable, while changing home requires ending this run and starting another.
+Cancellation retains the clone. Confirm installation separately. At the final
+confirmation, Enter initially selects Back, not Apply; explicitly select the
+effect action. Editing allowed choices in the preview retains unrelated answers
+and generates a new preview. Applying rechecks for changed inputs and refuses stale/conflicting choices. Cancel before effects
 does not write setup data (the `pnpm bootstrap` build can still update `dist`).
 After clone, cancellation retains that destination and origin; a stopped or
 failed clone may leave a partial destination and must be inspected before another

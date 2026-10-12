@@ -23,8 +23,11 @@ arrow keys, Home/End, Backspace/Delete and paste edit input; ←/→ exposes cli
 long paths and preview details show full resolved paths. Review the new preview
 after editing. A Git clone requires a separate explicit confirmation before the
 installation preview and Apply confirmation; default Enter at the effect screen
-returns Back. A configured rerun can be a no-op, or visibly prepare an updated
-preview when shared resources change. Conflicts require reconciliation, not
+returns Back. Once clone succeeds, Back/Esc cannot reopen the earlier home/source
+selection; DB/runtime and review remain editable. Cancel retains the clone, and
+a different home requires ending this run and starting another. A configured
+rerun can be a no-op, or visibly prepare an updated preview when shared resources
+change. Conflicts require reconciliation, not
 removing unknown `.pi` content. Cancel before effects changes no setup data (the
 build may update `dist`); cancellation after clone retains it, and a stopped or
 failed clone can leave an uncertain partial destination. Inspect real paths and
