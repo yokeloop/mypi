@@ -62,6 +62,8 @@ src/
 └── shared/              # scope types, errors and partial
 ```
 
+Native `/mypi` uses `src/app/native-command-descriptors.ts` for its supported open/help grammar, action labels, completion values and help text. Register future slash actions there first, then route the parsed action through the Node-only application request; never put DB access in the Pi extension or trigger opening from completion/listing. Registry completion warms asynchronously per captured installation, while an explicit list refreshes errors and contents. `/mypi open org` keeps organization scope from a canonical caller cwd; `/mypi open org/project` starts at the registered base by default, or at an explicitly named existing Git-confirmed worktree. The native tool's omitted action retains legacy project-only listing and project+worktree opening; use `action: "open"` to open a base or organization and `action: "list"` for read-only results. Scope is cooperative context, not filesystem isolation. A submitted tab is not confirmed ready.
+
 CLI/MCP → app → public domain APIs. A module uses its own rules/ports; adapters
 implement ports with technical infrastructure; composition roots select adapters.
 Domain rules do not perform IO. Modules do not bypass each other's public API.

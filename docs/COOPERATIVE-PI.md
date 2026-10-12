@@ -39,11 +39,17 @@ settings/authentication. See [the full setup guide](../README.md#first-time-setu
 After explicit bootstrap selection and `pnpm build`, start ordinary `pi`
 from the configured engine root; fresh root context is unrestricted. Use `/mcp`
 to confirm the actual connection after trusting the project. A registered project
-and associated independent clone are needed for scoped work. For an existing
-worktree, `/mypi open [org/project]` selects a project/worktree and submits a new
-Herdr tab, leaving the original chat open. The model-callable `mypi_project_open`
-first lists choices, then takes explicit `project` and absolute `worktree` (and
-`allowObservedSession` only on explicit approval). Check the submitted tab's
+and associated independent clone are needed for scoped work. `/mypi` shows an action menu (arrows/Enter, Esc to cancel); `/mypi help` lists
+arguments and examples. `/mypi open` offers registered organizations and projects;
+`/mypi open org` retains organization scope with the existing canonical caller cwd,
+and `/mypi open org/project` retains project scope with its registered base checkout
+by default. Optional `/mypi open org/project --worktree` offers a picker of existing
+Git-confirmed worktrees, or `--worktree "/absolute/path with spaces"` names one.
+No clone/worktree is created. The model-callable `mypi_project_open` takes explicit
+`action: "list"` for read-only selection or `action: "open"` with `organization` or
+`project` and optional `worktree` for a launch. Omitted action preserves the prior
+project-only listing and project+worktree launch, but organization-only never opens
+implicitly. `allowObservedSession` needs explicit prior approval. Check the submitted tab's
 cwd/context/native ID and `/mcp`; a submission is not readiness. Partial Herdr
 IDs need inspection before another attempt. Known observed sessions are not
 killed. Without Herdr, ordinary Pi and local CLI remain usable.

@@ -37,7 +37,17 @@ test('Node native opening uses captured installation and rejects changed binding
   const initialized = run('db', 'init');
   assert.ifError(initialized.error);
   assert.equal(initialized.status, 0, initialized.stderr);
-  const added = run('project', 'add', 'one/app', '--code', 'APP');
+  const checkout = join(dir, 'checkout');
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', args, { cwd: dir, env: { ...env, GIT_CONFIG_NOSYSTEM: '1',
+      GIT_CONFIG_GLOBAL: '/dev/null', GIT_TERMINAL_PROMPT: '0' }, encoding: 'utf8', timeout: 5000 });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr);
+  };
+  git('init', '--quiet', '-b', 'main', checkout);
+  git('-C', checkout, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+    'commit', '--quiet', '--allow-empty', '-m', 'fixture');
+  const added = run('project', 'add', 'one/app', '--code', 'APP', '--path', checkout);
   assert.ifError(added.error);
   assert.equal(added.status, 0, added.stderr);
   const snapshot = { ...selected, configPath: binding, sessionDirectory: env.MYPI_SESSION_DIR,
@@ -46,6 +56,18 @@ test('Node native opening uses captured installation and rejects changed binding
   const choices = open(snapshot);
   assert.equal(choices.status, 0, choices.stderr);
   assert.deepEqual(JSON.parse(choices.stdout).value.projects, ['one/app']);
+  assert.deepEqual(JSON.parse(choices.stdout).value.organizations, ['one']);
+  const list = run('project', 'open-native', JSON.stringify({ installation: snapshot, callerCwd: dir,
+    action: 'list', project: 'one/app', worktree: checkout }));
+  assert.equal(list.status, 0, list.stderr);
+  assert.deepEqual(JSON.parse(list.stdout).value.state, 'selected', 'valid checkout listing must return without launching');
+  const invalidTree = run('project', 'open-native', JSON.stringify({ installation: snapshot, callerCwd: dir,
+    action: 'list', project: 'one/app', worktree: dir }));
+  assert.equal(JSON.parse(invalidTree.stdout).ok, false);
+  const org = run('project', 'open-native', JSON.stringify({ installation: snapshot, callerCwd: dir, organization: 'one' }));
+  assert.deepEqual(JSON.parse(org.stdout).value, { state: 'organization', organization: 'one' });
+  const invalid = run('project', 'open-native', JSON.stringify({ installation: snapshot, callerCwd: dir, action: 'open' }));
+  assert.match(JSON.parse(invalid.stdout).error.message, /requires an organization or project/);
   const refused = open({ ...snapshot, database: join(dir, 'other.sqlite3') });
   assert.equal(refused.status, 0, refused.stderr);
   assert.match(JSON.parse(refused.stdout).error.message, /Installation changed/);

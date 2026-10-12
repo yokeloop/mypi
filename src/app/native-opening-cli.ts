@@ -1,7 +1,7 @@
 import { fileURLToPath } from 'node:url';
 import { resolveInstallation } from './installation.js';
-import { parseNativeOpeningRequest } from './native-opening-contract.js';
-import { projectOpeningChoices, openProjectPi, ObservedSessionConflict } from './project-opening-terminal.js';
+import { nativeOpeningMode, parseNativeOpeningRequest } from './native-opening-contract.js';
+import { projectOpeningChoices, organizationOpeningChoice, openProjectPi, openOrganizationPi, ObservedSessionConflict } from './project-opening-terminal.js';
 import { HerdrPartialError } from './herdr.js';
 import { InputError } from '../shared/errors.js';
 import type { NativeOpeningResponse } from './native-opening-contract.js';
@@ -28,9 +28,14 @@ export async function executeNativeOpening(raw: string): Promise<NativeOpeningRe
     if (Object.keys(current).some(key => current[key as keyof typeof current] !== captured[key as keyof typeof current])) {
       throw new InputError('Installation changed after native selection; review binding and retry explicitly');
     }
-    const value = request.project && request.worktree
-      ? await openProjectPi(current, request.callerCwd, request.project, request.worktree, request.allowObservedSession)
-      : projectOpeningChoices(current, request.project, request.worktree);
+    const opening = nativeOpeningMode(request) === 'open';
+    const value = opening
+      ? request.organization !== undefined
+        ? await openOrganizationPi(current, request.callerCwd, request.organization, request.allowObservedSession)
+        : await openProjectPi(current, request.callerCwd, request.project!, request.worktree, request.allowObservedSession)
+      : request.organization !== undefined
+        ? organizationOpeningChoice(current, request.organization)
+        : projectOpeningChoices(current, request.project, request.worktree);
     return { ok: true, value };
   } catch (error) { return nativeOpeningFailure(error); }
 }

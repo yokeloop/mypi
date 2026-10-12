@@ -25,6 +25,9 @@ export function sqliteProjectStore(db: Database): ProjectStore {
         ? db.prepare(select + ' ORDER BY o.slug, p.slug').all()
         : db.prepare(select + ' WHERE o.slug = ? ORDER BY p.slug').all(org)) as Project[];
     },
+    listOrganizations() {
+      return db.prepare('SELECT id, slug FROM organizations ORDER BY slug').all() as { id: number; slug: string }[];
+    },
     find(org, slug) {
       return db.prepare(select + ' WHERE o.slug = ? AND p.slug = ?').get(org, slug) as Project | undefined;
     },

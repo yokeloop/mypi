@@ -3,6 +3,7 @@ import type { Project } from './model.js';
 export interface ProjectStore {
   add(input: { org: string; slug: string; code: string; checkoutPath: string | null }): Project;
   list(org?: string): Project[];
+  listOrganizations(): { id: number; slug: string }[];
   find(org: string, slug: string): Project | undefined;
   findOrganization(slug: string): { id: number; slug: string } | undefined;
 }

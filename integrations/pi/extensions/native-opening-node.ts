@@ -5,7 +5,7 @@ import type { NativeOpeningResponse } from '../../../dist/src/app/native-opening
 import { execFile } from 'node:child_process';
 import { join } from 'node:path';
 
-export interface OpeningInput { project?: string; worktree?: string; allowObservedSession?: boolean }
+export interface OpeningInput { action?: 'list' | 'open'; organization?: string; project?: string; worktree?: string; allowObservedSession?: boolean }
 
 /** The installed native Pi owns UI; one bounded Node24 CLI invocation owns SQLite/Git/Herdr effects. */
 export function nativeOpeningNode(installation: Installation, callerCwd: string, input: OpeningInput,
