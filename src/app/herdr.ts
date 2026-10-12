@@ -11,10 +11,11 @@ export interface HerdrCliReceipt { code: 0; stdout: string }
 export type HerdrRunner = (args: readonly string[]) => HerdrCliReceipt;
 export type HerdrControl = SessionSelection & { instanceKey: string } &
   ({ action: 'focus' } | { action: 'title'; title: string });
-export interface HerdrSubmission { status: 'submitted'; herdrSocketPath: string; tabId: string; paneId: string }
+export interface HerdrSubmission { status: 'submitted' | 'ready' | 'failed'; herdrSocketPath: string; tabId: string; paneId: string;
+  exitCode?: number; observation?: 'disabled' | 'unavailable' | 'timeout' | 'confirmed' | 'closed' | 'exit-nonzero' | 'exited' }
 export class HerdrPartialError extends Error {
   readonly status = 'partial';
-  constructor(readonly stage: 'create' | 'submit' | 'focus' | 'title',
+  constructor(readonly stage: 'create' | 'submit' | 'startup' | 'focus' | 'title',
     readonly herdrSocketPath: string, readonly tabId?: string, readonly paneId?: string) {
     super('Herdr operation may have taken effect. Inspect the explicit server/known IDs before choosing another action; do not blindly retry.');
   }
@@ -83,14 +84,14 @@ export function controlHerdrSession(command: HerdrControl, env: Readonly<Record<
 }
 const forwarded = ['PATH', 'HOME', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME', 'XDG_STATE_HOME', 'XDG_DATA_HOME',
   'PI_CODING_AGENT_DIR', 'MYPI_INSTALLATION_FILE', 'MYPI_SESSION_DIR', 'MYPI_SESSION_CARDS', 'MYPI_SESSION_HEARTBEAT_MS',
-  'MYPI_MAILBOX_DIR', 'MYPI_MAILBOX_RECEIVE', 'MYPI_MAILBOX_POLL_MS', 'MYPI_GUARD_POLICY'] as const;
+  'MYPI_MAILBOX_DIR', 'MYPI_MAILBOX_RECEIVE', 'MYPI_MAILBOX_POLL_MS', 'MYPI_GUARD_POLICY', 'MYPI_PI_LAUNCH_TOKEN'] as const;
 function quote(value: string): string {
   if (value.includes('\0')) throw new InputError('NUL cannot be passed to Herdr');
   return "'" + value.replaceAll("'", "'\\''") + "'";
 }
 /** One command for a POSIX-compatible pane shell; never interpolate native arguments as syntax. */
 export function herdrPiCommand(plan: PiLaunchPlan, executable: string, extension: string,
-  env: Readonly<Record<string, string | undefined>>): string {
+  env: Readonly<Record<string, string | undefined>>, exitPath?: string): string {
   if (!isAbsolute(executable) || !isAbsolute(extension)) throw new InputError('Herdr launch requires absolute Pi and extension paths');
   const args = ['/usr/bin/env'];
   for (const key of [...forwarded, MYPI_PI_CONTEXT, MYPI_MCP_CONTEXT, MYPI_MCP_NATIVE_SESSION_ID]) args.push('-u', key);
@@ -98,13 +99,22 @@ export function herdrPiCommand(plan: PiLaunchPlan, executable: string, extension
   if (plan.context) args.push(MYPI_PI_CONTEXT + '=' + encodePiContext(plan.context));
   args.push(executable, '--extension', extension, ...plan.args);
   if (!isAbsolute(plan.cwd)) throw new InputError('Herdr launch requires an absolute cwd');
-  return 'cd ' + quote(plan.cwd) + ' && ' + args.map(quote).join(' ');
+  const command = 'cd ' + quote(plan.cwd) + ' && ' + args.map(quote).join(' ');
+  if (exitPath === undefined) return command;
+  if (!isAbsolute(exitPath)) throw new InputError('Launch exit path must be absolute');
+  // Subshell only: do not exit Herdr's enclosing interactive shell. Noclobber and
+  // original exit code survive marker-write failure. No stdout/stderr interception.
+  return '( ' + command + '; mypi_exit=$?; ( umask 077; set -C; printf "exit:%s\\n" "$mypi_exit" > '
+    + quote(exitPath) + ' ); exit "$mypi_exit" )';
 }
 export function openHerdrPi(plan: PiLaunchPlan, executable: string, extension: string,
-  env: Readonly<Record<string, string | undefined>>, run: HerdrRunner, title?: string): HerdrSubmission {
+  env: Readonly<Record<string, string | undefined>>, run: HerdrRunner, title?: string,
+  prepareExit?: () => string | undefined): HerdrSubmission {
   if (title !== undefined) validateHerdrTitle(title);
-  const command = herdrPiCommand(plan, executable, extension, env);
+  const plainCommand = herdrPiCommand(plan, executable, extension, env);
   const current = caller(env, run);
+  const exitPath = prepareExit?.();
+  const command = exitPath === undefined ? plainCommand : herdrPiCommand(plan, executable, extension, env, exitPath);
   let tabId: string | undefined, paneId: string | undefined;
   try {
     const created = result(run(['tab', 'create', '--workspace', current.workspaceId, '--cwd', plan.cwd, '--no-focus',

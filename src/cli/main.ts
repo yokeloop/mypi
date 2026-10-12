@@ -11,12 +11,18 @@ try {
   if (process.argv[2] === 'project' && process.argv[3] === 'open-native') {
     if (process.argv.length !== 5) throw new Error('Expected one native opening request');
     const { executeNativeOpening } = await import('../app/native-opening-cli.js');
-    process.stdout.write(JSON.stringify(await executeNativeOpening(process.argv[4]!)) + '\n');
+    process.stdout.write(JSON.stringify(await executeNativeOpening(process.argv[4]!, receipt => {
+      process.stdout.write(JSON.stringify({ ok: false, error: { state: 'partial', stage: 'startup',
+        message: 'Pi startup outcome pending; inspect the target before retrying.', ...receipt } }) + '\n');
+    })) + '\n');
   } else {
     const command = parseCommand(process.argv.slice(2));
     if (command.type === 'pi') {
       const result = await launchPi(command);
-      if ('status' in result) process.stdout.write(JSON.stringify(result) + '\n');
+      if ('status' in result) {
+        process.stdout.write(JSON.stringify(result) + '\n');
+        if (result.status === 'failed') process.exitCode = result.exitCode || 1;
+      }
       else if (result.signal) process.kill(process.pid, result.signal);
       else process.exitCode = result.code ?? 1;
     } else if (command.type === 'session-control') {

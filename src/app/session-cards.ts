@@ -46,12 +46,13 @@ function epoch(value: unknown): value is number { return typeof value === 'numbe
 /** Stored context is validated, never inferred from a former or foreign selection. */
 export function parseSessionCard(value: unknown, instanceKey: string): SessionCard | undefined {
   if (!mapping(value) || Object.keys(value).some(key => !['version', 'instanceKey', 'nativeSessionId', 'cwd', 'context',
-    'nativeSessionFile', 'title', 'pid', 'herdrTabId', 'herdrSocketPath', 'herdrPaneId', 'state', 'startedAt', 'lastSeen'].includes(key))) return;
+    'nativeSessionFile', 'title', 'pid', 'launchToken', 'herdrTabId', 'herdrSocketPath', 'herdrPaneId', 'state', 'startedAt', 'lastSeen'].includes(key))) return;
   try { validateSessionKey(instanceKey); } catch { return; }
   if (value['version'] !== 1 || value['instanceKey'] !== instanceKey || !plain(value['nativeSessionId']) || !path(value['cwd'])
     || !epoch(value['startedAt']) || !epoch(value['lastSeen'])
     || typeof value['state'] !== 'string' || !['starting', 'running', 'idle', 'closed'].includes(value['state'])) return;
   if ('nativeSessionFile' in value && !path(value['nativeSessionFile'])) return;
+  if ('launchToken' in value && (typeof value['launchToken'] !== 'string' || !/^[0-9a-f-]{36}$/.test(value['launchToken']))) return;
   if ('title' in value && !plain(value['title'], true)) return;
   if ('herdrTabId' in value && !plain(value['herdrTabId'])) return;
   if ('herdrPaneId' in value && !herdrId(value['herdrPaneId'])) return;
@@ -62,6 +63,7 @@ export function parseSessionCard(value: unknown, instanceKey: string): SessionCa
   return { version: 1, instanceKey, nativeSessionId: value['nativeSessionId'], cwd: value['cwd'],
     state: value['state'] as SessionCard['state'], startedAt: value['startedAt'], lastSeen: value['lastSeen'],
     ...(context ? { context: context.context } : {}),
+    ...(typeof value['launchToken'] === 'string' ? { launchToken: value['launchToken'] } : {}),
     ...(typeof value['nativeSessionFile'] === 'string' ? { nativeSessionFile: value['nativeSessionFile'] } : {}),
     ...(typeof value['title'] === 'string' ? { title: value['title'] } : {}),
     ...(typeof value['herdrSocketPath'] === 'string' ? { herdrSocketPath: value['herdrSocketPath'] } : {}),

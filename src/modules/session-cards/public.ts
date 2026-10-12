@@ -5,6 +5,7 @@ export interface SessionCard {
   readonly version: 1;
   readonly instanceKey: string;
   readonly nativeSessionId: string;
+  readonly launchToken?: string;
   readonly cwd: string;
   readonly context?: WorkContext;
   readonly nativeSessionFile?: string;

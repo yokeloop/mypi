@@ -39,13 +39,33 @@ settings/authentication. See [the full setup guide](../README.md#first-time-setu
 After explicit bootstrap selection and `pnpm build`, start ordinary `pi`
 from the configured engine root; fresh root context is unrestricted. Use `/mcp`
 to confirm the actual connection after trusting the project. A registered project
-and associated independent clone are needed for scoped work. For an existing
-worktree, `/mypi open [org/project]` selects a project/worktree and submits a new
-Herdr tab, leaving the original chat open. The model-callable `mypi_project_open`
-first lists choices, then takes explicit `project` and absolute `worktree` (and
-`allowObservedSession` only on explicit approval). Check the submitted tab's
-cwd/context/native ID and `/mcp`; a submission is not readiness. Partial Herdr
-IDs need inspection before another attempt. Known observed sessions are not
+and associated independent clone are needed for scoped work. `/mypi` shows an action menu (arrows/Enter, Esc to cancel); `/mypi help` lists
+arguments and examples. `/mypi open` offers registered organizations and projects;
+`/mypi open org` retains organization scope with the existing canonical caller cwd,
+and `/mypi open org/project` retains project scope with its registered base checkout
+by default. Optional `/mypi open org/project --worktree` offers a picker of existing
+Git-confirmed worktrees, or `--worktree "/absolute/path with spaces"` names one.
+No clone/worktree is created. The model-callable `mypi_project_open` takes explicit
+`action: "list"` for read-only selection or `action: "open"` with `organization` or
+`project` and optional `worktree` for a launch. Omitted action preserves the prior
+project-only listing and project+worktree launch, but organization-only never opens
+implicitly. `allowObservedSession` needs explicit prior approval. The running bundled
+native Pi host is reused for opening when identifiable. To select another already
+installed Pi, set `MYPI_PI_EXECUTABLE` to its absolute executable path before
+starting the caller; review scripts before explicitly selecting them. Independent
+CLI launches also accept the first direct native Pi on PATH, but refuse a PATH
+shell wrapper rather than running it or skipping to another installation. No
+installer/update/global `mise use` is run by opening; unsupported Node/script
+installations need an explicit operator selection. `ready` means the selected
+context/cwd and exact Herdr target were observed by the new Pi extension startup
+hook; it does not establish rendered UI, MCP connection or a model response.
+`submitted` with `disabled`, `unavailable` or `timeout` observation is not ready;
+inspect the retained tab and `/mcp` before retrying. A correlated native session
+exit or per-launch exit-code acknowledgement before readiness is reported as failed;
+zero exit means the process ended before readiness was reported, not that startup
+failed. Launch diagnostics in the selected runtime session directory are retained
+when the producer may still run (ready, timeout or cancellation); no tab is removed. Partial Herdr IDs need inspection
+before another attempt. Known observed sessions are not
 killed. Without Herdr, ordinary Pi and local CLI remain usable.
 
 The installed Pi still owns the native UI and session. Its project-open command

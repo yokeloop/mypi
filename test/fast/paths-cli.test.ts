@@ -159,6 +159,35 @@ test('Pi launch advice requires explicit choice for archived/fresh/stale observa
   assert.equal(piLaunchObservations('/task', { sessions: [{ card: subdirectory, status: 'idle', ageMs: 0, archived: false }], issues: [], truncated: false }, false, identity).requiresChoice, true);
 });
 
+test('organization duplicate advice separates selected scope from shared starting cwd', () => {
+  const cwd = '/root';
+  const identity = (path: string) => path;
+  const requested = { kind: 'organization' as const, organization: 'b' };
+  const card = { version: 1 as const, instanceKey: 'observed', nativeSessionId: 'native', cwd,
+    state: 'idle' as const, startedAt: 0, lastSeen: 0 };
+  const observe = (context: typeof card & { context?: { scope: { kind: 'unrestricted' } | { kind: 'organization'; organization: string } | { kind: 'project'; project: string } } },
+    status: 'idle' | 'stale' | 'unknown' = 'idle') => piLaunchObservations(cwd,
+    { sessions: [{ card: context, status, ageMs: null, archived: status !== 'idle' }], issues: [], truncated: false },
+    false, identity, requested);
+  assert.deepEqual(observe({ ...card, context: { scope: { kind: 'unrestricted' } } }),
+    { conflicts: [], requiresChoice: false, incomplete: false }, 'unrestricted root can open organization B');
+  assert.deepEqual(observe({ ...card, context: { scope: { kind: 'organization', organization: 'a' } } }),
+    { conflicts: [], requiresChoice: false, incomplete: false }, 'organization A at same cwd is unrelated');
+  for (const status of ['idle', 'stale', 'unknown'] as const) {
+    const same = observe({ ...card, context: { scope: requested } }, status);
+    assert.deepEqual(same, { conflicts: [{ instanceKey: 'observed', status }], requiresChoice: true, incomplete: false });
+    assert.equal(observe(card, status).requiresChoice, true, 'missing context remains ambiguous');
+  }
+  assert.equal(observe({ ...card, context: { scope: { kind: 'project', project: 'b/app' } } }).requiresChoice, true,
+    'project/worktree observations remain conservative');
+  const inventory = { sessions: [{ card: { ...card, context: { scope: { kind: 'organization' as const, organization: 'a' } } },
+    status: 'stale' as const, ageMs: null, archived: true }], issues: [{ issue: 'invalid' as const }], truncated: false };
+  assert.deepEqual(piLaunchObservations(cwd, inventory, false, identity, requested),
+    { conflicts: [], requiresChoice: false, incomplete: true }, 'unknown cache coverage is not treated as exclusivity');
+  assert.equal(piLaunchObservations(cwd, inventory, false, identity, { kind: 'project', project: 'b/app' }).requiresChoice, true,
+    'project duplicate advice is not relaxed');
+});
+
 test('Herdr explicit caller/target mappings preserve namespace, cross-workspace selection and partial acknowledgements', () => {
   const env = { HERDR_ENV: '1', HERDR_SOCKET_PATH: '/run/disposable.sock', HERDR_PANE_ID: 'caller-pane',
     HERDR_TAB_ID: 'caller-tab', HERDR_WORKSPACE_ID: 'caller-workspace', PATH: '/bin', HOME: '/home/disposable' };
@@ -253,8 +282,9 @@ test('Herdr shell transport quotes opaque tokens and explicitly clears absent wo
       MYPI_PI_CONTEXT: 'must-not-leak', MYPI_MCP_CONTEXT: 'must-not-leak', MYPI_MCP_NATIVE_SESSION_ID: 'must-not-leak',
       MYPI_INSTALLATION_FILE: '/install/mypi-local.json', MYPI_MAILBOX_DIR: '/runtime/mailbox', MYPI_MAILBOX_RECEIVE: '1', MYPI_MAILBOX_POLL_MS: '2000',
       HERDR_PANE_ID: 'old-pane', PROVIDER_SECRET: 'must-not-leak' });
-  assert.equal(text, "cd '/task' && '/usr/bin/env' '-u' 'PATH' '-u' 'HOME' '-u' 'XDG_CONFIG_HOME' '-u' 'XDG_CACHE_HOME' '-u' 'XDG_STATE_HOME' '-u' 'XDG_DATA_HOME' '-u' 'PI_CODING_AGENT_DIR' '-u' 'MYPI_INSTALLATION_FILE' '-u' 'MYPI_SESSION_DIR' '-u' 'MYPI_SESSION_CARDS' '-u' 'MYPI_SESSION_HEARTBEAT_MS' '-u' 'MYPI_MAILBOX_DIR' '-u' 'MYPI_MAILBOX_RECEIVE' '-u' 'MYPI_MAILBOX_POLL_MS' '-u' 'MYPI_GUARD_POLICY' '-u' 'MYPI_PI_CONTEXT' '-u' 'MYPI_MCP_CONTEXT' '-u' 'MYPI_MCP_NATIVE_SESSION_ID' 'HOME=/home/disposable' 'MYPI_INSTALLATION_FILE=/install/mypi-local.json' 'MYPI_MAILBOX_DIR=/runtime/mailbox' 'MYPI_MAILBOX_RECEIVE=1' 'MYPI_MAILBOX_POLL_MS=2000' 'MYPI_GUARD_POLICY=/data/policy with space' '/opt/pi' '--extension' '/pkg/my pi.ts' 'a'\\''b' '$(touch /no)' 'line\nbreak' ''");
-  const context = herdrPiCommand({ cwd: '/x', args: [], context: { version: 1, cwd: '/x', context: { scope: { kind: 'unrestricted' } } } }, '/opt/pi', '/pkg/mypi.ts', {});
+  assert.equal(text, "cd '/task' && '/usr/bin/env' '-u' 'PATH' '-u' 'HOME' '-u' 'XDG_CONFIG_HOME' '-u' 'XDG_CACHE_HOME' '-u' 'XDG_STATE_HOME' '-u' 'XDG_DATA_HOME' '-u' 'PI_CODING_AGENT_DIR' '-u' 'MYPI_INSTALLATION_FILE' '-u' 'MYPI_SESSION_DIR' '-u' 'MYPI_SESSION_CARDS' '-u' 'MYPI_SESSION_HEARTBEAT_MS' '-u' 'MYPI_MAILBOX_DIR' '-u' 'MYPI_MAILBOX_RECEIVE' '-u' 'MYPI_MAILBOX_POLL_MS' '-u' 'MYPI_GUARD_POLICY' '-u' 'MYPI_PI_LAUNCH_TOKEN' '-u' 'MYPI_PI_CONTEXT' '-u' 'MYPI_MCP_CONTEXT' '-u' 'MYPI_MCP_NATIVE_SESSION_ID' 'HOME=/home/disposable' 'MYPI_INSTALLATION_FILE=/install/mypi-local.json' 'MYPI_MAILBOX_DIR=/runtime/mailbox' 'MYPI_MAILBOX_RECEIVE=1' 'MYPI_MAILBOX_POLL_MS=2000' 'MYPI_GUARD_POLICY=/data/policy with space' '/opt/pi' '--extension' '/pkg/my pi.ts' 'a'\\''b' '$(touch /no)' 'line\nbreak' ''");
+  const context = herdrPiCommand({ cwd: '/x', args: [], context: { version: 1, cwd: '/x', context: { scope: { kind: 'unrestricted' } } } }, '/opt/pi', '/pkg/mypi.ts', { MYPI_PI_LAUNCH_TOKEN: 'bdbb6ae3-68d5-4335-8df7-79f4806e22ee' });
+  assert.match(context, /'MYPI_PI_LAUNCH_TOKEN=bdbb6ae3-68d5-4335-8df7-79f4806e22ee'/);
   assert.match(context, /'MYPI_PI_CONTEXT=eyJ2ZXJzaW9uIjoxLCJjd2QiOiIveCIsImNvbnRleHQiOnsic2NvcGUiOnsia2luZCI6InVucmVzdHJpY3RlZCJ9fX0'/);
   assert.throws(() => herdrPiCommand({ cwd: '/x', args: ['\0'] }, '/opt/pi', '/pkg/mypi.ts', {}), /NUL/);
 });

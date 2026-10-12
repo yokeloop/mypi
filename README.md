@@ -155,16 +155,27 @@ core tsc output; `pnpm build` alone is not proof it loaded in Pi.
 Use `mise exec -- pnpm mypi --help` for local administrative CLI without global
 installation. `mise exec -- pnpm pi --project org/project --cwd /existing/worktree`
 remains an explicit launch alternative; Pi arguments follow `--`. Neither
-route creates projects, worktrees or requests. In a root conversation,
-`/mypi open [org/project]` selects a registered project and real existing Git
-worktree. An agent can call `mypi_project_open`: first list choices, then pass
-explicit `project` and absolute `worktree`; ambiguous choices are returned for
-clarification. Both routes share the project-open use case and submit a new
+route creates projects, worktrees or requests. In a root conversation, `/mypi` offers an arrow-key action menu; `/mypi help`
+shows examples, and `/mypi open` offers registered organization and project targets.
+`/mypi open org` starts an organization-scoped tab in the caller's existing cwd;
+`/mypi open org/project` starts a project-scoped tab at its registered base checkout.
+Use `/mypi open org/project --worktree` to pick an existing Git-confirmed worktree,
+or `--worktree "/absolute/path with spaces"` to name one. Esc cancels without effects;
+missing/invalid cwd or checkout is reported, not created. Editor completions read
+only the selected installation's registry. An agent can call `mypi_project_open`
+with `action: "list"` for read-only candidates, or `action: "open"` and `organization`
+or `project` for an explicit launch (optional `worktree`); omitted action preserves
+legacy project-only listing and project+worktree opening. Both routes submit a new
 Herdr tab while leaving the originating conversation open. A known observed
 session requires focus, another worktree or explicit approval for an additional
-session. Submission is not readiness: check the new tab's cwd/context/native ID
-and `/mcp`; retain any partial Herdr IDs on failure and inspect state before
-retrying. Without Herdr, ordinary Pi and local CLI still work. See
+session. The native bundled Pi host is reused when identifiable; to choose another
+installed Pi, set `MYPI_PI_EXECUTABLE` to its reviewed absolute executable path.
+Opening never executes a PATH updater wrapper or silently selects a later PATH
+installation. A `ready` result confirms a fresh, target-correlated extension startup
+observation, not rendered UI or `/mcp` connectivity. A `submitted` result reports
+observation disabled, unavailable or timed out; inspect the retained tab's screen,
+cwd/context/native ID and `/mcp`. A correlated early exit is failed and retains an observed exit code when available. Retain partial
+Herdr IDs and inspect state before retrying. Without Herdr, ordinary Pi and local CLI still work. See
 [cooperative Pi](docs/COOPERATIVE-PI.md) and [native context](docs/PI-WORK-CONTEXT.md).
 
 ### Explicit workspace helpers
