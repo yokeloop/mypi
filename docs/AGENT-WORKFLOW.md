@@ -7,6 +7,11 @@ Automatic project resolution, memory warmup, request registration, outcome loggi
 and separate Herdr tabs are not prerequisites for agent work. No automatic session
 routing or delegation policy is installed by this repository.
 
+The current mypi-specific exception is a dedicated visible test tab for interactive
+Pi/Herdr acceptance, as defined in [TESTING](TESTING.md#interactive-acceptance-through-herdr)
+and authorized in [AGENTS](../AGENTS.md#developing-the-engine). It does not restore
+mandatory tabs for ordinary development, memory accounting or automatic delegation.
+
 Current source-development rules are maintained separately in the
 [common project workflow](../AGENTS.md#common-project-workflow), including the
 installed engine's development boundary. That Git/worktree policy does not restore

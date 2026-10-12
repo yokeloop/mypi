@@ -1,4 +1,4 @@
-import { constants, closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
+import { constants, closeSync, existsSync, fchmodSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync,
   readdirSync, renameSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -46,9 +46,14 @@ export function contextFiles(root: string): ContextFiles & { path(path: string):
     append(path, text) { write(path, text, constants.O_WRONLY | constants.O_CREAT | constants.O_APPEND); },
     replace(path, text, expected) {
       if (this.read(path) !== expected) throw new InputError('Context changed; re-read before editing');
+      const mode = lstatSync(safe(path)).mode & 0o777;
       const temp = path + '.' + randomUUID() + '.tmp';
       try {
         this.create(temp, text);
+        // Atomic replacement keeps ordinary rwx bits; new files still default to
+        // private mode. fchmod avoids masking existing permissions through umask.
+        const fd = openSync(safe(temp), constants.O_WRONLY | constants.O_NOFOLLOW);
+        try { fchmodSync(fd, mode); fsyncSync(fd); } finally { closeSync(fd); }
         if (this.read(path) !== expected) throw new InputError('Context changed; re-read before editing');
         renameSync(safe(temp), safe(path));
       } finally { if (existsSync(safe(temp))) unlinkSync(safe(temp)); }

@@ -1,3 +1,5 @@
+import type { HomeRecovery } from './home-writer.js';
+
 export interface ContextFiles {
   read(path: string): string | undefined;
   isFile(path: string): boolean;
@@ -15,5 +17,5 @@ export class PartialError extends Error {
   override name = 'PartialError';
   readonly status = 'partial';
   constructor(message: string, readonly saved: string[], readonly missing: string[],
-    readonly paths: string[], readonly requestId?: number) { super(message); }
+    readonly paths: string[], readonly requestId?: number, public home?: HomeRecovery) { super(message); }
 }

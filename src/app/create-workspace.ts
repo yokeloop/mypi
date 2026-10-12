@@ -16,6 +16,7 @@ import type { Card } from '../modules/requests/public.js';
 import { InputError } from '../shared/errors.js';
 import { changeContext } from './context-changes.js';
 import { requestWork } from './request-work.js';
+import type { HomeWriteScope } from '../shared/home-writer.js';
 
 export function defaultContextRoot(): string { return fileURLToPath(new URL('../../../home', import.meta.url)); }
 export function initializeWorkspace(filename: string, root = defaultContextRoot()): void {
@@ -23,11 +24,18 @@ export function initializeWorkspace(filename: string, root = defaultContextRoot(
   initializeState(filename);
   contextGit(root).initialize();
 }
-export function createWorkspace(filename: string, readonly: boolean, root = defaultContextRoot(), clock = () => new Date().toISOString()) {
+/** Low-level composition. Managed CLI/MCP calls supply the HomeWriter scope. */
+export function createWorkspace(filename: string, readonly: boolean, root = defaultContextRoot(), clock = () => new Date().toISOString(), writer?: HomeWriteScope) {
   externalDatabasePath(filename, root);
+  if (writer) { const at = clock(); clock = () => at; } // One declared UTC journal month per operation.
   const database = createApp(filename, readonly, clock), files = contextFiles(root);
   let published: ReadonlySet<string> = new Set();
-  const git = contextGit(root, () => published);
+  const history = contextGit(root, () => published, writer?.descriptor);
+  const git = { ...history, commit(paths: string[], message: string) {
+    const commit = history.commit(paths, message);
+    writer?.committed(commit);
+    return commit;
+  } };
   const core = { ...database, serialize<T>(work: () => T): T {
     return database.serialize(() => {
       git.validateJournal();
@@ -59,7 +67,12 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     return false;
   }
   const journal = createJournal(jsonlJournal(root), resolve, contains, clock);
-  const requests = requestWork(core, files, git, journal, requestKey);
+  const requests = requestWork(core, files, git, journal, requestKey, writer, clock);
+  function declare(paths: string[]) {
+    if (!writer) return;
+    writer.declare(paths.map(path => ({ path, expected: writer.preimage(path) })));
+    writer.beforeEffect();
+  }
   function contextPath(scope?: string): string {
     const resolved = core.projects.resolveScope(scope);
     if (resolved.type === 'global') return '';
@@ -67,10 +80,15 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
   }
   const texts = {
     read: files.read, list: files.list,
-    create(path: string, text: string) { core.serialize(() => changeContext(git, [path], () => files.create(path, text), 'Create ' + path)); },
+    create(path: string, text: string) { core.serialize(() => {
+      writer?.declare([{ path, expected: null }]);
+      writer?.beforeEffect();
+      changeContext(git, [path], () => files.create(path, text), 'Create ' + path);
+    }); },
     edit(path: string, update: (old: string | undefined) => string) {
       core.serialize(() => {
         const old = files.read(path), next = update(old);
+        declare([path]);
         changeContext(git, [path], () => { if (old === undefined) files.create(path, next); else files.replace(path, next, old); }, 'Update ' + path);
       });
     },
@@ -87,9 +105,29 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     history: journal.read,
     journal(scope: Scope, text: string) {
       const entry = journal.record(scope, text), path = 'journal/' + entry.at.slice(0, 7) + '.jsonl';
-      return core.serialize(() => changeContext(git, [path], () => { journal.append(entry); }, text));
+      return core.serialize(() => {
+        declare([path]);
+        return changeContext(git, [path], () => { journal.append(entry); }, text);
+      });
     },
     read: files.read,
+    patchDocument(path: string, expected: string, text: string) {
+      if (!writer) throw new InputError('Document patch requires the shared home writer');
+      if (typeof text !== 'string' || Buffer.from(text, 'utf8').toString('utf8') !== text) throw new InputError('Invalid Unicode text');
+      // Only actual global/org/project managed namespaces, not arbitrary docs/notes/.
+      if (/^(?:projects\/[^/]+\/(?:[^/]+\/)?)?(?:MEMORY\.md$|notes\/)/.test(path)) {
+        throw new InputError('Managed memory/notes are not ordinary documents');
+      }
+      return core.serialize(() => {
+        git.documentTarget(path);
+        writer.declare([{ path, expected }]);
+        const old = files.read(path);
+        if (old === undefined) throw new InputError('Document patch requires an existing tracked regular file');
+        if (old === text) return { path, commit: git.head()! };
+        writer.beforeEffect();
+        return { path, commit: changeContext(git, [path], () => files.replace(path, text, old), 'Update document ' + path) };
+      });
+    },
     restoreContext(path: string, revision: string) { return core.serialize(() => git.restoreFile(path, revision)); },
     complete(paths: string[], message: string) {
       return core.serialize(() => git.commit(paths, message));

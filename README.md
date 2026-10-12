@@ -5,7 +5,8 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 31 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, explicit Git workspace helpers,
+coordinated home document writes, CLI and 49 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -35,22 +36,20 @@ describe older revisions, not the current operating policy.
   of activity. Request history comes from a shared append-only JSONL journal.
 - **Published artifacts remain addressable.** New versions use new paths. Mutable
   memory/context can change with history; original source and append-only logs cannot.
-- **Saving is not synchronization.** Context writes include local Git commits;
-  DB-only changes use transactions. Network sync requires separate authorization.
+- **Saving has explicit boundaries.** Participating managed home writes and ordinary
+  document patches coordinate exact commits and one bounded publication attempt;
+  they require configured, published home `main`. DB-only changes use transactions.
+  Uncertain outcomes require inspection, not automatic replay. These capabilities
+  do not grant authorization for unrequested writes or remote setup.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
 
-## First-time setup: the user layer
+## First-time setup: select an installation
 
-Start Pi from the mypi checkout to work across all your projects. The engine and
-personal data share a workspace, **not a Git repository**. Built-in Pi resources
-are a local package in `integrations/pi/`; your customizations and memory live in
-an independent `home/` Git. `.pi` is an ignored symlink to `home/pi`.
-
-Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and Pi supporting
-local packages and `registerMcpServer` (manually checked with Pi 1.0.0). Linux is the
-currently verified platform. No global Pi configuration is installed or changed.
+Use the pinned Node 24/pnpm environment, Git and Pi with local packages and
+`registerMcpServer` (native behavior is exercised against Pi 1.0.4). From the
+engine checkout, build and run the one-time interactive setup:
 
 ```bash
 git clone https://github.com/yokeloop/mypi.git
@@ -61,65 +60,175 @@ mise exec -- pnpm bootstrap
 mise exec -- pi
 ```
 
-`pnpm bootstrap` builds the engine, then runs an **Ink terminal wizard**. Review its
-plan and press `y` to apply; Enter, `n`, Escape or Ctrl+C cancels before user-layer
-writes. Non-interactive input is refused. The wizard:
+The interactive wizard shows this checkout and its setup state, then offers
+menus for a new independent home Git, an existing home Git or a Git clone. Use
+↑/↓ and Enter to select; Esc goes back before effects, Ctrl+C cancels, and
+visible Back/Cancel actions are available. The recommended new home is `./home`
+in this checkout. Storage offers a new SQLite DB with a recommended runtime directory, an existing
+DB, or separate path choices. The suggestions for a new checkout are
+`<state-base>/mypi/installations/<checkout-name>-<path-hash>/state.sqlite3` and
+`.../runtime`, where `<state-base>` is absolute `XDG_STATE_HOME` if set, otherwise
+`~/.local/state`; the hash is the first eight SHA-256 hex digits of the canonical
+checkout path. Invalid explicit `XDG_STATE_HOME` is shown as a problem: choose
+paths manually, rather than silently falling back. Suggestions do not move an
+existing installation or choose a personal DB.
 
-- Creates missing `home/`, a separate Git on `main` if none exists, user resource
-  directories, instruction and MCP files. Existing home Git configuration is kept.
-- Installs `.pi -> home/pi` and
-  `home/pi/APPEND_SYSTEM.md -> ../USER-INSTRUCTIONS.md`.
-- Adds the absolute local `integrations/pi` package path to `home/pi/settings.json`.
-  It preserves unrelated settings and existing package filters. Before modifying
-  existing settings, it saves their exact bytes as `settings.json.before-bootstrap`;
-  an occupied backup path is a conflict, not permission to overwrite it.
-- Shows the SQLite path and initializes the schema when the database file is absent.
-  Uses `$XDG_STATE_HOME/mypi/state.sqlite3`, falling back to
-  `~/.local/state/mypi/state.sqlite3`, the same as CLI/MCP. An existing database is
-  left unchanged: no reset or implicit migration. A file created after the preview
-  causes a refusal rather than an overwrite.
-- Does **not** register projects, create remote repositories, commit/push personal
-  files, migrate existing data or modify global Pi settings.
+Path menus offer a directory/file browser (parent, home and checkout shortcuts,
+filter and paginated entries), a future child name, or manual entry. Relative
+paths such as `home`, `./home` and `../shared-home` resolve from the displayed
+canonical checkout, `~/...` from the user's home; the browser displays its own
+current directory. Manual path fields support cursor editing, Home/End,
+Backspace/Delete, paste and Tab completion (↑/↓ and Enter choose among multiple
+matches). Empty Enter accepts a shown suggestion, not Back. In long-path views,
+←/→ reveals hidden portions; inspect the full resolved paths and resource details
+in the preview before applying.
 
-A configured rerun with an existing database is a no-op. Stop other setup/storage writers;
-changed previews are rejected. Errors report partial progress without claiming a
-rollback. Review and commit new files in `home/`, and configure its private remote
-and synchronization yourself; engine Git must never contain personal data.
+Clone has its **own** safe-default confirmation to create only home; it does not
+consent to DB creation or installation binding. After a successful clone, Back/Esc
+cannot return to pre-clone home/source selection: DB/runtime choices and review
+remain editable, while changing home requires ending this run and starting another.
+Cancellation retains the clone. Confirm installation separately. At the final
+confirmation, Enter initially selects Back, not Apply; explicitly select the
+effect action. Editing allowed choices in the preview retains unrelated answers
+and generates a new preview. Applying rechecks for changed inputs and refuses stale/conflicting choices. Cancel before effects
+does not write setup data (the `pnpm bootstrap` build can still update `dist`).
+After clone, cancellation retains that destination and origin; a stopped or
+failed clone may leave a partial destination and must be inspected before another
+attempt. After an attempted installation write, inspect the listed paths and
+binding: there is no transactional rollback. The wizard never commits/pushes
+home, migrates existing DB data, registers projects, launches Pi or changes global
+Pi settings/authentication. Keep home Git and SQLite backed up independently;
+configure a private remote explicitly.
 
-After successful first-time setup the database is initialized; no second bootstrap
-command is needed. The existing CLI/MCP storage `bootstrap` remains available for
-explicit administrative initialization/migration, without the Pi setup wizard.
+The ignored `.mypi-local.json` binds `version: 1`, `engineRoot`, `homeRoot`,
+`database` and `stateRoot` to this checkout. Missing, moved or invalid binding
+requires setup/reconciliation, never a fallback to a personal XDG database.
+`stateRoot/sessions` and `stateRoot/mailbox` are the default native runtime
+locations; explicit `MYPI_SESSION_DIR` and `MYPI_MAILBOX_DIR` must agree with
+this binding or startup refuses. `MYPI_INSTALLATION_FILE` is an absolute
+binding selector for this same engine, not a cross-installation switch. The
+ordinary Pi agent directory (auth/models, normally `~/.pi/agent`) remains
+separate from the selected home; no credential files are copied.
+
+Setup projects selected-home Pi resources into a **local ignored `.pi`
+directory**, not a `.pi -> home/pi` symlink. Its `settings.json` is a reviewed
+snapshot selecting this engine's `integrations/pi` package while retaining
+unrelated local settings and resource filters. Documented resource paths are
+rebased; existing shared-home settings are not rewritten. A known previous
+engine package in user-level settings can be shadowed with empty resource
+filters for that same source; unknown/ambiguous package conflicts, including
+project-target sources outside the known preflight, require manual reconciliation. This is a limited known-engine preflight, not a proof
+of Pi's complete package-resolution order. Setup may link local
+`.pi/APPEND_SYSTEM.md` and `.pi/mcp.json` to reviewed selected-home resources.
+A preexisting explicit project append or local MCP customization is retained
+with a warning: Pi's project append **overrides**, rather than combines with,
+its agent-directory append; file-configured MCP entries (including
+`enabled:false`) override extension registrations. A legacy `.pi -> home/pi`
+link is converted only through the preview, preserving its target bytes;
+nonstandard `.pi` contents require reconciliation.
+
+On rerun, a configured checkout shows its current paths and can report
+"Already configured" without rewriting files. To refresh changed shared
+resources, select the visible "Prepare updated preview" action, inspect the
+revised changes and explicitly confirm; there is no hidden refresh key. Stale
+previews and changed inputs refuse; conflicts require explicit reconciliation,
+not deleting arbitrary `.pi` contents or silently adopting another binding.
+Configuration links outside managed context do not allow arbitrary symlinks
+in managed home documents or backup.
+
+### Ordinary Pi, local CLI and project tabs
+
+After setup and `mise exec -- pnpm build`, **`mise exec -- pi` from this
+configured engine root** is the ordinary Pi entry: a fresh conversation starts
+with mypi `unrestricted` context (no project filter, not elevated permissions).
+No wrapper, global `mypi` installation, shell export or alternate Pi host is
+needed. A saved native branch's project context remains authoritative on
+resume/tree/fork. `/new` at the configured root starts fresh unrestricted,
+ignoring an old startup handoff; `/new` inside a task cwd does not auto-escalate.
+Explicit scoped handoff wins only on genuinely fresh startup.
+Trust the project to load resources and check native `/mcp` for an actual
+connection; package discovery/registration alone is not connection evidence.
+An absent/stale build gives a checkout-specific `pnpm build` diagnostic rather
+than silently loading old dist. The native extension loads separately from
+core tsc output; `pnpm build` alone is not proof it loaded in Pi.
+
+Use `mise exec -- pnpm mypi --help` for local administrative CLI without global
+installation. `mise exec -- pnpm pi --project org/project --cwd /existing/worktree`
+remains an explicit launch alternative; Pi arguments follow `--`. Neither
+route creates projects, worktrees or requests. In a root conversation, `/mypi` offers an arrow-key action menu; `/mypi help`
+shows examples, and `/mypi open` offers registered organization and project targets.
+`/mypi open org` starts an organization-scoped tab in the caller's existing cwd;
+`/mypi open org/project` starts a project-scoped tab at its registered base checkout.
+Use `/mypi open org/project --worktree` to pick an existing Git-confirmed worktree,
+or `--worktree "/absolute/path with spaces"` to name one. Esc cancels without effects;
+missing/invalid cwd or checkout is reported, not created. Editor completions read
+only the selected installation's registry. An agent can call `mypi_project_open`
+with `action: "list"` for read-only candidates, or `action: "open"` and `organization`
+or `project` for an explicit launch (optional `worktree`); omitted action preserves
+legacy project-only listing and project+worktree opening. Both routes submit a new
+Herdr tab while leaving the originating conversation open. A known observed
+session requires focus, another worktree or explicit approval for an additional
+session. The native bundled Pi host is reused when identifiable; to choose another
+installed Pi, set `MYPI_PI_EXECUTABLE` to its reviewed absolute executable path.
+Opening never executes a PATH updater wrapper or silently selects a later PATH
+installation. A `ready` result confirms a fresh, target-correlated extension startup
+observation, not rendered UI or `/mcp` connectivity. A `submitted` result reports
+observation disabled, unavailable or timed out; inspect the retained tab's screen,
+cwd/context/native ID and `/mcp`. A correlated early exit is failed and retains an observed exit code when available. Retain partial
+Herdr IDs and inspect state before retrying. Without Herdr, ordinary Pi and local CLI still work. See
+[cooperative Pi](docs/COOPERATIVE-PI.md) and [native context](docs/PI-WORK-CONTEXT.md).
+
+### Explicit workspace helpers
+
+`mypi workspace prepare`, `inspect`, `commit` and `publish` share application
+contracts with MCP. Supply a registered project and an independent base clone;
+prepare creates only the explicitly requested branch/worktree, commit selects
+literal files while preserving unrelated staged content, and publish confirms a
+single non-force remote ref. They do not run checks, create requests, switch the
+base branch, retry, merge or replace normal Git. See [arguments and partial
+outcomes](docs/M1-CLI.md#explicit-git-workspace-helpers).
+
+### Coordinated ordinary home documents
+
+For an authorized change to an existing tracked ordinary UTF-8 document, prefer
+`mypi home document-patch <path> <text> --expected <SHA256>` (MCP
+`home_document_patch`). Supply the exact existing byte hash and full replacement;
+no creation/deletion or managed memory/history rewrite is supported. Inspect
+`home status` / `home reconcile` after uncertain outcomes; they never replay writes.
+These are explicitly **home-wide operator routes**, outside project membership
+and defaults. Native edit/shell/manual Git remain uncoordinated maintenance; do not
+run them concurrently with the writer. See [prerequisites and limits](docs/HOME-WRITER.md).
+No settings change or runtime activation is implied.
 
 ### Existing installations
 
-Reuse an existing ordinary `home/` directory; the wizard preserves personal
-instructions, memory and MCP configuration. Symlinked home roots are not supported
-by the current storage guards. An empty old `.pi`, or one containing only the former
-`APPEND_SYSTEM.md -> ../home/USER-INSTRUCTIONS.md` link, can be converted after
-confirmation. Any other existing `.pi` directory or conflicting link is refused
-before writes. Review and relocate its custom files into `home/pi/` yourself,
-reconcile relative paths and the instruction link, then rerun. No automatic merge
-or deletion of arbitrary user configuration is attempted.
+Select an existing ordinary home Git (including the ignored `home/` directory)
+without relocating or rewriting its data. Symlinked home roots are not supported
+by the storage guards. Existing local `.pi` customization is retained where
+compatible; conflicting paths and non-owned links require explicit reconciliation.
+A legacy `.pi -> home/pi` conversion preserves the old target bytes. No automatic
+merge or deletion of arbitrary user configuration is attempted.
 
 ### Where to customize
 
 | Change | User-owned location |
 |---|---|
-| Personal agent instructions | `home/USER-INSTRUCTIONS.md` |
-| Pi settings and package resource filters | `home/pi/settings.json` |
-| Additional MCP servers / built-in server overrides | `home/pi/mcp.json` |
-| Skills | `home/pi/skills/<name>/SKILL.md` |
-| Extensions | `home/pi/extensions/` |
-| Prompt templates and themes | `home/pi/prompts/`, `home/pi/themes/` |
-| Project knowledge | `home/projects/<org>/<project>/` |
+| Personal agent instructions | `<selected-home>/USER-INSTRUCTIONS.md` |
+| Shared Pi settings and package resource filters | `<selected-home>/pi/settings.json` |
+| Installation package selection and local overrides | `.pi/settings.json` (reviewed projection) |
+| Additional MCP servers / built-in server overrides | `<selected-home>/pi/mcp.json` or explicit local `.pi/mcp.json` |
+| Skills | `<selected-home>/pi/skills/<name>/SKILL.md` |
+| Extensions | `<selected-home>/pi/extensions/` |
+| Prompt templates and themes | `<selected-home>/pi/prompts/`, `<selected-home>/pi/themes/` |
+| Project knowledge | `<selected-home>/projects/<org>/<project>/` |
 | Project source code | `projects/<org>/<project>/`, its own Git |
 | Task worktrees | `projects/<org>/<project>--<task-slug>/` |
 
 For baseline versus personal instruction ownership, see
 [AGENTS.md](AGENTS.md#instruction-ownership).
 
-All of `.pi`, `home/` and `projects/` are permanently reserved user paths, ignored by
-engine Git. Do not customize files under `integrations/pi/` unless contributing to
+All of `.pi`, `.mypi-local.json`, `home/` and `projects/` are reserved local paths,
+ignored by engine Git. Do not customize files under `integrations/pi/` unless contributing to
 the engine. Package resources load directly from there without being copied into
 home. Use distinct names for personal resources; to replace a built-in resource,
 exclude it via Pi package filters and load your own implementation explicitly.
@@ -168,8 +277,8 @@ been merged, update a clean installation on its release branch with
 `git pull --ff-only`, install the locked dependencies, build, then reload/restart Pi. Updates replace
 built-in resources only; they never regenerate user settings or rerun bootstrap.
 Data-format migrations require a separate explicit operation. If the checkout
-moves, review the absolute package path in user settings: bootstrap adds the current
-path but does not silently remove other entries. Compatibility with future Pi APIs
+moves, reconcile the binding and local package selection explicitly; setup does not
+silently adopt another engine. Compatibility with future Pi APIs
 still needs verification; separating paths prevents Git conflicts, not API changes.
 
 Back up both the separate home Git and SQLite. The context backup command requires
@@ -234,8 +343,9 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/pi/             # tracked built-in Pi package: extensions + skills
-├── .pi -> home/pi               # ignored local link, installed by bootstrap
-├── home/                        # separate ignored user/context Git
+├── .pi/                        # ignored local Pi settings/resource projection
+├── .mypi-local.json            # ignored installation binding
+├── home/                        # optional location for separate ignored context Git
 │   ├── USER-INSTRUCTIONS.md
 │   ├── pi/                      # settings, MCP, personal resources
 │   │   └── APPEND_SYSTEM.md -> ../USER-INSTRUCTIONS.md
@@ -255,7 +365,8 @@ mypi/
         ├── <project>/           # independent base clone
         └── <project>--<task>/    # task worktree of that clone
 
-$XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
+<selected external database>       # outside engine and home Git
+<selected external state root>/sessions, /mailbox
 ```
 
 A card's context_dir locates source.md and artifacts. Its current status is in DB;

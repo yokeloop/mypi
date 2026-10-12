@@ -8,6 +8,21 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'message send': [3, 3, ['ttl-ms'], []],
+  'message list': [1, 1, [], []],
+  'message show': [2, 2, [], []],
+  'message cleanup': [2, 2, [], []],
+  'session list': [0, 0, ['project'], ['all', 'archived']],
+  'session show': [1, 1, ['project'], ['all']],
+  'session archive': [1, 1, ['project'], ['all']],
+  'workspace prepare': [1, 1, ['project', 'base', 'branch', 'start'], []],
+  'workspace inspect': [0, 1, ['project', 'base'], []],
+  'workspace verify': [0, 0, ['project', 'base', 'worktree', 'branch'], []],
+  'workspace cleanup-preview': [0, 0, ['project', 'base', 'worktree', 'branch', 'remote'], []],
+  'workspace commit': [1, Infinity, ['project', 'base', 'worktree', 'branch', 'message'], []],
+  'workspace publish': [0, 0, ['project', 'base', 'worktree', 'branch', 'remote'], []],
+  'policy validate': [0, 1, ['file'], []],
+  'policy explain': [1, 2, ['file'], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],
   note: [1, 2, ['scope', 'file'], []],
@@ -29,6 +44,9 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'status rename': [2, 2, [], []],
   'status terminal': [2, 2, [], []],
   'status remove': [1, 1, [], []],
+  'home document-patch': [2, 2, ['expected'], []],
+  'home status': [0, 0, [], []],
+  'home reconcile': [0, 0, [], []],
   'context read': [1, 1, [], []],
   'context commit': [1, Infinity, ['message'], []],
   'context restore': [1, 1, ['revision'], []],
@@ -45,6 +63,7 @@ export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   for (const key of booleans) options[key] = { type: 'boolean' };
   const parsed = parseArgs({ args: args.slice(simple ? 1 : 2), options, allowPositionals: true });
   if (parsed.positionals.length < min || parsed.positionals.length > max) throw new InputError('Wrong argument count for ' + name);
+  if (name.startsWith('session ') && parsed.values['all'] && parsed.values['project'] !== undefined) throw new InputError('--all and --project are mutually exclusive');
   if (parsed.values['all'] && parsed.values['scope']) throw new InputError('--all and --scope are mutually exclusive');
   return { type: 'workspace', name, args: parsed.positionals, options: parsed.values as WorkspaceCommand['options'] };
 }

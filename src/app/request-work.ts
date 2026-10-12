@@ -5,9 +5,11 @@ import type { createApp } from './create-app.js';
 import type { createJournal } from '../modules/knowledge/public.js';
 import type { Card } from '../modules/requests/public.js';
 import { changeContext } from './context-changes.js';
+import type { HomeWriteScope } from '../shared/home-writer.js';
 
 export function requestWork(core: ReturnType<typeof createApp>, files: ContextFiles, history: ContextHistory,
-  journal: ReturnType<typeof createJournal>, key: (card: Card) => string) {
+  journal: ReturnType<typeof createJournal>, key: (card: Card) => string, writer?: HomeWriteScope,
+  clock = () => new Date().toISOString()) {
   function find(publicKey: string): Card {
     const result = core.requests.list().find(card => key(card) === publicKey);
     if (!result) throw new InputError('Unknown request key');
@@ -45,13 +47,22 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
           path = dir + '/source.md';
           if (input.adoptSource) {
             if (files.read(path) !== input.source) throw new InputError('Existing source differs/missing; inspect before adoption');
-          } else { history.clean([path]); files.create(path, input.source); }
+          } else { history.clean([path]); }
+          if (writer) {
+            const log = 'journal/' + clock().slice(0, 7) + '.jsonl';
+            history.clean([log]); history.validate([path]);
+            writer.declare([{ path, expected: input.adoptSource ? writer.preimage(path) : null, ...(input.adoptSource ? { adopt: true as const } : {}) },
+              { path: log, expected: writer.preimage(log) }]);
+            writer.beforeEffect();
+          }
+          if (!input.adoptSource) files.create(path, input.source);
           saved = true;
         });
       } catch (e) {
         if (path) throw new PartialError(String(e), saved ? ['source'] : [], ['inspect source', 'database', 'journal', 'git'], [path]);
         throw e;
       }
+      writer?.databaseSaved(card.id);
       try {
         // source was deliberately created outside Git, so publish it explicitly with the event.
         const entry = journal.record({ type: 'request', key: key(card) }, 'Request registered.', 'request_created');
@@ -65,8 +76,15 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
       return { ...card, key: key(card) };
     },
     change(publicKey: string, input: { status?: string; title?: string }, reason: string) {
-      const result = core.requests.change(find(publicKey).id, input, reason);
+      const card = find(publicKey);
+      if (writer) {
+        const path = 'journal/' + clock().slice(0, 7) + '.jsonl';
+        writer.declare([{ path, expected: writer.preimage(path) }]);
+        writer.beforeEffect();
+      }
+      const result = core.requests.change(card.id, input, reason);
       if (!result.changed) return result.after;
+      writer?.databaseSaved(result.after.id);
       try {
         const statusChanged = result.before.statusId !== result.after.statusId;
         const parts = [];
@@ -87,6 +105,16 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
         core.serialize(() => {
           history.clean([log]);
           history.validate(paths);
+          if (writer) {
+            for (const [index, a] of artifacts.entries()) {
+              if (a.text === undefined && !files.isFile(paths[index]!)) throw new InputError('Missing referenced artifact');
+            }
+            writer.declare([{ path: log, expected: writer.preimage(log) }, ...paths.map((path, index) => ({
+              path, expected: artifacts[index]!.text === undefined ? writer.preimage(path) : null,
+              ...(artifacts[index]!.text === undefined ? { adopt: true as const } : {}),
+            }))]);
+            writer.beforeEffect();
+          }
           for (const [index, a] of artifacts.entries()) {
             if (a.text === undefined && !files.isFile(paths[index]!)) throw new InputError('Missing referenced artifact');
             if (a.text !== undefined) files.create(paths[index]!, a.text);
@@ -95,7 +123,9 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
           history.commit([log, ...paths], 'Progress ' + publicKey);
         });
         committed = true;
-        return core.requests.touch(card.id);
+        const result = core.requests.touch(card.id);
+        writer?.databaseSaved(card.id);
+        return result;
       } catch (e) { throw new PartialError(String(e), committed ? ['artifacts', 'journal', 'git'] : [],
         committed ? ['activity timestamp'] : ['inspect artifacts/journal/git', 'activity timestamp'], [card.contextDir], card.id); }
     },

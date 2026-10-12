@@ -1,7 +1,8 @@
 # home/ — nested git repo or local link to personal data, never commit into mypi git
 /home
 
-# .pi/ — local user-layer link/configuration; never claim these paths upstream
+# Installation-local binding and Pi projection are never engine source
+/.mypi-local.json
 /.pi
 
 # projects/ — working clones

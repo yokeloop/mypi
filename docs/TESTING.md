@@ -116,6 +116,74 @@ Cover useful commands without replicating the complete error matrix at every lev
 A domain test and boundary canary may overlap when they catch different failures:
 the rule itself versus failure to wire it into the application.
 
+### Interactive acceptance through Herdr
+
+For mypi's interactive Pi/Herdr behavior, always create a dedicated, clearly named,
+visible Herdr test tab and exercise the real application through the installed
+Herdr integration/CLI. This is the project's standing authorization for that test
+surface, not for unrelated tabs, subagents or changes to existing user sessions.
+Verify managed caller context, use returned opaque IDs, and preserve unrelated
+panes and configuration. Run scenario setup and relevant verification commands
+from the bench; keep the existing test runner and fast/boundary composition.
+
+- Use the exact candidate with disposable home, settings, DB, repositories and
+  native sessions. Never connect a candidate to personal runtime data. The bench
+  tab can remain available between runs; each test workload and its descendants
+  still obey the resource, deadline and isolation requirements in §6.
+- Preserve real terminal input/output and dimensions. Send native commands, editor
+  input and appropriate keys as a user would, then inspect actual screen output
+  and observable results. Provider prompts need applicable authorization and a
+  bounded budget; they are not required for every UI check. Never log credentials.
+- Read startup errors and dialogs before treating missing lifecycle events as a
+  hang. Check fixture prerequisites, including the stored working directory when
+  reopening native history. Do not rewrite historical data or blindly dismiss
+  unexpected dialogs to get green.
+- Distinguish CLI submission, rendered UI, readiness, provider activity, durable
+  state and normal exit. JSON schemas or exit zero alone do not prove all of them.
+  Headless/RPC/event probes may supplement, but never replace this interactive path.
+- Record the actual Herdr server/socket and returned workspace, pane and tab IDs
+  when creating each visible test tab; title or current focus does not establish
+  ownership. Retain exact candidate identity, concise scenario/results, relevant
+  sanitized screen evidence and failure/cleanup status. Stop on an unexplained
+  failure; inspect actual state before another mutating action. Do not invent a
+  parallel runtime, enlarge limits or build a new supervisor to make acceptance pass.
+- On success, failure, timeout or interruption, save evidence and native history
+  first, then normally exit the owned application and close its owned test tab
+  when no work remains there. Tab closure is not proof of normal application exit.
+  Confirm removal through Herdr readback. If closure fails or ownership/identity
+  is uncertain, report the exact retained target and inspect state before retrying.
+  Never close the operator's chat, foreign or unknown tabs or terminate unrelated
+  processes. Do not delete histories, logs, fixtures, Git branches/worktrees or
+  user data with the tab. An explicit request to retain a tab for manual inspection
+  is an exception: record it and who will close the tab. Cleanup is part of test
+  completion, not a later optional housekeeping pass.
+
+This procedure supplements mandatory `verify`; it is not a third test profile,
+permission to move checks out of the suite, or a requirement for Herdr during
+ordinary noninteractive development or CI.
+
+### Bootstrap wizard terminal acceptance
+
+Bootstrap is a separate Ink CLI, not the native Pi/Herdr session UI. In addition
+to mandatory isolated `build` and `verify`, exercise the exact compiled wizard in
+a real, disposable terminal/PTY under the same isolation and deadlines in §6.
+Model tests and headless events do not establish keyboard or rendering behavior.
+Check recommended new setup without typing modes or absolute paths; browser
+navigation/filter/pages, manual checkout-relative and `~/` paths, Tab completion,
+Unicode editing, Back/edit-from-preview and full-path inspection at 80×24 and
+60×20. Verify safe default on effect confirmation, separate clone-only and
+installation consents, retained clone on cancellation, stale/conflict refusal,
+configured no-op and visible refresh. Inspect both screen output and disposable
+filesystem/binding state; do not infer a successful setup merely from exit zero.
+A forced clone stop/failure can leave an uncertain destination: preserve and
+inspect it, without automatic replay. Use only local Git fixtures, no personal
+home/DB or remote network. These bounded probes are separate from `verify`; a
+successful local fixture does not establish network clone/auth or exhaustive
+Unicode/terminal behavior. A Pi/Herdr interaction, when tested, still follows
+the dedicated visible-tab procedure above. Record candidate, dimensions, keys,
+observed effects, normal exit and owned fixture cleanup; do not claim task
+acceptance or delivery without independent review and fresh delivery CI.
+
 ## 5. Admission of a new test
 
 Before editing, inspect existing tests and briefly answer in the change rationale,
@@ -173,20 +241,28 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ## 6. Execution and growth limits
 
-### Accepted initial limits, not measured baseline
+### Current limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11):
+Initial limits were accepted in the M1 preparation package on 2026-10-02 (§11).
+On 2026-10-11 the operator explicitly raised the full-profile working budget from
+30 s to 60 s after MP-15 CI passed all 81 assertions but exceeded the old budget.
+This revises the working-budget decision, not the independent emergency bounds:
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 30 s |
+| Full mandatory test-profile working time | ≤ 60 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
 | Concurrent test workers / suite runs on the dedicated runner | 1 / 1 |
 
-These are initial working targets/emergency bounds, not a benchmark or YM numbers.
+The 60 s working-budget check does not grant a full 60 s execution window:
+systemd still stops the workload at 55 s, with up to 5 s for termination, within
+the unchanged 60 s external deadline. That earlier cutoff takes precedence.
+Fast remains 5 s; CPU, memory, tasks, concurrency and isolation are unchanged.
+
+These are policy working targets/emergency bounds, not a benchmark or YM numbers.
 Apply hard bounds from the first safe measurement; assess working targets with a
 series of identically bounded representative runs. If unsuitable, discuss the cause
 and explicitly revise the decision, never auto-raise a failed limit. Without standard

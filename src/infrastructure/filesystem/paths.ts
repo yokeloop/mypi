@@ -10,7 +10,7 @@ export function canonicalDirectory(input: string): string {
 }
 
 // Resolve the existing ancestor too: lexical containment misses symlinked state roots.
-function canonicalFuturePath(input: string): string {
+export function canonicalFuturePath(input: string): string {
   const suffix: string[] = [];
   let path = resolve(input);
   while (!existsSync(path)) {
@@ -36,12 +36,17 @@ export function databasePath(
 }
 
 export function externalDatabasePath(input: string, engineRoot: string): string {
-  if (!isAbsolute(input) || input.includes('\0')) throw new InputError('Database path must be absolute without NUL');
+  return externalStatePath(input, engineRoot, 'Database');
+}
+
+/** Resolve aliases without creating state, shared by the DB and observation cache. */
+export function externalStatePath(input: string, excludedRoot: string, label: string): string {
+  if (!isAbsolute(input) || input.includes('\0')) throw new InputError(label + ' path must be absolute without NUL');
   const filename = canonicalFuturePath(input);
-  const root = canonicalFuturePath(engineRoot);
+  const root = canonicalFuturePath(excludedRoot);
   const inside = relative(root, filename);
   if (inside === '' || (!isAbsolute(inside) && inside !== '..' && !inside.startsWith('..' + sep))) {
-    throw new InputError('Database must be outside the engine/context repository');
+    throw new InputError(label + ' must be outside the engine/context repository');
   }
   return filename;
 }

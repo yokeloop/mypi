@@ -13,8 +13,8 @@ or delegation step before doing work. Follow the user's requested scope and sess
 ## Instruction ownership
 
 - This root `AGENTS.md` owns the engine's baseline workspace rules. Individual
-  developer preferences belong in `home/USER-INSTRUCTIONS.md`, loaded through
-  `.pi/APPEND_SYSTEM.md` via the configured user-layer symlinks.
+  developer preferences belong in `<selected-home>/USER-INSTRUCTIONS.md`, loaded
+  through the reviewed local `.pi/APPEND_SYSTEM.md` link when configured.
 - When Pi starts in the configured, trusted workspace, both instruction layers
   are loaded. They complement each other; neither is a copy or fallback for the
   other. Do not duplicate a rule in both files, create `home/AGENTS.md` as a third
@@ -39,6 +39,8 @@ or delegation step before doing work. Follow the user's requested scope and sess
   blocker still requires reporting or clarification; continuity grants no new scope.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs or subagents unless explicitly requested for the work.
+  The dedicated mypi interactive-acceptance tab described below is the narrow
+  project-policy exception for tabs, not permission to delegate other work.
   Task worktrees follow the common project workflow below.
 - Check Git status before editing and after pushing. If a push is unavailable
   or fails, keep the work, report its actual state and ask for direction rather
@@ -56,15 +58,16 @@ or delegation step before doing work. Follow the user's requested scope and sess
 ## User layer: ownership and operation
 
 - Engine resources live in `integrations/pi/`, a local Pi package maintained and
-  updated with mypi. User resources live in `home/pi/`; `.pi` is an ignored local
-  symlink to `home/pi`. Never start tracking `.pi`, `home/` or `projects/` in the
-  engine repository, including in future updates.
-- `home/` is its own Git repository. Personal instructions belong in
-  `home/USER-INSTRUCTIONS.md`; `home/pi/APPEND_SYSTEM.md` links to that file.
-  User settings, MCP configuration, skills, extensions, prompts and themes belong
-  under `home/pi/`. Use normal file tools for these and other ordinary documents;
+  updated with mypi. Selected user resources live in a separate home Git under
+  `pi/`; the ignored local `.pi` directory projects reviewed settings/resources
+  for this engine. Never start tracking `.pi`, `.mypi-local.json`, `home/` or
+  `projects/` in the engine repository, including in future updates.
+- The selected home is its own Git repository. Personal instructions belong in
+  `<selected-home>/USER-INSTRUCTIONS.md`; its `pi/APPEND_SYSTEM.md` may link to
+  that file. User settings, MCP configuration, skills, extensions, prompts and
+  themes belong under `<selected-home>/pi/`. Use normal file tools for these and other ordinary documents;
   use mypi operations for managed memory, DB records and append-only history.
-- Home is the direct-main exception to the project workflow: commit intended
+- Selected home is the direct-main exception to the project workflow: commit intended
   user-layer changes on its `main` and push each completed commit immediately to
   `origin/main`, without a task branch, worktree or PR. Finish home operations
   with a clean Git status, including intended previously untracked configuration.
@@ -72,35 +75,40 @@ or delegation step before doing work. Follow the user's requested scope and sess
   rather than leaving them dirty solely because they predate the current request.
   Ask about unexplained concurrent changes. Never discard data, blindly stage
   unknown files, or commit secrets, databases or caches to achieve cleanliness.
-- `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog. It
-  creates missing user-layer resources and a separate home Git on main, connects
-  the built-in package, installs the links, and initializes SQLite if its file is
-  absent. The preview shows the database path; confirmation authorizes creation.
-  Existing databases are left unchanged, not reset or migrated. Bootstrap does not
-  commit, push, create remotes or change global Pi settings. Run it only when asked.
-- Bootstrap previews changes, preserves existing personal text and MCP configuration,
-  and adds only a missing package entry to settings, saving the original beside it
-  as `settings.json.before-bootstrap`. Existing package filters remain unchanged.
-  A repeated configured run is a no-op. Conflicts or stale previews require explicit
-  reconciliation; do not delete user configuration to make bootstrap pass.
-- An old `.pi` containing only the former instruction symlink, or an empty `.pi`,
-  can be converted by the wizard. Other existing `.pi` directories must be reviewed
-  and reconciled by the user first; do not silently move arbitrary relative links.
-- `integrations/` is not a special Pi directory. Bootstrap adds the absolute
-  `integrations/pi` path to `packages` in `.pi/settings.json` (stored in home).
+- `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog.
+  Explicitly select new/existing/cloned home Git, new/existing external SQLite and
+  runtime state root; review the installation-local `.mypi-local.json` binding
+  and local `.pi` projection before applying. Clone has separate confirmation;
+  partial effects must be inspected, not retried blindly. An explicitly chosen
+  clone retains its origin; setup does not create remote repositories. Existing
+  databases are not reset or migrated. Bootstrap does not commit, push or change
+  global Pi settings. Run it only when asked.
+- Bootstrap previews changes, preserves shared home settings, personal text and
+  MCP overrides, and snapshots reviewed resources into local `.pi/settings.json`,
+  selecting this engine package with existing filters. A repeated unchanged setup
+  is a no-op. Changed shared inputs need an explicit refreshed preview; conflicts
+  or stale previews require reconciliation, never deletion of user configuration.
+- A legacy `.pi -> home/pi` link may be converted by the preview while preserving
+  its target bytes. Other existing `.pi` content or non-owned links require review
+  and reconciliation; do not silently move or delete arbitrary configuration.
+- `integrations/` is not a special Pi directory. Bootstrap selects the absolute
+  `integrations/pi` path in local `.pi/settings.json` (not shared home settings).
   Pi reads the package's `package.json` manifest, which declares extensions and
   skills. After project trust, their discovery is automatic: skill descriptions
   are visible to the agent, full instructions are loaded when needed, and the
   extension connects MCP tools. Without the package entry it is not auto-loaded.
-  Start with `mise exec -- pi` so child MCP processes find Node 24. The package's
-  extension registers `mypi`; a same-name entry in `home/pi/mcp.json` overrides it,
-  including `enabled: false`. Shell `pi mcp list` does not load extension servers.
+  Start with `mise exec -- pi` in the configured root so child MCP processes find
+  Node 24. Fresh root context defaults to unrestricted; saved branch context wins.
+  The package's extension registers `mypi`; a same-name entry in local `.pi/mcp.json`
+  (possibly linked to selected-home configuration) overrides it, including
+  `enabled: false`. Check `/mcp` for connection; shell `pi mcp list` does not load
+  extension servers.
 - Customize through user resources and explicit Pi package filters in settings,
   not by copying built-ins into home. Use distinct resource
   names; do not rely on duplicate-name discovery order. After updating/rebuilding,
   reload or restart Pi. Inspect diagnostics before claiming an integration works.
-- User settings contain the absolute local package path. If a checkout moves, review
-  that entry before rerunning bootstrap; it does not remove unrelated/stale entries.
+- Local projected settings contain the absolute engine package path. If a checkout
+  moves, reconcile its binding and selection; do not silently adopt stale entries.
   Secrets belong in environment variables or credential storage, not committed JSON.
 - Inspect Git status separately for engine, home and each checkout. Existing home
   commits and Git configuration are preserved by setup; configure synchronization
@@ -187,6 +195,10 @@ projects. Inspect each project's own instructions and verification commands.
   Do not weaken admission or mandatory checks. CI tests the proposed revision
   with its own locked dependencies and scripts; changes to package.json, lockfiles
   or build scripts do not require promoting a separate trusted base.
+- For mypi's interactive Pi/Herdr acceptance, always use a dedicated visible Herdr
+  test tab and the real user-facing application. This test tab is authorized by
+  project policy. Follow [the acceptance procedure](docs/TESTING.md#interactive-acceptance-through-herdr);
+  headless events alone do not replace interaction through the terminal.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative

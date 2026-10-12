@@ -10,8 +10,9 @@ cp --reflink=auto "$node" "$work/tools/node"
 cp -a --reflink=auto "$root"/{src,test,dist,scripts,integrations,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs} "$work/"
 group="$(awk -F: '$1 == "0" { print $3 }' /proc/self/cgroup)"
 [[ "$group" == */mypi-tests.service ]] || { echo "Missing bounded systemd unit" >&2; exit 1; }
+# Native Git invokes compiled /bin/sh; alias only the already read-only /usr/bin.
 bwrap --unshare-all --die-with-parent --new-session --cap-drop ALL --clearenv \
-  --ro-bind /usr /usr --symlink usr/lib /lib --ro-bind /lib64 /lib64 \
+  --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --ro-bind /lib64 /lib64 \
   --proc /proc --dev /dev --tmpfs /tmp --dir /home --dir /home/test \
   --ro-bind "$work" /work --ro-bind "/sys/fs/cgroup$group" /limits \
   --setenv PATH /work/tools:/usr/bin --setenv HOME /home/test \

@@ -1,0 +1,7 @@
+{
+  "version": 1,
+  "commands": [
+    { "argv": ["mise", "exec", "--", "pnpm", "build"] },
+    { "argv": ["mise", "exec", "--", "pnpm", "verify"] }
+  ]
+}
