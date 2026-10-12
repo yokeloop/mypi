@@ -18,11 +18,12 @@ import { createSessionCards } from './session-cards.js';
 import { controlHerdrSession, openHerdrPi, HerdrPartialError } from './herdr.js';
 import { awaitNativePiStartup } from './native-pi-readiness.js';
 import { preparePiExitMarker } from '../infrastructure/filesystem/pi-launch-exit.js';
+import { canonicalDirectory } from '../infrastructure/filesystem/paths.js';
 import type { HerdrControl, HerdrSubmission } from './herdr.js';
 
 export class ObservedSessionConflict extends InputError {
   constructor(readonly conflicts: ReturnType<typeof piLaunchObservations>['conflicts']) {
-    super('Known session observations for this worktree: ' + JSON.stringify(conflicts)
+    super('Known session observations for this cwd and selected scope: ' + JSON.stringify(conflicts)
       + '. Choose session focus <key> --all, another --cwd, or explicit --allow-observed-session. Stale/unknown is not death.');
   }
 }
@@ -48,7 +49,8 @@ export async function launchPi(options: PiLaunchOptions, caller?: { cwd: string;
     if (!existsSync(join(cards.directory, 'cards'))) inventory.issues.push({ issue: 'missing' });
   }
   catch { inventory = { sessions: [], issues: [{ issue: 'unavailable' as const }], truncated: false }; }
-  const observations = piLaunchObservations(plan.cwd, inventory, options.allowObservedSession);
+  const observations = piLaunchObservations(plan.cwd, inventory, options.allowObservedSession,
+    canonicalDirectory, plan.context?.context.scope);
   if (observations.incomplete) process.stderr.write('mypi: session cache incomplete/unavailable; absence of duplicates is not established.\n');
   if (observations.requiresChoice) {
     throw new ObservedSessionConflict(observations.conflicts);

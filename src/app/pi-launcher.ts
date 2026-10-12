@@ -55,15 +55,20 @@ export function preparePiLaunch(options: PiLaunchOptions, currentCwd: string, re
 
 /** Cache advice only. A missed card never proves exclusive use or process death. */
 export function piLaunchObservations(cwd: string, inventory: SessionList, allowObservedSession = false,
-  canonicalize: (directory: string) => string = canonicalDirectory) {
+  canonicalize: (directory: string) => string = canonicalDirectory, requestedScope?: WorkScope) {
   const conflicts: { instanceKey: string; status: SessionList['sessions'][number]['status'] }[] = [];
   let incomplete = inventory.truncated || inventory.issues.length > 0;
   for (const view of inventory.sessions) {
     if (view.card.state === 'closed') continue;
     try {
-      if (canonicalize(view.card.context?.worktreeRoot ?? view.card.cwd) === cwd) {
-        conflicts.push({ instanceKey: view.card.instanceKey, status: view.status });
-      }
+      if (canonicalize(view.card.context?.worktreeRoot ?? view.card.cwd) !== cwd) continue;
+      // An organization tab's cwd is just its starting directory. A known unrelated
+      // organization or unrestricted tab at that cwd is not a duplicate of its scope.
+      // Missing/ambiguous context and project observations remain conservative.
+      const observedScope = view.card.context?.scope;
+      if (requestedScope?.kind === 'organization' && (observedScope?.kind === 'unrestricted'
+        || observedScope?.kind === 'organization' && observedScope.organization !== requestedScope.organization)) continue;
+      conflicts.push({ instanceKey: view.card.instanceKey, status: view.status });
     } catch { incomplete = true; }
   }
   return { conflicts, requiresChoice: conflicts.length > 0 && !allowObservedSession, incomplete };
