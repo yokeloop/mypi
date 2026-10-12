@@ -12,6 +12,29 @@ test('wizard retains independent choices on return and resets only dependent rem
   assert.equal(updated.answers.stateRoot, '/tmp/runtime');
   assert.equal(back(advance(storage, 'database')).screen, 'storage');
 });
+test('recommended storage replaces custom paths after Back; absent suggestions clear them', () => {
+  const defaults = { database: '/state/recommended.sqlite3', stateRoot: '/state/runtime' };
+  const storage = advance(initialWizard(), 'storage');
+  const custom = setStorage(storage, 'custom', defaults);
+  const edited = { ...custom, answers: { ...custom.answers, database: '/other/custom.sqlite3', stateRoot: '/other/runtime' } };
+  assert.equal(setStorage(edited, 'custom', defaults).answers.database, '/other/custom.sqlite3');
+  assert.equal(setStorage(edited, 'custom', defaults).answers.stateRoot, '/other/runtime');
+  const reviewed = advance(advance(advance(edited, 'database'), 'stateRoot'), 'preview');
+  const returned = back(back(back(reviewed)));
+  assert.equal(returned.screen, 'storage');
+  assert.equal(returned.answers.database, '/other/custom.sqlite3');
+  const recommended = setStorage(returned, 'recommended', defaults);
+  assert.deepEqual([recommended.answers.databaseMode, recommended.answers.database, recommended.answers.stateRoot],
+    ['new', defaults.database, defaults.stateRoot]);
+  const missing = setStorage(returned, 'recommended', {});
+  assert.equal(missing.answers.database, undefined);
+  assert.equal(missing.answers.stateRoot, undefined);
+  assert.equal('database' in missing.answers, false);
+  assert.equal('stateRoot' in missing.answers, false);
+  const existing = setStorage({ ...edited, answers: { ...edited.answers, databaseMode: 'existing' } }, 'existing', defaults);
+  assert.equal(existing.answers.database, '/other/custom.sqlite3');
+  assert.equal(existing.answers.stateRoot, '/other/runtime');
+});
 test('completed clone fences earlier home choices while storage and review remain editable', () => {
   const home = setHome(advance(initialWizard(), 'homeMode'), 'clone', '/tmp/cloned');
   const consent = advance(advance(advance(home, 'homeRoot'), 'remote'), 'cloneConsent');

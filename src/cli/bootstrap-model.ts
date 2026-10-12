@@ -71,12 +71,14 @@ export function setHome(w: Wizard, mode: WizardAnswers['homeMode'], path?: strin
 }
 export function setStorage(w: Wizard, mode: Storage, defaults: { database?: string; stateRoot?: string }): Wizard {
   const databaseMode = mode === 'existing' ? 'existing' : 'new';
-  const database = mode === 'existing' ? (w.answers.databaseMode === 'existing' ? w.answers.database : undefined) :
-    w.answers.databaseMode === 'new' ? w.answers.database ?? defaults.database : defaults.database;
-  const { database: _database, ...rest } = w.answers;
-  void _database;
+  const database = mode === 'recommended' ? defaults.database : mode === 'existing'
+    ? (w.answers.databaseMode === 'existing' ? w.answers.database : undefined)
+    : w.answers.databaseMode === 'new' ? w.answers.database ?? defaults.database : defaults.database;
+  const stateRoot = mode === 'recommended' ? defaults.stateRoot : w.answers.stateRoot ?? defaults.stateRoot;
+  const { database: _database, stateRoot: _stateRoot, ...rest } = w.answers;
+  void _database; void _stateRoot;
   return { ...w, storage: mode, answers: { ...rest, databaseMode,
-    ...(database ? { database } : {}), ...(w.answers.stateRoot ?? defaults.stateRoot ? { stateRoot: w.answers.stateRoot ?? defaults.stateRoot } : {}) }, selection: 0 };
+    ...(database ? { database } : {}), ...(stateRoot ? { stateRoot } : {}) }, selection: 0 };
 }
 export function editFromPreview(w: Wizard, screen: Screen): Wizard {
   return { ...advance(w, screen), editing: true };
