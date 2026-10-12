@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { nativeOpeningMode, parseNativeOpeningRequest, parseNativeOpeningResponse, nativeOpeningReceipt } from '../../src/app/native-opening-contract.js';
+import { nativeOpeningMode, parseNativeOpeningRequest, parseNativeOpeningResponse, nativeOpeningReceipt, nativeOpeningOutput } from '../../src/app/native-opening-contract.js';
 
 test('native opening transport rejects malformed acknowledgements and preserves typed conflict/partial data', () => {
   const installation = { version: 1 as const, engineRoot: '/engine', homeRoot: '/home', database: '/state/db',
@@ -38,6 +38,14 @@ test('native opening transport rejects malformed acknowledgements and preserves 
   assert.equal(nativeOpeningReceipt(JSON.stringify(submitted), false, true).ok, false);
   assert.deepEqual(nativeOpeningReceipt(JSON.stringify(partial), true, true), partial);
   assert.equal(nativeOpeningReceipt('not-json', true, false).ok, false);
+  const checkpoint = { ok: false, error: { state: 'partial', stage: 'startup', message: 'Pending',
+    herdrSocketPath: '/run/herdr.sock', tabId: 't1', paneId: 'p1' } };
+  const interrupted = nativeOpeningOutput(JSON.stringify(checkpoint) + '\n', true, true);
+  assert.deepEqual(interrupted, checkpoint);
+  const lostFinal = nativeOpeningOutput(JSON.stringify(checkpoint) + '\ninvalid-final\n', true, false);
+  assert.equal(lostFinal.ok, false);
+  if (!lostFinal.ok) { assert.equal(lostFinal.error.tabId, 't1'); assert.equal(lostFinal.error.stage, 'startup'); }
+  assert.deepEqual(nativeOpeningOutput(JSON.stringify(checkpoint) + '\n' + JSON.stringify(submitted) + '\n', false, false), submitted);
   for (const invalid of [null, {}, { ok: true }, { ok: true, value: { state: 'submitted' } },
     { ok: false, error: { state: 'partial', message: 'Inspect' } }, { ok: false, error: { state: 'observed-conflict', message: 'Choose' } }]) {
     assert.throws(() => parseNativeOpeningResponse(invalid), /Invalid native/);

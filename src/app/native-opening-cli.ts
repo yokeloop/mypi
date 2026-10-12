@@ -3,6 +3,7 @@ import { resolveInstallation } from './installation.js';
 import { nativeOpeningMode, parseNativeOpeningRequest } from './native-opening-contract.js';
 import { projectOpeningChoices, organizationOpeningChoice, openProjectPi, openOrganizationPi, ObservedSessionConflict } from './project-opening-terminal.js';
 import { HerdrPartialError } from './herdr.js';
+import type { HerdrSubmission } from './herdr.js';
 import { InputError } from '../shared/errors.js';
 import type { NativeOpeningResponse } from './native-opening-contract.js';
 
@@ -18,7 +19,7 @@ export function nativeOpeningFailure(error: unknown): NativeOpeningResponse {
   return { ok: false, error: { state: 'error', message } };
 }
 
-export async function executeNativeOpening(raw: string): Promise<NativeOpeningResponse> {
+export async function executeNativeOpening(raw: string, onSubmission?: (receipt: HerdrSubmission) => void): Promise<NativeOpeningResponse> {
   try {
     if (Number(process.versions.node.split('.')[0]) !== 24) throw new InputError('Native opening requires Node 24');
     const request = parseNativeOpeningRequest(JSON.parse(raw) as unknown);
@@ -31,8 +32,8 @@ export async function executeNativeOpening(raw: string): Promise<NativeOpeningRe
     const opening = nativeOpeningMode(request) === 'open';
     const value = opening
       ? request.organization !== undefined
-        ? await openOrganizationPi(current, request.callerCwd, request.organization, request.allowObservedSession)
-        : await openProjectPi(current, request.callerCwd, request.project!, request.worktree, request.allowObservedSession)
+        ? await openOrganizationPi(current, request.callerCwd, request.organization, request.allowObservedSession, request.nativeExecutable, onSubmission)
+        : await openProjectPi(current, request.callerCwd, request.project!, request.worktree, request.allowObservedSession, request.nativeExecutable, onSubmission)
       : request.organization !== undefined
         ? organizationOpeningChoice(current, request.organization)
         : projectOpeningChoices(current, request.project, request.worktree);

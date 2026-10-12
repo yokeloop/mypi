@@ -1,11 +1,11 @@
 import { spawn } from 'node:child_process';
 
 /** Pi owns terminal rendering and input. No shell, output capture or separate process group. */
-export function spawnPi(args: readonly string[], cwd: string, env: NodeJS.ProcessEnv): Promise<{
+export function spawnPi(executable: string, args: readonly string[], cwd: string, env: NodeJS.ProcessEnv): Promise<{
   code: number | null; signal: NodeJS.Signals | null;
 }> {
   return new Promise((resolve, reject) => {
-    const child = spawn('pi', args, { cwd, env, stdio: 'inherit', shell: false });
+    const child = spawn(executable, args, { cwd, env, stdio: 'inherit', shell: false });
     const handlers = (['SIGINT', 'SIGTERM', 'SIGHUP'] as const).map(signal => {
       const forward = () => { child.kill(signal); };
       process.on(signal, forward);

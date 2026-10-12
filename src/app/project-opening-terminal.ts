@@ -5,6 +5,7 @@ import { selectOrganizationOpening, selectProjectOpening } from './project-openi
 import type { ProjectOpeningSelection } from './project-opening.js';
 import { repositoryIdentityReader } from '../infrastructure/git/repository-identity.js';
 import { launchPi } from './pi-terminal.js';
+import type { HerdrSubmission } from './herdr.js';
 export { ObservedSessionConflict } from './pi-terminal.js';
 import { inspectProjectPiPackages } from './project-pi-packages.js';
 import { canonicalDirectory } from '../infrastructure/filesystem/paths.js';
@@ -26,7 +27,7 @@ export function organizationOpeningChoice(installation: Installation, organizati
   finally { app.close(); }
 }
 export async function openProjectPi(installation: Installation, callerCwd: string, project: string, worktree?: string,
-  allowObservedSession = false) {
+  allowObservedSession = false, nativeExecutable?: string, onSubmission?: (receipt: HerdrSubmission) => void) {
   const app = createApp(installation.database, true);
   let target: string;
   try {
@@ -42,12 +43,13 @@ export async function openProjectPi(installation: Installation, callerCwd: strin
   inspectProjectPiPackages(selection.choice.worktree, installation.engineRoot, process.env);
   const receipt = await launchPi({ selection: { kind: 'project', project }, cwd: selection.choice.worktree,
     args: [], herdrTab: true, title: `${project} (${selection.choice.branch})`, allowObservedSession },
-    { cwd: callerCwd, installation });
+    { cwd: callerCwd, installation, ...(nativeExecutable === undefined ? {} : { nativeExecutable }),
+      ...(onSubmission === undefined ? {} : { onSubmission }) });
   if (!('status' in receipt)) throw new InputError('Herdr launch returned no tab submission; inspect target before retrying');
-  return { state: 'submitted' as const, choice: selection.choice, receipt };
+  return { state: receipt.status, choice: selection.choice, receipt };
 }
 export async function openOrganizationPi(installation: Installation, callerCwd: string, organization: string,
-  allowObservedSession = false) {
+  allowObservedSession = false, nativeExecutable?: string, onSubmission?: (receipt: HerdrSubmission) => void) {
   organizationOpeningChoice(installation, organization);
   let cwd: string;
   try { cwd = canonicalDirectory(callerCwd); }
@@ -55,7 +57,8 @@ export async function openOrganizationPi(installation: Installation, callerCwd: 
   inspectProjectPiPackages(cwd, installation.engineRoot, process.env);
   const receipt = await launchPi({ selection: { kind: 'organization', organization }, cwd,
     args: [], herdrTab: true, title: `${organization} (organization)`, allowObservedSession },
-    { cwd: callerCwd, installation });
+    { cwd: callerCwd, installation, ...(nativeExecutable === undefined ? {} : { nativeExecutable }),
+      ...(onSubmission === undefined ? {} : { onSubmission }) });
   if (!('status' in receipt)) throw new InputError('Herdr launch returned no tab submission; inspect target before retrying');
-  return { state: 'submitted' as const, organization, cwd, receipt };
+  return { state: receipt.status, organization, cwd, receipt };
 }

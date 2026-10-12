@@ -23,9 +23,15 @@ export function registerNativeProjectOpen(pi: ExtensionAPI, installation: Instal
     // Do not block Pi startup; completion never retries a failed read per keystroke.
   });
   const show = (response: Awaited<ReturnType<typeof nativeOpeningNode>>, ctx: { ui: { notify(text: string, level: 'info' | 'warning' | 'error'): void } }) => {
-    if (!response.ok) { ctx.ui.notify(response.error.message, 'error'); return; }
+    if (!response.ok) {
+      const error = response.error;
+      const target = error.herdrSocketPath ? ` Server: ${error.herdrSocketPath}; stage: ${error.stage ?? 'unknown'}; tab: ${error.tabId ?? 'unknown'}; pane: ${error.paneId ?? 'unknown'}.` : '';
+      ctx.ui.notify(error.message + target, 'error'); return;
+    }
     const value = response.value;
-    if (value.state === 'submitted') ctx.ui.notify(`Tab submitted: ${value.receipt.tabId}. Check target startup before treating it as ready.`, 'info');
+    if (value.state === 'ready') ctx.ui.notify(`Pi startup observed in tab ${value.receipt.tabId}. Check the target screen for rendered UI.`, 'info');
+    else if (value.state === 'failed') ctx.ui.notify(`Pi exited in tab ${value.receipt.tabId} before readiness was reported (${value.receipt.observation ?? 'unknown exit'}${value.receipt.exitCode === undefined ? '' : `, exit ${value.receipt.exitCode}`}). Inspect the retained target for diagnostics.`, 'error');
+    else if (value.state === 'submitted') ctx.ui.notify(`Tab ${value.receipt.tabId} submitted; startup not confirmed (${value.receipt.observation ?? 'unknown'}). Inspect the retained target before retrying.`, 'warning');
     else if (value.state === 'choices') ctx.ui.notify(value.message + (value.choices.length ? `\n${value.choices.map(c => `${c.branch}: ${c.worktree}`).join('\n')}` : ''), 'info');
     else if (value.state === 'projects') ctx.ui.notify(value.message + `\nOrganizations: ${value.organizations.join(', ') || '(none)'}\nProjects: ${value.projects.join(', ') || '(none)'}`, 'info');
     else ctx.ui.notify(value.state === 'organization' ? `Registered organization: ${value.organization}` :
@@ -98,7 +104,7 @@ export function registerNativeProjectOpen(pi: ExtensionAPI, installation: Instal
         const response = await nativeOpeningNode(installation, ctx.cwd, params, signal);
         const result = response.ok ? response.value : response.error;
         return { content: [{ type: 'text' as const, text: describe(result) }], details: result,
-          ...(response.ok ? {} : { isError: true }) };
+          ...(response.ok && result.state !== 'failed' ? {} : { isError: true }) };
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         const details = { state: error && typeof error === 'object' && 'status' in error ? error.status : 'error', message,

@@ -9,6 +9,13 @@ import {
 import type { PiContextSelection } from '../../../dist/src/app/pi-context.js';
 import { nativeCallerEnvironment, sameNativeCaller } from '../../../dist/src/app/pi-message-caller.js';
 
+export function freshNativeStartup(event: { reason: string }, ctx: ExtensionContext): boolean {
+  const manager = ctx.sessionManager;
+  const file = manager.getSessionFile();
+  return event.reason === 'startup' && (!file || !existsSync(file)) && !manager.getHeader()?.parentSession
+    && manager.getEntries().every(item => item.type === 'model_change' || item.type === 'thinking_level_change');
+}
+
 /** Native branch entries own context; the launch envelope is only a fresh-session handoff. */
 export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry: string, installationEnv: NodeJS.ProcessEnv = process.env) {
   registerNativePathGuard(pi);
@@ -45,10 +52,8 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
   pi.on('session_start', (event, ctx) => {
     launchProblem = undefined;
     const manager = ctx.sessionManager;
-    const file = manager.getSessionFile();
     // "startup" also covers --session/--continue. Never infer freshness from the event alone.
-    const fresh = event.reason === 'startup' && (!file || !existsSync(file)) && !manager.getHeader()?.parentSession
-      && manager.getEntries().every(item => item.type === 'model_change' || item.type === 'thinking_level_change');
+    const fresh = freshNativeStartup(event, ctx);
     const handoff = process.env[MYPI_PI_CONTEXT];
     if (fresh && handoff !== undefined) {
       try {
@@ -76,6 +81,11 @@ export function registerNativeWorkContext(pi: ExtensionAPI, root: string, entry:
       launchProblem = 'existing or ambiguous session; launch context ignored';
     }
     const selection = refresh(ctx);
+    // Only the freshly accepted launch handoff can be observed as this startup.
+    if (!fresh || handoff === undefined || selection.state !== 'selected'
+      || selection.data.cwd !== ctx.cwd || !/^[0-9a-f-]{36}$/.test(process.env['MYPI_PI_LAUNCH_TOKEN'] ?? '')) {
+      delete process.env['MYPI_PI_LAUNCH_TOKEN'];
+    }
     if (selection.state !== 'selected') {
       ctx.ui.notify(`mypi context not selected: ${launchProblem ?? selection.state}. Start a new Pi process with an explicit working selection; no previous project was restored.`, 'warning');
     }

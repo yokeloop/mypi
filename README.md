@@ -168,9 +168,14 @@ or `project` for an explicit launch (optional `worktree`); omitted action preser
 legacy project-only listing and project+worktree opening. Both routes submit a new
 Herdr tab while leaving the originating conversation open. A known observed
 session requires focus, another worktree or explicit approval for an additional
-session. Submission is not readiness: check the new tab's cwd/context/native ID
-and `/mcp`; retain any partial Herdr IDs on failure and inspect state before
-retrying. Without Herdr, ordinary Pi and local CLI still work. See
+session. The native bundled Pi host is reused when identifiable; to choose another
+installed Pi, set `MYPI_PI_EXECUTABLE` to its reviewed absolute executable path.
+Opening never executes a PATH updater wrapper or silently selects a later PATH
+installation. A `ready` result confirms a fresh, target-correlated extension startup
+observation, not rendered UI or `/mcp` connectivity. A `submitted` result reports
+observation disabled, unavailable or timed out; inspect the retained tab's screen,
+cwd/context/native ID and `/mcp`. A correlated early exit is failed and retains an observed exit code when available. Retain partial
+Herdr IDs and inspect state before retrying. Without Herdr, ordinary Pi and local CLI still work. See
 [cooperative Pi](docs/COOPERATIVE-PI.md) and [native context](docs/PI-WORK-CONTEXT.md).
 
 ### Explicit workspace helpers
