@@ -81,7 +81,7 @@ current directory. Manual path fields support cursor editing, Home/End,
 Backspace/Delete, paste and Tab completion (↑/↓ and Enter choose among multiple
 matches). Empty Enter accepts a shown suggestion, not Back. In long-path views,
 ←/→ reveals hidden portions; inspect the full resolved paths and resource details
-in the preview before applying. Some underlying diagnostics remain in English.
+in the preview before applying.
 
 Clone has its **own** safe-default confirmation to create only home; it does not
 consent to DB creation or installation binding. After a successful clone, Back/Esc
