@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { createElement as h, useState } from 'react';
+import { createElement as h, useRef, useState } from 'react';
 import { Box, Text, render, useApp, useInput } from 'ink';
 import { fileURLToPath } from 'node:url';
 import { homedir } from 'node:os';
@@ -51,9 +51,11 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
   const [cloned, setCloned] = useState<string>();
   const [clonePlan, setClonePlan] = useState<HomeClonePlan>();
   const [attempted, setAttempted] = useState(false);
+  const clonePending = useRef(false);
   const field = fieldAt(step, answers);
   const finish = (message: string) => { complete(message); exit(); };
   useInput((input, key) => {
+    if (clonePending.current) { setError('Clone is running. Wait for its result before exiting; inspect the destination if it stops.'); return; }
     if (key.escape || (key.ctrl && input === 'c')) {
       finish(attempted ? 'Setup effects may already have occurred. Inspect paths in the reported result before retrying.'
         : cloned ? `Cancelled; cloned home remains at ${cloned}. No database or binding was created.` : 'Cancelled; no setup files changed.'); return;
@@ -99,14 +101,16 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
     }
     try {
       if (phase === 'clone' && clonePlan) {
-        setAttempted(true);
-        const destination = applyHomeClone(clonePlan);
-        setCloned(destination); setClonePlan(undefined); setPhase('preview');
-        const selected = choices(answers);
-        const existing: SetupChoices = { homeMode: 'existing', homeRoot: destination,
-          databaseMode: selected.databaseMode, database: selected.database, stateRoot: selected.stateRoot,
-          ...(selected.agentSettingsPath ? { agentSettingsPath: selected.agentSettingsPath } : {}) };
-        setPlan(planInstallation(root, existing)); setError('Clone retained. Review actual selected-home resources before approving second stage.'); setAttempted(false);
+        clonePending.current = true; setAttempted(true);
+        void applyHomeClone(clonePlan).then(destination => {
+          setCloned(destination); setClonePlan(undefined); setPhase('preview');
+          const selected = choices(answers);
+          const existing: SetupChoices = { homeMode: 'existing', homeRoot: destination,
+            databaseMode: selected.databaseMode, database: selected.database, stateRoot: selected.stateRoot,
+            ...(selected.agentSettingsPath ? { agentSettingsPath: selected.agentSettingsPath } : {}) };
+          setPlan(planInstallation(root, existing)); setError('Clone retained. Review actual selected-home resources before approving second stage.'); setAttempted(false);
+        }).catch(error => setError(error instanceof Error ? error.message : String(error)))
+          .finally(() => { clonePending.current = false; });
       } else if (plan) {
         setAttempted(true);
         const saved = applyInstallation(plan);
