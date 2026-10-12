@@ -7,7 +7,33 @@ Preparation, delivery for review, and activation are separate gates (see below).
 
 ## Start and resume
 
-After explicit `pnpm bootstrap` selection and `pnpm build`, start ordinary `pi`
+From the engine checkout, `mise exec -- pnpm bootstrap` builds and opens the
+interactive setup wizard. It displays the checkout and setup state, with ↑/↓,
+Enter, Esc/Back and Ctrl+C/Cancel instead of typed mode letters. New-home defaults
+to `./home` relative to the displayed canonical checkout; a new external DB and
+runtime root are suggested under absolute `XDG_STATE_HOME` or, if unset,
+`~/.local/state/mypi/installations/<checkout-name>-<8-hex-path-hash>/`. An invalid
+explicit XDG value is visible and requires manual path selection. Existing
+bindings retain their recorded paths: suggestions are not migrations.
+
+Path selection offers directory/file browsing with parent/home/checkout shortcuts,
+filter and pages, future child names, or manual entry. Manual `./` and `../` paths
+are checkout-relative; `~/` uses the user's home. Tab completes path names;
+arrow keys, Home/End, Backspace/Delete and paste edit input; ←/→ exposes clipped
+long paths and preview details show full resolved paths. Review the new preview
+after editing. A Git clone requires a separate explicit confirmation before the
+installation preview and Apply confirmation; default Enter at the effect screen
+returns Back. A configured rerun can be a no-op, or visibly prepare an updated
+preview when shared resources change. Conflicts require reconciliation, not
+removing unknown `.pi` content. Cancel before effects changes no setup data (the
+build may update `dist`); cancellation after clone retains it, and a stopped or
+failed clone can leave an uncertain partial destination. Inspect real paths and
+binding after attempted writes, never assume rollback or blindly retry. Setup
+preserves selected-home text/settings and compatible local overrides and does not
+commit/push, migrate the DB, register projects, launch Pi or change global Pi
+settings/authentication. See [the full setup guide](../README.md#first-time-setup-select-an-installation).
+
+After explicit bootstrap selection and `pnpm build`, start ordinary `pi`
 from the configured engine root; fresh root context is unrestricted. Use `/mcp`
 to confirm the actual connection after trusting the project. A registered project
 and associated independent clone are needed for scoped work. For an existing

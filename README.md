@@ -60,21 +60,43 @@ mise exec -- pnpm bootstrap
 mise exec -- pi
 ```
 
-Setup asks whether to create a new independent home Git, select an existing
-local home Git, or explicitly clone a remote into an absent destination. It
-separately asks whether to create a new external SQLite file or use an existing
-one, and asks for an external runtime state root. Review the preview of engine,
-home, remote (if known), DB, state root, engine package, shared resources and
-conflicts before confirming each effect. Home/database modes are `new`/`existing` (home
-also supports `clone`), paths must be absolute. Enter submits a field; empty
-Enter returns to the previous field. Clone and final preview require `y`; Enter
-or `n` declines, Escape/Ctrl+C cancels, and `b` returns to choices before effects.
-The clone is a separately confirmed first stage: cancellation after it leaves
-that clone (including its origin) in place, without DB or installation binding.
-No setup writes occur on cancellation before effects;
-partial effects are reported, not rolled back. Setup never commits/pushes the
-home, migrates existing DB data or changes global Pi settings. Keep home Git and
-SQLite backed up independently; configure a private remote explicitly.
+The interactive wizard shows this checkout and its setup state, then offers
+menus for a new independent home Git, an existing home Git or a Git clone. Use
+↑/↓ and Enter to select; Esc goes back, Ctrl+C cancels, and visible Back/Cancel
+actions are available. The recommended new home is `./home` in this checkout.
+Storage offers a new SQLite DB with a recommended runtime directory, an existing
+DB, or separate path choices. The suggestions for a new checkout are
+`<state-base>/mypi/installations/<checkout-name>-<path-hash>/state.sqlite3` and
+`.../runtime`, where `<state-base>` is absolute `XDG_STATE_HOME` if set, otherwise
+`~/.local/state`; the hash is the first eight SHA-256 hex digits of the canonical
+checkout path. Invalid explicit `XDG_STATE_HOME` is shown as a problem: choose
+paths manually, rather than silently falling back. Suggestions do not move an
+existing installation or choose a personal DB.
+
+Path menus offer a directory/file browser (parent, home and checkout shortcuts,
+filter and paginated entries), a future child name, or manual entry. Relative
+paths such as `home`, `./home` and `../shared-home` resolve from the displayed
+canonical checkout, `~/...` from the user's home; the browser displays its own
+current directory. Manual path fields support cursor editing, Home/End,
+Backspace/Delete, paste and Tab completion (↑/↓ and Enter choose among multiple
+matches). Empty Enter accepts a shown suggestion, not Back. In long-path views,
+←/→ reveals hidden portions; inspect the full resolved paths and resource details
+in the preview before applying. Some underlying diagnostics remain in English.
+
+Clone has its **own** safe-default confirmation to create only home; it does not
+consent to DB creation or installation binding. After clone, review storage and
+confirm installation separately. At the final confirmation, Enter initially
+selects Back, not Apply; explicitly select the effect action. Back/editing in the
+preview retains unrelated choices and generates a new preview. Applying rechecks
+for changed inputs and refuses stale/conflicting choices. Cancel before effects
+does not write setup data (the `pnpm bootstrap` build can still update `dist`).
+After clone, cancellation retains that destination and origin; a stopped or
+failed clone may leave a partial destination and must be inspected before another
+attempt. After an attempted installation write, inspect the listed paths and
+binding: there is no transactional rollback. The wizard never commits/pushes
+home, migrates existing DB data, registers projects, launches Pi or changes global
+Pi settings/authentication. Keep home Git and SQLite backed up independently;
+configure a private remote explicitly.
 
 The ignored `.mypi-local.json` binds `version: 1`, `engineRoot`, `homeRoot`,
 `database` and `stateRoot` to this checkout. Missing, moved or invalid binding
@@ -101,10 +123,14 @@ with a warning: Pi's project append **overrides**, rather than combines with,
 its agent-directory append; file-configured MCP entries (including
 `enabled:false`) override extension registrations. A legacy `.pi -> home/pi`
 link is converted only through the preview, preserving its target bytes;
-nonstandard `.pi` contents require reconciliation. Rerun setup deliberately
-to refresh a changed snapshot: after the changed-projection diagnostic press `r`
-to request a new preview and review it before `y`. Stale previews and changed
-inputs refuse; no silent adoption.
+nonstandard `.pi` contents require reconciliation.
+
+On rerun, a configured checkout shows its current paths and can report
+"Already configured" without rewriting files. To refresh changed shared
+resources, select the visible "Prepare updated preview" action, inspect the
+revised changes and explicitly confirm; there is no hidden refresh key. Stale
+previews and changed inputs refuse; conflicts require explicit reconciliation,
+not deleting arbitrary `.pi` contents or silently adopting another binding.
 Configuration links outside managed context do not allow arbitrary symlinks
 in managed home documents or backup.
 
