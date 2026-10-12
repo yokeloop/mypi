@@ -7,17 +7,17 @@ export type PickerItem = { label: string; action: 'use' | 'parent' | 'home' | 'e
 export function pickerItems(picker: Picker, userHome: string, engine: string): PickerItem[] {
   const { page, kind } = picker;
   return [
-    { label: kind === 'file' ? 'Выберите файл ниже' : 'Использовать эту папку: ' + picker.path, action: 'use' },
-    { label: 'Родительская папка: ' + dirname(picker.path), action: 'parent', path: dirname(picker.path) },
-    { label: 'Домашняя папка: ' + userHome, action: 'home', path: userHome },
+    { label: kind === 'file' ? 'Select a file below' : 'Use this directory: ' + picker.path, action: 'use' },
+    { label: 'Parent directory: ' + dirname(picker.path), action: 'parent', path: dirname(picker.path) },
+    { label: 'Home directory: ' + userHome, action: 'home', path: userHome },
     { label: 'Checkout: ' + engine, action: 'engine', path: engine },
-    ...(kind.startsWith('future') ? [{ label: 'Новая папка или файл здесь…', action: 'child' as const }] : []),
-    { label: 'Ввести путь…', action: 'manual' },
-    { label: 'Назад', action: 'back' },
-    ...(picker.offset ? [{ label: '← Предыдущие', action: 'previous' as const }] : []),
+    ...(kind.startsWith('future') ? [{ label: 'New directory or file here…', action: 'child' as const }] : []),
+    { label: 'Enter path…', action: 'manual' },
+    { label: 'Back', action: 'back' },
+    ...(picker.offset ? [{ label: '← Previous', action: 'previous' as const }] : []),
     ...page.entries.map(entry => ({ label: `${entry.kind === 'link' ? '↪' : entry.kind === 'directory' ? '▸' : '•'} ${entry.name}${entry.error ? ' — ' + entry.error : ''}`,
       action: 'entry' as const, path: entry.path, ...(entry.error ? { error: entry.error } : {}) })),
-    ...(page.nextOffset !== undefined ? [{ label: 'Следующие →', action: 'next' as const }] : []),
+    ...(page.nextOffset !== undefined ? [{ label: 'Next →', action: 'next' as const }] : []),
   ];
 }
 export function entryIsDirectory(entry: BrowseResult['entries'][number]): boolean {
