@@ -9,7 +9,7 @@ import type { SetupChoices, InstallationPlan } from '../app/setup-installation.j
 import { observeSetup, browseSetupDirectory, validateSetupChoice, setupProblem } from '../app/setup-observation.js';
 import type { SetupProblem } from '../app/setup-observation.js';
 import { normalizeSetupPath, suggestSetupPaths } from '../app/setup-paths.js';
-import { initialWizard, advance, back, move, setHome, setStorage, editFromPreview, returnFromEdit } from './bootstrap-model.js';
+import { initialWizard, advance, back, move, setHome, setStorage, editFromPreview, returnFromEdit, afterHomeClone, clonedHomeMatchesSelection } from './bootstrap-model.js';
 import type { Wizard } from './bootstrap-model.js';
 import { insert, editKey, complete as completePath, displayEditor } from './bootstrap-editor.js';
 import type { Editor } from './bootstrap-editor.js';
@@ -76,9 +76,14 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
     return advance(v, 'preview');
   };
   const preview = (next: Wizard, refreshChoice = refresh) => {
+    if (!clonedHomeMatchesSelection(next)) {
+      setPlan(undefined);
+      setProblem({ code: 'local-conflict', field: 'homeRoot', message: `Выбранный home отличается от уже клонированного ${next.cloned}. Проверьте clone; для другого home начните новый запуск.`, actions: ['inspect'] });
+      setW({ ...next, screen: 'preview', selection: 0 });
+      return;
+    }
     try {
       const choices = selected(next);
-      if (next.cloned) { choices.homeMode = 'existing'; choices.homeRoot = next.cloned; delete choices.remote; }
       choices.refreshProjection = refreshChoice;
       const p = planInstallation(root, choices); setPlan(p); setProblem(undefined);
       setW({ ...next, screen: 'preview', selection: 0, editing: false });
@@ -98,6 +103,13 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
     const advanced = nextAfterPath(next, field);
     if (advanced.screen === 'preview') preview(advanced); else setW(advanced);
   };
+  const goBack = () => {
+    if (w.cloned && w.screen === 'storage') {
+      setProblem({ code: 'local-conflict', field: 'homeRoot', message: `Home уже клонирован: ${w.cloned}. Измените БД/runtime или выберите «Отмена»; для другого home начните новый запуск. Clone останется на месте.`, actions: ['inspect'] });
+      return;
+    }
+    setW(back(w)); setProblem(undefined);
+  };
   const quit = () => finish(applyAttempt.current ? `Применение было начато; проверьте реальные пути home ${w.answers.homeRoot}, БД ${w.answers.database}, runtime ${w.answers.stateRoot}, .pi и привязку. Частичный результат не откатан.` : w.cloned ? `Отменено. Клонированный home остаётся: ${w.cloned}. БД и привязка не созданы.` :
     cloneAttempt.current ? `Операция клонирования была начата; проверьте ${w.answers.homeRoot}. Повтор без проверки небезопасен.` : 'Отменено до записи настройки.');
   const menu = (() => {
@@ -107,7 +119,7 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
       case 'homeRoot': return [`Использовать предложенный путь: ${w.answers.homeRoot || defaults.homeRoot}`, 'Выбрать папку…', 'Ввести путь…', 'Назад', 'Отмена'];
       case 'remote': return ['Ввести Git URL / путь', 'Выбрать локальный репозиторий…', 'Назад'];
       case 'cloneConsent': return ['Назад — ничего не клонировать', `Клонировать только home: ${w.answers.homeRoot}`, 'Отмена'];
-      case 'storage': return [`Новая БД и рекомендуемый runtime: ${defaults.database || 'требуется выбрать путь'}`, 'Выбрать существующую БД', 'Настроить пути отдельно', 'Назад', 'Отмена'];
+      case 'storage': return [`Новая БД и рекомендуемый runtime: ${defaults.database || 'требуется выбрать путь'}`, 'Выбрать существующую БД', 'Настроить пути отдельно', w.cloned ? 'Назад (home уже клонирован; другой — новый запуск)' : 'Назад', 'Отмена'];
       case 'database': return [`Использовать путь: ${w.answers.database || defaults.database || 'не задан'}`, 'Выбрать файл или новую папку…', 'Ввести путь…', 'Назад'];
       case 'stateRoot': return [`Использовать путь: ${w.answers.stateRoot || defaults.stateRoot || 'не задан'}`, 'Выбрать папку…', 'Ввести путь…', 'Назад'];
       case 'preview': return ['Назад', 'Изменить home', 'Изменить БД', 'Изменить runtime', 'Подробности ресурсов и всех путей', 'Подготовить обновлённый обзор', 'Продолжить к подтверждению', 'Отмена'];
@@ -174,7 +186,7 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
       if (!key.ctrl && !key.meta && input) { setEditor(insert(editor, input)); setCompletions([]); }
       return;
     }
-    if (key.escape) { if (w.screen === 'start') quit(); else { setW(back(w)); setProblem(undefined); } return; }
+    if (key.escape) { if (w.screen === 'start') quit(); else goBack(); return; }
     if (key.upArrow || key.downArrow) { setHorizontal(0); setW(move(w, key.upArrow ? -1 : 1, menu.length)); return; }
     if (key.leftArrow || key.rightArrow) { setHorizontal(n => shiftViewport(n, key.rightArrow ? 1 : -1, stdout.columns || 80)); return; }
     if (details && (key.pageUp || key.pageDown)) { setDetailIndex(n => Math.max(0, Math.min(detailList.length - 1, n + (key.pageDown ? 1 : -1)))); setHorizontal(0); return; }
@@ -186,7 +198,7 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
       setW(advance(w, 'homeMode')); return;
     }
     if (index === menu.indexOf('Отмена')) { quit(); return; }
-    if (index === menu.indexOf('Назад') || menu[index]?.startsWith('Назад')) { setW(back(w)); return; }
+    if (index === menu.indexOf('Назад') || menu[index]?.startsWith('Назад')) { goBack(); return; }
     if (w.screen === 'homeMode') {
       const mode = (['new', 'existing', 'clone'] as const)[index];
       if (mode) { const candidate = mode === 'existing' ? observation.homeCandidates.find(c => c.kind === 'eligible')?.path : undefined;
@@ -207,8 +219,7 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
         const clone = planHomeClone(root, w.answers.homeRoot!, w.answers.remote!);
         controller.current = new AbortController(); cloneAttempt.current = true; setPending('clone'); setProblem(undefined);
         void applyHomeClone(clone, controller.current.signal).then(destination => {
-          setW(current => { const { remote: _remote, ...answers } = current.answers; void _remote;
-            return advance({ ...current, cloned: destination, answers: { ...answers, homeMode: 'existing', homeRoot: destination } }, 'storage'); });
+          setW(current => afterHomeClone(current, destination));
         }).catch(error => setProblem(setupProblem(error))).finally(() => setPending(undefined));
       } catch (error) { setProblem(setupProblem(error)); }
       return;
@@ -264,7 +275,7 @@ function Bootstrap({ complete }: { complete: (message: string) => void }) {
     h(Text, { bold: true }, `mypi — Настройка / ${picker ? 'Выбор пути' : w.screen}`),
     h(Text, null, safe(`Checkout: ${root}`)),
     h(Text, null, safe(picker ? `Текущая папка: ${picker.path}` : w.screen === 'start' ? `Состояние: ${observation.status}` :
-      w.screen === 'storage' ? 'БД хранит данные; runtime — служебные файлы. Авторизация Pi не меняется.' :
+      w.screen === 'storage' ? w.cloned ? 'Clone сохранён; дальше только БД/runtime. Отмена оставит home.' : 'БД хранит данные; runtime — служебные файлы. Авторизация Pi не меняется.' :
       w.screen === 'cloneConsent' ? 'Только clone home; БД и привязка пока не создаются.' : 'Выберите действие; пока ничего не создаём.')),
     w.screen === 'cloneConsent' ? h(Text, null, `Git источник [←→ ${horizontal}]: ${segment(w.answers.remote || '')}`) : null,
     picker ? h(Text, null, `Фильтр: ${picker.query || '(все)'} · ${picker.page.total} элементов · страница ${picker.offset + 1}–${Math.min(picker.offset + 40, picker.page.total)}`) : null,

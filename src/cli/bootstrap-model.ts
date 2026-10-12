@@ -47,9 +47,20 @@ export function advance(w: Wizard, screen: Screen, selection = 0): Wizard {
   return { ...w, screen, selection, history: [...w.history, w.screen], editing: false };
 }
 export function back(w: Wizard): Wizard {
+  if (w.cloned && w.screen === 'storage') return w;
   if (!w.history.length) return w;
   const history = w.history.slice(), screen = history.pop()!;
   return { ...w, screen, history, selection: 0, editing: false };
+}
+/** Clone is a completed effect: only unanswered storage and review steps remain navigable. */
+export function afterHomeClone(w: Wizard, destination: string): Wizard {
+  const { remote: _remote, ...answers } = w.answers;
+  void _remote;
+  return { ...w, cloned: destination, answers: { ...answers, homeMode: 'existing', homeRoot: destination },
+    screen: 'storage', selection: 0, history: [], editing: false };
+}
+export function clonedHomeMatchesSelection(w: Wizard): boolean {
+  return !w.cloned || (w.answers.homeMode === 'existing' && w.answers.homeRoot === w.cloned && w.answers.remote === undefined);
 }
 export function setHome(w: Wizard, mode: WizardAnswers['homeMode'], path?: string): Wizard {
   const changed = mode !== w.answers.homeMode;
