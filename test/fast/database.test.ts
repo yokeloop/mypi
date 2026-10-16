@@ -42,12 +42,14 @@ test('migration is repeatable without reseeding renamed/custom statuses; newer s
   db.prepare("UPDATE request_statuses SET code = 'fresh' WHERE code = 'new'").run();
   db.prepare("INSERT INTO request_statuses(code, is_terminal) VALUES ('custom', 0)").run();
   const expected = db.prepare('SELECT * FROM request_statuses ORDER BY id').all();
+  db.exec('DROP TABLE knowledge_file_fingerprints; DROP TABLE knowledge_journal_imports; DROP TABLE knowledge_journal;');
+  db.pragma('user_version = 1');
   db.close();
   initializeDatabase(filename);
   db = openDatabase(filename);
   try {
     assert.deepEqual(db.prepare('SELECT * FROM request_statuses ORDER BY id').all(), expected);
-    db.pragma('user_version = 2');
+    db.pragma('user_version = 3');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
   assert.throws(() => openDatabase(filename), /compatible/);

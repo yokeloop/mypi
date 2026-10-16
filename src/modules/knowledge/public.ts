@@ -6,6 +6,8 @@ import type { Entry, EventType } from './model.js';
 import type { JournalStore } from './ports.js';
 export { createNotes } from './notes.js';
 export type { Entry, EventType } from './model.js';
+export { sqliteJournalStore } from './adapters/sqlite-journal.js';
+export type { FileFingerprint, JournalImport } from './adapters/sqlite-journal.js';
 
 export function publishedArtifacts(store: JournalStore): Set<string> {
   const result = new Set<string>();
