@@ -98,10 +98,19 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
   };
   const revision = git('rev-parse', 'HEAD');
-  await call('memory_remove', { scope, number: 1 });
+  const beforeRemoval = await call('memory_show', { scope });
+  for (const args of [{ scope, number: 1 }, { scope, number: 1, expectedRevision: '0'.repeat(64) }]) {
+    const rejected = await client.callTool({ name: 'memory_remove', arguments: args });
+    assert.equal(rejected.isError, true);
+    assert.deepEqual(await call('memory_show', { scope }), beforeRemoval);
+  }
+  await call('memory_remove', { scope, number: 1, expectedRevision: beforeRemoval.revision });
   await call('context_restore', { path: 'projects/one/project/MEMORY.md', revision });
   assert.equal((await call('memory_show', { scope })).items[0].text, 'project fact');
   const second = (await connect(root)).client;
+  await Promise.all(['concurrent A', 'concurrent B'].map(text => call('memory_add', { scope, text })));
+  assert.deepEqual((await call('memory_show', { scope })).items.map((item: { text: string }) => item.text),
+    ['project fact', 'concurrent A', 'concurrent B']);
   // Send requests from two independent MCP processes and a real CLI writer.
   const child = spawn(process.execPath, [join(root, 'dist/src/cli/main.js'), 'request', 'create', 'cli source',
     '--title', 'CLI', '--slug', 'cli', '--status', 'new', '--project', 'one/project'], { env: env(root) });

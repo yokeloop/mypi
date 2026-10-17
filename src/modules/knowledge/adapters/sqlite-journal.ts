@@ -11,6 +11,7 @@ function digest(value: string): void {
 }
 
 export function sqliteJournalStore(db: Database): JournalStore & {
+  recentWork(scope: { type: 'global' } | { type: 'org'; slug: string } | { type: 'project'; code: string }, limit: number): Entry[];
   importEntry(path: string, line: number, entry: Entry): void;
   journalImport(path: string): JournalImport | undefined;
   journalImports(): JournalImport[];
@@ -27,18 +28,40 @@ export function sqliteJournalStore(db: Database): JournalStore & {
       eventType: valid.event_type, text: valid.text, artifactsJson: valid.artifacts ? JSON.stringify(valid.artifacts) : null,
       importPath, importLine });
   }
+  function decode(raw: unknown): Entry {
+    const row = raw as { at: string; scopeType: Entry['scope']['type']; scopeKey: string | null; eventType: Entry['event_type']; text: string; artifactsJson: string | null };
+    const scope = row.scopeType === 'global' ? { type: 'global' as const } : { type: row.scopeType, key: row.scopeKey! };
+    return entryValue({ at: row.at, scope, event_type: row.eventType, text: row.text,
+      ...(row.artifactsJson === null ? {} : { artifacts: JSON.parse(row.artifactsJson) }) });
+  }
   return {
     append(entry) { assertWritable(); write(entry, null, null); return String((db.prepare('SELECT last_insert_rowid() AS id').get() as { id: number }).id); },
     *entries(fromMonth, toMonth) {
       const rows = db.prepare(`SELECT at,scope_type AS scopeType,scope_key AS scopeKey,event_type AS eventType,text,artifacts_json AS artifactsJson
         FROM knowledge_journal WHERE (? IS NULL OR substr(at,1,7) >= ?) AND (? IS NULL OR substr(at,1,7) <= ?) ORDER BY at,id`)
         .iterate(fromMonth ?? null, fromMonth ?? null, toMonth ?? null, toMonth ?? null);
-      for (const raw of rows) {
-        const row = raw as { at: string; scopeType: Entry['scope']['type']; scopeKey: string | null; eventType: Entry['event_type']; text: string; artifactsJson: string | null };
-        const scope = row.scopeType === 'global' ? { type: 'global' as const } : { type: row.scopeType, key: row.scopeKey! };
-        yield entryValue({ at: row.at, scope, event_type: row.eventType, text: row.text,
-          ...(row.artifactsJson === null ? {} : { artifacts: JSON.parse(row.artifactsJson) }) });
-      }
+      for (const raw of rows) yield decode(raw);
+    },
+    recentWork(scope, limit) {
+      const rows = db.prepare(`SELECT j.at,j.scope_type AS scopeType,j.scope_key AS scopeKey,
+          j.event_type AS eventType,j.text,j.artifacts_json AS artifactsJson
+        FROM knowledge_journal j WHERE
+          (? = 'global' AND (j.scope_type = 'global' OR
+            (j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r
+              WHERE r.project_id IS NULL AND j.scope_key = 'REQ-' || r.number))))
+          OR (? = 'org' AND (j.scope_type = 'org' AND j.scope_key = ? OR
+            j.scope_type = 'project' AND EXISTS (SELECT 1 FROM projects p JOIN organizations o ON o.id = p.org_id
+              WHERE p.code = j.scope_key AND o.slug = ?) OR
+            j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r JOIN projects p ON p.id = r.project_id
+              JOIN organizations o ON o.id = p.org_id WHERE j.scope_key = p.code || '-' || r.number AND o.slug = ?)))
+          OR (? = 'project' AND (j.scope_type = 'project' AND j.scope_key = ? OR
+            j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r JOIN projects p ON p.id = r.project_id
+              WHERE j.scope_key = p.code || '-' || r.number AND p.code = ?)))
+        ORDER BY j.at DESC,j.id DESC LIMIT ?`)
+        .all(scope.type, scope.type, scope.type === 'org' ? scope.slug : null,
+          scope.type === 'org' ? scope.slug : null, scope.type === 'org' ? scope.slug : null,
+          scope.type, scope.type === 'project' ? scope.code : null, scope.type === 'project' ? scope.code : null, limit);
+      return rows.reverse().map(decode);
     },
     importEntry(path, line, entry) { assertWritable(); if (!path || !Number.isSafeInteger(line) || line < 1) throw new Error('Invalid journal import location'); write(entry, path, line); },
     journalImport(path) {

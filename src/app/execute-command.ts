@@ -39,7 +39,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       case 'warmup': return app.warmup(contextScope(c.scope, app.projects));
       case 'memory_show': return app.memory.show(contextScope(c.scope, app.projects));
       case 'memory_add': return { path: app.memory.add(c.text, contextScope(c.scope, app.projects)) };
-      case 'memory_remove': return { removed: app.memory.remove(c.number, contextScope(c.scope, app.projects)) };
+      case 'memory_remove': return { removed: app.memory.remove(c.number, c.expectedRevision, contextScope(c.scope, app.projects)) };
       case 'journal_add': return { saved: app.journal(resolveScope(c.scope, app.projects), c.text) };
       case 'journal_import': return app.importJournal();
       case 'journal_read': return app.history(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {

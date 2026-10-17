@@ -24,10 +24,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     case 'capture': return { name: 'capture', source: source(0) };
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };
     case 'error': return { name: 'error_add', project: a[0]!, text: a[1]! };
+    case 'project resolve': return { name: 'project_resolve', path: a[0]! };
     case 'warmup': return { name: 'warmup', scope };
     case 'memory show': return { name: 'memory_show', scope };
     case 'memory add': return { name: 'memory_add', text: a[0]!, scope };
-    case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), scope };
+    case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), expectedRevision: required('expected-revision'), scope };
     case 'journal add': return { name: 'journal_add', text: a[0]!, scope: journalScope };
     case 'journal import': return { name: 'journal_import' };
     case 'journal read': return { name: 'journal_read', scope: o['all'] ? 'all' : journalScope,

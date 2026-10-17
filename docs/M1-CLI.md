@@ -18,9 +18,10 @@ Use only with explicit intent; stop other writers for bootstrap/restore.
 ```text
 project add org/project --code MP [--path /absolute/checkout]
 project list [--org org]
+project resolve /absolute/existing-directory
 memory add "fact" [-s org/project]
 memory show [-s org/project]
-memory remove 1 [-s org/project]
+memory remove 1 --expected-revision SHA256 [-s org/project]
 capture "original text"
 capture --file /path/to/utf8-source
 note "title" "text" [-s org/project]
@@ -31,11 +32,21 @@ warmup [-s org | org/project]
 
 Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
 inside Markdown; multiline text is returned exactly. Other Markdown remains context,
-not managed facts. Reread memory show before removing a current numbered item.
+not managed facts. `memory show` returns the exact file text and SHA-256 `revision`.
+Removal requires the displayed number and that revision; stale/missing revisions refuse
+without modifying files. Reread and retry deliberately, never reuse an old number.
 Capture creates a separate immutable inbox/*.md original, not a SQL copy; no BOM/CRLF
 stripping. It does not replace a request card or authorize execution. Notes never
 silently overwrite another note with the same topic. Scoped warmup excludes global
 inbox/unrelated projects; read full artifacts rather than treating its index as memory.
+`work` includes up to 20 nonterminal tasks (key, bounded title with truncated flag,
+status, updatedAt, source path), `openTaskCount`, 10 newest scoped events in
+chronological order (bounded text with truncated flag and scope/time read reference),
+and `olderEvents`. Global work includes projectless requests and their events, unlike
+`journal read` global, which remains global-only. Existing `history` is retained.
+`project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
+or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
+worktrees are not inferred.
 
 ## Requests and journal
 

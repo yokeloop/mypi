@@ -12,10 +12,10 @@ export type Command =
 
 export const usage = `mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
-mypi project list [--org <org>]
+mypi project list [--org <org>] | resolve <absolute-path>
 mypi bootstrap | warmup [-s org/project]
 mypi capture [text | --file source]
-mypi memory add <text> | show | remove <number> [-s scope]
+mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
 mypi journal add <text> [-s scope] | read [-s scope | --all] [--from UTC --to UTC --type type --limit n] | import

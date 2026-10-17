@@ -8,13 +8,14 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'project resolve': [1, 1, [], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],
   note: [1, 2, ['scope', 'file'], []],
   error: [2, 2, [], []],
   'memory show': [0, 0, ['scope'], []],
   'memory add': [1, 1, ['scope'], []],
-  'memory remove': [1, 1, ['scope'], []],
+  'memory remove': [1, 1, ['scope', 'expected-revision'], []],
   'journal add': [1, 1, ['scope'], []],
   'journal import': [0, 0, [], []],
   'journal read': [0, 0, ['scope', 'from', 'to', 'type', 'limit'], ['all']],
