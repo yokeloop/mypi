@@ -56,7 +56,12 @@ Context paths are home-relative; progress artifact paths are request-directory-r
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
 requestId when known. structuredContent equals parsed JSON in text content. The data
-payload retains CLI JSON shapes. Invalid JSON-RPC remains an SDK protocol error;
+payload retains CLI JSON shapes. `memory_show` includes SHA-256 `revision`;
+`memory_remove` requires `number` and `expectedRevision` for that exact file.
+`warmup` retains its fields and adds scoped `work` (20 open tasks, count, 10 recent
+events, olderEvents). The global work index includes projectless request events;
+`journal_read` global remains global-only. CLI `project resolve /absolute/path`
+exposes the existing project_resolve operation independently of MCP. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
 Always check isError and structuredContent.status, not promise resolution alone.
 

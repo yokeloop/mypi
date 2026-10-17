@@ -23,6 +23,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
   const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory });
   return {
+    readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),
     serialize: <T>(fn: () => T): T => { if (readonly) throw new Error('Readonly application'); return db.transaction(fn).immediate(); },
     requests: createRequests(sqliteRequestStore(db), clock, id => {
       const project = projects.list().find(p => p.id === id);

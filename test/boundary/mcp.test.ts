@@ -98,7 +98,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
   };
   const revision = git('rev-parse', 'HEAD');
-  await call('memory_remove', { scope, number: 1 });
+  await call('memory_remove', { scope, number: 1, expectedRevision: (await call('memory_show', { scope })).revision });
   await call('context_restore', { path: 'projects/one/project/MEMORY.md', revision });
   assert.equal((await call('memory_show', { scope })).items[0].text, 'project fact');
   const second = (await connect(root)).client;
