@@ -184,6 +184,9 @@ implement a parallel task runner or protection against concurrent code edits.
 
 ## Develop and verify
 
+For an explicitly requested clean test stand, acceptance checklist and real Pi/MCP
+checks through Herdr, follow the [manual acceptance guide](docs/MANUAL-ACCEPTANCE.md).
+
 TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
 Versions are pinned in mise.toml, package.json and the lockfile.

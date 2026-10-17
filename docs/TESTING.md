@@ -15,6 +15,11 @@ does not authorize implementation or introduce a flow/agent runner. M0 acceptanc
 and subsequent stack decisions are separate records. Current request-accounting rules
 are in [AGENT-WORKFLOW](AGENT-WORKFLOW.md).
 
+For operator-directed checks in a clean test installation, see
+[Agent-driven manual acceptance through Herdr](MANUAL-ACCEPTANCE.md). This is a
+separate live acceptance procedure, not a third test profile or a replacement for
+bounded `verify`, CI or independent review.
+
 ## 1. Main conclusion
 
 **Bound execution and maintenance cost while demonstrating additional protection,

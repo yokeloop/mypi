@@ -187,6 +187,9 @@ projects. Inspect each project's own instructions and verification commands.
   Do not weaken admission or mandatory checks. CI tests the proposed revision
   with its own locked dependencies and scripts; changes to package.json, lockfiles
   or build scripts do not require promoting a separate trusted base.
+- For explicitly requested live acceptance in a disposable test installation, use
+  the [Herdr manual acceptance guide](docs/MANUAL-ACCEPTANCE.md). It supplements
+  mandatory verification; it does not authorize storage resets or session control.
 - Build changed code: `mise exec -- pnpm build`.
   Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
 - Do not restore removed prototype/import compatibility or implement speculative
