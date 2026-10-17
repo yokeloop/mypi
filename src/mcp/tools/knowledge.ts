@@ -11,5 +11,6 @@ export const knowledge = {
   journal_read: { schema: z.strictObject({ scope: z.union([scope, z.literal('all')]), from: text.optional(),
     to: text.optional(), eventType: z.enum(['note', 'request_created', 'status_changed']).optional(),
     limit: z.number().int().positive().optional() }), description: 'Read scoped history with filters. Global is not all. Prefer a limit; read full artifacts when needed.' },
-  journal_add: { schema: z.strictObject({ scope, text }), description: 'Append a factual outcome and commit. Not idempotent; do not blindly retry.' },
+  journal_add: { schema: z.strictObject({ scope, text }), description: 'Save a factual outcome locally in SQLite. Not idempotent; do not blindly retry.' },
+  journal_import: { schema: z.strictObject({}), description: 'Explicitly import legacy JSONL into SQLite. Preserve original files; stop old writers first and inspect changed history before retrying.' },
 };

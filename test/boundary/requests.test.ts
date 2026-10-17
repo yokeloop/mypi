@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
-import { contextGit } from '../../src/infrastructure/git/context-git.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { PartialError } from '../../src/shared/context.js';
 
@@ -41,14 +40,19 @@ test('requests preserve source, allocate separate numbers, filter parents, exten
     assert.equal(app.history({ type: 'org', key: 'two' }).length, 1);
     assert.equal(app.history({ type: 'request', key: 'REQ-1' }).length, 1);
     writeFileSync(join(root, '.git/index.lock'), 'blocked');
-    assert.throws(() => app.requests.change(b.key, { status: 'planning' }, 'plan'), e => {
-      assert(e instanceof PartialError); assert.equal(e.requestId, b.id); assert.deepEqual(e.saved, ['database']); return true;
-    });
+    app.requests.change(b.key, { status: 'planning' }, 'plan');
     assert.equal(app.requests.get(b.key).status, 'planning');
-    const log = 'journal/2026-10.jsonl', pending = app.read(log);
+    assert.equal(app.history({ type: 'request', key: b.key }).length, 2);
+    const failure = openDatabase(filename);
+    failure.exec("CREATE TRIGGER fail_event BEFORE INSERT ON knowledge_journal BEGIN SELECT RAISE(ABORT, 'injected journal failure'); END");
+    failure.close();
+    const prior = app.requests.get(b.key), count = app.history('all').length;
+    assert.throws(() => app.requests.change(b.key, { status: 'accepted' }, 'attempt'), /injected journal failure/);
+    assert.equal(app.requests.get(b.key).status, prior.status);
+    assert.equal(app.requests.get(b.key).updatedAt, prior.updatedAt);
+    assert.equal(app.history('all').length, count);
+    const release = openDatabase(filename); release.exec('DROP TRIGGER fail_event'); release.close();
     rmSync(join(root, '.git/index.lock'));
-    app.complete([log], 'Finish verified pending commit');
-    assert.equal(app.read(log), pending);
     assert.equal(readFileSync(join(root, a.contextDir, 'research/result.md'), 'utf8'), 'result');
     writeFileSync(join(root, a.contextDir, 'research/plot.bin'), Buffer.from([0xff, 0x00, 0x01]));
     app.requests.progress(a.key, 'binary evidence', [{ path: 'research/plot.bin' }]);
@@ -63,17 +67,9 @@ test('requests preserve source, allocate separate numbers, filter parents, exten
     const published = a.contextDir + '/research/result.md';
     const eventsBefore = app.history('all').length;
     writeFileSync(join(root, published), 'replacement');
-    assert.throws(() => app.requests.progress(a.key, 'replace', [{ path: 'research/result.md' }]), /Immutable/);
+    assert.throws(() => app.requests.progress(a.key, 'replace', [{ path: 'research/result.md' }]), /Registered file changed/);
     assert.equal(app.history('all').length, eventsBefore);
-    assert.throws(() => app.complete([published], 'replace proof'), /Immutable/);
-    const originalLog = readFileSync(join(root, log), 'utf8'), head = contextGit(root).head();
-    const forgedLog = originalLog.trimEnd().split('\n').map(line => {
-      const entry = JSON.parse(line); delete entry.artifacts; return JSON.stringify(entry);
-    }).join('\n') + '\n';
-    writeFileSync(join(root, log), forgedLog);
-    assert.throws(() => app.complete([published], 'hide previous publication'), /Append-only/);
-    assert.equal(contextGit(root).head(), head);
-    writeFileSync(join(root, log), originalLog);
+    assert.throws(() => app.complete([published], 'replace proof'), /Registered|Immutable/);
     writeFileSync(join(root, published), 'result');
     app.requests.progress(a.key, 'next version', [{ path: 'research/result-v2.md', text: 'replacement' }]);
     const injection = openDatabase(filename);
@@ -93,6 +89,23 @@ test('requests preserve source, allocate separate numbers, filter parents, exten
     assert.equal(app.read(sourcePath), interrupted.source);
     app.requests.create({ ...interrupted, adoptSource: true });
     assert.equal(app.requests.list().length, rows + 1);
+  } finally { app.close(); }
+});
+
+test('local task and journal saves never require a context Git repository', t => {
+  const { dir, filename } = state(t), root = join(dir, 'home');
+  initializeWorkspace(filename, root);
+  rmSync(join(root, '.git'), { recursive: true });
+  const app = createWorkspace(filename, false, root);
+  try {
+    const card = app.requests.create({ title: 'No Git', status: 'new', slug: 'local', source: 'exact\r\n' });
+    app.requests.change(card.key, { status: 'planning' }, 'working');
+    app.requests.progress(card.key, 'result', [{ path: 'result.md', text: 'proof' }]);
+    app.journal({ type: 'global' }, 'another entry');
+    assert.equal(app.read(card.contextDir + '/source.md'), 'exact\r\n');
+    assert.deepEqual(app.history({ type: 'request', key: card.key }).map(x => x.event_type),
+      ['request_created', 'status_changed', 'note']);
+    assert.equal(app.history('all').length, 4);
   } finally { app.close(); }
 });
 
@@ -125,10 +138,13 @@ test('abrupt exit after DB commit preserves identity/source; reconciliation adds
   const program = `import {createApp} from ${JSON.stringify(coreModule)};
 import {contextFiles} from ${JSON.stringify(filesModule)};
 const core=createApp(process.argv[1],false), files=contextFiles(process.argv[2]);
-const card=core.requests.create({projectId:null,title:'Interrupted',status:'new',slug:'interrupted'},
-  dir=>files.create(dir+'/source.md','original'));
-process.send(card);
-Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);`;
+core.serialize(() => {
+  const card=core.requests.create({projectId:null,title:'Interrupted',status:'new',slug:'interrupted'},
+    dir=>files.create(dir+'/source.md','original'));
+  core.journalStore.append({at:new Date().toISOString(),scope:{type:'request',key:'REQ-1'},event_type:'request_created',text:'Created'});
+  process.send(card);
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
+});`;
   const child = spawn(process.execPath, ['--input-type=module', '-e', program, filename, root],
     { stdio: ['ignore', 'ignore', 'pipe', 'ipc'] });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
@@ -142,13 +158,8 @@ Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);`;
   child.kill('SIGKILL'); await exit;
   const app = createWorkspace(filename, false, root);
   try {
-    const card = app.requests.get('REQ-1');
-    assert.equal(app.requests.list().length, 1);
-    assert.equal(app.read(card.contextDir + '/source.md'), 'original');
+    assert.equal(app.requests.list().length, 0);
     assert.equal(app.history('all').length, 0);
-    app.complete([card.contextDir + '/source.md'], 'Commit inspected source after interruption');
-    app.journal({ type: 'request', key: 'REQ-1' }, 'Checked current DB state: new; interrupted registration journal was absent.');
-    assert.deepEqual(app.history('all').map(e => e.event_type), ['note']);
-    assert.equal(app.requests.list().length, 1);
+    assert.equal(app.read('requests/REQ-1-interrupted/source.md'), 'original');
   } finally { app.close(); }
 });

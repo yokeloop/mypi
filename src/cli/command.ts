@@ -18,7 +18,7 @@ mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> [-s scope]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
-mypi journal add <text> [-s scope] | read [-s scope | --all] [--from UTC --to UTC --type type --limit n]
+mypi journal add <text> [-s scope] | read [-s scope | --all] [--from UTC --to UTC --type type --limit n] | import
 mypi request create [source | --file source] --title title --status code --slug slug [--project org/project] [--adopt-source]
 mypi request list [--project org/project --status code] | show <key>
 mypi request status <key> <code> --reason text | title <key> <title> --reason text
@@ -26,6 +26,9 @@ mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | restore <backup-directory>
+Task and journal saves are local SQLite operations, not Git commits or remote backups.
+Import legacy JSONL explicitly after stopping old writers; keep the original files.
+Existing backup still requires clean, published context files.
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;
 

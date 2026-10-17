@@ -17,10 +17,11 @@ export function verifyReferences(filename: string, root: string): void {
       const prefix = parent ? 'projects/' + parent.org + '/' + parent.slug + '/requests/' : 'requests/';
       if (!card.contextDir.startsWith(prefix + card.key + '-')
         || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(card.contextDir.slice((prefix + card.key + '-').length))) throw new Error('Invalid request context link');
-      if (files.read(card.contextDir + '/source.md') === undefined) throw new Error('Missing request source');
+      app.verifyFile(card.contextDir + '/source.md');
     }
     for (const entry of app.history('all')) for (const artifact of entry.artifacts ?? []) {
       if (!statSync(files.path(artifact)).isFile()) throw new Error('Missing artifact');
+      app.verifyFile(artifact);
     }
   } finally { app.close(); }
 }

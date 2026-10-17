@@ -29,6 +29,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     case 'memory add': return { name: 'memory_add', text: a[0]!, scope };
     case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), scope };
     case 'journal add': return { name: 'journal_add', text: a[0]!, scope: journalScope };
+    case 'journal import': return { name: 'journal_import' };
     case 'journal read': return { name: 'journal_read', scope: o['all'] ? 'all' : journalScope,
       ...(opt('from') === undefined ? {} : { from: opt('from')! }),
       ...(opt('to') === undefined ? {} : { to: opt('to')! }),

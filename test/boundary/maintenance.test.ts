@@ -26,6 +26,7 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   rmSync(join(root, 'MEMORY.md'));
   app.restoreContext('MEMORY.md', old);
   assert.deepEqual(app.memory.show().items.map(x => x.text), ['before']);
+  app.complete([card.contextDir + '/source.md', card.contextDir + '/artifacts/result.md'], 'Publish saved files for backup');
   app.close();
   const snapshot = join(dir, 'backup');
   await backupState(filename, snapshot, root);
