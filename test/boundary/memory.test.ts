@@ -49,30 +49,51 @@ test('warmup indexes nonterminal scoped work after filtering, with bounded chron
   let at = '2026-10-01T00:00:00Z';
   const app = createWorkspace(filename, false, root, () => at);
   try {
-    app.projects.add('one/project', 'MP'); app.projects.add('two/project', 'YM');
+    app.projects.add('one/project', 'MP'); app.projects.add('one/sibling', 'MS'); app.projects.add('two/project', 'YM');
     app.statuses.addStatus('finished', true);
     const foreign = app.requests.create({ project: 'two/project', title: 'foreign', status: 'new', slug: 'foreign', source: 'x' });
     const global = app.requests.create({ title: 'global', status: 'new', slug: 'global', source: 'x' });
     const keys: string[] = [];
-    for (let i = 0; i < 21; i++) keys.push(app.requests.create({ project: 'one/project', title: '😀'.repeat(1001),
+    for (let i = 0; i < 22; i++) keys.push(app.requests.create({ project: 'one/project', title: '😀'.repeat(1001),
       status: 'new', slug: 'item-' + i, source: 'x' }).key);
     app.requests.change(keys[0]!, { status: 'finished' }, 'done');
-    for (let i = 0; i < 11; i++) app.journal({ type: 'project', key: 'MP' }, 'event ' + i);
+    for (let i = 0; i < 30; i++) {
+      app.journal({ type: 'project', key: 'MP' }, 'event ' + i);
+      app.journal({ type: 'project', key: 'YM' }, 'foreign event ' + i);
+    }
+    for (let i = 0; i < 12; i++) {
+      app.journal({ type: 'global' }, 'global event ' + i);
+      app.journal({ type: 'request', key: global.key }, 'projectless event ' + i);
+    }
+    app.journal({ type: 'project', key: 'MS' }, 'sibling event');
+    at = '2026-09-30T23:59:59Z';
+    app.journal({ type: 'project', key: 'MP' }, 'late insert older timestamp');
     const original = readFileSync(filename);
     writeFileSync(join(root, '.git/index.lock'), 'no Git');
     const project = app.warmup('one/project');
-    assert.equal(project.work.openTaskCount, 20);
+    assert.equal(project.work.openTaskCount, 21);
     assert.equal(project.work.tasks.length, 20);
-    assert.equal(project.work.tasks[0]!.key, keys[20]);
+    assert.equal(project.work.tasks[0]!.key, keys[21]);
     assert.equal(project.work.tasks[0]!.title.text, '😀'.repeat(1000));
     assert.equal(project.work.tasks[0]!.title.truncated, true);
     assert.equal(project.work.events.length, 10);
     assert.equal(project.work.olderEvents, true);
-    assert.equal(project.work.events.at(-1)!.text.text, 'event 10');
+    assert.equal(project.work.events.at(-1)!.text.text, 'event 29');
+    assert.equal(project.work.events[0]!.text.text, 'event 20');
+    assert.equal(project.work.events[0]!.read.at, '2026-10-01T00:00:00Z');
+    assert.equal(app.history({ type: 'global' }).length, 12, 'journal_read global excludes projectless requests');
     assert(!JSON.stringify(project).includes('foreign'));
     const globalIndex = app.warmup().work;
     assert.deepEqual(globalIndex.tasks.map(task => task.key), [global.key]);
     assert(globalIndex.events.some(event => event.scope.type === 'request' && event.scope.key === global.key));
+    assert(globalIndex.events.some(event => event.text.text === 'projectless event 11'));
+    assert(!globalIndex.events.some(event => event.text.text === 'projectless event 0'));
+    assert.equal(globalIndex.olderEvents, true);
+    assert(!globalIndex.events.some(event => event.scope.type === 'project'));
+    const orgIndex = app.warmup('one').work;
+    assert.equal(orgIndex.openTaskCount, 21);
+    assert.equal(orgIndex.events.at(-1)!.text.text, 'sibling event');
+    assert(!orgIndex.events.some(event => event.scope.type === 'global' || event.text.text.includes('foreign')));
     assert(!globalIndex.events.some(event => event.scope.type === 'request' && event.scope.key === foreign.key));
     assert.equal(readFileSync(filename).equals(original), true);
   } finally { app.close(); }

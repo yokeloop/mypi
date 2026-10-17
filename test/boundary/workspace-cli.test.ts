@@ -71,8 +71,13 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   await cli('context', 'commit', request.contextDir + '/source.md', request.contextDir + '/artifacts/proof.md', '--message', 'Publish files for backup');
   assert.equal((await cli('journal', 'read', '-s', 'request:MP-1', '--type', 'status_changed')).length, 1);
   assert(!JSON.stringify(await cli('warmup', '-s', 'one/project')).includes('original'));
+  const beforeRemoval = await cli('memory', 'show');
   await assert.rejects(cli('memory', 'remove', '1'), /expected-revision/);
-  await cli('memory', 'remove', '1', '--expected-revision', (await cli('memory', 'show')).revision);
+  assert.deepEqual(await cli('memory', 'show'), beforeRemoval);
+  const stale = run(root, ['memory', 'remove', '1', '--expected-revision', '0'.repeat(64)], 1);
+  assert.match(JSON.stringify(stale), /revision/);
+  assert.deepEqual(await cli('memory', 'show'), beforeRemoval);
+  await cli('memory', 'remove', '1', '--expected-revision', beforeRemoval.revision);
   const snapshot = join(dir, 'snapshot'); await cli('backup', snapshot);
   const restored = installation('restored');
   run(restored, ['restore', snapshot]);

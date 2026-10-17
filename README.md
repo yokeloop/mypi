@@ -142,10 +142,11 @@ exposure (mostly codemode; project resolution and warmup are direct).
 
 The shipped extension registers the built-in `mypi` MCP server using Node on PATH.
 It independently launches this package's built CLI with Node for read-only scoped
-warmup before each model turn (5-second deadline), even when MCP is disabled or
-overridden. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable
-rather than Node. `--mypi-scope org` or `--mypi-scope org/project` selects an explicit
-scope at startup; otherwise a registered cwd resolves to its project, the installation
+warmup at session start and after applicable memory reads/writes (5-second deadline),
+then reuses the session snapshot on ordinary turns and compaction, even when MCP is disabled
+or overridden. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable
+rather than Node. `--mypi-scope global`, `--mypi-scope org` or `--mypi-scope org/project`
+selects an explicit scope at startup; otherwise a registered cwd resolves to its project, the installation
 root selects global, and unresolved/ambiguous cwd fails visibly. Session metadata
 binds installation, state directory and scope. `--mypi-no-autoload` disables only
 CLI autoload, not MCP. A file-configured server with the same name overrides the MCP

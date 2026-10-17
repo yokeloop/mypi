@@ -131,7 +131,10 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
         const projects = core.projects.list();
         return warmup(resolved, memory, inbox, files.read,
           resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects, journal.read,
-          core.requests.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])));
+          core.requests.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
+          (selected, limit) => database.journalStore.recentWork(selected.type === 'global' ? { type: 'global' }
+            : selected.type === 'org' ? { type: 'org', slug: selected.slug }
+              : { type: 'project', code: selected.project.code }, limit));
       });
     },
   };

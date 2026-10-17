@@ -12,7 +12,7 @@ function brief(text: string) {
 
 export function warmup(scope: ProjectScope, memory: ReturnType<typeof createMemory>, inbox: ReturnType<typeof createInbox>,
   read: (path: string) => string | undefined, projects: unknown[], history: (scope: Scope | 'all', options?: { limit?: number }) => Entry[],
-  cards: Card[], projectIds: ReadonlyMap<number, { org: string; code: string }>) {
+  cards: Card[], projectIds: ReadonlyMap<number, { org: string; code: string }>, recentWork: (scope: ProjectScope, limit: number) => Entry[]) {
   const memories = [memory.show('')];
   const matches = (card: Card) => scope.type === 'global' ? card.projectId === null
     : card.projectId !== null && (() => {
@@ -26,14 +26,9 @@ export function warmup(scope: ProjectScope, memory: ReturnType<typeof createMemo
     path: card.contextDir + '/source.md' }));
   const eventScope: Scope = scope.type === 'global' ? { type: 'global' }
     : scope.type === 'org' ? { type: 'org', key: scope.slug } : { type: 'project', key: scope.project.code };
-  // journal_read(global) intentionally remains global-only. The work index also includes
-  // projectless request events, selected by their persisted request identity.
-  const requestless = new Set(cards.filter(card => card.projectId === null).map(card => 'REQ-' + card.number));
-  const events = scope.type === 'global'
-    ? history('all').filter(entry => entry.scope.type === 'global'
-      || (entry.scope.type === 'request' && requestless.has(entry.scope.key)))
-    : history(eventScope, { limit: 11 });
-  const recent = events.slice(-11);
+  // journal_read retains its own global-only semantics; the SQL work index includes
+  // projectless requests and selects at most eleven qualifying rows before decoding.
+  const recent = recentWork(scope, 11);
   const work = { tasks, openTaskCount: open.length, events: recent.slice(-10).map(entry => ({
     ...entry, text: brief(entry.text), read: { scope: entry.scope, at: entry.at } })),
     olderEvents: recent.length > 10 };
