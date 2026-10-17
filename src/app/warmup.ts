@@ -3,7 +3,6 @@ import type { createMemory } from '../modules/memory/public.js';
 import type { createInbox } from '../modules/inbox/public.js';
 import type { Card } from '../modules/requests/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
-import type { Scope } from '../shared/scope.js';
 
 function brief(text: string) {
   const points = Array.from(text);
@@ -11,7 +10,7 @@ function brief(text: string) {
 }
 
 export function warmup(scope: ProjectScope, memory: ReturnType<typeof createMemory>, inbox: ReturnType<typeof createInbox>,
-  read: (path: string) => string | undefined, projects: unknown[], history: (scope: Scope | 'all', options?: { limit?: number }) => Entry[],
+  read: (path: string) => string | undefined, projects: unknown[],
   cards: Card[], projectIds: ReadonlyMap<number, { org: string; code: string }>, recentWork: (scope: ProjectScope, limit: number) => Entry[]) {
   const memories = [memory.show('')];
   const matches = (card: Card) => scope.type === 'global' ? card.projectId === null
@@ -24,20 +23,19 @@ export function warmup(scope: ProjectScope, memory: ReturnType<typeof createMemo
   const tasks = open.slice(0, 20).map(card => ({ key: (card.projectId === null ? 'REQ' : projectIds.get(card.projectId)!.code)
     + '-' + card.number, title: brief(card.title), status: card.status, updatedAt: card.updatedAt,
     path: card.contextDir + '/source.md' }));
-  const eventScope: Scope = scope.type === 'global' ? { type: 'global' }
-    : scope.type === 'org' ? { type: 'org', key: scope.slug } : { type: 'project', key: scope.project.code };
-  // journal_read retains its own global-only semantics; the SQL work index includes
-  // projectless requests and selects at most eleven qualifying rows before decoding.
+  // journal_read retains its own global-only semantics; the bounded SQL selection
+  // supplies both the work excerpts and the full-text legacy scoped history.
   const recent = recentWork(scope, 11);
+  const history = recent.slice(-10);
   const work = { tasks, openTaskCount: open.length, events: recent.slice(-10).map(entry => ({
     ...entry, text: brief(entry.text), read: { scope: entry.scope, at: entry.at } })),
     olderEvents: recent.length > 10 };
   if (scope.type === 'global') return { memory: memories, projects, inbox: inbox.index().slice(-10), work };
   const org = scope.type === 'org' ? scope.slug : scope.project.org;
   memories.push(memory.show('projects/' + org));
-  if (scope.type === 'org') return { memory: memories, projects, history: history(eventScope, { limit: 10 }), work };
+  if (scope.type === 'org') return { memory: memories, projects, history, work };
   const base = 'projects/' + org + '/' + scope.project.slug;
   memories.push(memory.show(base));
   return { memory: memories, glossary: read(base + '/context.md') ?? '',
-    history: history(eventScope, { limit: 10 }), work };
+    history, work };
 }

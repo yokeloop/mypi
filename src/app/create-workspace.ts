@@ -130,7 +130,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       return database.readSnapshot(() => {
         const projects = core.projects.list();
         return warmup(resolved, memory, inbox, files.read,
-          resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects, journal.read,
+          resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects,
           core.requests.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
           (selected, limit) => database.journalStore.recentWork(selected.type === 'global' ? { type: 'global' }
             : selected.type === 'org' ? { type: 'org', slug: selected.slug }

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
 
 test('memory, notes, errors, capture and scoped warmup preserve originals, parent context and read-only behavior', t => {
   const { dir, filename } = state(t), root = join(dir, 'home');
@@ -61,6 +62,10 @@ test('warmup indexes nonterminal scoped work after filtering, with bounded chron
       app.journal({ type: 'project', key: 'MP' }, 'event ' + i);
       app.journal({ type: 'project', key: 'YM' }, 'foreign event ' + i);
     }
+    const fullText = 'duplicate\n' + 'あ'.repeat(1100);
+    app.journal({ type: 'project', key: 'MP' }, fullText);
+    app.journal({ type: 'project', key: 'MP' }, fullText);
+    app.journal({ type: 'request', key: keys[1]! }, 'child request event');
     for (let i = 0; i < 12; i++) {
       app.journal({ type: 'global' }, 'global event ' + i);
       app.journal({ type: 'request', key: global.key }, 'projectless event ' + i);
@@ -78,11 +83,23 @@ test('warmup indexes nonterminal scoped work after filtering, with bounded chron
     assert.equal(project.work.tasks[0]!.title.truncated, true);
     assert.equal(project.work.events.length, 10);
     assert.equal(project.work.olderEvents, true);
-    assert.equal(project.work.events.at(-1)!.text.text, 'event 29');
-    assert.equal(project.work.events[0]!.text.text, 'event 20');
+    assert.equal(project.work.events.at(-1)!.text.text, 'child request event');
+    assert.equal(project.work.events[0]!.text.text, 'event 23');
     assert.equal(project.work.events[0]!.read.at, '2026-10-01T00:00:00Z');
     assert.equal(app.history({ type: 'global' }).length, 12, 'journal_read global excludes projectless requests');
     assert(!JSON.stringify(project).includes('foreign'));
+    const projectHistory = project.history;
+    assert(projectHistory);
+    assert.deepEqual(projectHistory.map(entry => entry.text),
+      [...Array.from({ length: 7 }, (_, i) => 'event ' + (i + 23)), fullText, fullText, 'child request event']);
+    assert.deepEqual(projectHistory.map(entry => entry.scope.type),
+      [...Array(9).fill('project'), 'request']);
+    assert.deepEqual(projectHistory.map(entry => entry.at), Array(10).fill('2026-10-01T00:00:00Z'));
+    assert.equal(projectHistory[7]!.text, fullText, 'legacy history retains full Unicode text');
+    assert.equal(project.work.events[7]!.text.truncated, true);
+    assert.equal(project.work.events[7]!.text.text, Array.from(fullText).slice(0, 1000).join(''));
+    assert.deepEqual(projectHistory[9], { at: '2026-10-01T00:00:00Z',
+      scope: { type: 'request', key: keys[1] }, event_type: 'note', text: 'child request event' });
     const globalIndex = app.warmup().work;
     assert.deepEqual(globalIndex.tasks.map(task => task.key), [global.key]);
     assert(globalIndex.events.some(event => event.scope.type === 'request' && event.scope.key === global.key));
@@ -90,11 +107,25 @@ test('warmup indexes nonterminal scoped work after filtering, with bounded chron
     assert(!globalIndex.events.some(event => event.text.text === 'projectless event 0'));
     assert.equal(globalIndex.olderEvents, true);
     assert(!globalIndex.events.some(event => event.scope.type === 'project'));
-    const orgIndex = app.warmup('one').work;
+    const org = app.warmup('one'), orgIndex = org.work;
     assert.equal(orgIndex.openTaskCount, 21);
     assert.equal(orgIndex.events.at(-1)!.text.text, 'sibling event');
     assert(!orgIndex.events.some(event => event.scope.type === 'global' || event.text.text.includes('foreign')));
+    const orgHistory = org.history;
+    assert(orgHistory);
+    assert.deepEqual(orgHistory.map(entry => entry.text),
+      [...Array.from({ length: 6 }, (_, i) => 'event ' + (i + 24)), fullText, fullText, 'child request event', 'sibling event']);
+    assert.deepEqual(orgHistory.map(entry => entry.scope.type),
+      [...Array(8).fill('project'), 'request', 'project']);
     assert(!globalIndex.events.some(event => event.scope.type === 'request' && event.scope.key === foreign.key));
     assert.equal(readFileSync(filename).equals(original), true);
+    // An older row with unreadable metadata remains outside the last-eleven work window.
+    // Legacy history scans/decode-all would fail this full warmup; journal_read stays strict.
+    const db = openDatabase(filename);
+    try { db.prepare("UPDATE knowledge_journal SET artifacts_json='not json' WHERE text='event 0'").run(); }
+    finally { db.close(); }
+    assert.deepEqual(app.warmup('one/project').history, projectHistory);
+    assert.deepEqual(app.warmup('one').history, orgHistory);
+    assert.throws(() => app.history({ type: 'project', key: 'MP' }), /JSON/);
   } finally { app.close(); }
 });
