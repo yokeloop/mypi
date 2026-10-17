@@ -6,9 +6,10 @@ mypi provides local memory, projects, request records, CLI and stdio MCP tools.
 Pi starts from this checkout as one workspace for all managed projects. These
 workspace rules apply to user-directed work here; engine-development rules below
 apply only when changing mypi itself, not the code in managed project checkouts.
-The former mandatory memory/task/session workflow has been withdrawn. There is
-no required MCP warmup, request registration, automatic outcome logging, Herdr tab,
-or delegation step before doing work. Follow the user's requested scope and session.
+The former mandatory memory/task/session workflow has been withdrawn. Optional
+Pi CLI autoload reads scoped context at model start; it does not register tasks,
+log outcomes or authorize work. No MCP warmup, request registration, outcome
+logging or Herdr tab is a prerequisite. Follow the user's requested scope and session.
 
 ## Instruction ownership
 
@@ -38,8 +39,9 @@ or delegation step before doing work. Follow the user's requested scope and sess
   or ask for repeated authorization solely because the topic changed. A real
   blocker still requires reporting or clarification; continuity grants no new scope.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
-- Do not create tabs or subagents unless explicitly requested for the work.
-  Task worktrees follow the common project workflow below.
+- Do not create tabs or subagents unless explicitly requested for the work or
+  authorized by the engine feature-development workflow below. Task worktrees
+  follow the common project workflow below.
 - Check Git status before editing and after pushing. If a push is unavailable
   or fails, keep the work, report its actual state and ask for direction rather
   than claiming delivery or retrying blindly. Arrange a suitable remote before
@@ -163,6 +165,19 @@ or delegation step before doing work. Follow the user's requested scope and sess
   locked dependencies/build as prescribed, then reload/restart and verify. Do not
   substitute file copying, cherry-picking or a hard reset. Do not connect candidate
   builds to personal DB/home. Migrations remain separately authorized operations.
+
+## Engine feature-development workflow
+
+For an approved mypi engine feature plan, use native subagents for implementation,
+independent test-diff review and verification. Assemble a tested task branch, push
+and open a PR with evidence; do not merge or update the primary installation by
+inference. When live acceptance applies, use a designated disposable test
+installation: archive existing test data before a clean refresh, write an executable
+checklist, exercise the real Pi UI through Herdr, verify state independently, and
+fix and retest in-scope failures without requesting repeated permission. See
+[the manual acceptance guide](docs/MANUAL-ACCEPTANCE.md) for stand boundaries.
+This standing authorization is for approved engine features, not managed project
+checkouts, backlog execution, arbitrary resets, other sessions or a flow runner.
 
 ## Developing the engine
 

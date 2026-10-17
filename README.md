@@ -6,8 +6,8 @@ A project-centered memory and request system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
 scoped journal, context Git, backup/restore, CLI and 32 stdio MCP tools over one API.
-These are optional tools, not a mandatory agent workflow. Connecting mypi does not
-require task registration, memory warmup, automatic logging or a separate Herdr tab.
+The Pi package optionally autoloads the ordinary scoped CLI warmup into the system
+prompt; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
 **Future:** units, project flows, runtime enforcement and agents with different scopes.
@@ -141,8 +141,17 @@ server, not by scanning a folder of tool files. Their schemas use the configured
 exposure (mostly codemode; project resolution and warmup are direct).
 
 The shipped extension registers the built-in `mypi` MCP server using Node on PATH.
-Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable rather
-than Node. A file-configured server with the same name overrides the registration.
+It independently launches this package's built CLI with Node for read-only scoped
+warmup before each model turn (5-second deadline), even when MCP is disabled or
+overridden. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable
+rather than Node. `--mypi-scope org` or `--mypi-scope org/project` selects an explicit
+scope at startup; otherwise a registered cwd resolves to its project, the installation
+root selects global, and unresolved/ambiguous cwd fails visibly. Session metadata
+binds installation, state directory and scope. `--mypi-no-autoload` disables only
+CLI autoload, not MCP. A file-configured server with the same name overrides the MCP
+registration but does not retarget the CLI. Use isolated state environment when
+selecting a test installation; the session reports its chosen installation/state.
+Memory over 32 KiB is not truncated into the prompt; use scoped CLI full reads.
 For example, this user configuration disables the built-in server:
 
 ```json

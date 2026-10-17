@@ -2,8 +2,11 @@
 
 Use this guide when the operator requests end-to-end acceptance in a disposable
 installation such as `mypi-test`, including driving the real Pi UI through Herdr.
-It records the method used for MP-20 ([PR #29](https://github.com/yokeloop/mypi/pull/29)),
-not a standing authorization to reset storage, control another session or merge.
+It records the method used for MP-20 ([PR #29](https://github.com/yokeloop/mypi/pull/29)).
+The [engine feature-development workflow](../AGENTS.md#engine-feature-development-workflow)
+authorizes clean, recoverable acceptance for an approved feature in its designated
+test installation. It does not authorize arbitrary resets, control of unrelated
+sessions or merge.
 
 The practical sequence is **clean stand → explicit checklist → real UI/MCP exercise
 → independent CLI/state checks → per-criterion evidence → operator acceptance**.
@@ -21,8 +24,8 @@ when a small existing boundary test protects the contract.
 Confirm the candidate SHA/PR, criteria, target installation, permitted reset paths,
 Herdr workspace/tab, and whether the agent may drive it or only prepare it for the
 operator. Explicitly distinguish test home/database from existing project checkouts,
-archives and the primary installation. Obtain missing reset/control authorization;
-previous acceptance is not permission for future destructive setup.
+archives and the primary installation. Obtain missing reset/control authorization outside the designated, approved
+feature stand; previous acceptance is not permission for other destructive setup.
 
 Interactive Pi/provider use is a separately authorized live exercise, outside the
 network-free fast/boundary suites. State its allowed tools, provider access, bounded
