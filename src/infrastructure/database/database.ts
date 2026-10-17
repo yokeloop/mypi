@@ -25,6 +25,11 @@ export function initializeDatabase(filename: string, createOnly = false): void {
   if (createOnly) closeSync(openSync(filename, 'wx', 0o600));
   const db = connect(filename, false, false);
   try {
+    const current = version(db);
+    if (current > schemaVersion) throw new Error('Database schema is newer than this application');
+    // SQLite cannot change journal mode inside a transaction. Only explicit init/upgrade
+    // switches mode; ordinary opens, including readonly reads, never configure it.
+    if (db.pragma('journal_mode = WAL', { simple: true }) !== 'wal') throw new Error('Could not enable SQLite WAL');
     db.transaction(() => {
       const current = version(db);
       if (current > schemaVersion) throw new Error('Database schema is newer than this application');

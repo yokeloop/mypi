@@ -21,7 +21,7 @@ export function importLegacyJournal(files: ContextFiles & { path(path: string): 
     const text = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
     if (text && !text.endsWith('\n')) throw new Error(path + ': incomplete final line');
     const entries: Entry[] = [];
-    for (const [index, line] of text.slice(0, -1).split('\n').entries()) {
+    for (const [index, line] of (text ? text.slice(0, -1).split('\n') : []).entries()) {
       try {
         const entry = JSON.parse(line) as Entry;
         if (!entry.at.startsWith(name.slice(0, 7) + '-')) throw new Error('Wrong rotation month');
@@ -40,6 +40,10 @@ export function importLegacyJournal(files: ContextFiles & { path(path: string): 
   if (registered.length) { git.clean(registered); git.validate(registered); }
   const fingerprints: FileFingerprint[] = [...new Set([...paths, ...sourcePaths])].map(path => fileFingerprint(files, path, clock()));
   return serialize(() => {
+    const present = new Set(sources.map(source => source.path));
+    for (const imported of store.journalImports()) {
+      if (!present.has(imported.path)) throw new Error('Imported legacy journal missing: ' + imported.path);
+    }
     let imported = 0;
     for (const source of sources) {
       if (store.journalImport(source.path)) continue;

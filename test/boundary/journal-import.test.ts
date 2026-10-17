@@ -1,37 +1,63 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { writeFileSync, readFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
 import { contextGit } from '../../src/infrastructure/git/context-git.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
 
-test('explicit legacy import keeps duplicate source lines, checks replay bytes and refuses changed published files', t => {
+test('explicit legacy import preserves exact rows/files, empty input and replay; refuses changed or missing input', t => {
   const { dir, filename } = state(t), root = join(dir, 'home');
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
     const card = app.requests.create({ title: 'Legacy', status: 'new', slug: 'legacy', source: 'original' });
-    const artifact = card.contextDir + '/proof.md', log = 'journal/2026-01.jsonl';
+    const artifact = card.contextDir + '/proof.md', log = 'journal/2026-01.jsonl', empty = 'journal/2026-02.jsonl';
     contextFiles(root).create(artifact, 'evidence');
     const entry = { at: '2026-01-01T00:00:00Z', scope: { type: 'request', key: card.key },
       event_type: 'note', text: 'same', artifacts: [artifact] };
-    contextFiles(root).create(log, JSON.stringify(entry) + '\n' + JSON.stringify(entry) + '\n');
-    contextGit(root).commit([card.contextDir + '/source.md', artifact, log], 'Publish legacy files');
-    assert.deepEqual(app.importJournal(), { imported: 2 });
+    const bytes = Buffer.from(JSON.stringify(entry) + '\n' + JSON.stringify(entry) + '\n'
+      + JSON.stringify({ ...entry, text: 'different\ntext' }) + '\n');
+    contextFiles(root).create(log, bytes.toString('utf8'));
+    contextFiles(root).create(empty, '');
+    contextGit(root).commit([card.contextDir + '/source.md', artifact, log, empty], 'Publish legacy files');
+    const rows = () => {
+      const db = openDatabase(filename, true);
+      try { return { journal: db.prepare('SELECT * FROM knowledge_journal ORDER BY id').all(),
+        imports: db.prepare('SELECT * FROM knowledge_journal_imports ORDER BY path').all() }; }
+      finally { db.close(); }
+    };
+    assert.deepEqual(app.importJournal(), { imported: 3 });
+    assert.deepEqual(readFileSync(join(root, log)), bytes);
+    assert.equal(readFileSync(join(root, empty)).length, 0);
+    assert.deepEqual(app.history({ type: 'request', key: card.key }).map(e => [e.text, e.artifacts ?? []]),
+      [['same', [artifact]], ['same', [artifact]], ['different\ntext', [artifact]], ['Request registered.', []]]);
+    const saved = rows();
+    assert.equal(saved.imports.length, 2);
     assert.deepEqual(app.importJournal(), { imported: 0 });
-    assert.equal(app.history({ type: 'request', key: card.key }).length, 3);
+    assert.deepEqual(rows(), saved);
     writeFileSync(join(root, artifact), 'changed');
     assert.throws(() => app.requests.progress(card.key, 'reuse', [{ path: 'proof.md' }]), /Registered file changed/);
     writeFileSync(join(root, artifact), 'evidence');
-    const before = readFileSync(join(root, log));
-    writeFileSync(join(root, log), Buffer.concat([before, Buffer.from('broken\n')]));
+    writeFileSync(join(root, log), Buffer.concat([bytes, Buffer.from('broken\n')]));
     assert.throws(() => app.importJournal(), /Legacy journal changed after import/);
-    assert.equal(app.history({ type: 'request', key: card.key }).length, 3);
-    writeFileSync(join(root, log), before);
-    contextFiles(root).create('journal/2026-02.jsonl', 'broken\n');
-    assert.throws(() => app.importJournal(), /journal\/2026-02.jsonl:1/);
-    assert.equal(app.history('all').length, 3);
+    assert.deepEqual(rows(), saved);
+    writeFileSync(join(root, log), bytes);
+    rmSync(join(root, empty));
+    assert.throws(() => app.importJournal(), /Imported legacy journal missing: journal\/2026-02.jsonl/);
+    assert.deepEqual(rows(), saved);
+    contextFiles(root).create(empty, '');
+    assert.deepEqual(app.importJournal(), { imported: 0 });
+    assert.deepEqual(rows(), saved);
+    const invalid = join(root, 'journal/2026-03.jsonl');
+    contextFiles(root).create('journal/2026-03.jsonl', '\n');
+    assert.throws(() => app.importJournal(), /journal\/2026-03.jsonl:1/);
+    writeFileSync(invalid, 'broken\n');
+    assert.throws(() => app.importJournal(), /journal\/2026-03.jsonl:1/);
+    writeFileSync(invalid, 'broken');
+    assert.throws(() => app.importJournal(), /journal\/2026-03.jsonl: incomplete final line/);
+    assert.deepEqual(rows(), saved);
   } finally { app.close(); }
 });

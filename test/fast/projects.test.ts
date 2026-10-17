@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, readFileSync, readdirSync, existsSync, symlinkSync } from 'node:fs';
+import { mkdirSync, readFileSync, readdirSync, existsSync, symlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { state } from '../support/state.js';
@@ -62,7 +62,7 @@ test('invalid identities/codes never register an organization or create context'
     }
     assert.throws(() => app.projects.add('one/project', 'MP', filename), /directory/);
     assert.deepEqual(app.projects.list(), []);
-    assert.deepEqual(readdirSync(dir), ['state.sqlite3']);
+    assert.deepEqual(readdirSync(dir), ['state.sqlite3', 'state.sqlite3-shm', 'state.sqlite3-wal']);
   } finally { app.close(); }
 });
 
@@ -71,7 +71,7 @@ test('read APIs leave database bytes and filesystem unchanged; absent database i
   const write = createApp(filename, false);
   const expected = write.projects.add('one/project', 'MP');
   write.close();
-  const before = readFileSync(filename);
+  const before = readFileSync(filename), beforeFiles = readdirSync(dir);
   const read = createApp(filename, true);
   try {
     assert.deepEqual(read.projects.list(), [expected]);
@@ -82,7 +82,12 @@ test('read APIs leave database bytes and filesystem unchanged; absent database i
     assert.equal(sourceCalled, false, 'readonly must reject before source writes');
   } finally { read.close(); }
   assert.deepEqual(readFileSync(filename), before);
-  assert.deepEqual(readdirSync(dir), ['state.sqlite3']);
+  const afterFiles = readdirSync(dir);
+  const added = afterFiles.filter(name => !beforeFiles.includes(name));
+  assert(added.every(name => name === 'state.sqlite3-wal' || name === 'state.sqlite3-shm'));
+  assert.deepEqual(beforeFiles.filter(name => !afterFiles.includes(name)), []);
+  for (const name of added) assert(statSync(join(dir, name)).isFile(), 'SQLite sidecar must be a regular file');
+  assert.equal(statSync(dir).mode & 0o777, 0o700, 'SQLite sidecars remain inside the private state directory');
   const missing = join(dir, 'absent', 'state.sqlite3');
   assert.throws(() => createApp(missing, true));
   assert.equal(existsSync(join(dir, 'absent')), false);

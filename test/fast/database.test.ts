@@ -1,4 +1,5 @@
 import test from 'node:test';
+import Database from 'better-sqlite3';
 import assert from 'node:assert/strict';
 import { initializeDatabase, openDatabase } from '../../src/infrastructure/database/database.js';
 import { createApp } from '../../src/app/create-app.js';
@@ -33,9 +34,26 @@ test('STRICT types, relational uniqueness and foreign keys are enforced by real 
   } finally { db.close(); }
 });
 
+test('readonly connection observes committed rows in an active writer WAL without write access', t => {
+  const { filename } = state(t);
+  const writer = openDatabase(filename);
+  try {
+    writer.pragma('wal_autocheckpoint = 0');
+    writer.prepare("INSERT INTO organizations(slug) VALUES ('visible')").run();
+    const reader = openDatabase(filename, true);
+    try {
+      assert.equal(reader.pragma('journal_mode', { simple: true }), 'wal');
+      assert.deepEqual(reader.prepare('SELECT slug FROM organizations WHERE slug = ?').get('visible'), { slug: 'visible' });
+      assert.throws(() => reader.prepare("INSERT INTO organizations(slug) VALUES ('forbidden')").run(), /readonly/i);
+      assert.equal((reader.pragma('user_version', { simple: true }) as number), 2);
+    } finally { reader.close(); }
+  } finally { writer.close(); }
+});
+
 test('migration is repeatable without reseeding renamed/custom statuses; newer schema is rejected', t => {
   const { filename } = state(t);
   let db = openDatabase(filename);
+  assert.equal(db.pragma('journal_mode', { simple: true }), 'wal');
   assert.deepEqual(db.prepare('SELECT code, is_terminal FROM request_statuses ORDER BY id').all(),
     ['new', 'research', 'planning', 'in_progress', 'review', 'blocked', 'paused', 'done', 'failed', 'cancelled']
       .map(code => ({ code, is_terminal: ['done', 'failed', 'cancelled'].includes(code) ? 1 : 0 })));
@@ -44,13 +62,23 @@ test('migration is repeatable without reseeding renamed/custom statuses; newer s
   const expected = db.prepare('SELECT * FROM request_statuses ORDER BY id').all();
   db.exec('DROP TABLE knowledge_file_fingerprints; DROP TABLE knowledge_journal_imports; DROP TABLE knowledge_journal;');
   db.pragma('user_version = 1');
+  assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   db.close();
+  assert.throws(() => openDatabase(filename, true), /compatible/);
+  // Failed ordinary opens cannot migrate or switch journal mode.
   initializeDatabase(filename);
   db = openDatabase(filename);
+  assert.equal(db.pragma('journal_mode', { simple: true }), 'wal');
   try {
     assert.deepEqual(db.prepare('SELECT * FROM request_statuses ORDER BY id').all(), expected);
     db.pragma('user_version = 3');
+    assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
   assert.throws(() => openDatabase(filename), /compatible/);
+  const unsupported = new Database(filename, { readonly: true, fileMustExist: true });
+  try {
+    assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
+    assert.equal(unsupported.pragma('user_version', { simple: true }), 3);
+  } finally { unsupported.close(); }
 });

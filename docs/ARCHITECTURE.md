@@ -65,7 +65,12 @@ requests(id, project_id, number, title, status_id,
 
 Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
-readonly opens do not create missing DBs. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
+readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
+schema transaction; ordinary opens do not change journal mode. SQLite may create its
+own `state.sqlite3-wal`/`state.sqlite3-shm` sidecars in the private state directory
+even for a readonly connection; readonly means no user-data, schema or context write.
+An unwritable location without required WAL artifacts may return SQLite's error;
+there is no automatic initialization or workaround. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
 fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
 Git, including symlink aliases; created parent directories 0700 and DB 0600.
 

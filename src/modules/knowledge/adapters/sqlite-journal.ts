@@ -13,6 +13,7 @@ function digest(value: string): void {
 export function sqliteJournalStore(db: Database): JournalStore & {
   importEntry(path: string, line: number, entry: Entry): void;
   journalImport(path: string): JournalImport | undefined;
+  journalImports(): JournalImport[];
   recordJournalImport(input: JournalImport): void;
   fingerprint(path: string): FileFingerprint | undefined;
   saveFingerprint(input: FileFingerprint): void;
@@ -43,6 +44,9 @@ export function sqliteJournalStore(db: Database): JournalStore & {
     journalImport(path) {
       const row = db.prepare('SELECT path,sha256,byte_length AS byteLength,imported_at AS importedAt FROM knowledge_journal_imports WHERE path=?').get(path) as JournalImport | undefined;
       return row;
+    },
+    journalImports() {
+      return db.prepare('SELECT path,sha256,byte_length AS byteLength,imported_at AS importedAt FROM knowledge_journal_imports ORDER BY path').all() as JournalImport[];
     },
     recordJournalImport(input) {
       assertWritable(); digest(input.sha256);
