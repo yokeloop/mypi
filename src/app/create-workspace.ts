@@ -9,7 +9,8 @@ import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
 import { createJournal, createNotes } from '../modules/knowledge/public.js';
-import { jsonlJournal } from '../modules/knowledge/adapters/jsonl-journal.js';
+import { importLegacyJournal } from './import-journal.js';
+import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 import { sameScope, scopeValue } from '../shared/scope.js';
 import type { Scope } from '../shared/scope.js';
 import type { Card } from '../modules/requests/public.js';
@@ -58,8 +59,13 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     if (scope.type === 'project' && filter.type === 'org') return core.projects.list().some(p => p.code === scope.key && p.org === filter.key);
     return false;
   }
-  const journal = createJournal(jsonlJournal(root), resolve, contains, clock);
-  const requests = requestWork(core, files, git, journal, requestKey);
+  const journal = createJournal(database.journalStore, resolve, contains, clock);
+  function verifyFile(path: string): void {
+    const saved = database.journalStore.fingerprint(path);
+    if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
+    matchesFingerprint(saved, fileFingerprint(files, path, clock()));
+  }
+  const requests = requestWork(database, files, database.journalStore, journal, requestKey, clock);
   function contextPath(scope?: string): string {
     const resolved = core.projects.resolveScope(scope);
     if (resolved.type === 'global') return '';
@@ -86,13 +92,25 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     },
     history: journal.read,
     journal(scope: Scope, text: string) {
-      const entry = journal.record(scope, text), path = 'journal/' + entry.at.slice(0, 7) + '.jsonl';
-      return core.serialize(() => changeContext(git, [path], () => { journal.append(entry); }, text));
+      const entry = journal.record(scope, text);
+      return database.serialize(() => journal.append(entry));
     },
+    importJournal() { return importLegacyJournal(files, git, database.journalStore, database.serialize, clock,
+      database.requests.list().map(card => card.contextDir + '/source.md'), resolve); },
+    verifyFile,
     read: files.read,
-    restoreContext(path: string, revision: string) { return core.serialize(() => git.restoreFile(path, revision)); },
+    restoreContext(path: string, revision: string) {
+      if (database.journalStore.fingerprint(path) || journal.published().has(path)) throw new InputError('Registered file cannot be restored');
+      return core.serialize(() => git.restoreFile(path, revision));
+    },
     complete(paths: string[], message: string) {
-      return core.serialize(() => git.commit(paths, message));
+      return core.serialize(() => {
+        for (const path of paths) {
+          if (database.journalStore.fingerprint(path)) verifyFile(path);
+          else if (journal.published().has(path)) throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
+        }
+        return git.commit(paths, message);
+      });
     },
     contextPath,
     memory: {

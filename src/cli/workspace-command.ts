@@ -16,6 +16,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'memory add': [1, 1, ['scope'], []],
   'memory remove': [1, 1, ['scope'], []],
   'journal add': [1, 1, ['scope'], []],
+  'journal import': [0, 0, [], []],
   'journal read': [0, 0, ['scope', 'from', 'to', 'type', 'limit'], ['all']],
   'request create': [0, 1, ['project', 'title', 'status', 'slug', 'file'], ['adopt-source']],
   'request list': [0, 0, ['project', 'status'], []],

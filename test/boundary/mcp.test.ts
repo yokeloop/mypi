@@ -41,7 +41,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 31);
+  assert.equal(listed.length, 32);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.idempotentHint, false);
@@ -84,22 +84,14 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('request_progress', { key: request.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
   assert.equal((await call('request_list', { project: 'one/project' }))[0].title, 'Renamed');
   writeFileSync(join(home, '.git/index.lock'), 'busy');
-  const partial = await client.callTool({ name: 'request_status', arguments: { key: request.key, status: 'accepted', reason: 'verified' } });
-  assert.equal(partial.isError, true);
-  const recovery = partial.structuredContent as Record<string, unknown>;
-  assert.deepEqual(recovery, { status: 'partial', message: recovery['message'], saved: ['database'],
-    missing: ['inspect journal', 'git'], paths: [request.contextDir], requestId: request.id });
-  assert.match(String(recovery['message']), /index.lock/);
+  await call('request_status', { key: request.key, status: 'accepted', reason: 'verified' });
   rmSync(join(home, '.git/index.lock'));
   assert.equal((await call('request_show', { key: request.key })).status, 'accepted');
   const history = await call('journal_read', { scope: { type: 'request', key: request.key }, eventType: 'status_changed' });
   assert.equal(history.length, 1);
-  const log = 'journal/' + history[0].at.slice(0, 7) + '.jsonl', before = readFileSync(join(home, log));
-  await call('context_commit', { paths: [log], message: 'complete inspected partial' });
   await call('request_touch', { key: request.key });
-  assert.deepEqual(readFileSync(join(home, log)), before);
   await call('request_status', { key: request.key, status: 'accepted', reason: 'no-op' });
-  assert.deepEqual(readFileSync(join(home, log)), before);
+  assert.equal((await call('journal_read', { scope: { type: 'request', key: request.key }, eventType: 'status_changed' })).length, 1);
   assert.equal((await client.callTool({ name: 'request_status', arguments: { key: request.key, status: 'new', reason: 'reopen' } })).isError, true);
   const git = (...args: string[]) => {
     const result = spawnSync('git', ['-C', home, ...args], { encoding: 'utf8', timeout: 4000 });
@@ -123,6 +115,8 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   const [code] = await exited; assert.equal(code, 0, cliError);
   assert.deepEqual([...cards.map(c => c.number), JSON.parse(cliOut).number].sort(), [2, 3, 4]);
   // Backup holds an async reservation: a queued write in this process must wait, not self-deadlock.
+  await call('context_commit', { paths: [request.contextDir + '/source.md', request.contextDir + '/proof.md',
+    ...cards.map(c => c.contextDir + '/source.md'), 'projects/one/project/requests/MP-' + JSON.parse(cliOut).number + '-cli/source.md'], message: 'Publish local files for backup' });
   const snapshot = join(dir, 'snapshot');
   await Promise.all([call('backup', { destination: snapshot }), call('journal_add', { scope, text: 'after snapshot' })]);
   const restored = install('restored'), restoredClient = (await connect(restored)).client;

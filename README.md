@@ -5,7 +5,7 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 31 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, CLI and 32 stdio MCP tools over one API.
 These are optional tools, not a mandatory agent workflow. Connecting mypi does not
 require task registration, memory warmup, automatic logging or a separate Herdr tab.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -32,11 +32,12 @@ describe older revisions, not the current operating policy.
 - **Project context is a directory.** MEMORY, glossary, notes, decisions and request
   materials live under home/projects/<org>/<project>, separate from the source checkout.
 - **History records outcomes.** One factual outcome with evidence paths, not a narration
-  of activity. Request history comes from a shared append-only JSONL journal.
+  of activity. Request history is an ordered append-only SQLite journal.
 - **Published artifacts remain addressable.** New versions use new paths. Mutable
   memory/context can change with history; original source and append-only logs cannot.
-- **Saving is not synchronization.** Context writes include local Git commits;
-  DB-only changes use transactions. Network sync requires separate authorization.
+- **Saving is not synchronization.** Task and journal operations save locally in
+  SQLite without Git. Other context writes still commit locally. Publish source and
+  artifact files separately before existing backup; network sync requires separate authorization.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
@@ -259,7 +260,8 @@ $XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
 ```
 
 A card's context_dir locates source.md and artifacts. Its current status is in DB;
-history is in the common monthly UTC journal. Standalone REQ records remain supported
+history is in the SQLite journal. Existing monthly UTC JSONL files remain unchanged;
+explicit `mypi journal import` imports them once after old writers are stopped. Standalone REQ records remain supported
 by the storage/API, independently of any agent workflow.
 Scoped warmup inherits parent MEMORY, not global inbox or sibling context. Global
 journal means global entries only; reading all history is explicit.

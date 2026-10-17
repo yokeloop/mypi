@@ -1,19 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
+import { state } from '../support/state.js';
+import { initializeState } from '../../src/app/create-app.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { createJournal } from '../../src/modules/knowledge/public.js';
 import { sameScope } from '../../src/shared/scope.js';
 import { journalStorage } from '../../src/app/journal-storage.js';
 
-test('journal streams rotation, exact multiline, scope/filter before global limit and rejects corruption', t => {
-  const dir = mkdtempSync(join(tmpdir(), 'mypi-journal-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const root = join(dir, 'home'), files = contextFiles(root);
+test('SQLite journal preserves exact multiline and scope/filter before global limit', t => {
+  const { filename } = state(t);
+  initializeState(filename);
+  const db = openDatabase(filename);
+  t.after(() => db.close());
   let at = '2026-09-30T23:59:59Z';
-  const journal = createJournal(journalStorage(root), scope => {
+  const journal = createJournal(journalStorage(db), scope => {
     if (scope.type !== 'global' && scope.key !== 'MP') throw new Error('Unknown scope');
   }, sameScope, () => at);
   journal.append(journal.record({ type: 'project', key: 'MP' }, ' сентябрь\r\nстрока'));
@@ -28,7 +28,5 @@ test('journal streams rotation, exact multiline, scope/filter before global limi
   assert.throws(() => journal.record({ type: 'global', key: 'bad' } as never, 'bad'));
   assert.throws(() => journal.record({ type: 'project', key: 'YM' }, 'bad'), /Unknown/);
   assert.throws(() => journal.record({ type: 'global' }, 'bad', 'status_changed'));
-  files.append('journal/2026-10.jsonl', '{"broken"');
-  assert.throws(() => journal.read('all'), /incomplete/);
-  assert.throws(() => journal.append(journal.record({ type: 'global' }, 'next')), /Incomplete/);
+  assert.equal(journal.read('all').length, 3);
 });

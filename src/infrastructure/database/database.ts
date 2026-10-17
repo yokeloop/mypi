@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { chmodSync, mkdirSync, readFileSync, openSync, closeSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const schemaVersion = 1;
+const schemaVersion = 2;
 
 function connect(filename: string, readonly: boolean, fileMustExist: boolean): Database.Database {
   const db = new Database(filename, { readonly, fileMustExist, timeout: 1000 });
@@ -25,12 +25,21 @@ export function initializeDatabase(filename: string, createOnly = false): void {
   if (createOnly) closeSync(openSync(filename, 'wx', 0o600));
   const db = connect(filename, false, false);
   try {
+    const current = version(db);
+    if (current > schemaVersion) throw new Error('Database schema is newer than this application');
+    // SQLite cannot change journal mode inside a transaction. Only explicit init/upgrade
+    // switches mode; ordinary opens, including readonly reads, never configure it.
+    if (db.pragma('journal_mode = WAL', { simple: true }) !== 'wal') throw new Error('Could not enable SQLite WAL');
     db.transaction(() => {
       const current = version(db);
       if (current > schemaVersion) throw new Error('Database schema is newer than this application');
       if (current === 0) {
         db.exec(readFileSync(new URL('./migrations/001-initial.sql', import.meta.url), 'utf8'));
         db.pragma('user_version = 1');
+      }
+      if (current < 2) {
+        db.exec(readFileSync(new URL('./migrations/002-knowledge-journal.sql', import.meta.url), 'utf8'));
+        db.pragma('user_version = 2');
       }
     }).immediate();
     chmodSync(filename, 0o600);

@@ -8,7 +8,7 @@ export const requests = {
   request_status: { schema: z.strictObject({ key: text, status: text, reason: text }), description: 'Change status and record reason. No terminal reopen; same status is a no-op.' },
   request_title: { schema: z.strictObject({ key: text, title: text, reason: text }), description: 'Change title with reason; key and directory remain unchanged.' },
   request_progress: { schema: z.strictObject({ key: text, text, artifacts: z.array(artifact).optional() }), description: 'Record outcome and optional artifacts relative to request directory; absent artifact text references an existing file. No overwrite or blind retry.' },
-  request_touch: { schema: z.strictObject({ key: text }), description: 'Explicitly complete activity timestamp after reconciling partial; no fabricated status change.' },
+  request_touch: { schema: z.strictObject({ key: text }), description: 'Explicitly update local activity timestamp; no fabricated status change or Git commit.' },
   status_list: { schema: z.strictObject({}), description: 'Read live status dictionary; do not assume a fixed enum or workflow.' },
   status_add: { schema: z.strictObject({ code: text, terminal: z.boolean() }), description: 'Add DB status; explicit terminal flag, no default pipeline.' },
   status_rename: { schema: z.strictObject({ code: text, newCode: text }), description: 'Rename status preserving its stable ID and request references.' },

@@ -65,7 +65,12 @@ requests(id, project_id, number, title, status_id,
 
 Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
-readonly opens do not create missing DBs. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
+readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
+schema transaction; ordinary opens do not change journal mode. SQLite may create its
+own `state.sqlite3-wal`/`state.sqlite3-shm` sidecars in the private state directory
+even for a readonly connection; readonly means no user-data, schema or context write.
+An unwritable location without required WAL artifacts may return SQLite's error;
+there is no automatic initialization or workaround. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
 fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
 Git, including symlink aliases; created parent directories 0700 and DB 0600.
 
@@ -76,7 +81,7 @@ home/                           # separate ignored Git inside the engine clone
 ├── MEMORY.md
 ├── inbox/<UTC>-<UUID>.md
 ├── notes/<UTC>-<UUID>.md
-├── journal/YYYY-MM.jsonl
+├── journal/YYYY-MM.jsonl      # legacy, retained unchanged after explicit import
 ├── requests/REQ-number-slug/
 │   ├── source.md
 │   └── <artifact-path>
@@ -93,7 +98,8 @@ home/                           # separate ignored Git inside the engine clone
 
 home/projects is context, not the working-clone directory projects/. Engine code stays
 in its checkout; using project/request context is not a prerequisite for development.
-Source/progress are not duplicated in SQL fields; no per-task journal/status.md.
+Source/progress are not duplicated in SQL fields; the journal event text and file
+fingerprints live in SQLite. There is no per-task journal/status.md.
 Personal context is not part of the engine repository and is not moved by cleanup.
 
 ## 4. Projects, requests and statuses
@@ -118,13 +124,17 @@ multiline text is escaped and returned exactly. Other Markdown remains context.
 Capture preserves exact original text in an immutable file, including BOM/CRLF.
 Notes have unique paths; errors append rather than rewrite.
 
-Journal: common append-only JSONL, monthly UTC rotation, required at/scope/event_type/
-text and optional home-relative artifacts. Types: note/request_created/status_changed.
-Events do not launch flow. Corrupt/unfinished lines are not silently ignored.
+Journal: ordered append-only SQLite rows in the task database, with required
+at/scope/event_type/text and optional home-relative artifacts. Types:
+note/request_created/status_changed. Events do not launch flow. Existing monthly
+JSONL files are read only by explicit `journal import`; originals remain untouched.
+Stop old writers before cutover. Import rejects changed or corrupt input and retains
+legitimate duplicate entries. Legacy source/artifact fingerprints require unchanged,
+published files; reconcile dirty legacy files separately.
 
 Selection: global only global; org includes projects/requests; project includes its
 requests; request only itself; all is explicit. Relations resolve through DB; relevant
-months are streamed and filtered before the overall sort/limit. No SQL history index/copy.
+months are selected and filtered before the overall sort/limit.
 Warmup inherits parent MEMORY, not global inbox or sibling content. It returns an index
 and paths, not complete history. Reads do not create DB/files. Scope is not an ACL.
 
@@ -132,8 +142,11 @@ and paths, not complete history. Reads do not create DB/files. Scope is not an A
 
 - DB-only: transaction, independent of workspace/Git, no empty commit.
 - Context changes: safe file writes and commits of exact operation paths.
-- Request create: source → DB commit → journal → Git.
-- Status/title: DB → journal → Git; progress: files/journal → Git → activity timestamp.
+- Request create: source file first; task row, source fingerprint and event commit
+  together in SQLite. SQL failure discloses the orphaned source.
+- Status/title: task row and event commit together. Progress: files first, then
+  fingerprints, event and activity timestamp in one SQLite transaction.
+  Task/journal saves do not invoke Git; local success is not publication or backup.
 
 No global SQLite/FS/Git atomicity. Partial reports saved/missing work, paths and
 requestId when known. CLI exits nonzero; MCP returns an error/partial envelope.
@@ -144,8 +157,9 @@ recovery note instead of invented transition, or explicit touch as appropriate.
 Filesystem guards reject traversal, symlink/hardlink aliases and implicit overwrite.
 Git preserves unrelated staged changes and avoids hooks/fsmonitor/signing/network.
 Private attributes prevent EOL/encoding/filter transforms. Source/inbox are immutable;
-journal/errors append-only. Committed journal prefixes are checked before extracting
-published artifact references. New versions get new paths. Mutable context can be
+errors append-only. Registered sources and artifacts are checked against insert-only
+SHA-256/byte-count fingerprints before reuse, backup and context publication.
+New versions get new paths. Mutable context can be
 restored from a full Git revision by making a new commit, not rewriting history.
 
 ## 7. Backup and restore

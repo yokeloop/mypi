@@ -13,7 +13,7 @@ const examples: [string, Record<string, unknown>][] = [
   ['project_resolve', { path: '/tmp' }], ['warmup', { scope }], ['memory_show', { scope }],
   ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1 }],
   ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
-  ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }],
+  ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }], ['journal_import', {}],
   ['journal_read', { scope: 'all', from: '2026-01-01T00:00:00Z', to: '2026-12-31T00:00:00Z', eventType: 'note', limit: 10 }],
   ['request_list', { project: 'one/project', status: 'custom' }], ['request_show', { key: 'MP-1' }],
   ['request_create', { project: null, title: 'T', status: 'custom', slug: 'task', source: { text: 'source' }, adoptSource: true }],
@@ -28,8 +28,8 @@ const examples: [string, Record<string, unknown>][] = [
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
 ];
-test('31 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 31);
+test('32 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 32);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -53,6 +53,7 @@ test('CLI translates to the same subject commands without changing text or defau
     return appCommand(parsed);
   };
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
+  assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
   assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
