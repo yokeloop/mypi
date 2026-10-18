@@ -14,6 +14,7 @@ const preview = { action: 'open', binding: { projectId: 1, requestId: 2, sourceC
   model: { provider: 'provider', model: 'model/id', source: 'invocation' } };
 const examples: [string, Record<string, unknown>][] = [
   ['project_list', { org: 'one' }], ['project_add', { identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }],
+  ['project_update', { identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }],
   ['project_resolve', { path: '/tmp' }], ['warmup', { scope }], ['memory_show', { scope }],
   ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1, expectedRevision: 'a'.repeat(64) }],
   ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
@@ -38,8 +39,8 @@ const examples: [string, Record<string, unknown>][] = [
   ['work_chat_new_empty', { id: 'chat-id' }], ['work_chat_execute', { preview, focus: false }],
   ['work_chat_list', {}], ['work_chat_show', { id: 'chat-id' }],
 ];
-test('40 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 40);
+test('41 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 41);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -51,7 +52,11 @@ test('40 independent tool examples retain every field; strict schemas reject unk
     ['capture', { source: { text: 'x', file: '/tmp/x' } }], ['capture', { source: { file: 'relative' } }],
     ['request_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
     ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
-    ['project_resolve', { path: 'relative' }], ['backup', { destination: 'relative' }],
+    ['project_resolve', { path: 'relative' }],
+    ['project_update', { identity: 'one/project', checkoutPath: '/tmp/new' }],
+    ['project_update', { identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }],
+    ['project_update', { identity: 'one/project', expectedCheckoutPath: null, checkoutPath: 'relative' }],
+    ['backup', { destination: 'relative' }],
     ['backup_publish', { selectedPaths: 'not an array' }], ['restore_published', { repository: 'relative', commit: 'a'.repeat(40) }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
     ['unknown', {}], ['__proto__', {}],
@@ -68,6 +73,13 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
   assert.deepEqual(translate(['project', 'resolve', '/tmp']), { name: 'project_resolve', path: '/tmp' });
+  assert.deepEqual(translate(['project', 'update', 'one/project', '--expected-unset', '--path', '/tmp/new']),
+    { name: 'project_update', identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' });
+  assert.deepEqual(translate(['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new']),
+    { name: 'project_update', identity: 'one/project', expectedCheckoutPath: '/tmp/old', checkoutPath: '/tmp/new' });
+  for (const args of [['project', 'update', 'one/project', '--path', '/tmp/new'],
+    ['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--expected-unset', '--path', '/tmp/new']])
+    assert.throws(() => translate(args), /exactly one/);
   assert.deepEqual(translate(['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)]),
     { name: 'memory_remove', scope: { type: 'global' }, number: 1, expectedRevision: 'a'.repeat(64) });
   assert.throws(() => translate(['memory', 'remove', '1']), /expected-revision/);

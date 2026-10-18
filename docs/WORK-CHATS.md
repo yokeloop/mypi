@@ -17,7 +17,15 @@ Run under Node 24 and persistent Herdr (`HERDR_ENV=1` and
 needs `USER-INSTRUCTIONS.md`. The registered project must have an independent
 source clone and an existing task branch/worktree belonging to that clone;
 registration or cloning is a separate operation. CLI/MCP return actionable errors
-rather than silently creating defaults or a task checkout.
+rather than silently creating defaults or a task checkout. To rebind a registered
+project without managed work chats, use `mypi project update org/project
+--expected-path /old/checkout --path /new/checkout` (or `--expected-unset` when
+no checkout was registered). MCP `project_update` takes `identity`,
+`expectedCheckoutPath` (absolute previous path or `null`) and `checkoutPath`.
+The new path must be an existing absolute directory; it is stored canonically.
+A stale previous path, another registration at that path, or any managed chat
+for the project (including closed history) prevents a changed binding. The
+operation does not move or rewrite requests, context or chat history.
 
 Optional user-owned `home/pi/work-chats.json` selects *existing* Pi model IDs:
 

@@ -66,6 +66,51 @@ test('invalid identities/codes never register an organization or create context'
   } finally { app.close(); }
 });
 
+test('project checkout update preserves identity and requests, rejects stale and duplicate paths without rewriting history', t => {
+  const { dir, filename } = state(t);
+  const oldPath = join(dir, 'old'), newPath = join(dir, 'new');
+  mkdirSync(oldPath); mkdirSync(newPath);
+  symlinkSync(newPath, join(dir, 'alias'));
+  const app = createApp(filename, false);
+  try {
+    const first = app.projects.add('one/project', 'MP');
+    const other = app.projects.add('two/project', 'YM', oldPath);
+    const request = app.requests.create({ projectId: first.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
+    assert.throws(() => app.projects.updateCheckout('one/absent', null, newPath), /Unknown project/);
+    assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /Stale project checkout path/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, oldPath), /already registered/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, 'relative'), /absolute/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, join(dir, 'missing')), /ENOENT/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, filename), /directory/);
+    const updated = app.projects.updateCheckout('one/project', null, join(dir, 'alias'));
+    assert.deepEqual(updated, { ...first, checkoutPath: newPath });
+    assert.deepEqual(app.projects.list(), [updated, other]);
+    assert.deepEqual(app.requests.get(request.id), request);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, oldPath), /Stale project checkout path/);
+    assert.throws(() => app.projects.updateCheckout('one/project', newPath, oldPath), /already registered/);
+    assert.deepEqual(app.projects.list(), [updated, other]);
+    assert.deepEqual(app.requests.get(request.id), request);
+  } finally { app.close(); }
+});
+
+test('project checkout update refuses managed work chats, including closed history', t => {
+  const { dir, filename } = state(t);
+  const oldPath = join(dir, 'old'), newPath = join(dir, 'new');
+  mkdirSync(oldPath); mkdirSync(newPath);
+  const app = createApp(filename, false);
+  try {
+    const project = app.projects.add('one/project', 'MP', oldPath);
+    const request = app.requests.create({ projectId: project.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
+    app.chatStore.reserve({ id: 'chat', requestId: request.id, projectId: project.id, name: null,
+      sourceClone: oldPath, worktree: join(dir, 'worktree'), gitCommonDir: join(dir, '.git'), branch: 'task',
+      installation: dir, statePath: filename, sessionId: null, historyPath: null, attemptId: 'attempt',
+      pane: null, processId: null, processStart: null, phase: 'closed' });
+    assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /managed work chats/);
+    assert.deepEqual(app.projects.list(), [project]);
+    assert.deepEqual(app.projects.updateCheckout('one/project', oldPath, oldPath), project);
+  } finally { app.close(); }
+});
+
 test('read APIs leave database bytes and filesystem unchanged; absent database is not initialized', t => {
   const { dir, filename } = state(t);
   const write = createApp(filename, false);

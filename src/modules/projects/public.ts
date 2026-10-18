@@ -13,6 +13,11 @@ export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
       const canonical = checkoutPath === undefined ? null : paths.canonicalDirectory(checkoutPath);
       return store.add({ org, slug, code, checkoutPath: canonical });
     },
+    updateCheckout(identity: string, expectedCheckoutPath: string | null, checkoutPath: string) {
+      const { org, slug } = parseIdentity(identity);
+      const canonical = paths.canonicalAbsoluteDirectory(checkoutPath);
+      return store.updateCheckout({ org, slug, expectedCheckoutPath, checkoutPath: canonical });
+    },
     list(org?: string) {
       if (org !== undefined && (!validSlug(org) || !store.findOrganization(org))) {
         throw new InputError('Unknown organization');

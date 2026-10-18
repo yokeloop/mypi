@@ -1,6 +1,6 @@
 import { initializeDatabase, openDatabase } from '../infrastructure/database/database.js';
 import { fileURLToPath } from 'node:url';
-import { canonicalDirectory, databasePath, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
+import { canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createRequests } from '../modules/requests/public.js';
 import { sqliteRequestStore } from '../modules/requests/adapters/sqlite-request-store.js';
@@ -22,7 +22,7 @@ export function initializeState(filename: string, createOnly = false): void {
 
 export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString()) {
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
-  const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory });
+  const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory, canonicalAbsoluteDirectory });
   return {
     readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),
     serialize: <T>(fn: () => T): T => { if (readonly) throw new Error('Readonly application'); return db.transaction(fn).immediate(); },

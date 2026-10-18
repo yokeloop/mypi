@@ -3,5 +3,6 @@ import { text, externalPath } from '../schemas.js';
 export const projects = {
   project_list: { schema: z.strictObject({ org: text.optional() }), description: 'List registered projects, optionally by organization.' },
   project_add: { schema: z.strictObject({ identity: text, code: text, checkoutPath: externalPath.optional() }), description: 'Register org/project in DB. Does not clone or create context.' },
+  project_update: { schema: z.strictObject({ identity: text, expectedCheckoutPath: externalPath.nullable(), checkoutPath: externalPath }), description: 'Change only a registered project checkout path; supply the exact previous path or null. Refuses managed work chats.' },
   project_resolve: { schema: z.strictObject({ path: externalPath }), description: 'Resolve an existing directory to the deepest registered checkout. Returns project, none or ambiguous; never registers it.' },
 };
