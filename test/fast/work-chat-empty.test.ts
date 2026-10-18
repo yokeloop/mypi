@@ -6,7 +6,16 @@ import type { ChatRuntime } from '../../src/app/work-chats.js';
 import { state } from '../support/state.js';
 
 const pair = { provider: 'custom', model: 'model/id' };
+function herdrEnvironment(t: { after(fn: () => void): void }) {
+  const previousEnv = process.env.HERDR_ENV, previousWorkspace = process.env.HERDR_WORKSPACE_ID;
+  process.env.HERDR_ENV = '1'; process.env.HERDR_WORKSPACE_ID = 'test-workspace';
+  t.after(() => {
+    if (previousEnv === undefined) delete process.env.HERDR_ENV; else process.env.HERDR_ENV = previousEnv;
+    if (previousWorkspace === undefined) delete process.env.HERDR_WORKSPACE_ID; else process.env.HERDR_WORKSPACE_ID = previousWorkspace;
+  });
+}
 test('live empty chat is ready/idempotent; positive final empty death permits explicit fresh chat in same worktree', async t => {
+  herdrEnvironment(t);
   const { filename, dir } = state(t);
   const app = createApp(filename, false);
   t.after(() => app.close());
@@ -47,6 +56,13 @@ test('live empty chat is ready/idempotent; positive final empty death permits ex
     projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });
   await assert.rejects(rejecting.execute(preview), /reservation failed/);
   assert.equal(app.chatStore.get(first.chat.id)?.phase, 'ready');
+  delete process.env.HERDR_WORKSPACE_ID;
+  const before = app.chatStore.list();
+  await assert.rejects(chats.execute(preview), /Persistent Herdr environment required/);
+  assert.deepEqual(app.chatStore.list(), before);
+  assert.equal(count, 1);
+  assert.equal((await chats.list())[0]?.chat.id, first.chat.id);
+  process.env.HERDR_WORKSPACE_ID = 'test-workspace';
   const second = await chats.execute(preview);
   assert.equal(second.outcome, 'ready');
   assert.notEqual(second.chat.id, first.chat.id);

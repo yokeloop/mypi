@@ -6,7 +6,16 @@ import type { ChatRuntime } from '../../src/app/work-chats.js';
 import { state } from '../support/state.js';
 
 const pair = { provider: 'custom', model: 'model/id' };
+function herdrEnvironment(t: { after(fn: () => void): void }) {
+  const previousEnv = process.env.HERDR_ENV, previousWorkspace = process.env.HERDR_WORKSPACE_ID;
+  process.env.HERDR_ENV = '1'; process.env.HERDR_WORKSPACE_ID = 'test-workspace';
+  t.after(() => {
+    if (previousEnv === undefined) delete process.env.HERDR_ENV; else process.env.HERDR_ENV = previousEnv;
+    if (previousWorkspace === undefined) delete process.env.HERDR_WORKSPACE_ID; else process.env.HERDR_WORKSPACE_ID = previousWorkspace;
+  });
+}
 test('tab created without native acknowledgement preserves pane and blocks duplicate launch/release', async t => {
+  herdrEnvironment(t);
   const { filename, dir } = state(t);
   const app = createApp(filename, false);
   t.after(() => app.close());
@@ -33,6 +42,7 @@ test('tab created without native acknowledgement preserves pane and blocks dupli
 });
 
 test('stale attempt cannot attach its pane to a newer reservation', async t => {
+  herdrEnvironment(t);
   const { filename, dir } = state(t);
   const app = createApp(filename, false);
   t.after(() => app.close());
@@ -59,6 +69,7 @@ test('stale attempt cannot attach its pane to a newer reservation', async t => {
 });
 
 test('foreign resume acknowledgement never replaces original native history', async t => {
+  herdrEnvironment(t);
   const { filename, dir } = state(t);
   const app = createApp(filename, false);
   t.after(() => app.close());

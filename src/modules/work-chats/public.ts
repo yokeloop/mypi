@@ -96,8 +96,8 @@ export function resolveModelSelection(input: {
   const config = input.readDefaults();
   const org = input.identity.split('/')[0]!;
   const levels: [ModelSource, ModelPair | undefined][] = [
-    ['project', config.projects?.[input.identity]],
-    ['organization', config.organizations?.[org]],
+    ['project', Object.hasOwn(config.projects ?? {}, input.identity) ? config.projects![input.identity] : undefined],
+    ['organization', Object.hasOwn(config.organizations ?? {}, org) ? config.organizations![org] : undefined],
     ['default', config.default],
   ];
   for (const [source, pair] of levels) if (pair) return { ...pair, source };

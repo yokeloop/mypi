@@ -155,6 +155,10 @@ export function createWorkChats(input: {
       return { chat: store.get(preview.chatId!)!, observation: { status: 'live', binding: fresh.binding, process: fresh.live,
         native: fresh.native!, model: fresh.model, ...(fresh.persisted === undefined ? {} : { persisted: fresh.persisted }) }, outcome: 'existing' };
     }
+    // A launch-only prerequisite must fail before retiring an empty row or reserving a worktree.
+    if (process.env.HERDR_ENV !== '1' || !process.env.HERDR_WORKSPACE_ID) {
+      throw new InputError('Persistent Herdr environment required');
+    }
     const chat = store.transaction(() => {
       if (preview.action !== 'resume') {
         if (preview.action === 'new-empty') {

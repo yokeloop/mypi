@@ -22,14 +22,29 @@ function json(value: string): Record<string, unknown> {
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new InputError('Malformed native observation');
   return parsed as Record<string, unknown>;
 }
-function id(value: unknown): string {
-  if (typeof value !== 'string' || !value) throw new InputError('Missing native identity');
-  return value;
+function processStart(pid: number, readStat: (path: string, encoding: 'utf8') => string = readFileSync): string {
+  const text = readStat(`/proc/${pid}/stat`, 'utf8');
+  const close = text.lastIndexOf(')');
+  if (close < 0 || text[close + 1] !== ' ') throw new InputError('Malformed procfs process stat');
+  const tail = text.slice(close + 2).trim().split(/\s+/);
+  if (!/^\d+$/.test(tail[19] ?? '')) throw new InputError('Malformed procfs process start');
+  return tail[19]!; // Linux stat field 22 (tail begins with field 3).
 }
-function processStart(pid: number): string {
-  const text = readFileSync(`/proc/${pid}/stat`, 'utf8');
-  const tail = text.slice(text.lastIndexOf(')') + 2).split(' ');
-  return id(tail[19]); // Linux stat field 22 (tail begins with field 3).
+
+/** Only a verified missing procfs entry permits release; reuse and unreadable entries do not. */
+export function inspectAbsentPaneProcess(pid: number, readStat?: (path: string, encoding: 'utf8') => string): ChatInspection {
+  try {
+    processStart(pid, readStat);
+    return { status: 'unknown', reason: 'Pane occupant changed while process remains' };
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+      try {
+        processStart(process.pid, readStat);
+        return { status: 'dead' };
+      } catch (selfError) { return { status: 'unknown', reason: 'Procfs availability unconfirmed: ' + String(selfError) }; }
+    }
+    return { status: 'unknown', reason: 'Process absence unconfirmed: ' + String(error) };
+  }
 }
 interface Ack { attempt: string; lifecycle: string; generation: number; sessionId: string; historyPath: string; cwd: string; processCwd: string; processId: number; installation: string; state: string; scope: string; model: ModelPair; fileExists: boolean; provenEmpty?: boolean; everPersisted?: boolean; continuous?: boolean; branchBinding?: { installation: string; state: string; scope?: string }; branchModel?: ModelPair; error?: string }
 function ack(chat: WorkChat, startup = false): Ack | undefined {
@@ -133,10 +148,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       const pid = chat.processId;
       if (!pid || !chat.processStart) return { status: 'unknown', reason: 'Process identity missing' };
       const occupant = processes.find(p => p.pid === pid);
-      if (!occupant) {
-        try { processStart(pid); return { status: 'unknown', reason: 'Pane occupant changed while process remains' }; }
-        catch { return { status: 'dead' }; }
-      }
+      if (!occupant) return inspectAbsentPaneProcess(pid);
       try {
         if (processStart(pid) !== chat.processStart || occupant.cwd !== chat.worktree || !occupant.cmdline.includes(pi)) return { status: 'unknown', reason: 'Pane process identity changed' };
         if (!observation || observation.processId !== pid || !observation.model) return { status: 'unknown', reason: 'Missing native acknowledgement' };

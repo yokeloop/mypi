@@ -6,6 +6,12 @@ import type { ChatInspection, ChatRuntime } from '../../src/app/work-chats.js';
 import { state } from '../support/state.js';
 
 test('uncertain launch keeps reservation; only independently proven dead empty launch releases it', async t => {
+  const previousEnv = process.env.HERDR_ENV, previousWorkspace = process.env.HERDR_WORKSPACE_ID;
+  process.env.HERDR_ENV = '1'; process.env.HERDR_WORKSPACE_ID = 'test-workspace';
+  t.after(() => {
+    if (previousEnv === undefined) delete process.env.HERDR_ENV; else process.env.HERDR_ENV = previousEnv;
+    if (previousWorkspace === undefined) delete process.env.HERDR_WORKSPACE_ID; else process.env.HERDR_WORKSPACE_ID = previousWorkspace;
+  });
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
   t.after(() => app.close());
