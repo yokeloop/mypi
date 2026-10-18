@@ -1,4 +1,6 @@
 import { InputError } from '../../shared/errors.js';
+export { assertBinding, assertNative } from './chat.js';
+export type { ChatBinding, ChatStore, NativeIdentity, ProcessIdentity, WorkChat } from './chat.js';
 
 export interface ModelPair { provider: string; model: string }
 export type ModelSource = 'invocation' | 'saved session' | 'project' | 'organization' | 'default';
