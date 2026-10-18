@@ -85,57 +85,66 @@ export default function (pi: ExtensionAPI) {
   pi.registerFlag('mypi-chat-model', { type: 'string', description: 'Internal exact work-chat model pair.' });
   pi.registerFlag('mypi-chat-override', { type: 'boolean', description: 'Persist explicit work-chat resume model.' });
 
-  let chatReport: ((ctx: ExtensionContext) => Promise<void>) | undefined;
-  // This bridge only reports native state. Node performs all SQLite and filesystem
-  // association work outside Pi's Bun process. Never reapply a launch choice on reload.
-  const attempt = pi.getFlag('mypi-chat-attempt');
-  if (typeof attempt === 'string' && /^[0-9a-f-]{36}$/.test(attempt)) {
-    const pair = pi.getFlag('mypi-chat-model');
-    const target = typeof pair === 'string' ? JSON.parse(pair) as { provider: string; model: string } : undefined;
-    const ack = fileURLToPath(new URL('../../../dist/src/app/work-chat-ack.js', import.meta.url));
-    const state = resolve(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'));
-    let generation = 0;
-    let starting = true;
-    async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<void> {
-      const token = ++generation;
-      let error: string | undefined;
-      const current = ctx.model;
-      const selected = current && ctx.modelRegistry.find(current.provider, current.id);
-      if (!selected || selected.provider !== current?.provider || selected.id !== current.id
-        || !ctx.modelRegistry.hasConfiguredAuth(selected)) error = 'Native registry/auth/current model mismatch';
-      if (lifecycle === 'start:startup' && (!target || target.provider !== current?.provider || target.model !== current.id)) {
-        error = 'Native startup selected another model';
+  // Pi applies CLI flag values after extension factories run. Register the lifecycle
+  // bridge now, but read managed flags only from events after session initialization.
+  // Node performs all SQLite and filesystem association work outside Pi's Bun process.
+  const ack = fileURLToPath(new URL('../../../dist/src/app/work-chat-ack.js', import.meta.url));
+  const state = resolve(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'));
+  let chatGeneration = 0;
+  let starting = true;
+  async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<void> {
+    const attempt = pi.getFlag('mypi-chat-attempt');
+    if (typeof attempt !== 'string' || !/^[0-9a-f-]{36}$/.test(attempt)) return;
+    const token = ++chatGeneration;
+    let error: string | undefined;
+    let target: { provider: string; model: string } | undefined;
+    try {
+      const pair = pi.getFlag('mypi-chat-model');
+      const parsed: unknown = typeof pair === 'string' ? JSON.parse(pair) : undefined;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const value = parsed as Record<string, unknown>;
+        if (typeof value.provider === 'string' && value.provider && typeof value.model === 'string' && value.model) {
+          target = { provider: value.provider, model: value.model };
+        }
       }
-      if (persist && target && !error) {
-        if (!await pi.setModel(selected!)) error = 'Exact native model override cannot be persisted';
-        const branch = ctx.sessionManager.getBranch().filter(item => item.type === 'model_change').at(-1);
-        if (!branch || branch.provider !== target.provider || branch.modelId !== target.model) error = 'Native active branch did not persist override';
-      }
-      if (token !== generation) return;
-      const entries = lifecycle === 'shutdown:quit' ? ctx.sessionManager.getEntries() : [];
-      const finalEmpty = lifecycle === 'shutdown:quit' && finalEmptySnapshot(ctx.sessionManager.getHeader(), entries,
-        ctx.sessionManager.getSessionId(), ctx.cwd);
-      let savedBinding: Binding | undefined;
-      try { savedBinding = branchBinding(ctx); }
-      catch { error = 'Invalid native active-branch binding'; }
-      const selectedBranch = ctx.sessionManager.getBranch().filter(entry => entry.type === 'model_change').at(-1);
-      const data = { attempt, lifecycle, generation: token, error, finalEmpty,
-        branchBinding: savedBinding, branchModel: selectedBranch && { provider: selectedBranch.provider, model: selectedBranch.modelId },
-        sessionId: ctx.sessionManager.getSessionId(), historyPath: ctx.sessionManager.getSessionFile(),
-        cwd: ctx.cwd, processCwd: process.cwd(), processId: process.pid, installation: root, state,
-        scope: pi.getFlag('mypi-scope'), model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
-        fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
-      const result = await pi.exec('node', [ack, state, attempt as string, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
-      if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');
-      if (lifecycle.startsWith('start:')) starting = false;
+    } catch { /* Report the invalid target through the native acknowledgement. */ }
+    if (!target) error = 'Invalid native work-chat target model';
+    const current = ctx.model;
+    const selected = current && ctx.modelRegistry.find(current.provider, current.id);
+    if (!selected || selected.provider !== current?.provider || selected.id !== current.id
+      || !ctx.modelRegistry.hasConfiguredAuth(selected)) error = 'Native registry/auth/current model mismatch';
+    if (lifecycle === 'start:startup' && (!target || target.provider !== current?.provider || target.model !== current.id)) {
+      error = 'Native startup selected another model';
     }
-    chatReport = ctx => report(ctx, 'before_agent_start');
-    pi.on('session_start', (event, ctx) => report(ctx, 'start:' + (event as { reason?: string }).reason,
-      Boolean(pi.getFlag('mypi-chat-override')) && (event as { reason?: string }).reason === 'startup'));
-    pi.on('session_tree', (_event, ctx) => report(ctx, 'tree'));
-    pi.on('model_select', (_event, ctx) => starting ? undefined : report(ctx, 'model_select'));
-    pi.on('session_shutdown', (event, ctx) => report(ctx, 'shutdown:' + (event as { reason?: string }).reason));
+    if (persist && target && !error) {
+      if (!await pi.setModel(selected!)) error = 'Exact native model override cannot be persisted';
+      const branch = ctx.sessionManager.getBranch().filter(item => item.type === 'model_change').at(-1);
+      if (!branch || branch.provider !== target.provider || branch.modelId !== target.model) error = 'Native active branch did not persist override';
+    }
+    if (token !== chatGeneration) return;
+    const entries = lifecycle === 'shutdown:quit' ? ctx.sessionManager.getEntries() : [];
+    const finalEmpty = lifecycle === 'shutdown:quit' && finalEmptySnapshot(ctx.sessionManager.getHeader(), entries,
+      ctx.sessionManager.getSessionId(), ctx.cwd);
+    let savedBinding: Binding | undefined;
+    try { savedBinding = branchBinding(ctx); }
+    catch { error = 'Invalid native active-branch binding'; }
+    const selectedBranch = ctx.sessionManager.getBranch().filter(entry => entry.type === 'model_change').at(-1);
+    const data = { attempt, lifecycle, generation: token, error, finalEmpty,
+      branchBinding: savedBinding, branchModel: selectedBranch && { provider: selectedBranch.provider, model: selectedBranch.modelId },
+      sessionId: ctx.sessionManager.getSessionId(), historyPath: ctx.sessionManager.getSessionFile(),
+      cwd: ctx.cwd, processCwd: process.cwd(), processId: process.pid, installation: root, state,
+      scope: pi.getFlag('mypi-scope'), model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
+      fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
+    const result = await pi.exec('node', [ack, state, attempt, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
+    if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');
+    if (lifecycle.startsWith('start:')) starting = false;
   }
+  const chatReport = (ctx: ExtensionContext) => report(ctx, 'before_agent_start');
+  pi.on('session_start', (event, ctx) => report(ctx, 'start:' + (event as { reason?: string }).reason,
+    Boolean(pi.getFlag('mypi-chat-override')) && (event as { reason?: string }).reason === 'startup'));
+  pi.on('session_tree', (_event, ctx) => report(ctx, 'tree'));
+  pi.on('model_select', (_event, ctx) => starting ? undefined : report(ctx, 'model_select'));
+  pi.on('session_shutdown', (event, ctx) => report(ctx, 'shutdown:' + (event as { reason?: string }).reason));
 
   let generation = 0;
   let startup = true;

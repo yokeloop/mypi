@@ -6,6 +6,75 @@ import { join } from 'node:path';
 import install from '../../src/app/startup-extension.js';
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
+test('managed flags applied after extension loading produce native lifecycle acknowledgements without replaying model choice', async () => {
+  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
+  const flags = new Map<string, unknown>();
+  const reports: Array<{ lifecycle: string; attempt: string; model: { provider: string; model: string }; sessionId: string; finalEmpty: boolean; error?: string }> = [];
+  const branch: any[] = [];
+  const attempt = '11111111-2222-4333-8444-555555555555';
+  const root = process.cwd();
+  let sessionId = 'first-session';
+  let selected = { provider: 'fixture', id: 'initial' };
+  let selections = 0;
+  const api = {
+    registerMcpServer() {}, registerCommand() {}, registerFlag() {},
+    getFlag(name: string) { return flags.get(name); },
+    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) {
+      handlers.set(name, [...(handlers.get(name) ?? []), handler]);
+    },
+    appendEntry(_name: string, value: unknown) { branch.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
+    async setModel(model: { provider: string; id: string }) {
+      selections++;
+      branch.push({ type: 'model_change', provider: model.provider, modelId: model.id });
+      return true;
+    },
+    async exec(_command: string, args: string[]) {
+      if (args[0]?.endsWith('/work-chat-ack.js')) {
+        reports.push(JSON.parse(args[3]!) as (typeof reports)[number]);
+        return { code: 0, killed: false, stdout: '', stderr: '' };
+      }
+      return { code: 0, killed: false, stdout: JSON.stringify({ memory: [], work: { tasks: [] } }), stderr: '' };
+    },
+  };
+  install(api as never); // Pi loads extensions before it applies CLI flag values.
+  const ctx = { cwd: root, signal: new AbortController().signal, hasUI: false,
+    get model() { return selected; },
+    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return true; } },
+    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => undefined,
+      getHeader: () => ({ id: sessionId, cwd: root }), getEntries: () => [], getBranch: () => branch },
+  };
+  const emit = async (name: string, event: any = {}) => {
+    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
+  };
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.length, 0, 'unmanaged sessions must not emit native acknowledgements');
+  flags.set('mypi-chat-attempt', attempt);
+  flags.set('mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'initial' }));
+  flags.set('mypi-chat-override', true);
+  flags.set('mypi-scope', 'fixture/tool');
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
+  assert.equal(reports.at(-1)?.attempt, attempt);
+  assert.equal(reports.at(-1)?.error, undefined);
+  assert.equal(selections, 1, 'explicit resume override persists exactly once at startup');
+  selected = { provider: 'fixture', id: 'manual' };
+  branch.push({ type: 'model_change', provider: 'fixture', modelId: 'manual' });
+  await emit('model_select');
+  assert.deepEqual(reports.at(-1)?.model, { provider: 'fixture', model: 'manual' });
+  await emit('session_start', { reason: 'reload' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:reload');
+  assert.equal(selections, 1, 'reload must preserve the manual choice');
+  sessionId = 'changed-session';
+  await emit('session_tree');
+  assert.equal(reports.at(-1)?.sessionId, 'changed-session', 'native identity changes must remain observable');
+  await emit('session_shutdown', { reason: 'quit' });
+  assert.equal(reports.at(-1)?.finalEmpty, true, 'shutdown reports the real final empty snapshot');
+  flags.set('mypi-chat-model', '{invalid');
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
+  assert.match(reports.at(-1)?.error ?? '', /model/i, 'malformed late target cannot be acknowledged as ready');
+  assert.equal(selections, 1);
+});
 test('session snapshot survives ordinary turns/compaction, refreshes on memory tools and lifecycle, rejects late reads', async t => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const entries: any[] = [];
