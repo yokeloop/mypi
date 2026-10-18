@@ -6,6 +6,9 @@ import { defaultContextRoot } from './create-workspace.js';
 import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
+import { createNativeWorkChats } from './create-native-work-chats.js';
+import { dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
@@ -18,6 +21,31 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
+  if (c.name.startsWith('work_chat_')) {
+    const pi = process.env.MYPI_WORK_CHAT_PI, agentDir = process.env.PI_CODING_AGENT_DIR;
+    if (!pi || !agentDir) throw new InputError('Set MYPI_WORK_CHAT_PI to the absolute target Pi executable and PI_CODING_AGENT_DIR to its configured resources');
+    const installation = fileURLToPath(new URL('../../../', import.meta.url));
+    const statePath = dirname(dirname(filename));
+    const workspace = createWorkspace(filename, c.name !== 'work_chat_execute', root);
+    try {
+      const chats = createNativeWorkChats(workspace, { pi, nodePath: process.execPath,
+        statePath, installation, agentDir });
+      switch (c.name) {
+        case 'work_chat_open': return chats.previewOpen({ identity: c.identity, requestId: c.requestId,
+          sourceClone: c.sourceClone, worktree: c.worktree, installation, statePath,
+          ...(c.nameLabel === undefined ? {} : { name: c.nameLabel }), ...(c.model ? { model: c.model } : {}) });
+        case 'work_chat_resume': return chats.previewResume(c.id, c.model);
+        case 'work_chat_new_empty': return chats.previewNewEmpty(c.id, {
+          ...(c.nameLabel === undefined ? {} : { name: c.nameLabel }), ...(c.model ? { model: c.model } : {}) });
+        case 'work_chat_execute': {
+          const result = await chats.execute(c.preview, c.focus);
+          return result.outcome === 'partial' || result.outcome === 'blocked' ? { status: 'partial', ...result } : result;
+        }
+        case 'work_chat_list': return { chats: await chats.list() };
+        case 'work_chat_show': return chats.show(c.id);
+      }
+    } finally { workspace.close(); }
+  }
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));

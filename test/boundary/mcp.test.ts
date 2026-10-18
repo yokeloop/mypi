@@ -18,8 +18,10 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return root;
   }
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
+  const agentDir = join(dir, 'agent'); mkdirSync(agentDir);
   const env = (where: string) => ({ PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state',
-    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
+    MYPI_WORK_CHAT_PI: process.execPath, PI_CODING_AGENT_DIR: agentDir });
   async function connect(where: string) {
     const transport = new StdioClientTransport({ command: process.execPath, args: [join(where, 'dist/src/mcp/main.js')],
       cwd: dir, env: env(where), stderr: 'pipe' });
@@ -41,8 +43,10 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 34);
+  assert.equal(listed.length, 40);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
+  assert.equal(listed.find(t => t.name === 'work_chat_open')!.annotations!.readOnlyHint, true);
+  assert.equal(listed.find(t => t.name === 'work_chat_execute')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup_publish')!.annotations!.destructiveHint, true);
   assert.equal(listed.find(t => t.name === 'restore_published')!.annotations!.destructiveHint, true);
@@ -56,6 +60,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal(existsSync(home), false);
   assert.equal(existsSync(root + '-state'), false, 'connect/list/invalid calls must not initialize DB');
   await call('db_init');
+  assert.deepEqual(await call('work_chat_list'), { chats: [] });
   await call('project_add', { identity: 'one/project', code: 'MP', checkoutPath: dir });
   assert.equal((await call('project_list', { org: 'one' })).projects[0].code, 'MP');
   assert.equal((await call('project_resolve', { path: root })).code, 'MP');

@@ -20,7 +20,7 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   t.after(() => rmSync(aliasDir, { recursive: true, force: true }));
   const alias = join(aliasDir, 'root'); symlinkSync(root, alias);
   const api = {
-    registerMcpServer() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
+    registerMcpServer() {}, registerCommand() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     appendEntry(_name: string, value: unknown) { entries.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
     exec(_command: string, args: string[]) {

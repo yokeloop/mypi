@@ -12,6 +12,16 @@ export const scope = z.union([globalScope, keyedScope]).refine(value => {
 export const contextScope = scope.refine(value => value.type !== 'request', 'Context scope cannot be request');
 export const textInput = z.union([z.strictObject({ text }), z.strictObject({ file: externalPath })]);
 export const artifact = z.strictObject({ path: text, text: text.optional() });
+export const modelPair = z.strictObject({ provider: z.string().min(1), model: z.string().min(1) });
+const binding = z.strictObject({ projectId: z.number().int().positive(), requestId: z.number().int().positive(),
+  sourceClone: externalPath, worktree: externalPath, gitCommonDir: externalPath, branch: z.string().min(1),
+  installation: externalPath, statePath: externalPath });
+const native = z.strictObject({ sessionId: text, historyPath: externalPath });
+const processIdentity = z.strictObject({ pane: text, processId: z.number().int().positive(), processStart: text });
+export const chatPreview = z.strictObject({ action: z.enum(['open', 'resume', 'new-empty']), binding,
+  chatId: text.optional(), priorAttempt: text.optional(), name: text.optional(),
+  model: modelPair.extend({ source: z.enum(['invocation', 'saved session', 'project', 'organization', 'default']) }),
+  native: native.optional(), live: processIdentity.optional(), persisted: z.boolean().optional() });
 // The envelope is stable; data retains the existing operation-specific CLI JSON.
 export const output = z.strictObject({
   status: z.enum(['ok', 'error', 'partial']), data: z.unknown().optional(),

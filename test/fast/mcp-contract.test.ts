@@ -8,6 +8,10 @@ import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 
 const scope = { type: 'project', key: 'MP' };
+const preview = { action: 'open', binding: { projectId: 1, requestId: 2, sourceClone: '/tmp/clone',
+  worktree: '/tmp/task', gitCommonDir: '/tmp/clone/.git', branch: 'task/example',
+  installation: '/tmp/engine', statePath: '/tmp/state' },
+  model: { provider: 'provider', model: 'model/id', source: 'invocation' } };
 const examples: [string, Record<string, unknown>][] = [
   ['project_list', { org: 'one' }], ['project_add', { identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }],
   ['project_resolve', { path: '/tmp' }], ['warmup', { scope }], ['memory_show', { scope }],
@@ -29,9 +33,13 @@ const examples: [string, Record<string, unknown>][] = [
   ['restore', { backupDirectory: '/tmp/snapshot' }],
   ['backup_publish', { dryRun: true, selectedPaths: ['chosen.md'] }],
   ['restore_published', { repository: '/tmp/clone', commit: 'a'.repeat(40) }],
+  ['work_chat_open', { identity: 'one/project', requestId: 2, sourceClone: '/tmp/clone', worktree: '/tmp/task', model: { provider: 'provider', model: 'model/id' } }],
+  ['work_chat_resume', { id: 'chat-id', model: { provider: 'provider', model: 'model/id' } }],
+  ['work_chat_new_empty', { id: 'chat-id' }], ['work_chat_execute', { preview, focus: false }],
+  ['work_chat_list', {}], ['work_chat_show', { id: 'chat-id' }],
 ];
-test('34 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 34);
+test('40 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 40);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -70,6 +78,11 @@ test('CLI translates to the same subject commands without changing text or defau
     { name: 'backup_publish', dryRun: true, selectedPaths: ['a.md', 'b.md'] });
   assert.deepEqual(translate(['restore', '--repository', '/tmp/clone', '--commit', 'a'.repeat(40)]),
     { name: 'restore_published', repository: '/tmp/clone', commit: 'a'.repeat(40) });
+  assert.deepEqual(translate(['work-chat', 'resume', 'chat-id', '--provider', 'provider', '--model', 'model/with/slashes']),
+    { name: 'work_chat_resume', id: 'chat-id', model: { provider: 'provider', model: 'model/with/slashes' } });
+  assert.deepEqual(translate(['work-chat', 'resume', 'chat-id', '--model', 'provider/model/with/slashes']),
+    { name: 'work_chat_resume', id: 'chat-id', model: { provider: 'provider', model: 'model/with/slashes' } });
+  assert.throws(() => translate(['work-chat', 'resume', 'chat-id', '--provider', 'provider']), /requires --model/);
   assert.deepEqual(translate(['backup', '/tmp/snapshot']), { name: 'backup', destination: '/tmp/snapshot' });
   assert.deepEqual(translate(['restore', '/tmp/snapshot']), { name: 'restore', backupDirectory: '/tmp/snapshot' });
   for (const args of [['backup', '--publish', '/tmp/snapshot'], ['backup', '--dry-run'],

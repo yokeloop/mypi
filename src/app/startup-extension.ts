@@ -20,6 +20,7 @@ interface ExtensionContext {
 interface ExtensionAPI {
   registerMcpServer(name: string, server: { command: string; args: string[]; cwd: string; description: string; exposure: string; toolExposure: Record<string, string> }): void;
   registerFlag(name: string, flag: { type: 'boolean' | 'string'; description: string }): void;
+  registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   getFlag(name: string): unknown;
   appendEntry<T>(name: string, value: T): void;
   setModel(model: { provider: string; id: string }): Promise<boolean>;
@@ -64,6 +65,19 @@ export default function (pi: ExtensionAPI) {
     command: 'node', args: [entry], cwd: root,
     description: 'Local mypi tools for memory, projects, requests and history. No automatic initialization or writes.',
     exposure: 'codemode', toolExposure: { project_resolve: 'direct', warmup: 'direct' },
+  });
+  pi.registerCommand('work-chat', { description: 'Preview, inspect or explicitly execute independent task work chats (see /work-chat help)',
+    async handler(args, ctx) {
+      if (!args.trim() || args.trim() === 'help') {
+        ctx.ui.notify('work-chat open --project org/project --request-id N --source-clone /clone --worktree /worktree [--model provider/model-id]; resume ID; new-empty ID; list; show ID; execute --preview JSON [--focus]. Preview first; never sends a prompt. See mypi --help.', 'warning');
+        return;
+      }
+      // CLI remains the sole argument parser and application dispatch. Slash arguments are
+      // whitespace-delimited: use CLI/MCP for values containing whitespace.
+      const result = await pi.exec('node', [cli, 'work-chat', ...args.trim().split(/\s+/)],
+        { cwd: root, timeout: 30000, signal: ctx.signal });
+      ctx.ui.notify((result.code === 0 ? result.stdout : result.stderr).slice(0, 4000) || 'work-chat command failed', 'warning');
+    },
   });
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });
   pi.registerFlag('mypi-no-autoload', { type: 'boolean', description: 'Disable mypi CLI context autoload, independently of MCP.' });

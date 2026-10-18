@@ -8,6 +8,12 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'work-chat open': [0, 0, ['project', 'request-id', 'source-clone', 'worktree', 'name', 'provider', 'model'], []],
+  'work-chat resume': [1, 1, ['provider', 'model'], []],
+  'work-chat new-empty': [1, 1, ['name', 'provider', 'model'], []],
+  'work-chat execute': [0, 0, ['preview'], ['focus']],
+  'work-chat list': [0, 0, [], []],
+  'work-chat show': [1, 1, [], []],
   'project resolve': [1, 1, [], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],
