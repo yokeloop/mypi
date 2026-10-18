@@ -9,6 +9,11 @@ export function canonicalDirectory(input: string): string {
   return path;
 }
 
+export function canonicalAbsoluteDirectory(input: string): string {
+  if (!isAbsolute(input)) throw new InputError('Checkout path must be absolute');
+  return canonicalDirectory(input);
+}
+
 // Resolve the existing ancestor too: lexical containment misses symlinked state roots.
 function canonicalFuturePath(input: string): string {
   const suffix: string[] = [];

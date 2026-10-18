@@ -9,6 +9,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
     ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }) };
+  if (command.type === 'update') return { name: 'project_update', identity: command.identity,
+    expectedCheckoutPath: command.expectedCheckoutPath, checkoutPath: command.checkoutPath };
   const { name, args: a, options: o } = command;
   const opt = (key: string) => typeof o[key] === 'string' ? o[key] as string : undefined;
   const required = (key: string) => { const value = opt(key); if (!value) throw new InputError('--' + key + ' required'); return value; };

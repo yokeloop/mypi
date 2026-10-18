@@ -54,6 +54,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       switch (c.name) {
         case 'project_list': return { projects: app.projects.list(c.org) };
         case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath) };
+        case 'project_update': return { project: app.projects.updateCheckout(c.identity, c.expectedCheckoutPath, c.checkoutPath) };
         case 'project_resolve': return app.projects.resolveCheckout(c.path);
         case 'status_list': return app.requests.statuses();
         case 'status_add': app.requests.addStatus(c.code, c.terminal); break;

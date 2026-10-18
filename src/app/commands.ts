@@ -10,6 +10,7 @@ export type AppCommand =
   | { name: 'db_init' | 'bootstrap' | 'status_list' | 'journal_import' }
   | { name: 'project_list'; org?: string }
   | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }
+  | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'warmup' | 'memory_show'; scope: ScopeInput }
   | { name: 'memory_add' | 'journal_add'; scope: ScopeInput; text: string }

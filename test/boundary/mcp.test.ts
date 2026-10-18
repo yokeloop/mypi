@@ -43,7 +43,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 40);
+  assert.equal(listed.length, 41);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'work_chat_open')!.annotations!.readOnlyHint, true);
   assert.equal(listed.find(t => t.name === 'work_chat_execute')!.annotations!.readOnlyHint, false);
@@ -62,6 +62,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('db_init');
   assert.deepEqual(await call('work_chat_list'), { chats: [] });
   await call('project_add', { identity: 'one/project', code: 'MP', checkoutPath: dir });
+  assert.equal((await call('project_update', { identity: 'one/project', expectedCheckoutPath: dir, checkoutPath: root })).project.checkoutPath, root);
   assert.equal((await call('project_list', { org: 'one' })).projects[0].code, 'MP');
   assert.equal((await call('project_resolve', { path: root })).code, 'MP');
   await call('status_add', { code: 'custom', terminal: false });
