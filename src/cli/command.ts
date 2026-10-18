@@ -25,10 +25,11 @@ mypi request status <key> <code> --reason text | title <key> <title> --reason te
 mypi request progress <key> <text> [--artifacts JSON-file] | touch <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
-mypi backup <directory> | restore <backup-directory>
+mypi backup <directory> | backup --publish [--dry-run] [--file exact-relative-path ...]
+mypi restore <backup-directory> | restore --repository <absolute-local-clone> --commit <full-SHA>
 Task and journal saves are local SQLite operations, not Git commits or remote backups.
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
-Existing backup still requires clean, published context files.
+Local backup still requires clean, published context files. Publication uses existing home origin/main.
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;
 

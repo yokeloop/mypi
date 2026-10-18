@@ -62,8 +62,10 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     case 'context read': return { name: 'context_read', path: a[0]! };
     case 'context commit': return { name: 'context_commit', paths: a, message: required('message') };
     case 'context restore': return { name: 'context_restore', path: a[0]!, revision: required('revision') };
-    case 'backup': return { name: 'backup', destination: a[0]! };
-    case 'restore': return { name: 'restore', backupDirectory: a[0]! };
+    case 'backup': return o['publish'] ? { name: 'backup_publish', dryRun: Boolean(o['dry-run']), selectedPaths: o['file'] as string[] ?? [] } :
+      { name: 'backup', destination: a[0]! };
+    case 'restore': return opt('repository') ? { name: 'restore_published', repository: required('repository'), commit: required('commit') } :
+      { name: 'restore', backupDirectory: a[0]! };
     default: throw new InputError('Unknown workspace command');
   }
 }

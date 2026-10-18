@@ -41,9 +41,11 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 32);
+  assert.equal(listed.length, 34);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
+  assert.equal(listed.find(t => t.name === 'backup_publish')!.annotations!.destructiveHint, true);
+  assert.equal(listed.find(t => t.name === 'restore_published')!.annotations!.destructiveHint, true);
   assert.equal(listed.find(t => t.name === 'journal_add')!.annotations!.idempotentHint, false);
   for (const [name, args] of [['memory_add', { text: 'missing scope' }], ['db_init', { unknown: 1 }], ['unknown', {}]] as const) {
     const invalid = await client.callTool({ name, arguments: args });
@@ -132,6 +134,26 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('restore', { backupDirectory: snapshot }, restoredClient);
   assert.equal((await call('request_show', { key: request.key }, restoredClient)).status, 'accepted');
   assert.equal((await restoredClient.callTool({ name: 'restore', arguments: { backupDirectory: snapshot } })).isError, true);
+  const gitExternal = (...args: string[]) => {
+    const result = spawnSync('git', args, { encoding: 'utf8', env: env(root), timeout: 5000 });
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout.trim();
+  };
+  const bare = join(dir, 'backup.git');
+  gitExternal('init', '--bare', '--quiet', bare);
+  gitExternal('-C', home, 'remote', 'add', 'origin', bare);
+  const preview = await call('backup_publish', { dryRun: true });
+  assert.equal(preview.status, 'preview'); assert.equal(preview.snapshotSaved, false);
+  assert.equal(existsSync(join(home, '.mypi-backup')), false);
+  const published = await call('backup_publish');
+  assert.equal(published.status, 'published');
+  assert.equal(gitExternal('-C', bare, 'rev-parse', 'refs/heads/main'), published.commit);
+  const clone = join(dir, 'fresh-clone'); gitExternal('clone', '--quiet', bare, clone);
+  const publishedInstall = install('published-restored');
+  const publishedClient = (await connect(publishedInstall)).client;
+  await call('restore_published', { repository: clone, commit: published.commit }, publishedClient);
+  assert.equal((await call('request_show', { key: request.key }, publishedClient)).status, 'accepted');
+  assert.equal((await publishedClient.callTool({ name: 'restore_published', arguments: { repository: clone, commit: published.commit } })).isError, true);
 });
 
 test('stdio EOF and SIGTERM exit cleanly without creating state', async t => {

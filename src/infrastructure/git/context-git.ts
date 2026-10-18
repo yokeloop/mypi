@@ -69,6 +69,7 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
   }
   return {
     inspectRepository,
+    ensureBytePreservingAttributes() { inspectRepository(); ensureAttributes(); },
     initialize() {
       files.path('MEMORY.md');
       ownMetadata();
@@ -90,7 +91,7 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
           if (!files.isFile('USER-INSTRUCTIONS.md')) throw new InputError('Missing personal instructions');
         } else files.path(path);
       }
-      if (git(['status', '--porcelain=v1', '--untracked-files=all', '--ignored'])) throw new InputError('Dirty context; reconcile before backup');
+      if (git(['status', '--porcelain=v1', '--untracked-files=all'])) throw new InputError('Dirty context; reconcile before backup');
     },
     bundle(destination: string) { git(['bundle', 'create', destination, 'HEAD']); },
     restoreFile(path: string, revision: string) {

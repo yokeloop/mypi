@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
@@ -27,11 +27,16 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   app.restoreContext('MEMORY.md', old);
   assert.deepEqual(app.memory.show().items.map(x => x.text), ['before']);
   app.complete([card.contextDir + '/source.md', card.contextDir + '/artifacts/result.md'], 'Publish saved files for backup');
+  contextFiles(root).create('.gitignore', '.cache/\n');
+  app.complete(['.gitignore'], 'Ignore cache');
+  mkdirSync(join(root, '.cache')); writeFileSync(join(root, '.cache', 'ignored'), 'runtime cache');
   app.close();
   const snapshot = join(dir, 'backup');
   await backupState(filename, snapshot, root);
   const restoredDB = join(dir, 'restored.sqlite3'), restoredRoot = join(dir, 'restored-home');
   restoreState(snapshot, restoredDB, restoredRoot);
+  assert.equal(existsSync(join(restoredRoot, '.cache', 'ignored')), false);
+  assert.equal(readFileSync(join(root, '.cache', 'ignored'), 'utf8'), 'runtime cache');
   const restored = createWorkspace(restoredDB, true, restoredRoot);
   try {
     assert.equal(restored.requests.get(card.key).id, card.id);

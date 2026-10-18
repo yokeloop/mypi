@@ -7,5 +7,7 @@ export const maintenance = {
   db_init: { schema: z.strictObject({}), description: 'Explicit administrative action: initialize/migrate DB only, never implicit on connection.' },
   bootstrap: { schema: z.strictObject({}), description: 'Explicit engineer intent required: initialize DB and separate context Git. Stop other writers first. No network.' },
   backup: { schema: z.strictObject({ destination: externalPath }), description: 'Write DB snapshot, context bundle and checksum manifest to a new directory. Not read-only.' },
+  backup_publish: { schema: z.strictObject({ dryRun: z.boolean().optional(), selectedPaths: z.array(text).optional() }), description: 'Preview or publish a home and SQLite snapshot to existing origin/main. Exact selected relative files only; may commit and push previously unpushed history. Partial results are not success.' },
   restore: { schema: z.strictObject({ backupDirectory: externalPath }), description: 'Explicit engineer intent required: restore into absent DB/home of THIS installation. Stop other writers first. Never overwrite existing state.' },
+  restore_published: { schema: z.strictObject({ repository: externalPath, commit: text }), description: 'Explicit engineer intent required: restore exact commit from existing local backup clone into absent DB/home of THIS installation. Stop other writers first. Never overwrite existing state.' },
 };

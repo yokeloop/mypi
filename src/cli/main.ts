@@ -10,7 +10,10 @@ try {
   // Help must work without a configured home, initialized DB or any filesystem changes.
   const output = command.type === 'help' ? { usage } : await run(command,
     resolveStatePath(process.env, homedir()));
-  process.stdout.write(JSON.stringify(output) + '\n');
+  if (output !== null && typeof output === 'object' && 'status' in output && output.status === 'partial') {
+    process.stderr.write(JSON.stringify(output) + '\n');
+    process.exitCode = 1;
+  } else process.stdout.write(JSON.stringify(output) + '\n');
 } catch (error) {
   process.stderr.write(JSON.stringify({ ...(error instanceof PartialError ? { status: 'partial', saved: error.saved,
     missing: error.missing, paths: error.paths, requestId: error.requestId } : { status: 'error' }), message: error instanceof Error ? error.message : String(error) }) + '\n');

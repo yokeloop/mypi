@@ -116,6 +116,29 @@ overwrites current data; repetition refuses without changes. It checks hashes,
 schema/integrity/FKs, source and all artifact references. Preserve damaged data
 separately before recovery; there is no automatic deletion or retention policy.
 
+`backup --publish [--dry-run] [--file exact-relative-path ...]` previews or publishes
+an SQLite snapshot and committed home baseline to the already configured home
+`origin/main`. Repeat `--file` for additional exact files; registered source/artifact
+files are selected automatically. Preview reports selected/excluded paths, unpushed
+ancestor commits and destination without saving, committing or pushing. Publication
+returns `preview`, `published` or `partial`, with `snapshotSaved`, optional `commit`,
+`publicationConfirmed`, and error details. A partial result exits nonzero; inspect
+the local commit and remote ref before retry, especially after an uncertain push.
+The index and unrelated worktree changes are preserved. Credentials, token stores,
+chat transcripts and caches are not automatically selected; review committed text
+for secrets before publication. Previously unpushed ancestor commits are published
+as part of the branch. `.mypi-backup/` contains the generated snapshot and manifest;
+older binary snapshots remain in Git history and increase repository size. The live
+DB remains outside home. Publication is not atomic across Git and SQLite and does
+not save external project clones, native chats or unsaved machine state.
+
+`restore --repository /absolute/local/clone --commit FULL_SHA` reads one immutable
+published commit (including its snapshot) from an existing clone into absent home
+and DB targets of the selected installation. It does not migrate or overwrite data,
+restore external clones or provide missing credentials; checkout paths may require
+manual reconfiguration. Stop other writers before restoring. The local-directory
+`backup` and `restore` forms above remain available.
+
 Context commits use the mypi identity, without user hooks/fsmonitor/signing; private
 Git attributes preserve exact bytes without EOL/encoding/filter transformations.
 These commands do not modify working clones, branches or remote synchronization.
