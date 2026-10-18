@@ -11,6 +11,10 @@ export type Command =
   | { type: 'add'; identity: string; code: string; checkoutPath?: string };
 
 export const usage = `mypi db init
+mypi work-chat open --project org/project --request-id N --source-clone /absolute/clone --worktree /absolute/task-worktree [--name label] [--model provider/model-id | --provider provider-id --model model-id]
+mypi work-chat resume <chat-id> [--model provider/model-id | --provider provider-id --model model-id]
+mypi work-chat new-empty <chat-id> [--name label] [--model provider/model-id | --provider provider-id --model model-id]
+mypi work-chat list | show <chat-id> | execute --preview '<exact-preview-JSON>' [--focus]
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi bootstrap | warmup [-s org/project]
@@ -30,6 +34,15 @@ mypi restore <backup-directory> | restore --repository <absolute-local-clone> --
 Task and journal saves are local SQLite operations, not Git commits or remote backups.
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
+Work-chat open/resume/new-empty only preview. Execute the returned exact JSON separately; no prompt/task is sent.
+Models: home/pi/work-chats.json: default, organizations, projects (complete provider/model pairs).
+Precedence: invocation > project > organization > default; resume: invocation > saved native > config.
+Set MYPI_WORK_CHAT_PI to absolute target Pi executable, PI_CODING_AGENT_DIR to its configured resources,
+and XDG_STATE_HOME to the target state directory. Requires persistent Herdr (HERDR_ENV/HERDR_WORKSPACE_ID),
+existing registered source clone/task worktree, Node 24, installed mypi package and native history.
+Live resume returns its existing pane; a different model must be chosen there or after closing it.
+Missing persisted history cannot be resumed; only proven closed empty chats allow explicit new-empty.
+No credential isolation, automatic worktree creation, provider request, prompt, daemon or retry is provided.
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;
 

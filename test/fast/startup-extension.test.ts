@@ -4,8 +4,128 @@ import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import install from '../../src/app/startup-extension.js';
+import { parseCommand } from '../../src/cli/command.js';
+import { appCommand } from '../../src/cli/app-command.js';
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
+test('native slash execute forwards exact saved-session preview JSON and focus to shared CLI parsing', async () => {
+  let handler: ((args: string, ctx: any) => Promise<void>) | undefined;
+  const calls: string[][] = [];
+  const notices: string[] = [];
+  install({ registerMcpServer() {}, registerFlag() {}, on() {},
+    registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) {
+      if (name === 'work-chat') handler = command.handler;
+    },
+    async exec(_command: string, argv: string[]) {
+      calls.push(argv);
+      return { code: 0, stdout: '{}', stderr: '' };
+    },
+  } as never);
+  assert(handler, 'registered native command must be exercised');
+  const ctx = { signal: new AbortController().signal, ui: { notify(message: string) { notices.push(message); } } };
+  const preview = { action: 'resume', chatId: 'chat-1',
+    binding: { projectId: 1, requestId: 2, sourceClone: '/source', worktree: '/worktree',
+      gitCommonDir: '/source/.git', branch: 'task/a', installation: '/engine', statePath: '/state' },
+    model: { provider: 'fixture', model: 'model/id', source: 'saved session' },
+    native: { sessionId: 'session-1', historyPath: '/state/sessions/a.jsonl' },
+    name: 'marker with spaces, escaped "quotes" and \\slashes --focus',
+  };
+  const json = JSON.stringify(preview);
+  const cli = async (input: string) => {
+    await handler!(input, ctx);
+    return calls.at(-1)!.slice(1);
+  };
+  const argv = await cli(`execute --preview ${json} --focus`);
+  assert.deepEqual(argv, ['work-chat', 'execute', '--preview', json, '--focus']);
+  assert.deepEqual(appCommand(parseCommand(argv) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>),
+    { name: 'work_chat_execute', preview, focus: true });
+  const noFocus = await cli(`execute --preview ${json}`);
+  assert.deepEqual(noFocus, ['work-chat', 'execute', '--preview', json]);
+  assert.equal((appCommand(parseCommand(noFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, false);
+  const embeddedFocus = JSON.stringify({ ...preview, name: 'suffix --focus' });
+  assert.deepEqual(await cli(`execute --preview ${embeddedFocus}`), ['work-chat', 'execute', '--preview', embeddedFocus]);
+  const formatted = JSON.stringify(preview, null, 2);
+  const leadingFocus = await cli(`execute --focus --preview ${formatted}`);
+  assert.deepEqual(leadingFocus, ['work-chat', 'execute', '--focus', '--preview', formatted]);
+  assert.equal((appCommand(parseCommand(leadingFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, true);
+  for (const input of ['execute --preview', 'execute --preview {invalid',
+    `execute --preview ${json} extra`, `execute --preview ${json} --preview ${json}`,
+    `execute --preview ${json} --focus --focus`, `execute --preview ${json}--focus`]) {
+    const forwarded = await cli(input);
+    assert.throws(() => appCommand(parseCommand(forwarded) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>));
+  }
+  assert.deepEqual(await cli('list'), ['work-chat', 'list']);
+  assert.equal(notices.length, calls.length);
+});
+test('managed flags applied after extension loading produce native lifecycle acknowledgements without replaying model choice', async () => {
+  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
+  const flags = new Map<string, unknown>();
+  const reports: Array<{ lifecycle: string; attempt: string; model: { provider: string; model: string }; sessionId: string; finalEmpty: boolean; error?: string }> = [];
+  const branch: any[] = [];
+  const attempt = '11111111-2222-4333-8444-555555555555';
+  const root = process.cwd();
+  let sessionId = 'first-session';
+  let selected = { provider: 'fixture', id: 'initial' };
+  let selections = 0;
+  const api = {
+    registerMcpServer() {}, registerCommand() {}, registerFlag() {},
+    getFlag(name: string) { return flags.get(name); },
+    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) {
+      handlers.set(name, [...(handlers.get(name) ?? []), handler]);
+    },
+    appendEntry(_name: string, value: unknown) { branch.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
+    async setModel(model: { provider: string; id: string }) {
+      selections++;
+      branch.push({ type: 'model_change', provider: model.provider, modelId: model.id });
+      return true;
+    },
+    async exec(_command: string, args: string[]) {
+      if (args[0]?.endsWith('/work-chat-ack.js')) {
+        reports.push(JSON.parse(args[3]!) as (typeof reports)[number]);
+        return { code: 0, killed: false, stdout: '', stderr: '' };
+      }
+      return { code: 0, killed: false, stdout: JSON.stringify({ memory: [], work: { tasks: [] } }), stderr: '' };
+    },
+  };
+  install(api as never); // Pi loads extensions before it applies CLI flag values.
+  const ctx = { cwd: root, signal: new AbortController().signal, hasUI: false,
+    get model() { return selected; },
+    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return true; } },
+    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => undefined,
+      getHeader: () => ({ id: sessionId, cwd: root }), getEntries: () => [], getBranch: () => branch },
+  };
+  const emit = async (name: string, event: any = {}) => {
+    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
+  };
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.length, 0, 'unmanaged sessions must not emit native acknowledgements');
+  flags.set('mypi-chat-attempt', attempt);
+  flags.set('mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'initial' }));
+  flags.set('mypi-chat-override', true);
+  flags.set('mypi-scope', 'fixture/tool');
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
+  assert.equal(reports.at(-1)?.attempt, attempt);
+  assert.equal(reports.at(-1)?.error, undefined);
+  assert.equal(selections, 1, 'explicit resume override persists exactly once at startup');
+  selected = { provider: 'fixture', id: 'manual' };
+  branch.push({ type: 'model_change', provider: 'fixture', modelId: 'manual' });
+  await emit('model_select');
+  assert.deepEqual(reports.at(-1)?.model, { provider: 'fixture', model: 'manual' });
+  await emit('session_start', { reason: 'reload' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:reload');
+  assert.equal(selections, 1, 'reload must preserve the manual choice');
+  sessionId = 'changed-session';
+  await emit('session_tree');
+  assert.equal(reports.at(-1)?.sessionId, 'changed-session', 'native identity changes must remain observable');
+  await emit('session_shutdown', { reason: 'quit' });
+  assert.equal(reports.at(-1)?.finalEmpty, true, 'shutdown reports the real final empty snapshot');
+  flags.set('mypi-chat-model', '{invalid');
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
+  assert.match(reports.at(-1)?.error ?? '', /model/i, 'malformed late target cannot be acknowledged as ready');
+  assert.equal(selections, 1);
+});
 test('session snapshot survives ordinary turns/compaction, refreshes on memory tools and lifecycle, rejects late reads', async t => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const entries: any[] = [];
@@ -20,7 +140,7 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   t.after(() => rmSync(aliasDir, { recursive: true, force: true }));
   const alias = join(aliasDir, 'root'); symlinkSync(root, alias);
   const api = {
-    registerMcpServer() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
+    registerMcpServer() {}, registerCommand() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     appendEntry(_name: string, value: unknown) { entries.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
     exec(_command: string, args: string[]) {

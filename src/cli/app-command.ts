@@ -2,6 +2,7 @@ import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
+import { parseCliModel, parseChatPreview } from '../app/work-chat-input.js';
 
 export function appCommand(command: Exclude<Command, { type: 'help' }>): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
@@ -13,6 +14,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
   const required = (key: string) => { const value = opt(key); if (!value) throw new InputError('--' + key + ' required'); return value; };
   const scope = opt('scope') === undefined ? { type: 'global' as const } : { reference: opt('scope')! };
   const journalScope = opt('scope') ? { reference: opt('scope')! } : { type: 'global' as const };
+  const model = () => parseCliModel(opt('provider'), opt('model'));
   function source(index: number): TextInput {
     if (opt('file') && a[index] !== undefined) throw new InputError('Use text or --file, not both');
     if (opt('file')) return { file: required('file') };
@@ -20,6 +22,24 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     return { text: a[index] };
   }
   switch (name) {
+    case 'work-chat open': {
+      const selected = model();
+      const requestId = Number(required('request-id'));
+      if (!Number.isSafeInteger(requestId) || requestId <= 0) throw new InputError('--request-id must be a positive integer');
+      return { name: 'work_chat_open', identity: required('project'), requestId,
+        sourceClone: required('source-clone'), worktree: required('worktree'),
+        ...(opt('name') === undefined ? {} : { nameLabel: opt('name')! }), ...(selected ? { model: selected } : {}) };
+    }
+    case 'work-chat resume': return { name: 'work_chat_resume', id: a[0]!, ...(model() ? { model: model()! } : {}) };
+    case 'work-chat new-empty': return { name: 'work_chat_new_empty', id: a[0]!,
+      ...(opt('name') === undefined ? {} : { nameLabel: opt('name')! }), ...(model() ? { model: model()! } : {}) };
+    case 'work-chat execute': {
+      let parsed: unknown;
+      try { parsed = JSON.parse(required('preview')); } catch { throw new InputError('--preview must be exact JSON returned by preview'); }
+      return { name: 'work_chat_execute', preview: parseChatPreview(parsed), focus: Boolean(o['focus']) };
+    }
+    case 'work-chat list': return { name: 'work_chat_list' };
+    case 'work-chat show': return { name: 'work_chat_show', id: a[0]! };
     case 'bootstrap': return { name: 'bootstrap' };
     case 'capture': return { name: 'capture', source: source(0) };
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };

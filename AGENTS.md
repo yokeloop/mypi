@@ -38,6 +38,18 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   asks to stop, pause, cancel, or replace it. Do not silently drop pending work
   or ask for repeated authorization solely because the topic changed. A real
   blocker still requires reporting or clarification; continuity grants no new scope.
+- Agent/workflow configuration mistakes are recoverable orchestration defects,
+  not a reason to abandon authorized work or repeatedly ask the user to continue.
+  Stop the failed lane, inspect the actual cause and repository state, preserve
+  failure evidence, correct the agent/workflow configuration, then resume the
+  affected stage through the same authorized protocol and continue the task.
+  Do not repeat an unchanged failing configuration or restart completed stages.
+  Verify the corrected handoff before dependent work; retain review gates,
+  resource budgets, tool restrictions and the original authorization boundaries.
+  If repairing the orchestration requires code changes rather than agent/workflow
+  configuration, stop and obtain approval for that repair; do not patch installed
+  tools or substitute another runner implicitly. Already authorized in-scope
+  product fixes still follow the task's existing correction and verification cycle.
 - Inspect applicable files and preserve unrelated dirty/staged changes.
 - Do not create tabs or subagents unless explicitly requested for the work or
   authorized by the engine feature-development workflow below. Task worktrees
