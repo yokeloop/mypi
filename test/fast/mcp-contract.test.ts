@@ -11,7 +11,7 @@ const scope = { type: 'project', key: 'MP' };
 const examples: [string, Record<string, unknown>][] = [
   ['project_list', { org: 'one' }], ['project_add', { identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }],
   ['project_resolve', { path: '/tmp' }], ['warmup', { scope }], ['memory_show', { scope }],
-  ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1 }],
+  ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1, expectedRevision: 'a'.repeat(64) }],
   ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
   ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }], ['journal_import', {}],
   ['journal_read', { scope: 'all', from: '2026-01-01T00:00:00Z', to: '2026-12-31T00:00:00Z', eventType: 'note', limit: 10 }],
@@ -37,7 +37,7 @@ test('32 independent tool examples retain every field; strict schemas reject unk
   }
   for (const [name, args] of [
     ['memory_add', { text: 'no default scope' }], ['warmup', { scope: { type: 'request', key: 'MP-1' } }],
-    ['warmup', { scope: { type: 'global', key: 'MP' } }], ['memory_remove', { scope, number: '1' }],
+    ['warmup', { scope: { type: 'global', key: 'MP' } }], ['memory_remove', { scope, number: '1', expectedRevision: 'a'.repeat(64) }], ['memory_remove', { scope, number: 1 }],
     ['capture', { source: { text: 'x', file: '/tmp/x' } }], ['capture', { source: { file: 'relative' } }],
     ['request_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
     ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
@@ -56,6 +56,10 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
+  assert.deepEqual(translate(['project', 'resolve', '/tmp']), { name: 'project_resolve', path: '/tmp' });
+  assert.deepEqual(translate(['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)]),
+    { name: 'memory_remove', scope: { type: 'global' }, number: 1, expectedRevision: 'a'.repeat(64) });
+  assert.throws(() => translate(['memory', 'remove', '1']), /expected-revision/);
   assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });

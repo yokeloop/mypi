@@ -45,7 +45,7 @@ test('CLI parsing is strict without invoking a process for the validation matrix
   for (const args of [
     ['bootstrap'], ['capture', '--file', 'source'], ['warmup', '-s', 'one/project'],
     ['note', 'title', 'text'], ['error', 'one/project', 'error'],
-    ['memory', 'show'], ['memory', 'add', 'fact'], ['memory', 'remove', '1'],
+    ['memory', 'show'], ['memory', 'add', 'fact'], ['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)], ['project', 'resolve', '/tmp'],
     ['journal', 'add', 'outcome'], ['journal', 'read', '--all'],
     ['request', 'create', 'source'], ['request', 'list'], ['request', 'show', 'REQ-1'],
     ['request', 'title', 'REQ-1', 'title'], ['request', 'status', 'REQ-1', 'new'],

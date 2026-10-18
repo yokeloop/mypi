@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomUUID, createHash } from 'node:crypto';
 import { createMemory } from '../modules/memory/public.js';
 import { createInbox } from '../modules/inbox/public.js';
 import { warmup } from './warmup.js';
@@ -82,7 +82,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     },
   };
   const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
-  const memory = createMemory(texts), inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
+  const memory = createMemory(texts, text => createHash('sha256').update(text).digest('hex')), inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
   return {
     projects: core.projects, close: core.close, requests, root,
     statuses: {
@@ -116,7 +116,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     memory: {
       show: (scope?: string) => memory.show(contextPath(scope)),
       add: (text: string, scope?: string) => memory.add(contextPath(scope), text),
-      remove: (number: number, scope?: string) => memory.remove(contextPath(scope), number),
+      remove: (number: number, expectedRevision: string, scope?: string) => memory.remove(contextPath(scope), number, expectedRevision),
     },
     capture: inbox.capture,
     inbox: inbox.index,
@@ -127,8 +127,15 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     },
     warmup(scope?: string) {
       const resolved = core.projects.resolveScope(scope);
-      return warmup(resolved, memory, inbox, files.read,
-        resolved.type === 'org' ? core.projects.list(resolved.slug) : core.projects.list(), journal.read);
+      return database.readSnapshot(() => {
+        const projects = core.projects.list();
+        return warmup(resolved, memory, inbox, files.read,
+          resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects,
+          core.requests.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
+          (selected, limit) => database.journalStore.recentWork(selected.type === 'global' ? { type: 'global' }
+            : selected.type === 'org' ? { type: 'org', slug: selected.slug }
+              : { type: 'project', code: selected.project.code }, limit));
+      });
     },
   };
 }
