@@ -8,11 +8,17 @@ matching MCP operations are `work_chat_open`, `work_chat_resume`,
 `work_chat_new_empty`, `work_chat_list`, `work_chat_show` and `work_chat_execute`.
 The native `/model` command remains the per-chat selector.
 
-Configure the *target* installation's Pi resources first. Set `XDG_STATE_HOME` to
-its existing state directory, `MYPI_WORK_CHAT_PI` to the absolute Pi executable,
-and `PI_CODING_AGENT_DIR` to the absolute directory containing its `settings.json`
-with exactly one package entry for this installation's `integrations/pi`.
-Run under Node 24 and persistent Herdr (`HERDR_ENV=1` and
+Configure the *target* installation first. Set `XDG_STATE_HOME` to its existing
+state directory and `MYPI_WORK_CHAT_PI` to the absolute Pi executable. Work chats
+use Pi's ordinary agent resources (`~/.pi/agent`), or the explicit
+`PI_CODING_AGENT_DIR` if set, including its existing auth. The launcher pins that
+agent directory in the tab. If agent settings or the worktree's project-local
+`.pi/settings.json` already configure the exact installed mypi package, that
+entry and its filters are respected; otherwise the launcher loads the verified
+installation's `integrations/pi` for this invocation with `-e`, without changing
+global settings. Conflicting or duplicate mypi package entries are refused before
+tab creation. Ancestor `.pi` settings are not project package settings for this
+worktree. Run under Node 24 and persistent Herdr (`HERDR_ENV=1` and
 `HERDR_WORKSPACE_ID`). The installation needs built mypi, and its user home
 needs `USER-INSTRUCTIONS.md`. The registered project must have an independent
 source clone and an existing task branch/worktree belonging to that clone;

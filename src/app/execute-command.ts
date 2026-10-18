@@ -7,8 +7,9 @@ import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 import { createNativeWorkChats } from './create-native-work-chats.js';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { realpathSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
@@ -23,8 +24,9 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
   if (c.name.startsWith('work_chat_')) {
-    const pi = process.env.MYPI_WORK_CHAT_PI, agentDir = process.env.PI_CODING_AGENT_DIR;
-    if (!pi || !agentDir) throw new InputError('Set MYPI_WORK_CHAT_PI to the absolute target Pi executable and PI_CODING_AGENT_DIR to its configured resources');
+    const pi = process.env.MYPI_WORK_CHAT_PI;
+    const agentDir = process.env.PI_CODING_AGENT_DIR ?? join(homedir(), '.pi', 'agent');
+    if (!pi) throw new InputError('Set MYPI_WORK_CHAT_PI to the absolute target Pi executable');
     const installation = realpathSync(fileURLToPath(new URL('../../../', import.meta.url)));
     const statePath = dirname(dirname(filename));
     const workspace = createWorkspace(filename, c.name !== 'work_chat_execute', root);

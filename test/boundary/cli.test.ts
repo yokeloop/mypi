@@ -36,9 +36,12 @@ test('real Node launcher persists projects across independent processes without 
   assert.equal(JSON.parse(duplicate.stderr).status, 'error');
   assert.equal(duplicate.stdout, '');
   assert.equal(existsSync(join(dir, 'home')), false);
+  const help = run('--help');
+  assert.equal(help.status, 0, help.stderr);
+  assert.match(help.stdout, /Pi agent resources default to ~\/\.pi\/agent; optionally set PI_CODING_AGENT_DIR/);
   const missingTarget = run('work-chat', 'list');
   assert.equal(missingTarget.status, 1);
-  assert.match(JSON.parse(missingTarget.stderr).message, /MYPI_WORK_CHAT_PI.*PI_CODING_AGENT_DIR/);
+  assert.match(JSON.parse(missingTarget.stderr).message, /MYPI_WORK_CHAT_PI/);
   assert.equal(missingTarget.stdout, '');
   const agentDir = join(dir, 'agent'); mkdirSync(agentDir);
   const observed = spawnSync(process.execPath, [entry, 'work-chat', 'list'], {
