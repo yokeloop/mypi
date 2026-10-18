@@ -172,7 +172,9 @@ test('push releases writer lock, pushes captured commit despite HEAD advance, in
   const app = createWorkspace(filename, false, home); app.memory.add('baseline'); app.close();
   git('init', '--bare', '--quiet', bare); git('-C', bare, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   git('-C', home, 'remote', 'add', 'origin', bare);
-  const realGit = spawnSync('which', ['git'], { encoding: 'utf8' }).stdout.trim();
+  const realGit = '/usr/bin/git';
+  const gitVersion = spawnSync(realGit, ['--version'], { encoding: 'utf8', timeout: 5000 });
+  assert.equal(gitVersion.status, 0, gitVersion.error?.message ?? gitVersion.stderr);
   const wrapperDir = join(dir, 'bin'); mkdirSync(wrapperDir);
   const counter = join(dir, 'push-count');
   const writer = join(dir, 'writer.mjs');
