@@ -167,8 +167,14 @@ restored from a full Git revision by making a new commit, not rewriting history.
 SQLite backup API with cooperating-writer lock, clean context Git bundle and checksum
 manifest after reference/pair checks. DB-only backup needs no home. Restore only into
 absent DB/home, with checksum/schema/integrity/FK and source/artifact checks; no overwrite.
+Manual `backup --publish` additionally captures SQLite plus exact selected/required
+home files in `.mypi-backup/`, the sole generated-backup-in-home exception; the live
+DB stays external. It builds an immutable home commit and pushes to existing origin/main
+after releasing the DB writer lock. Publication can be partial, not cross-store atomic;
+older binary snapshots remain in Git history. Restore from a selected commit in a
+local clone verifies the snapshot and references before installing into absent targets.
 Git is not whole-system backup and cannot restore unsaved data. Scheduling, retention,
-network sync and personal initialization require explicit action. See [M1-CLI](M1-CLI.md).
+automatic network sync and personal initialization require explicit action. See [M1-CLI](M1-CLI.md).
 
 ## 8. Verification and future execution
 

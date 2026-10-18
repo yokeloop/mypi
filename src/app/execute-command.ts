@@ -1,7 +1,8 @@
 import type { AppCommand } from './commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
-import { backupState, restoreState } from './backup.js';
+import { backupState, restoreState, publishBackup, restorePublishedBackup } from './backup.js';
+import { defaultContextRoot } from './create-workspace.js';
 import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
@@ -11,7 +12,12 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
+  if (c.name === 'backup_publish') return publishBackup({ filename, ...(root === undefined ? {} : { root }),
+    ...(c.selectedPaths === undefined ? {} : { selectedPaths: c.selectedPaths }),
+    ...(c.dryRun === undefined ? {} : { dryRun: c.dryRun }) });
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
+  if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
+    repository: c.repository, commit: c.commit });
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));

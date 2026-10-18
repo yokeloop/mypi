@@ -3,7 +3,7 @@ export interface WorkspaceCommand {
   type: 'workspace';
   name: string;
   args: string[];
-  options: Record<string, string | boolean | undefined>;
+  options: Record<string, string | string[] | boolean | undefined>;
 }
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
@@ -34,19 +34,25 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'context read': [1, 1, [], []],
   'context commit': [1, Infinity, ['message'], []],
   'context restore': [1, 1, ['revision'], []],
-  backup: [1, 1, [], []],
-  restore: [1, 1, [], []],
+  backup: [0, 1, ['file'], ['publish', 'dry-run']],
+  restore: [0, 1, ['repository', 'commit'], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');
   const spec = specs[name];
   if (!spec) throw new InputError('Unknown command; use --help');
   const [min, max, strings, booleans] = spec;
-  const options: Record<string, { type: 'string' | 'boolean'; short?: string }> = {};
-  for (const key of strings) options[key] = key === 'scope' ? { type: 'string', short: 's' } : { type: 'string' };
+  const options: Record<string, { type: 'string' | 'boolean'; short?: string; multiple?: boolean }> = {};
+  for (const key of strings) options[key] = key === 'scope' ? { type: 'string', short: 's' } : { type: 'string', ...(key === 'file' && name === 'backup' ? { multiple: true } : {}) };
   for (const key of booleans) options[key] = { type: 'boolean' };
   const parsed = parseArgs({ args: args.slice(simple ? 1 : 2), options, allowPositionals: true });
   if (parsed.positionals.length < min || parsed.positionals.length > max) throw new InputError('Wrong argument count for ' + name);
+  if (name === 'backup' && (parsed.values['publish'] ? parsed.positionals.length !== 0 :
+    parsed.positionals.length !== 1 || parsed.values['dry-run'] !== undefined || parsed.values['file'] !== undefined))
+    throw new InputError('Use backup <directory> or backup --publish [--dry-run] [--file path]');
+  if (name === 'restore' && (parsed.values['repository'] !== undefined || parsed.values['commit'] !== undefined ?
+    parsed.positionals.length !== 0 || !parsed.values['repository'] || !parsed.values['commit'] : parsed.positionals.length !== 1))
+    throw new InputError('Use restore <directory> or restore --repository <clone> --commit <SHA>');
   if (parsed.values['all'] && parsed.values['scope']) throw new InputError('--all and --scope are mutually exclusive');
   return { type: 'workspace', name, args: parsed.positionals, options: parsed.values as WorkspaceCommand['options'] };
 }

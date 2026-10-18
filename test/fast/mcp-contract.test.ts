@@ -27,9 +27,11 @@ const examples: [string, Record<string, unknown>][] = [
   ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
   ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
   ['restore', { backupDirectory: '/tmp/snapshot' }],
+  ['backup_publish', { dryRun: true, selectedPaths: ['chosen.md'] }],
+  ['restore_published', { repository: '/tmp/clone', commit: 'a'.repeat(40) }],
 ];
-test('32 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 32);
+test('34 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 34);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -42,6 +44,7 @@ test('32 independent tool examples retain every field; strict schemas reject unk
     ['request_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
     ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
     ['project_resolve', { path: 'relative' }], ['backup', { destination: 'relative' }],
+    ['backup_publish', { selectedPaths: 'not an array' }], ['restore_published', { repository: 'relative', commit: 'a'.repeat(40) }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
@@ -63,6 +66,15 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
   assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
+  assert.deepEqual(translate(['backup', '--publish', '--dry-run', '--file', 'a.md', '--file', 'b.md']),
+    { name: 'backup_publish', dryRun: true, selectedPaths: ['a.md', 'b.md'] });
+  assert.deepEqual(translate(['restore', '--repository', '/tmp/clone', '--commit', 'a'.repeat(40)]),
+    { name: 'restore_published', repository: '/tmp/clone', commit: 'a'.repeat(40) });
+  assert.deepEqual(translate(['backup', '/tmp/snapshot']), { name: 'backup', destination: '/tmp/snapshot' });
+  assert.deepEqual(translate(['restore', '/tmp/snapshot']), { name: 'restore', backupDirectory: '/tmp/snapshot' });
+  for (const args of [['backup', '--publish', '/tmp/snapshot'], ['backup', '--dry-run'],
+    ['backup', '/tmp/snapshot', '--file', 'x'], ['restore', '--repository', '/tmp/clone'],
+    ['restore', '/tmp/snapshot', '--commit', 'a'.repeat(40)]]) assert.throws(() => translate(args));
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
@@ -72,6 +84,9 @@ test('partial is never success; structured and text results agree with every rec
   assert.deepEqual(JSON.parse((result.content[0] as { text: string }).text), expected);
   assert.deepEqual(failure(new Error('bad')).structuredContent, { status: 'error', message: 'bad' });
   assert.deepEqual(success({ path: 'x' }).structuredContent, { status: 'ok', data: { path: 'x' } });
+  const publishPartial = success({ status: 'partial', snapshotSaved: true, commit: 'a'.repeat(40), publicationConfirmed: false });
+  assert.equal(publishPartial.isError, true);
+  assert.deepEqual(publishPartial.structuredContent, JSON.parse((publishPartial.content[0] as { text: string }).text));
 });
 test('calls serialize async work; cancelled pending calls and calls after stop have no effects', async () => {
   const queue = serialCalls(), events: string[] = [], controller = new AbortController();

@@ -45,7 +45,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-31 tools are available through standard tools/list. Inspect live schemas for fields.
+34 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 request scope is supported for journal, not warmup or MEMORY. Journal read also accepts
 explicit `"all"`. A project scope key is its code; request_create.project is org/project
@@ -63,6 +63,14 @@ events, olderEvents). The global work index includes projectless request events;
 `journal_read` global remains global-only. CLI `project resolve /absolute/path`
 exposes the existing project_resolve operation independently of MCP. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
+`backup_publish` accepts optional `dryRun:boolean` and `selectedPaths:string[]` of
+exact home-relative files; `restore_published` accepts an absolute local `repository`
+clone path and full `commit` SHA. Both share the CLI application operation. A publish
+result with data.status `partial` has `isError:true` and envelope status `partial`,
+with full stage details in `data`; dry-run returns `preview` without writes. Both
+tools carry destructive hints, including dry-run because the same tool can write.
+Publication may include unpushed ancestor commits; inspect remote on uncertain push.
+Restore only into absent targets of this installation. See [M1-CLI](M1-CLI.md).
 Always check isError and structuredContent.status, not promise resolution alone.
 
 Calls within one server are serial, including async backup. A queued cancellation

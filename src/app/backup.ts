@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, renameSync, lstatSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, renameSync, lstatSync, copyFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { backupGit, clonePublishedCommit } from '../infrastructure/git/backup-git.js';
 import { relativeContextPath } from '../infrastructure/filesystem/context-files.js';
@@ -96,6 +97,17 @@ export interface PublishBackupResult {
   snapshotPath?: string; error?: string;
 }
 const generated = '.mypi-backup';
+function externalVerificationDirectory(root: string): string {
+  const parent = tmpdir();
+  externalDatabasePath(join(parent, 'mypi-verification-check'), root);
+  externalDatabasePath(join(parent, 'mypi-verification-check'), resolve(defaultContextRoot(), '..'));
+  const temp = mkdtempSync(join(parent, 'mypi-backup-verify-'));
+  try {
+    externalDatabasePath(join(temp, 'state.sqlite3'), root);
+    externalDatabasePath(join(temp, 'state.sqlite3'), resolve(defaultContextRoot(), '..'));
+    return temp;
+  } catch (error) { rmSync(temp, { recursive: true, force: true }); throw error; }
+}
 function selectedPath(path: string): void {
   relativeContextPath(path);
   if (path === generated || path.startsWith(generated + '/') || path === 'pi/APPEND_SYSTEM.md'
@@ -160,8 +172,12 @@ export async function publishBackup(input: PublishBackupInput): Promise<PublishB
         await snapshotDatabase(filename, snapshot);
         const snapshotBytes = readFileSync(snapshot);
         // Verify the bytes which will become Git objects, not mutable worktree bytes.
-        const probe = mkdtempSync(join(temp, 'verify-'));
+        const verification = externalVerificationDirectory(root);
         try {
+          const probe = join(verification, 'home');
+          mkdirSync(probe);
+          const verifiedSnapshot = join(verification, 'state.sqlite3');
+          copyFileSync(snapshot, verifiedSnapshot);
           for (const path of git.tracked(base)) {
             if (path.startsWith(generated + '/')) continue;
             relativeContextPath(path);
@@ -178,8 +194,8 @@ export async function publishBackup(input: PublishBackupInput): Promise<PublishB
             mkdirSync(dirname(target), { recursive: true });
             writeFileSync(target, preimages.get(path)!, { mode: 0o600 });
           }
-          verifyReferences(snapshot, probe);
-        } finally { rmSync(probe, { recursive: true, force: true }); }
+          verifyReferences(verifiedSnapshot, probe);
+        } finally { rmSync(verification, { recursive: true, force: true }); }
         if (git.head() !== base || selectedPaths.some(path => !readFileSync(contextFiles(root).path(path)).equals(preimages.get(path)!))) {
           throw new InputError('Home changed during backup');
         }
@@ -242,7 +258,7 @@ export function restorePublishedBackup(input: RestorePublishedInput): ReturnType
     || !/^[a-f0-9]{64}$/.test(data.files['state.sqlite3'] ?? '')) throw new InputError('Invalid published manifest');
   const snapshot = git.read(commit, generated + '/state.sqlite3');
   if (createHash('sha256').update(snapshot).digest('hex') !== data.files['state.sqlite3']) throw new InputError('Backup checksum mismatch');
-  const temp = mkdtempSync(join(dirname(resolve(root)), '.mypi-restore-'));
+  const temp = externalVerificationDirectory(root);
   try {
     const saved = join(temp, 'state.sqlite3'), probe = join(temp, 'home');
     writeFileSync(saved, snapshot, { mode: 0o600 });

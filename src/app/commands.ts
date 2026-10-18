@@ -29,4 +29,6 @@ export type AppCommand =
   | { name: 'context_commit'; paths: string[]; message: string }
   | { name: 'context_restore'; path: string; revision: string }
   | { name: 'backup'; destination: string }
-  | { name: 'restore'; backupDirectory: string };
+  | { name: 'backup_publish'; dryRun?: boolean; selectedPaths?: string[] }
+  | { name: 'restore'; backupDirectory: string }
+  | { name: 'restore_published'; repository: string; commit: string };

@@ -5,7 +5,11 @@ import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { state } from '../support/state.js';
 import { initializeWorkspace, createWorkspace } from '../../src/app/create-workspace.js';
-import { publishBackup, restorePublishedBackup } from '../../src/app/backup.js';
+import { publishBackup } from '../../src/app/backup.js';
+import { run } from '../../src/cli/run.js';
+import { parseCommand } from '../../src/cli/command.js';
+import { executeCommand } from '../../src/app/execute-command.js';
+import { toolCommand } from '../../src/mcp/tools.js';
 
 function git(...args: string[]): string {
   const result = spawnSync('git', args, { encoding: 'utf8', timeout: 5000 });
@@ -31,12 +35,12 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   writeFileSync(join(home, '.gitignore'), '.cache/\n');
   git('-C', home, 'add', '.gitignore');
   const staged = git('-C', home, 'ls-files', '-s', 'unrelated.md');
-  const preview = await publishBackup({ filename, root: home, dryRun: true });
+  const preview = await run(parseCommand(['backup', '--publish', '--dry-run']), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
   assert.equal(preview.status, 'preview');
   assert.equal(preview.snapshotSaved, false);
   assert.ok(preview.excludedPaths.includes('MEMORY.md'));
   assert.ok(preview.selectedPaths.includes(card.contextDir + '/source.md'));
-  const result = await publishBackup({ filename, root: home, selectedPaths: ['chosen.md'] });
+  const result = await executeCommand(toolCommand('backup_publish', { selectedPaths: ['chosen.md'] }), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
   assert.equal(result.status, 'published', result.error);
   assert.equal(result.publicationConfirmed, true);
   assert.equal(git('-C', bare, 'rev-parse', 'refs/heads/main'), result.commit);
@@ -46,7 +50,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   assert.equal(git('-C', bare, 'ls-tree', '-r', '--name-only', result.commit!).includes('.cache/work'), false);
   const clone = join(dir, 'fresh'); git('clone', '--quiet', bare, clone);
   const restoredDb = join(dir, 'restored.sqlite3'), restoredHome = join(dir, 'restored');
-  restorePublishedBackup({ repository: clone, commit: result.commit!, filename: restoredDb, root: restoredHome });
+  await run(parseCommand(['restore', '--repository', clone, '--commit', result.commit!]), restoredDb, restoredHome);
   const restored = createWorkspace(restoredDb, true, restoredHome);
   try {
     assert.equal(restored.read(card.contextDir + '/source.md'), 'source\r\n');
@@ -55,7 +59,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   } finally { restored.close(); }
   assert.equal(existsSync(join(restoredHome, 'unrelated.md')), false);
   assert.equal(readFileSync(join(restoredHome, 'chosen.md'), 'utf8'), 'selected exact bytes\r\n');
-  assert.throws(() => restorePublishedBackup({ repository: clone, commit: result.commit!, filename: restoredDb, root: restoredHome }), /absent/);
+  await assert.rejects(run(parseCommand(['restore', '--repository', clone, '--commit', result.commit!]), restoredDb, restoredHome), /absent/);
 });
 
 test('push rejection retains exact local commit; required excluded files refuse, ignored cache does not block local backup', async t => {

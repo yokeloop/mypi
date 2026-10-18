@@ -5,7 +5,7 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 32 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, CLI and 34 stdio MCP tools over one API.
 The Pi package optionally autoloads the ordinary scoped CLI warmup into the system
 prompt; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -37,7 +37,7 @@ describe older revisions, not the current operating policy.
   memory/context can change with history; original source and append-only logs cannot.
 - **Saving is not synchronization.** Task and journal operations save locally in
   SQLite without Git. Other context writes still commit locally. Publish source and
-  artifact files separately before existing backup; network sync requires separate authorization.
+  artifact files separately before local backup; manual publication requires explicit authorization.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
@@ -183,11 +183,16 @@ moves, review the absolute package path in user settings: bootstrap adds the cur
 path but does not silently remove other entries. Compatibility with future Pi APIs
 still needs verification; separating paths prevents Git conflicts, not API changes.
 
-Back up both the separate home Git and SQLite. The context backup command requires
-a clean committed home (including configuration); it preserves the exact personal
-instruction symlink but rejects arbitrary symlinks. MCP-managed content still cannot
-be edited through links. Bootstrap leaves files for review, so commit them before
-using context backup. Git alone does not back up SQLite.
+Back up both separate home Git and SQLite. Local `backup <directory>` requires clean
+committed context. Manual `backup --publish [--dry-run] [--file exact-path ...]`
+publishes an exact SQLite/home snapshot to existing home origin/main. Preview reports
+excluded files and unpushed ancestor commits; review selected and committed text for
+secrets. Generated `.mypi-backup/` is versioned while live DB remains outside home.
+Restore a published commit using `restore --repository /local/clone --commit FULL_SHA`
+only into absent installation targets. Inspect remote after uncertain publication
+before retry; binary snapshots grow Git history. This does not recover external
+clones, credentials, chats or unsaved data. Supported instruction symlink survives;
+arbitrary symlinks are rejected. See [M1-CLI](docs/M1-CLI.md).
 
 This organization supports one Pi workspace for multiple projects; it does not yet
 implement a parallel task runner or protection against concurrent code edits.
