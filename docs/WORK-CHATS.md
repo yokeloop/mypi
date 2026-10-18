@@ -67,7 +67,10 @@ history was persisted and native closure is positively proven, use
 `work-chat new-empty <chat-id>` and explicitly execute its preview. History and
 worktrees are not backed up by the SQLite metadata snapshot.
 
-In ordinary Pi, `/work-chat help` describes the same CLI subcommands. Slash
-arguments are whitespace-delimited; use CLI or MCP for values with spaces or
-JSON containing whitespace. The extension invokes the installed Node CLI and
-displays its actual JSON result. It does not submit prompts or assign tasks.
+In ordinary Pi, `/work-chat help` describes the same CLI subcommands. For
+`/work-chat execute --preview`, paste the exact returned JSON object directly:
+spaces and escapes inside it remain part of one preview argument, and a standalone
+`--focus` may appear before or after the preview. Other slash arguments are
+whitespace-delimited; use CLI or MCP for other values with spaces. The extension
+invokes the installed Node CLI and displays its actual JSON result. It does not
+submit prompts or assign tasks.
