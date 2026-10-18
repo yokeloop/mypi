@@ -69,6 +69,7 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
   }
   return {
     inspectRepository,
+    ensureBytePreservingAttributes() { inspectRepository(); ensureAttributes(); },
     initialize() {
       files.path('MEMORY.md');
       ownMetadata();

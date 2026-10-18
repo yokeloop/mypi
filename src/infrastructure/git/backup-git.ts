@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import { constants as bufferConstants } from 'node:buffer';
 import { mkdtempSync, rmSync, lstatSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -33,7 +34,20 @@ export function backupGit(root: string) {
     } else if (!lstatSync(files.path(path)).isFile()) throw new InputError('Only regular files may be published');
   }
   function stagedEntries(): string[] { return run(['diff', '--cached', '--name-only', '-z']).split('\0').filter(Boolean); }
-  function changed(): string[] { return run(['status', '--porcelain=v1', '--untracked-files=all', '-z']).split('\0').filter(Boolean).map(line => line.slice(3)); }
+  function changed(): string[] {
+    const tokens = run(['status', '--porcelain=v1', '--untracked-files=all', '-z']).split('\0');
+    const paths: string[] = [];
+    for (let i = 0; i < tokens.length && tokens[i]; i++) {
+      const record = tokens[i]!;
+      paths.push(record.slice(3));
+      if (/[RC]/.test(record.slice(0, 2))) {
+        const original = tokens[++i];
+        if (original === undefined || original === '') throw new Error('Incomplete Git rename/copy status');
+        paths.push(original);
+      }
+    }
+    return paths;
+  }
   function ignored(path: string): boolean {
     const result = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', path], { timeout: 3000,
       env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
@@ -64,9 +78,12 @@ export function backupGit(root: string) {
   return { run, head, branch, tracked, mode, safe, stagedEntries, changed, ignored, commit, remoteHead,
     push(commit: string) { run(['push', 'origin', commit + ':refs/heads/main']); },
     read(revision: string, path: string): Buffer {
+      const size = Number(run(['cat-file', '-s', revision + ':' + path]).trim());
+      if (!Number.isSafeInteger(size) || size < 0 || size > bufferConstants.MAX_LENGTH - 65536) throw new Error('Git object is too large to read exactly');
       const result = spawnSync('git', ['-C', root, 'show', revision + ':' + path], { encoding: 'buffer', timeout: 5000,
+        maxBuffer: size + 65536,
         env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
-      if (result.error || result.status !== 0) throw new Error(result.error?.message || 'Git object read failed');
+      if (result.error || result.status !== 0 || result.stdout.length !== size) throw new Error(result.error?.message || 'Git object read failed or returned incomplete bytes');
       return result.stdout;
     } };
 }
@@ -79,5 +96,6 @@ export function clonePublishedCommit(repository: string, commit: string, root: s
     if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr.trim());
   };
   command(['clone', '--quiet', '--no-checkout', '--', repository, root]);
+  contextGit(root).ensureBytePreservingAttributes();
   command(['-C', root, '-c', 'core.autocrlf=false', 'checkout', '--quiet', '--detach', commit]);
 }

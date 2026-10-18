@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, renameSync, lstatSync, copyFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync, statSync, renameSync, lstatSync, copyFileSync, readlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { backupGit, clonePublishedCommit } from '../infrastructure/git/backup-git.js';
@@ -120,7 +120,8 @@ export async function publishBackup(input: PublishBackupInput): Promise<PublishB
   externalDatabasePath(filename, root);
   const git = backupGit(root), remote = git.branch(), base = git.head();
   if (!base) throw new InputError('Home must have a committed baseline');
-  const remoteAtStart = git.remoteHead();
+  let remoteAtStart: string | undefined;
+  try { remoteAtStart = git.remoteHead(); } catch { /* Destination may be unreachable; retain a local snapshot and report publication failure. */ }
   // A remote tip can be absent locally (e.g. another publisher advanced it).
   // Never fetch or silently reconcile it; in that case disclose all local ancestry.
   let remoteKnown = false;
@@ -274,6 +275,18 @@ export function restorePublishedBackup(input: RestorePublishedInput): ReturnType
     restoreDatabase(saved, filename);
     // Clone the selected commit, never the source clone's mutable working tree.
     clonePublishedCommit(repository, commit, root);
+    for (const path of paths) {
+      if (path === 'pi/APPEND_SYSTEM.md') {
+        contextFiles(root).path('pi');
+        const target = join(root, path);
+        if (!lstatSync(target).isSymbolicLink() || readlinkSync(target) !== '../USER-INSTRUCTIONS.md') throw new InputError('Restored instruction link differs from commit');
+      } else {
+        const target = contextFiles(root).path(path);
+        if (!lstatSync(target).isFile() || !readFileSync(target).equals(git.read(commit, path))) {
+          throw new InputError('Restored file differs from commit: ' + path);
+        }
+      }
+    }
     verifyReferences(filename, root);
     return { status: 'ok', database: filename, context: root };
   } catch (error) { throw new PartialError(String(error), [], ['inspect restored DB/context'], [filename, root]); }
