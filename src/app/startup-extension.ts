@@ -55,6 +55,37 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Keep the preview's JSON bytes together; the shared CLI still validates its contents. */
+function slashWorkChatArgs(input: string): string[] {
+  const text = input.trim();
+  const execute = /^execute\s+(--focus\s+)?--preview(?:\s+|=)([\s\S]*)$/.exec(text);
+  if (!execute) return text.split(/\s+/);
+  const body = execute[2]!;
+  let end = body.length;
+  if (body.startsWith('{') || body.startsWith('[')) {
+    let depth = 0, quoted = false, escaped = false;
+    for (let i = 0; i < body.length; i++) {
+      const char = body[i];
+      if (escaped) { escaped = false; continue; }
+      if (quoted && char === '\\') { escaped = true; continue; }
+      if (char === '"') { quoted = !quoted; continue; }
+      if (quoted) continue;
+      if (char === '{' || char === '[') depth++;
+      if (char === '}' || char === ']') {
+        depth--;
+        if (depth === 0) { end = i + 1; break; }
+      }
+    }
+  }
+  const suffix = body.slice(end), remainder = suffix.trim();
+  const before = execute[1] ? ['--focus'] : [];
+  // Only one whitespace-separated trailing focus flag is meaningful; other tails
+  // remain one invalid CLI argument rather than becoming a replacement preview.
+  const after = remainder ? [/^\s+--focus$/.test(suffix) && !execute[1] ? '--focus'
+    : remainder === '--focus' ? '--focus --focus' : remainder] : [];
+  return ['execute', ...before, '--preview', body.slice(0, end), ...after];
+}
+
 /** Registers the independent CLI autoload and the existing native MCP server. */
 export default function (pi: ExtensionAPI) {
   const root = realpathSync(fileURLToPath(new URL('../../../', import.meta.url)));
@@ -72,9 +103,9 @@ export default function (pi: ExtensionAPI) {
         ctx.ui.notify('work-chat open --project org/project --request-id N --source-clone /clone --worktree /worktree [--model provider/model-id]; resume ID; new-empty ID; list; show ID; execute --preview JSON [--focus]. Preview first; never sends a prompt. See mypi --help.', 'warning');
         return;
       }
-      // CLI remains the sole argument parser and application dispatch. Slash arguments are
-      // whitespace-delimited: use CLI/MCP for values containing whitespace.
-      const result = await pi.exec('node', [cli, 'work-chat', ...args.trim().split(/\s+/)],
+      // CLI remains the validator and application dispatch; no shell evaluates arguments.
+      // Only execute --preview needs one intact JSON argv item from the slash input.
+      const result = await pi.exec('node', [cli, 'work-chat', ...slashWorkChatArgs(args)],
         { cwd: root, timeout: 30000, signal: ctx.signal });
       ctx.ui.notify((result.code === 0 ? result.stdout : result.stderr).slice(0, 4000) || 'work-chat command failed', 'warning');
     },

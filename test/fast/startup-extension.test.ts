@@ -4,8 +4,59 @@ import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import install from '../../src/app/startup-extension.js';
+import { parseCommand } from '../../src/cli/command.js';
+import { appCommand } from '../../src/cli/app-command.js';
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
+test('native slash execute forwards exact saved-session preview JSON and focus to shared CLI parsing', async () => {
+  let handler: ((args: string, ctx: any) => Promise<void>) | undefined;
+  const calls: string[][] = [];
+  const notices: string[] = [];
+  install({ registerMcpServer() {}, registerFlag() {}, on() {},
+    registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) {
+      if (name === 'work-chat') handler = command.handler;
+    },
+    async exec(_command: string, argv: string[]) {
+      calls.push(argv);
+      return { code: 0, stdout: '{}', stderr: '' };
+    },
+  } as never);
+  assert(handler, 'registered native command must be exercised');
+  const ctx = { signal: new AbortController().signal, ui: { notify(message: string) { notices.push(message); } } };
+  const preview = { action: 'resume', chatId: 'chat-1',
+    binding: { projectId: 1, requestId: 2, sourceClone: '/source', worktree: '/worktree',
+      gitCommonDir: '/source/.git', branch: 'task/a', installation: '/engine', statePath: '/state' },
+    model: { provider: 'fixture', model: 'model/id', source: 'saved session' },
+    native: { sessionId: 'session-1', historyPath: '/state/sessions/a.jsonl' },
+    name: 'marker with spaces, escaped "quotes" and \\slashes --focus',
+  };
+  const json = JSON.stringify(preview);
+  const cli = async (input: string) => {
+    await handler!(input, ctx);
+    return calls.at(-1)!.slice(1);
+  };
+  const argv = await cli(`execute --preview ${json} --focus`);
+  assert.deepEqual(argv, ['work-chat', 'execute', '--preview', json, '--focus']);
+  assert.deepEqual(appCommand(parseCommand(argv) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>),
+    { name: 'work_chat_execute', preview, focus: true });
+  const noFocus = await cli(`execute --preview ${json}`);
+  assert.deepEqual(noFocus, ['work-chat', 'execute', '--preview', json]);
+  assert.equal((appCommand(parseCommand(noFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, false);
+  const embeddedFocus = JSON.stringify({ ...preview, name: 'suffix --focus' });
+  assert.deepEqual(await cli(`execute --preview ${embeddedFocus}`), ['work-chat', 'execute', '--preview', embeddedFocus]);
+  const formatted = JSON.stringify(preview, null, 2);
+  const leadingFocus = await cli(`execute --focus --preview ${formatted}`);
+  assert.deepEqual(leadingFocus, ['work-chat', 'execute', '--focus', '--preview', formatted]);
+  assert.equal((appCommand(parseCommand(leadingFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, true);
+  for (const input of ['execute --preview', 'execute --preview {invalid',
+    `execute --preview ${json} extra`, `execute --preview ${json} --preview ${json}`,
+    `execute --preview ${json} --focus --focus`, `execute --preview ${json}--focus`]) {
+    const forwarded = await cli(input);
+    assert.throws(() => appCommand(parseCommand(forwarded) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>));
+  }
+  assert.deepEqual(await cli('list'), ['work-chat', 'list']);
+  assert.equal(notices.length, calls.length);
+});
 test('managed flags applied after extension loading produce native lifecycle acknowledgements without replaying model choice', async () => {
   const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
   const flags = new Map<string, unknown>();
