@@ -30,6 +30,7 @@ export interface ChatStore {
   reserve(chat: WorkChat): void;
   update(chat: WorkChat, previousAttempt?: string): void;
   releaseUnused(id: string, attemptId: string): void;
+  retireEmpty(id: string, attemptId: string): void;
   transaction<T>(work: () => T): T;
 }
 export function assertBinding(expected: ChatBinding, actual: ChatBinding): void {

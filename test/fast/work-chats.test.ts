@@ -20,12 +20,13 @@ test('work chat reserves once, confirms process/native identity and preserves ex
     async validate(args) { return { ...args, gitCommonDir: '/tmp/git-common', branch: 'task/one' }; },
     async history(chat) { return { native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, saved: { status: 'selected', selection: pair } }; },
     async inspect(chat) { return observed.status === 'live' ? { ...observed, binding: chat } : observed; },
+    async provenEmpty() { return false; },
     async validateModel() {},
     async launch() {
       launches++;
       observed = { status: 'live', native: { sessionId: 'session-1', historyPath: '/tmp/history-1' },
         process: { pane: 'pane-1', processId: 100, processStart: 'start-1' }, model: pair };
-      return { native: observed.native!, process: observed.process!, model: pair };
+      return { status: 'acknowledged', native: observed.native!, process: observed.process!, model: pair };
     },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });

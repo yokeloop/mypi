@@ -4,7 +4,7 @@ CREATE TABLE work_chats (
   project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE RESTRICT,
   name TEXT,
   source_clone TEXT NOT NULL CHECK (length(source_clone) > 0),
-  worktree TEXT NOT NULL UNIQUE CHECK (length(worktree) > 0),
+  worktree TEXT NOT NULL CHECK (length(worktree) > 0),
   git_common_dir TEXT NOT NULL CHECK (length(git_common_dir) > 0),
   branch TEXT NOT NULL CHECK (length(branch) > 0),
   installation TEXT NOT NULL CHECK (length(installation) > 0),
@@ -19,4 +19,5 @@ CREATE TABLE work_chats (
   CHECK ((session_id IS NULL AND history_path IS NULL) OR (session_id IS NOT NULL AND history_path IS NOT NULL)),
   CHECK (phase <> 'ready' OR (session_id IS NOT NULL AND pane IS NOT NULL AND process_id IS NOT NULL AND process_start IS NOT NULL))
 ) STRICT;
+CREATE UNIQUE INDEX work_chats_occupied_worktree ON work_chats(worktree) WHERE phase <> 'closed';
 CREATE INDEX work_chats_request ON work_chats(request_id);

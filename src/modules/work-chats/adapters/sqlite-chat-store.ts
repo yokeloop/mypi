@@ -9,7 +9,7 @@ const columns = `id, request_id AS requestId, project_id AS projectId, name, sou
 export function sqliteChatStore(db: Database.Database): ChatStore {
   const list = db.prepare(`SELECT ${columns} FROM work_chats ORDER BY rowid`);
   const get = db.prepare(`SELECT ${columns} FROM work_chats WHERE id = ?`);
-  const byWorktree = db.prepare(`SELECT ${columns} FROM work_chats WHERE worktree = ?`);
+  const byWorktree = db.prepare(`SELECT ${columns} FROM work_chats WHERE worktree = ? AND phase <> 'closed'`);
   const insert = db.prepare(`INSERT INTO work_chats
     (id, request_id, project_id, name, source_clone, worktree, git_common_dir, branch, installation,
      state_path, session_id, history_path, attempt_id, pane, process_id, process_start, phase)
@@ -20,6 +20,8 @@ export function sqliteChatStore(db: Database.Database): ChatStore {
     WHERE id = @id AND attempt_id = @previousAttempt`);
   const release = db.prepare(`DELETE FROM work_chats WHERE id = ? AND attempt_id = ? AND phase = 'partial'
     AND session_id IS NULL AND history_path IS NULL`);
+  const retire = db.prepare(`UPDATE work_chats SET phase = 'closed' WHERE id = ? AND attempt_id = ?
+    AND phase IN ('ready', 'partial')`);
   return {
     list: () => list.all() as WorkChat[],
     get: id => get.get(id) as WorkChat | undefined,
@@ -29,6 +31,7 @@ export function sqliteChatStore(db: Database.Database): ChatStore {
       if (update.run({ ...chat, previousAttempt }).changes !== 1) throw new Error('Stale work chat attempt');
     },
     releaseUnused: (id, attemptId) => { if (release.run(id, attemptId).changes !== 1) throw new Error('Work chat is not a proven unused reservation'); },
+    retireEmpty: (id, attemptId) => { if (retire.run(id, attemptId).changes !== 1) throw new Error('Stale empty chat retirement'); },
     transaction: work => db.transaction(work).immediate(),
   };
 }

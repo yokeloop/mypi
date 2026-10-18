@@ -16,6 +16,7 @@ test('uncertain launch keeps reservation; only independently proven dead empty l
     async validate(args) { return { ...args, gitCommonDir: dir + '/.git', branch: 'task/one' }; },
     async inspect() { return observation; },
     async history() { throw new Error('not called'); },
+    async provenEmpty() { return false; },
     async validateModel() {},
     async launch() { throw new Error('Herdr did not confirm whether a tab was created'); },
   };

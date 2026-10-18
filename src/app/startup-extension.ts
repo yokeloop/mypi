@@ -3,19 +3,26 @@ import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startupSections, type StartupWarmup } from '../shared/startup-context.js';
+import { finalEmptySnapshot } from './native-chat-facts.js';
 
 interface ExtensionContext {
   cwd: string;
   signal: AbortSignal;
   hasUI: boolean;
   ui: { notify(message: string, level: 'warning'): void };
-  sessionManager: { getSessionId(): string; getBranch(): Array<{ type: string; customType?: string; data?: unknown }> };
+  model?: { provider: string; id: string };
+  modelRegistry: { find(provider: string, model: string): { provider: string; id: string } | undefined; hasConfiguredAuth(model: { provider: string; id: string }): boolean };
+  sessionManager: { getSessionId(): string; getSessionFile(): string | undefined;
+    getHeader(): { id: string; cwd: string } | null;
+    getEntries(): Array<{ type: string; message?: { role?: string } }>;
+    getBranch(): Array<{ type: string; customType?: string; data?: unknown; provider?: string; modelId?: string }> };
 }
 interface ExtensionAPI {
   registerMcpServer(name: string, server: { command: string; args: string[]; cwd: string; description: string; exposure: string; toolExposure: Record<string, string> }): void;
   registerFlag(name: string, flag: { type: 'boolean' | 'string'; description: string }): void;
   getFlag(name: string): unknown;
   appendEntry<T>(name: string, value: T): void;
+  setModel(model: { provider: string; id: string }): Promise<boolean>;
   exec(command: string, args: string[], options: { cwd: string; timeout: number; signal: AbortSignal }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
   on(name: string, handler: (event: StartupEvent, ctx: ExtensionContext) => void | Promise<void>): void;
 }
@@ -60,6 +67,61 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });
   pi.registerFlag('mypi-no-autoload', { type: 'boolean', description: 'Disable mypi CLI context autoload, independently of MCP.' });
+  pi.registerFlag('mypi-chat-attempt', { type: 'string', description: 'Internal work-chat launch attempt.' });
+  pi.registerFlag('mypi-chat-model', { type: 'string', description: 'Internal exact work-chat model pair.' });
+  pi.registerFlag('mypi-chat-override', { type: 'boolean', description: 'Persist explicit work-chat resume model.' });
+
+  let chatReport: ((ctx: ExtensionContext) => Promise<void>) | undefined;
+  // This bridge only reports native state. Node performs all SQLite and filesystem
+  // association work outside Pi's Bun process. Never reapply a launch choice on reload.
+  const attempt = pi.getFlag('mypi-chat-attempt');
+  if (typeof attempt === 'string' && /^[0-9a-f-]{36}$/.test(attempt)) {
+    const pair = pi.getFlag('mypi-chat-model');
+    const target = typeof pair === 'string' ? JSON.parse(pair) as { provider: string; model: string } : undefined;
+    const ack = fileURLToPath(new URL('../../../dist/src/app/work-chat-ack.js', import.meta.url));
+    const state = resolve(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'));
+    let generation = 0;
+    let starting = true;
+    async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<void> {
+      const token = ++generation;
+      let error: string | undefined;
+      const current = ctx.model;
+      const selected = current && ctx.modelRegistry.find(current.provider, current.id);
+      if (!selected || selected.provider !== current?.provider || selected.id !== current.id
+        || !ctx.modelRegistry.hasConfiguredAuth(selected)) error = 'Native registry/auth/current model mismatch';
+      if (lifecycle === 'start:startup' && (!target || target.provider !== current?.provider || target.model !== current.id)) {
+        error = 'Native startup selected another model';
+      }
+      if (persist && target && !error) {
+        if (!await pi.setModel(selected!)) error = 'Exact native model override cannot be persisted';
+        const branch = ctx.sessionManager.getBranch().filter(item => item.type === 'model_change').at(-1);
+        if (!branch || branch.provider !== target.provider || branch.modelId !== target.model) error = 'Native active branch did not persist override';
+      }
+      if (token !== generation) return;
+      const entries = lifecycle === 'shutdown:quit' ? ctx.sessionManager.getEntries() : [];
+      const finalEmpty = lifecycle === 'shutdown:quit' && finalEmptySnapshot(ctx.sessionManager.getHeader(), entries,
+        ctx.sessionManager.getSessionId(), ctx.cwd);
+      let savedBinding: Binding | undefined;
+      try { savedBinding = branchBinding(ctx); }
+      catch { error = 'Invalid native active-branch binding'; }
+      const selectedBranch = ctx.sessionManager.getBranch().filter(entry => entry.type === 'model_change').at(-1);
+      const data = { attempt, lifecycle, generation: token, error, finalEmpty,
+        branchBinding: savedBinding, branchModel: selectedBranch && { provider: selectedBranch.provider, model: selectedBranch.modelId },
+        sessionId: ctx.sessionManager.getSessionId(), historyPath: ctx.sessionManager.getSessionFile(),
+        cwd: ctx.cwd, processCwd: process.cwd(), processId: process.pid, installation: root, state,
+        scope: pi.getFlag('mypi-scope'), model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
+        fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
+      const result = await pi.exec('node', [ack, state, attempt as string, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
+      if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');
+      if (lifecycle.startsWith('start:')) starting = false;
+    }
+    chatReport = ctx => report(ctx, 'before_agent_start');
+    pi.on('session_start', (event, ctx) => report(ctx, 'start:' + (event as { reason?: string }).reason,
+      Boolean(pi.getFlag('mypi-chat-override')) && (event as { reason?: string }).reason === 'startup'));
+    pi.on('session_tree', (_event, ctx) => report(ctx, 'tree'));
+    pi.on('model_select', (_event, ctx) => starting ? undefined : report(ctx, 'model_select'));
+    pi.on('session_shutdown', (event, ctx) => report(ctx, 'shutdown:' + (event as { reason?: string }).reason));
+  }
 
   let generation = 0;
   let startup = true;
@@ -126,6 +188,10 @@ export default function (pi: ExtensionAPI) {
       event.systemPromptOptions.sections[MEMORY_SECTION] = `mypi installation: ${installation}; state: ${state}; scope: ${scope ?? 'global'}\n${snapshot.memory || '(empty)'}`;
       event.systemPromptOptions.sections[CONTEXT_SECTION] = snapshot.context;
       startup = false;
+      if (chatReport) {
+        try { await chatReport(ctx); }
+        catch (error) { if (ctx.hasUI) ctx.ui.notify('Work chat acknowledgement unavailable: ' + errorText(error), 'warning'); }
+      }
     } catch (error) {
       if (!active()) return;
       const message = `mypi context unavailable (${errorText(error)}). No previous snapshot was loaded. Use the scoped CLI for full reads.`;

@@ -11,6 +11,7 @@ export interface ChatInspection {
   binding?: ChatBinding;
   native?: NativeIdentity;
   model?: ModelPair;
+  persisted?: boolean;
   reason?: string;
 }
 export interface ChatRuntime {
@@ -18,22 +19,29 @@ export interface ChatRuntime {
   validate(input: { sourceClone: string; worktree: string; installation: string; statePath: string }): Promise<Omit<ChatBinding, 'requestId' | 'projectId'>>;
   /** Exact existing history/header and active branch; missing/corrupt is unavailable, never "none". */
   history(chat: WorkChat): Promise<{ native: NativeIdentity; saved: SavedModel }>;
+  /** Positive normal-final empty snapshot, exact identity and no history; not mere ENOENT. */
+  provenEmpty(chat: WorkChat): Promise<boolean>;
   /** Observe Herdr pane AND process PID/start plus native session; unknown never grants another writer. */
   inspect(chat: WorkChat): Promise<ChatInspection>;
   /** Checks actual target Pi registry and usable auth without a model request. */
   validateModel(pair: ModelPair, binding: ChatBinding): Promise<void>;
   /** One background Herdr tab. Never automatically retry an uncertain result. */
-  launch(input: { chat: WorkChat; model: ModelSelection; resume: boolean; focus: boolean }): Promise<{ process: ProcessIdentity; native: NativeIdentity; model: ModelPair }>;
+  launch(input: { chat: WorkChat; model: ModelSelection; resume: boolean; focus: boolean }): Promise<
+    | { status: 'acknowledged'; process: ProcessIdentity; native: NativeIdentity; model: ModelPair }
+    | { status: 'partial'; reason: string; pane?: string; processId?: number; processStart?: string; native?: NativeIdentity }
+  >;
 }
 export interface ChatPreview {
-  action: 'open' | 'resume';
+  action: 'open' | 'resume' | 'new-empty';
   binding: ChatBinding;
   chatId?: string;
+  priorAttempt?: string;
   name?: string;
   model: ModelSelection;
   /** For resume, exact saved session and the observed pane at preview time. */
   native?: NativeIdentity;
   live?: ProcessIdentity;
+  persisted?: boolean;
 }
 export interface ChatResult { chat: WorkChat; observation: ChatInspection; outcome: 'ready' | 'existing' | 'partial' | 'blocked' }
 
@@ -69,6 +77,21 @@ export function createWorkChats(input: {
     await runtime.validateModel(model, checked);
     return { action: 'open', binding: checked, model, ...(args.name === undefined ? {} : { name: args.name }) };
   }
+  async function previewNewEmpty(id: string, options: { name?: string; model?: ModelPair } = {}): Promise<ChatPreview> {
+    const old = store.get(id);
+    if (!old || old.phase === 'closed' || !old.sessionId || !old.historyPath || store.byWorktree(old.worktree)?.id !== id) {
+      throw new InputError('No occupied managed empty chat to replace');
+    }
+    const checked = await binding({ identity: projectIdentity(old.projectId), requestId: old.requestId,
+      sourceClone: old.sourceClone, worktree: old.worktree, installation: old.installation, statePath: old.statePath });
+    assertBinding(old, checked);
+    const observed = await runtime.inspect(old);
+    if (observed.status !== 'dead' || !await runtime.provenEmpty(old)) throw new InputError('Native empty closure and process death unconfirmed; cannot open a new empty chat');
+    const model = select(projectIdentity(old.projectId), options.model);
+    await runtime.validateModel(model, checked);
+    return { action: 'new-empty', binding: checked, chatId: id, priorAttempt: old.attemptId, model,
+      ...(options.name === undefined ? {} : { name: options.name }) };
+  }
   async function previewResume(id: string, invocation?: ModelPair): Promise<ChatPreview> {
     const chat = store.get(id);
     if (!chat) throw new InputError('Unknown work chat');
@@ -90,9 +113,10 @@ export function createWorkChats(input: {
         throw new InputError('Live chat has another model; change it there or close it before resuming with override');
       }
       const model = select(projectIdentity(chat.projectId), invocation, { status: 'selected', selection: observation.model });
-      return { action: 'resume', binding: checked, chatId: id, model, native: observation.native, live: observation.process };
+      return { action: 'resume', binding: checked, chatId: id, model, native: observation.native,
+        live: observation.process, ...(observation.persisted === undefined ? {} : { persisted: observation.persisted }) };
     }
-    if (!chat.sessionId || !chat.historyPath) throw new InputError('Empty chat has no persisted history; explicitly open a new empty chat in another worktree');
+    if (!chat.sessionId || !chat.historyPath || await runtime.provenEmpty(chat)) throw new InputError('Empty chat has no persisted history; explicitly preview a new empty chat for this worktree');
     const saved = await runtime.history(chat);
     assertNative({ sessionId: chat.sessionId, historyPath: chat.historyPath }, saved.native);
     const model = select(projectIdentity(chat.projectId), invocation, saved.saved);
@@ -107,15 +131,20 @@ export function createWorkChats(input: {
   }
   async function execute(preview: ChatPreview, focus = false): Promise<ChatResult> {
     const identity = projectIdentity(preview.binding.projectId);
+    const override = preview.model.source === 'invocation' ? { provider: preview.model.provider, model: preview.model.model } : undefined;
     const fresh = preview.action === 'open'
       ? await previewOpen({ identity, requestId: preview.binding.requestId, sourceClone: preview.binding.sourceClone,
         worktree: preview.binding.worktree, installation: preview.binding.installation, statePath: preview.binding.statePath,
-        ...(preview.name === undefined ? {} : { name: preview.name }),
-        ...(preview.model.source === 'invocation' ? { model: { provider: preview.model.provider, model: preview.model.model } } : {}) })
-      : await previewResume(preview.chatId!, preview.model.source === 'invocation' ? { provider: preview.model.provider, model: preview.model.model } : undefined);
+        ...(preview.name === undefined ? {} : { name: preview.name }), ...(override ? { model: override } : {}) })
+      : preview.action === 'new-empty'
+        ? await previewNewEmpty(preview.chatId!, { ...(preview.name === undefined ? {} : { name: preview.name }), ...(override ? { model: override } : {}) })
+        : await previewResume(preview.chatId!, override);
     assertBinding(preview.binding, fresh.binding);
     if (!sameModelSelection(preview.model, fresh.model) || preview.action !== fresh.action) throw new InputError('Model changed since preview; request a fresh preview');
     if (Boolean(preview.live) !== Boolean(fresh.live)) throw new InputError('Live state changed since preview; request a fresh preview');
+    if (preview.action === 'new-empty' && (preview.priorAttempt !== fresh.priorAttempt || preview.chatId !== fresh.chatId)) {
+      throw new InputError('Empty chat attempt changed since preview');
+    }
     if (preview.action === 'resume' && (preview.native?.sessionId !== fresh.native?.sessionId || preview.native?.historyPath !== fresh.native?.historyPath)) {
       throw new InputError('Native history changed since preview');
     }
@@ -123,11 +152,18 @@ export function createWorkChats(input: {
       if (!preview.live || preview.live.pane !== fresh.live.pane || preview.live.processId !== fresh.live.processId || preview.live.processStart !== fresh.live.processStart) {
         throw new InputError('Live process changed since preview');
       }
-      return { chat: store.get(preview.chatId!)!, observation: { status: 'live', binding: fresh.binding, process: fresh.live, native: fresh.native!, model: fresh.model }, outcome: 'existing' };
+      return { chat: store.get(preview.chatId!)!, observation: { status: 'live', binding: fresh.binding, process: fresh.live,
+        native: fresh.native!, model: fresh.model, ...(fresh.persisted === undefined ? {} : { persisted: fresh.persisted }) }, outcome: 'existing' };
     }
     const chat = store.transaction(() => {
-      if (preview.action === 'open') {
-        if (store.byWorktree(preview.binding.worktree)) throw new InputError('Worktree reservation already exists');
+      if (preview.action !== 'resume') {
+        if (preview.action === 'new-empty') {
+          const prior = store.get(preview.chatId!);
+          if (!prior || prior.attemptId !== preview.priorAttempt || store.byWorktree(prior.worktree)?.id !== prior.id) {
+            throw new InputError('Empty chat changed during reservation');
+          }
+          store.retireEmpty(prior.id, prior.attemptId);
+        } else if (store.byWorktree(preview.binding.worktree)) throw new InputError('Worktree reservation already exists');
         const created: WorkChat = { ...preview.binding, id: randomUUID(), name: preview.name ?? null, attemptId: randomUUID(),
           phase: 'reserved', sessionId: null, historyPath: null, pane: null, processId: null, processStart: null };
         store.reserve(created);
@@ -137,23 +173,26 @@ export function createWorkChats(input: {
       if (!existing) throw new InputError('Work chat changed');
       if (existing.phase === 'reserved') throw new InputError('Prior launch uncertain; inspect it first');
       if (existing.phase === 'partial' && (!existing.sessionId || !existing.historyPath)) throw new InputError('Partial launch without confirmed history requires inspection');
-      const next = { ...existing, phase: 'reserved' as const, attemptId: randomUUID() };
+      const next = { ...existing, phase: 'reserved' as const, attemptId: randomUUID(), pane: null, processId: null, processStart: null };
       store.update(next, existing.attemptId);
       return next;
     });
     let partial = chat;
     try {
       const launched = await runtime.launch({ chat, model: fresh.model, resume: preview.action === 'resume', focus });
+      const actualNative = launched.native;
+      const matchingNative = actualNative && (!chat.sessionId || (chat.sessionId === actualNative.sessionId && chat.historyPath === actualNative.historyPath));
       partial = { ...chat,
-        ...(launched.native.sessionId && launched.native.historyPath ? launched.native : {}),
-        pane: launched.process.pane || null,
-        processId: Number.isSafeInteger(launched.process.processId) && launched.process.processId > 0 ? launched.process.processId : null,
-        processStart: launched.process.processStart || null, phase: 'partial' };
+        ...(matchingNative && actualNative?.sessionId && actualNative.historyPath ? actualNative : {}),
+        pane: (launched.status === 'partial' ? launched.pane : launched.process.pane) || null,
+        processId: (launched.status === 'partial' ? launched.processId : launched.process.processId) ?? null,
+        processStart: (launched.status === 'partial' ? launched.processStart : launched.process.processStart) || null, phase: 'partial' };
       store.transaction(() => {
         if (store.get(chat.id)?.attemptId !== chat.attemptId) throw new InputError('Stale launch attempt');
         store.update(partial);
       });
-      if (!partial.sessionId || !partial.historyPath || !partial.pane || !partial.processId || !partial.processStart) {
+      if (launched.status === 'partial') throw new InputError(launched.reason);
+      if (!matchingNative || !partial.sessionId || !partial.historyPath || !partial.pane || !partial.processId || !partial.processStart) {
         throw new InputError('Native session/history or process identity not persisted; cannot mark ready');
       }
       const observed = await runtime.inspect(partial);
@@ -178,7 +217,10 @@ export function createWorkChats(input: {
       store.transaction(() => {
         if (store.get(chat.id)?.attemptId === chat.attemptId) store.update({ ...partial, phase: 'partial' });
       });
-      return { chat: store.get(chat.id)!, observation: { status: 'unknown', reason: String(error) }, outcome: 'partial' };
+      const current = store.get(chat.id)!;
+      const evidence = current.attemptId === chat.attemptId ? ''
+        : `; stale attempt ${chat.attemptId} observed pane=${partial.pane ?? 'unknown'} pid=${partial.processId ?? 'unknown'} start=${partial.processStart ?? 'unknown'} (not attached to newer attempt)`;
+      return { chat: current, observation: { status: 'unknown', reason: String(error) + evidence }, outcome: 'partial' };
     }
   }
   async function releaseUnused(id: string): Promise<void> {
@@ -190,7 +232,7 @@ export function createWorkChats(input: {
     if (observation.status !== 'dead') throw new InputError('Ownership not proven dead; preserve reservation');
     store.transaction(() => store.releaseUnused(id, chat.attemptId));
   }
-  return { previewOpen, previewResume, execute, releaseUnused,
+  return { previewOpen, previewResume, previewNewEmpty, execute, releaseUnused,
     async list() { return Promise.all(store.list().map(async chat => ({ chat, observation: await runtime.inspect(chat) }))); },
     get: (id: string) => store.get(id),
     async show(id: string) { const chat = store.get(id); if (!chat) throw new InputError('Unknown work chat'); return { chat, observation: await runtime.inspect(chat) }; } };
