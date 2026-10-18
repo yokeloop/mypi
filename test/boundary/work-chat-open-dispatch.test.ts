@@ -44,15 +44,24 @@ fi
     requestId = app.requests.create({ projectId: project.id, slug: 'one', title: 'One', status: 'new' }, () => {}).id;
   } finally { app.close(); }
   const previousPi = process.env.MYPI_WORK_CHAT_PI, previousAgent = process.env.PI_CODING_AGENT_DIR;
+  const previousHome = process.env.HOME;
   process.env.MYPI_WORK_CHAT_PI = pi; process.env.PI_CODING_AGENT_DIR = agent;
+  process.env.HOME = dir;
   t.after(() => {
     if (previousPi === undefined) delete process.env.MYPI_WORK_CHAT_PI; else process.env.MYPI_WORK_CHAT_PI = previousPi;
     if (previousAgent === undefined) delete process.env.PI_CODING_AGENT_DIR; else process.env.PI_CODING_AGENT_DIR = previousAgent;
+    if (previousHome === undefined) delete process.env.HOME; else process.env.HOME = previousHome;
   });
   const preview = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
     sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
   assert.equal((preview as { action: string }).action, 'open');
   assert.equal((preview as { binding: { installation: string } }).binding.installation, installation);
+  const defaultAgent = join(dir, '.pi', 'agent');
+  mkdirSync(defaultAgent, { recursive: true });
+  delete process.env.PI_CODING_AGENT_DIR;
+  const defaultPreview = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
+  assert.deepEqual(defaultPreview, preview);
   const reader = createApp(filename, true);
   try { assert.deepEqual(reader.chatStore.list(), []); } finally { reader.close(); }
 });

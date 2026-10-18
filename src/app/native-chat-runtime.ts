@@ -75,16 +75,41 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
   const agentDir = realpathSync(input.agentDir);
   const env = { ...process.env, XDG_STATE_HOME: state, PI_CODING_AGENT_DIR: agentDir,
     PI_OFFLINE: '1', PATH: dirname(input.nodePath) + ':' + process.env.PATH };
-  function target(binding: ChatBinding) {
+  function target(binding: ChatBinding): { cwd: string; packageArgs: string[] } {
+    const packagePath = join(installation, 'integrations', 'pi');
     if (binding.installation !== installation || binding.statePath !== state || !existsSync(join(installation, 'dist', 'src', 'app', 'startup-extension.js'))
-      || !existsSync(join(agentDir, 'settings.json')) || !existsSync(join(input.userHome, 'USER-INSTRUCTIONS.md'))) {
+      || !existsSync(packagePath) || !existsSync(join(input.userHome, 'USER-INSTRUCTIONS.md'))) {
       throw new InputError('Target Pi installation/state/resources unavailable');
     }
-    const settings = json(readFileSync(join(agentDir, 'settings.json'), 'utf8'));
-    if (!Array.isArray(settings.packages) || settings.packages.filter(path => path === join(installation, 'integrations', 'pi')).length !== 1) {
-      throw new InputError('Target Pi package not uniquely configured in agent resources');
+    const packageDir = realpathSync(packagePath);
+    if (packageDir !== packagePath) throw new InputError('Canonical installed mypi package required');
+    function configuredIn(settingsPath: string): boolean {
+      const settings = existsSync(settingsPath) ? json(readFileSync(settingsPath, 'utf8')) : {};
+      if (settings.packages !== undefined && !Array.isArray(settings.packages)) throw new InputError('Invalid Pi package configuration');
+      let found = false;
+      for (const entry of (settings.packages ?? []) as unknown[]) {
+        const source = typeof entry === 'string' ? entry : entry && typeof entry === 'object' && !Array.isArray(entry)
+          ? (entry as { source?: unknown }).source : undefined;
+        if (typeof source !== 'string') throw new InputError('Invalid Pi package configuration');
+        if (/^npm:mypi-pi(?:@|$)/.test(source)) throw new InputError('Foreign mypi package configured in Pi resources');
+        if (!isAbsolute(source) && !source.startsWith('./') && !source.startsWith('../')) continue;
+        const path = resolve(dirname(settingsPath), source);
+        if (!existsSync(path)) continue;
+        const canonical = realpathSync(path);
+        if (canonical === packageDir) {
+          if (found) throw new InputError('Duplicate target mypi package configuration');
+          found = true;
+        } else if (existsSync(join(canonical, 'package.json'))
+          && json(readFileSync(join(canonical, 'package.json'), 'utf8')).name === 'mypi-pi') {
+          throw new InputError('Foreign mypi package configured in Pi resources');
+        }
+      }
+      return found;
     }
-    return binding.worktree;
+    const personal = configuredIn(join(agentDir, 'settings.json'));
+    // Pi reads project packages from the current cwd, not ancestor .pi directories.
+    const project = configuredIn(join(binding.worktree, '.pi', 'settings.json'));
+    return { cwd: binding.worktree, packageArgs: personal || project ? [] : ['-e', packageDir] };
   }
   function shell(value: string): string { return "'" + value.replaceAll("'", "'\"'\"'") + "'"; }
   const runtime: ChatRuntime = {
@@ -102,7 +127,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       return { sourceClone, worktree, gitCommonDir: common, branch, installation, statePath: state };
     },
     async validateModel(pair, binding) {
-      const cwd = target(binding);
+      const { cwd } = target(binding);
       const catalog = command(pi, ['--offline', '--list-models'], cwd, env);
       if (!exactCatalogModel(catalog, pair)) throw new InputError(`Exact target model unavailable: ${pair.provider}/${pair.model}`);
       const auth = command(pi, ['auth', 'check', '--provider', pair.provider, '--model', pair.model, '--json', '--no-refresh'], cwd, env);
@@ -171,6 +196,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       const binding = await runtime.validate(chat);
       if (binding.branch !== chat.branch || binding.gitCommonDir !== chat.gitCommonDir) throw new InputError('Git association changed');
       await runtime.validateModel(model, chat);
+      const { packageArgs } = target(chat);
       if (resume) await runtime.history(chat);
       const sessionId = resume ? chat.sessionId! : randomUUID();
       if (!resume && existsSync(join(state, 'sessions')) && readdirSync(join(state, 'sessions')).some(name => name.endsWith('_' + sessionId + '.jsonl'))) throw new InputError('Native session ID collision');
@@ -183,7 +209,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
         '--env', 'PI_OFFLINE=1', '--env', 'PATH=' + env.PATH], chat.worktree));
       const pane = (tab.result as { root_pane?: { pane_id?: string } } | undefined)?.root_pane?.pane_id;
       if (!pane) return { status: 'partial', reason: 'Herdr tab creation returned no pane' };
-      const args = ['--offline', '--session-dir', join(state, 'sessions'), ...(resume ? ['--session', chat.historyPath!] : ['--session-id', sessionId]),
+      const args = ['--offline', ...packageArgs, '--session-dir', join(state, 'sessions'), ...(resume ? ['--session', chat.historyPath!] : ['--session-id', sessionId]),
         '--provider', model.provider, '--model', model.model, '--mypi-scope', scope, '--mypi-chat-attempt', chat.attemptId,
         '--mypi-chat-model', JSON.stringify({ provider: model.provider, model: model.model }),
         ...(resume && model.source === 'invocation' ? ['--mypi-chat-override'] : []),
