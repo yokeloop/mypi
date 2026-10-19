@@ -46,11 +46,15 @@ export function emptyContinuity(previous: { continuous?: boolean; sessionId?: un
     && !everPersisted && current.finalEmpty === true && !current.error && current.fileExists === false };
 }
 
-export function startupReceipt(receipt: { lifecycle: string; error?: string; processId: number; scope: string; model: ModelPair; fileExists: boolean },
-  expected: { processId: number; scope: string; model: ModelPair }): boolean {
+export function startupReceipt(receipt: { lifecycle: string; error?: string; processId: number; scope: string;
+  model?: ModelPair; authReady?: boolean; fileExists: boolean },
+  expected: { processId: number; scope: string; model?: ModelPair; authReady?: boolean; allowUnpinned?: boolean }): boolean {
   return receipt.lifecycle === 'start:startup' && !receipt.error
     && receipt.processId === expected.processId && receipt.scope === expected.scope
-    && receipt.model?.provider === expected.model.provider && receipt.model.model === expected.model.model;
+    && (expected.allowUnpinned === true ? typeof receipt.authReady === 'boolean'
+      : expected.authReady === false ? receipt.authReady === false
+        : receipt.authReady !== false && receipt.model?.provider === expected.model?.provider
+          && receipt.model?.model === expected.model?.model);
 }
 
 // Native JSONL v3 is a branching tree: follow parent IDs from the last leaf,

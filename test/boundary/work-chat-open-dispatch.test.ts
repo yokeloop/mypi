@@ -53,6 +53,43 @@ fi
     sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
   assert.equal((preview as { action: string }).action, 'open');
   assert.equal((preview as { binding: { installation: string } }).binding.installation, installation);
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"not_ready","provider":"fixture"}\\n'
+  exit 1
+else
+  exit 2
+fi
+`);
+  const pending = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
+  assert.equal((pending as { action: string }).action, 'open', 'missing auth must not block preview when Pi hides the catalog');
+  const unavailableUntilLogin = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'absent' } }, filename, home);
+  assert.equal((unavailableUntilLogin as { action: string }).action, 'open', 'catalog validity is deferred, not invented');
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\nfixture  exact  100  50  no  no\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"ready","provider":"fixture","authType":"test"}\\n'
+else
+  exit 2
+fi
+`);
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'absent' } }, filename, home), /Exact target model unavailable/);
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\nfixture  exact  100  50  no  no\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"invalid","provider":"fixture"}\\n'
+  exit 2
+fi
+`);
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home), /auth check unavailable or invalid/);
   const reader = createApp(filename, true);
   try { assert.deepEqual(reader.chatStore.list(), []); } finally { reader.close(); }
 });

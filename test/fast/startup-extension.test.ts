@@ -126,6 +126,68 @@ test('managed flags applied after extension loading produce native lifecycle ack
   assert.match(reports.at(-1)?.error ?? '', /model/i, 'malformed late target cannot be acknowledged as ready');
   assert.equal(selections, 1);
 });
+test('model-less native startup is an auth-pending receipt; login model_select reports local readiness in same session', async () => {
+  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
+  const flags = new Map<string, unknown>([
+    ['mypi-chat-attempt', '11111111-2222-4333-8444-555555555555'],
+    ['mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'chosen' })],
+    ['mypi-scope', 'fixture/tool'],
+  ]);
+  const reports: any[] = [];
+  let model: { provider: string; id: string } | undefined;
+  let auth = false;
+  const api = { registerMcpServer() {}, registerCommand() {}, registerFlag() {},
+    getFlag(name: string) { return flags.get(name); },
+    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) {
+      handlers.set(name, [...(handlers.get(name) ?? []), handler]);
+    },
+    async exec(_command: string, args: string[]) {
+      if (args[0]?.endsWith('/work-chat-ack.js')) reports.push(JSON.parse(args[3]!));
+      return { code: 0, killed: false, stderr: '', stdout: '' };
+    },
+  };
+  install(api as never);
+  const ctx = { cwd: process.cwd(), signal: new AbortController().signal, hasUI: false, get model() { return model; },
+    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return auth; } },
+    sessionManager: { getSessionId: () => 'same-session', getSessionFile: () => undefined,
+      getHeader: () => ({ id: 'same-session', cwd: process.cwd() }), getEntries: () => [], getBranch: () => [] },
+  };
+  const emit = async (name: string, event: any = {}) => {
+    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
+  };
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1).lifecycle, 'start:startup');
+  assert.equal(reports.at(-1).model, undefined);
+  assert.equal(reports.at(-1).authReady, false);
+  assert.equal(reports.at(-1).error, undefined);
+  model = { provider: 'fixture', id: 'automatic' }; auth = true;
+  await emit('model_select');
+  assert.equal(reports.at(-1).sessionId, 'same-session');
+  assert.equal(reports.at(-1).model.model, 'automatic');
+  model = { provider: 'fixture', id: 'chosen' };
+  await emit('model_select');
+  assert.equal(reports.at(-1).model.model, 'chosen');
+  assert.equal(reports.at(-1).authReady, true);
+  model = { provider: 'fixture', id: 'automatic' };
+  flags.set('mypi-chat-unpinned', true);
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1).model.model, 'automatic');
+  assert.equal(reports.at(-1).authReady, true);
+  assert.equal(reports.at(-1).error, undefined, 'unrelated authenticated default may start an unpinned pending tab');
+  flags.delete('mypi-chat-unpinned');
+  await emit('session_start', { reason: 'startup' });
+  assert.match(reports.at(-1).error, /another model/, 'pinned launches still enforce the exact target');
+  flags.set('mypi-chat-unpinned', true);
+  flags.set('mypi-chat-override', true);
+  await emit('session_start', { reason: 'startup' });
+  assert.equal(reports.at(-1).error, undefined, 'pending resume must not persist or reject another authenticated model');
+  assert.equal(reports.at(-1).model.model, 'automatic');
+  model = { provider: 'fixture', id: 'chosen' };
+  await emit('model_select');
+  assert.equal(reports.at(-1).sessionId, 'same-session');
+  assert.equal(reports.at(-1).model.model, 'chosen');
+  assert.equal(reports.at(-1).error, undefined);
+});
 test('session snapshot survives ordinary turns/compaction, refreshes on memory tools and lifecycle, rejects late reads', async t => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const entries: any[] = [];

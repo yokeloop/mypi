@@ -79,6 +79,15 @@ export function planUserLayer(checkout: string, database: string): UserLayerPlan
   file(join(home, 'USER-INSTRUCTIONS.md'), '# Personal instructions\n\n');
   link(join(pi, 'APPEND_SYSTEM.md'), '../USER-INSTRUCTIONS.md');
   file(join(pi, 'mcp.json'), '{\n  "mcpServers": {}\n}\n');
+  // Pi may create auth.json even before /login. Keep this portable Git exclusion
+  // in the user repository, preserving any existing ignore rules byte-for-byte.
+  const ignorePath = join(pi, '.gitignore'), ignore = inspect(ignorePath);
+  if (ignore.kind !== 'absent' && ignore.kind !== 'file') conflict(ignorePath);
+  if (ignore.kind === 'absent' || !ignore.content!.split(/\r?\n/).includes('/auth.json')) {
+    const previous = ignore.kind === 'file' ? ignore.content! : '';
+    plan.changes.push({ path: ignorePath, kind: 'file',
+      content: previous + (previous && !previous.endsWith('\n') ? '\n' : '') + '/auth.json\n' });
+  }
 
   const settingsPath = join(pi, 'settings.json'), settings = inspect(settingsPath);
   if (settings.kind !== 'absent' && settings.kind !== 'file') conflict(settingsPath);

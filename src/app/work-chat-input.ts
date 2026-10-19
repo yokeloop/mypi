@@ -23,7 +23,7 @@ export function parseChatPreview(value: unknown): ChatPreview {
   };
   const string = (candidate: unknown) => typeof candidate === 'string' && candidate.length > 0;
   const preview = object(value), binding = object(preview.binding), model = object(preview.model);
-  fields(preview, ['action', 'binding', 'chatId', 'priorAttempt', 'name', 'model', 'native', 'live', 'persisted']);
+  fields(preview, ['action', 'binding', 'chatId', 'priorAttempt', 'name', 'model', 'native', 'live', 'readiness', 'persisted']);
   fields(binding, ['projectId', 'requestId', 'sourceClone', 'worktree', 'gitCommonDir', 'branch', 'installation', 'statePath']);
   fields(model, ['provider', 'model', 'source']);
   if (!['open', 'resume', 'new-empty'].includes(String(preview.action))
@@ -36,6 +36,7 @@ export function parseChatPreview(value: unknown): ChatPreview {
   }
   validateModelPair({ provider: model.provider, model: model.model }, 'preview.model');
   for (const key of ['chatId', 'priorAttempt', 'name']) if (preview[key] !== undefined && !string(preview[key])) throw new InputError('Invalid preview ' + key);
+  if (preview.readiness !== undefined && !['ready', 'auth-pending'].includes(String(preview.readiness))) throw new InputError('Invalid preview readiness');
   if (preview.persisted !== undefined && typeof preview.persisted !== 'boolean') throw new InputError('Invalid preview persistence');
   if (preview.native !== undefined) {
     const native = object(preview.native); fields(native, ['sessionId', 'historyPath']);

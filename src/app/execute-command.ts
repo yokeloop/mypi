@@ -27,7 +27,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     if (!pi || !agentDir) throw new InputError('Set MYPI_WORK_CHAT_PI to the absolute target Pi executable and PI_CODING_AGENT_DIR to its configured resources');
     const installation = realpathSync(fileURLToPath(new URL('../../../', import.meta.url)));
     const statePath = dirname(dirname(filename));
-    const workspace = createWorkspace(filename, c.name !== 'work_chat_execute', root);
+    const workspace = createWorkspace(filename, !['work_chat_execute', 'work_chat_list', 'work_chat_show', 'work_chat_resume'].includes(c.name), root);
     try {
       const chats = createNativeWorkChats(workspace, { pi, nodePath: process.execPath,
         statePath, installation, agentDir });

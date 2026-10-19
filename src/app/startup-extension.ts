@@ -114,6 +114,7 @@ export default function (pi: ExtensionAPI) {
   pi.registerFlag('mypi-no-autoload', { type: 'boolean', description: 'Disable mypi CLI context autoload, independently of MCP.' });
   pi.registerFlag('mypi-chat-attempt', { type: 'string', description: 'Internal work-chat launch attempt.' });
   pi.registerFlag('mypi-chat-model', { type: 'string', description: 'Internal exact work-chat model pair.' });
+  pi.registerFlag('mypi-chat-unpinned', { type: 'boolean', description: 'Internal model-unpinned launch while target authorization is missing.' });
   pi.registerFlag('mypi-chat-override', { type: 'boolean', description: 'Persist explicit work-chat resume model.' });
 
   // Pi applies CLI flag values after extension factories run. Register the lifecycle
@@ -142,13 +143,20 @@ export default function (pi: ExtensionAPI) {
     if (!target) error = 'Invalid native work-chat target model';
     const current = ctx.model;
     const selected = current && ctx.modelRegistry.find(current.provider, current.id);
-    if (!selected || selected.provider !== current?.provider || selected.id !== current.id
-      || !ctx.modelRegistry.hasConfiguredAuth(selected)) error = 'Native registry/auth/current model mismatch';
-    if (lifecycle === 'start:startup' && (!target || target.provider !== current?.provider || target.model !== current.id)) {
+    const authReady = Boolean(selected && selected.provider === current?.provider && selected.id === current.id
+      && ctx.modelRegistry.hasConfiguredAuth(selected));
+    if (current && (!selected || selected.provider !== current.provider || selected.id !== current.id)) {
+      error = 'Native current model absent from registry';
+    }
+    if (lifecycle === 'start:startup' && authReady && !pi.getFlag('mypi-chat-unpinned')
+      && (!target || target.provider !== current?.provider || target.model !== current.id)) {
       error = 'Native startup selected another model';
     }
-    if (persist && target && !error) {
-      if (!await pi.setModel(selected!)) error = 'Exact native model override cannot be persisted';
+    if (persist && target && !error && authReady
+      && selected?.provider === target.provider && selected.id === target.model) {
+      // An unpinned pending resume may restore another authenticated model.
+      // Do not persist or reject that selection as an override of the requested target.
+      if (!await pi.setModel(selected)) error = 'Exact native model override cannot be persisted';
       const branch = ctx.sessionManager.getBranch().filter(item => item.type === 'model_change').at(-1);
       if (!branch || branch.provider !== target.provider || branch.modelId !== target.model) error = 'Native active branch did not persist override';
     }
@@ -164,7 +172,7 @@ export default function (pi: ExtensionAPI) {
       branchBinding: savedBinding, branchModel: selectedBranch && { provider: selectedBranch.provider, model: selectedBranch.modelId },
       sessionId: ctx.sessionManager.getSessionId(), historyPath: ctx.sessionManager.getSessionFile(),
       cwd: ctx.cwd, processCwd: process.cwd(), processId: process.pid, installation: root, state,
-      scope: pi.getFlag('mypi-scope'), model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
+      scope: pi.getFlag('mypi-scope'), authReady, model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
       fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
     const result = await pi.exec('node', [ack, state, attempt, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
     if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');

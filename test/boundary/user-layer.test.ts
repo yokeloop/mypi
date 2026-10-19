@@ -29,6 +29,10 @@ test('user setup is opt-in, repeatable, preserves settings, and instruction link
   applyUserLayer(plan);
   assert.equal(readlinkSync(join(root, '.pi')), 'home/pi');
   assert.equal(readlinkSync(join(home, 'pi/APPEND_SYSTEM.md')), '../USER-INSTRUCTIONS.md');
+  assert.equal(readFileSync(join(home, 'pi/.gitignore'), 'utf8'), '/auth.json\n');
+  const ignoredAuth = spawnSync('git', ['-C', home, 'check-ignore', '-v', 'pi/auth.json'], { encoding: 'utf8', timeout: 3000 });
+  assert.equal(ignoredAuth.status, 0, ignoredAuth.stderr);
+  assert.match(ignoredAuth.stdout, /pi\/\.gitignore:1:\/auth\.json/);
   assert.match(readFileSync(join(home, '.git/HEAD'), 'utf8'), /refs\/heads\/main/);
   const app = createApp(db, true);
   try { assert.deepEqual(app.projects.list(), []); } finally { app.close(); }
@@ -45,6 +49,11 @@ test('user setup is opt-in, repeatable, preserves settings, and instruction link
   applyUserLayer(planUserLayer(root, db));
   assert.equal(readFileSync(settings + '.before-bootstrap', 'utf8'), before);
   assert.deepEqual(JSON.parse(readFileSync(settings, 'utf8')), { theme: 'personal', packages: ['./other-package', join(root, 'integrations/pi')] });
+  const ignore = join(home, 'pi/.gitignore');
+  writeFileSync(ignore, '# personal rules\n/*.tmp');
+  applyUserLayer(planUserLayer(root, db));
+  assert.equal(readFileSync(ignore, 'utf8'), '# personal rules\n/*.tmp\n/auth.json\n');
+  assert.deepEqual(applyUserLayer(planUserLayer(root, db)), []);
   const commit = spawnSync('git', ['-C', home, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test',
     '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'add', '.'], { encoding: 'utf8', timeout: 3000 });
   assert.equal(commit.status, 0, commit.stderr);
@@ -57,6 +66,7 @@ test('user setup is opt-in, repeatable, preserves settings, and instruction link
   restoreState(join(dir, 'backup'), join(dir, 'restored.sqlite3'), join(dir, 'restored'));
   assert.equal(readlinkSync(join(dir, 'restored/pi/APPEND_SYSTEM.md')), '../USER-INSTRUCTIONS.md');
   assert.equal(readFileSync(join(dir, 'restored/pi/settings.json'), 'utf8'), readFileSync(settings, 'utf8'));
+  assert.equal(readFileSync(join(dir, 'restored/pi/.gitignore'), 'utf8'), readFileSync(ignore, 'utf8'));
   rmSync(join(home, 'pi/APPEND_SYSTEM.md'));
   symlinkSync('../../outside', join(home, 'pi/APPEND_SYSTEM.md'));
   assert.throws(() => contextGit(home).cleanAll(), /Symlink/); // Exception cannot admit arbitrary links.

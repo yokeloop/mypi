@@ -16,7 +16,9 @@ export interface WorkChat extends ChatBinding {
   id: string;
   name: string | null;
   attemptId: string;
-  phase: 'reserved' | 'partial' | 'ready' | 'closed';
+  requestedProvider: string | null;
+  requestedModel: string | null;
+  phase: 'reserved' | 'partial' | 'auth-pending' | 'ready' | 'closed';
   sessionId: string | null;
   historyPath: string | null;
   pane: string | null;

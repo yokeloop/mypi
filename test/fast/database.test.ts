@@ -45,7 +45,7 @@ test('readonly connection observes committed rows in an active writer WAL withou
       assert.equal(reader.pragma('journal_mode', { simple: true }), 'wal');
       assert.deepEqual(reader.prepare('SELECT slug FROM organizations WHERE slug = ?').get('visible'), { slug: 'visible' });
       assert.throws(() => reader.prepare("INSERT INTO organizations(slug) VALUES ('forbidden')").run(), /readonly/i);
-      assert.equal((reader.pragma('user_version', { simple: true }) as number), 3);
+      assert.equal((reader.pragma('user_version', { simple: true }) as number), 4);
     } finally { reader.close(); }
   } finally { writer.close(); }
 });
@@ -71,7 +71,7 @@ test('migration is repeatable without reseeding renamed/custom statuses; newer s
   assert.equal(db.pragma('journal_mode', { simple: true }), 'wal');
   try {
     assert.deepEqual(db.prepare('SELECT * FROM request_statuses ORDER BY id').all(), expected);
-    db.pragma('user_version = 4');
+    db.pragma('user_version = 5');
     assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
@@ -79,6 +79,6 @@ test('migration is repeatable without reseeding renamed/custom statuses; newer s
   const unsupported = new Database(filename, { readonly: true, fileMustExist: true });
   try {
     assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
-    assert.equal(unsupported.pragma('user_version', { simple: true }), 4);
+    assert.equal(unsupported.pragma('user_version', { simple: true }), 5);
   } finally { unsupported.close(); }
 });

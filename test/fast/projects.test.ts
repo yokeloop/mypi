@@ -104,7 +104,7 @@ test('project checkout update refuses managed work chats, including closed histo
     app.chatStore.reserve({ id: 'chat', requestId: request.id, projectId: project.id, name: null,
       sourceClone: oldPath, worktree: join(dir, 'worktree'), gitCommonDir: join(dir, '.git'), branch: 'task',
       installation: dir, statePath: filename, sessionId: null, historyPath: null, attemptId: 'attempt',
-      pane: null, processId: null, processStart: null, phase: 'closed' });
+      pane: null, processId: null, processStart: null, requestedProvider: null, requestedModel: null, phase: 'closed' });
     assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /managed work chats/);
     assert.deepEqual(app.projects.list(), [project]);
     assert.deepEqual(app.projects.updateCheckout('one/project', oldPath, oldPath), project);
