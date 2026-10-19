@@ -9,7 +9,7 @@ interface ExtensionContext {
   cwd: string;
   signal: AbortSignal;
   hasUI: boolean;
-  ui: { notify(message: string, level: 'warning'): void };
+  ui: { notify(message: string, level: 'warning'): void; confirm(title: string, message: string): Promise<boolean>; setStatus?(key: string, text: string): void };
   model?: { provider: string; id: string };
   modelRegistry: { find(provider: string, model: string): { provider: string; id: string } | undefined; hasConfiguredAuth(model: { provider: string; id: string }): boolean };
   sessionManager: { getSessionId(): string; getSessionFile(): string | undefined;
@@ -99,8 +99,9 @@ export default function (pi: ExtensionAPI) {
   });
   pi.registerCommand('work-chat', { description: 'Preview, inspect or explicitly execute independent task work chats (see /work-chat help)',
     async handler(args, ctx) {
+      if (args.trim() === 'adopt-model') { await adoptModel(ctx); return; }
       if (!args.trim() || args.trim() === 'help') {
-        ctx.ui.notify('work-chat open --project org/project --request-id N --source-clone /clone --worktree /worktree [--model provider/model-id]; resume ID; new-empty ID; list; show ID; execute --preview JSON [--focus]. Preview first; never sends a prompt. See mypi --help.', 'warning');
+        ctx.ui.notify('work-chat open --project org/project --request-id N --source-clone /clone --worktree /worktree [--model provider/model-id]; resume ID; new-empty ID; list; show ID; execute --preview JSON [--focus]; adopt-model. Preview first; never sends a prompt. See mypi --help.', 'warning');
         return;
       }
       // CLI remains the validator and application dispatch; no shell evaluates arguments.
@@ -110,6 +111,47 @@ export default function (pi: ExtensionAPI) {
       ctx.ui.notify((result.code === 0 ? result.stdout : result.stderr).slice(0, 4000) || 'work-chat command failed', 'warning');
     },
   });
+  async function adoptModel(ctx: ExtensionContext) {
+    if (!ctx.hasUI) return;
+    const attempt = pi.getFlag('mypi-chat-attempt');
+    const session = ctx.sessionManager.getSessionId();
+    let issued = chatGeneration;
+    const current = () => issued === chatGeneration && pi.getFlag('mypi-chat-attempt') === attempt
+      && ctx.sessionManager.getSessionId() === session;
+    try {
+      const previewReport = report(ctx, 'adopt:preview');
+      issued = chatGeneration;
+      const before = await previewReport;
+      if (!current()) return;
+      if (!before) throw new Error('Native model is not locally authorized');
+      const preview = await syncSelection(ctx, before, false);
+      if (!current()) return;
+      if (preview.status !== 'mismatch') { ctx.ui.notify('No different model is pending adoption.', 'warning'); return; }
+      const expected = `${preview.expected.provider}/${preview.expected.model}`;
+      const selected = `${preview.selected.provider}/${preview.selected.model}`;
+      if (!await ctx.ui.confirm('Adopt selected work-chat model?', `Expected ${expected}; selected ${selected}. Change this chat target to ${selected}?`)) {
+        if (current()) ctx.ui.notify('Model adoption cancelled; expected target remains pending.', 'warning');
+        return;
+      }
+      if (!current()) return;
+      const confirmReport = report(ctx, 'adopt:confirm');
+      issued = chatGeneration;
+      const after = await confirmReport;
+      if (!current()) return;
+      if (!after || after.attempt !== before.attempt || after.sessionId !== before.sessionId
+        || after.processId !== before.processId || after.model.provider !== before.model.provider
+        || after.model.model !== before.model.model) throw new Error('Native model/session changed while confirming');
+      const adopted = await syncSelection(ctx, after, true, preview.expected);
+      if (!current()) return;
+      if (adopted.status !== 'ready') throw new Error('Native model or target changed; adoption refused');
+      ctx.ui.setStatus?.('mypi-work-chat', 'work chat ready');
+      ctx.ui.notify(`Work chat ready: adopted ${selected} in this tab. No prompt was sent.`, 'warning');
+    } catch {
+      if (!current()) return;
+      ctx.ui.setStatus?.('mypi-work-chat', 'work chat unknown');
+      ctx.ui.notify('Model adoption unconfirmed; target and pending reservation preserved. Inspect /work-chat show.', 'warning');
+    }
+  }
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });
   pi.registerFlag('mypi-no-autoload', { type: 'boolean', description: 'Disable mypi CLI context autoload, independently of MCP.' });
   pi.registerFlag('mypi-chat-attempt', { type: 'string', description: 'Internal work-chat launch attempt.' });
@@ -124,7 +166,16 @@ export default function (pi: ExtensionAPI) {
   const state = resolve(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'));
   let chatGeneration = 0;
   let starting = true;
-  async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<void> {
+  type SelectionReceipt = { attempt: string; sessionId: string; processId: number; generation: number; model: { provider: string; model: string } };
+  async function syncSelection(ctx: ExtensionContext, receipt: SelectionReceipt, adopt: boolean,
+    expectedTarget?: { provider: string; model: string }): Promise<{ status: string; expected: { provider: string; model: string }; selected: { provider: string; model: string } }> {
+    const data = expectedTarget ? { ...receipt, expectedTarget } : receipt;
+    const result = await pi.exec('node', [cli, 'work-chat', 'sync-attempt', '--receipt', JSON.stringify(data), ...(adopt ? ['--adopt'] : [])],
+      { cwd: root, timeout: 12000, signal: ctx.signal });
+    if (result.code !== 0 || result.killed) throw new Error('Native work chat sync unavailable');
+    return JSON.parse(result.stdout) as { status: string; expected: { provider: string; model: string }; selected: { provider: string; model: string } };
+  }
+  async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<SelectionReceipt | undefined> {
     const attempt = pi.getFlag('mypi-chat-attempt');
     if (typeof attempt !== 'string' || !/^[0-9a-f-]{36}$/.test(attempt)) return;
     const token = ++chatGeneration;
@@ -140,7 +191,7 @@ export default function (pi: ExtensionAPI) {
         }
       }
     } catch { /* Report the invalid target through the native acknowledgement. */ }
-    if (!target) error = 'Invalid native work-chat target model';
+    if (!target && pi.getFlag('mypi-chat-model') !== 'null') error = 'Invalid native work-chat target model';
     const current = ctx.model;
     const selected = current && ctx.modelRegistry.find(current.provider, current.id);
     const authReady = Boolean(selected && selected.provider === current?.provider && selected.id === current.id
@@ -181,15 +232,57 @@ export default function (pi: ExtensionAPI) {
       model: current && !placeholder ? { provider: current.provider, model: current.id } : undefined,
       fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
     const result = await pi.exec('node', [ack, state, attempt, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
-    if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');
+    if (result.code !== 0 || result.killed) {
+      if (ctx.hasUI) ctx.ui.notify('Work chat acknowledgement unavailable; reservation remains pending/unknown.', 'warning');
+      return;
+    }
     if (lifecycle.startsWith('start:')) starting = false;
+    if (!error && authReady && current && !placeholder) return { attempt, sessionId: data.sessionId, processId: process.pid,
+      generation: token, model: { provider: current.provider, model: current.id } };
+    return;
   }
   const chatReport = (ctx: ExtensionContext) => report(ctx, 'before_agent_start');
-  pi.on('session_start', (event, ctx) => report(ctx, 'start:' + (event as { reason?: string }).reason,
+  async function eventReport(ctx: ExtensionContext, lifecycle: string, persist = false) {
+    const attempt = pi.getFlag('mypi-chat-attempt');
+    const session = ctx.sessionManager.getSessionId();
+    const reporting = report(ctx, lifecycle, persist);
+    const issued = chatGeneration; // report increments synchronously before its first await.
+    const receipt = await reporting;
+    if (!ctx.hasUI || typeof attempt !== 'string' || chatGeneration !== issued
+      || pi.getFlag('mypi-chat-attempt') !== attempt || ctx.sessionManager.getSessionId() !== session) return;
+    if (!receipt) {
+      ctx.ui.setStatus?.('mypi-work-chat', 'work chat pending/unknown');
+      ctx.ui.notify('Work chat pending/unknown: select a locally authorized model with /login or /model, then inspect /work-chat show. No prompt was sent.', 'warning');
+      return;
+    }
+    // A previous async sync must never repaint the tab ready after a newer
+    // model_select, credential loss or session switch.
+    const current = () => chatGeneration === receipt.generation
+      && pi.getFlag('mypi-chat-attempt') === receipt.attempt
+      && ctx.sessionManager.getSessionId() === receipt.sessionId;
+    // One guarded reconciliation after the acknowledgement, not an event-loop poll.
+    // The launcher's DB reservation may still be settling during session_start.
+    const reconcile = async () => {
+      try {
+        const result = await syncSelection(ctx, receipt, false);
+        if (!current()) return;
+        if (result.status === 'mismatch') ctx.ui.notify(`Work chat pending: expected ${result.expected.provider}/${result.expected.model}; selected ${result.selected.provider}/${result.selected.model}. Use /model for the expected target or /work-chat adopt-model to confirm this selection.`, 'warning');
+        else if (result.status === 'ready') ctx.ui.notify(`Work chat ready: ${receipt.model.provider}/${receipt.model.model}. No prompt was sent.`, 'warning');
+        else throw new Error('Unconfirmed sync result');
+        ctx.ui.setStatus?.('mypi-work-chat', result.status === 'ready' ? 'work chat ready' : 'work chat pending');
+      } catch {
+        if (!current()) return;
+        ctx.ui.setStatus?.('mypi-work-chat', 'work chat unknown');
+        ctx.ui.notify('Work chat readiness unconfirmed; reservation remains pending/unknown. Use /work-chat show to reconcile.', 'warning');
+      }
+    };
+    void reconcile();
+  }
+  pi.on('session_start', (event, ctx) => eventReport(ctx, 'start:' + (event as { reason?: string }).reason,
     Boolean(pi.getFlag('mypi-chat-override')) && (event as { reason?: string }).reason === 'startup'));
-  pi.on('session_tree', (_event, ctx) => report(ctx, 'tree'));
-  pi.on('model_select', (_event, ctx) => starting ? undefined : report(ctx, 'model_select'));
-  pi.on('session_shutdown', (event, ctx) => report(ctx, 'shutdown:' + (event as { reason?: string }).reason));
+  pi.on('session_tree', async (_event, ctx) => { await report(ctx, 'tree'); });
+  pi.on('model_select', (_event, ctx) => starting ? undefined : eventReport(ctx, 'model_select'));
+  pi.on('session_shutdown', async (event, ctx) => { await report(ctx, 'shutdown:' + (event as { reason?: string }).reason); });
 
   let generation = 0;
   let startup = true;

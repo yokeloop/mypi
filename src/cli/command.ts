@@ -38,6 +38,9 @@ Import legacy JSONL explicitly after stopping old writers; keep the original fil
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
 Work-chat open/resume/new-empty only preview. Execute the returned exact JSON separately; no prompt/task is sent.
 Models: home/pi/work-chats.json: default, organizations, projects (complete provider/model pairs).
+No configured model for a new chat opens an unpinned tab; first verified local selection becomes its target.
+An exact configured model becomes ready automatically after /login; for another model use /model
+or explicitly confirm /work-chat adopt-model in the same tab.
 Precedence: invocation > project > organization > default; resume: invocation > saved native > config.
 Set MYPI_WORK_CHAT_PI to absolute target Pi executable, PI_CODING_AGENT_DIR to its configured resources,
 and XDG_STATE_HOME to the target state directory. Requires persistent Herdr (HERDR_ENV/HERDR_WORKSPACE_ID),

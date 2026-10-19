@@ -20,6 +20,10 @@ test('native runtime uses real Git common-dir/worktree registration, not directo
   git(source, 'worktree', 'add', '-qb', 'task/one', worktree);
   git(foreign, 'init', '-q');
   for (const name of ['state', 'agent', 'engine']) mkdirSync(join(dir, name));
+  mkdirSync(join(dir, 'engine', 'dist', 'src', 'app'), { recursive: true });
+  writeFileSync(join(dir, 'engine', 'dist', 'src', 'app', 'startup-extension.js'), 'fixture');
+  writeFileSync(join(dir, 'USER-INSTRUCTIONS.md'), 'fixture');
+  writeFileSync(join(dir, 'agent', 'settings.json'), JSON.stringify({ packages: [join(dir, 'engine', 'integrations', 'pi')] }));
   const runtime = nativeChatRuntime({ pi: process.execPath, nodePath: process.execPath,
     installation: join(dir, 'engine'), statePath: join(dir, 'state'), userHome: dir,
     agentDir: join(dir, 'agent'), identity: () => 'team/tool' });
@@ -27,6 +31,9 @@ test('native runtime uses real Git common-dir/worktree registration, not directo
   const checked = await runtime.validate(args);
   assert.equal(checked.branch, 'task/one');
   assert.equal(checked.worktree, worktree);
+  writeFileSync(join(dir, 'agent', 'settings.json'), JSON.stringify({ packages: ['/another/engine/integrations/pi'] }));
+  await assert.rejects(runtime.validate(args), /not uniquely configured/);
+  writeFileSync(join(dir, 'agent', 'settings.json'), JSON.stringify({ packages: [join(dir, 'engine', 'integrations', 'pi')] }));
   await assert.rejects(runtime.validate({ ...args, worktree: foreign }), /Foreign Git worktree|Git checkout/);
   await assert.rejects(runtime.validate({ ...args, sourceClone: join(dir, 'engine') }), /installed-engine|Git checkout/);
 });

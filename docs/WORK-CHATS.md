@@ -41,8 +41,10 @@ These IDs are illustrative, not product defaults. Keys must be registered
 identities. Each entry is a complete provider/model pair. New chats use explicit
 invocation > project > organization > default. Resume uses explicit invocation >
 selected model in the native active session branch > configured scopes only if
-that valid history has no saved model. With no effective choice, set a pair in
-the file or supply one on the invocation. For CLI use `--model provider/model-id`
+that valid history has no saved model. With no effective choice for a new open or new-empty, the preview explicitly reports
+`model:{"source":"unselected"}`. Its managed tab starts without a pinned provider/model.
+The first verified locally authorized native selection becomes the target in that
+same attempt; no target is invented from an unauthenticated placeholder. For CLI use `--model provider/model-id`
 (split at the first slash), or `--provider provider-id --model model-id` (model
 ID verbatim, including slashes). MCP uses `model:{"provider":"...","model":"..."}`.
 An explicit model and a saved model do not require reading the defaults file.
@@ -70,14 +72,20 @@ reported clone, cwd, scope, exact provider/model and source before explicitly
 executing the returned preview JSON; stale previews are refused. Execute may
 return `outcome:ready`, `outcome:auth-pending`, or `outcome:existing` (also for
 an existing pending chat). When target credentials are absent, Pi opens in the
-same managed worktree without a pinned model and without a work prompt. Use
-`/login`, then `/model` **in that tab** to select the requested provider/model.
-Run `work-chat show <chat-id>` or `work-chat list` to reconcile the same session:
-only exact native process/session, model, scope and local auth observations
-promote it to ready. Local readiness is not proof the credential works upstream;
+same managed worktree without a pinned model and without a work prompt.
+Use `/login` **in that tab**. If Pi automatically selects the exact target,
+no `/model` step is necessary. Otherwise choose the requested model with `/model`,
+or run `/work-chat adopt-model` in the same tab to see expected and selected IDs
+and explicitly confirm a different, locally authorized target. Cancellation or a
+changed selection preserves the pending target. Native `session_start` and
+`model_select` normally update readiness inside the tab without a manual `show`.
+If an event arrives before the launch reservation settles, the tab reports
+unconfirmed rather than success; use `work-chat show <chat-id>` or `work-chat list`
+when that status remains. All transitions require exact native process/session,
+model, scope and local auth observations. Local readiness is not proof the credential works upstream;
 no failed request is replayed. An unrelated authenticated default may be
-selected at startup, but cannot satisfy a pending target. Because Pi hides
-unauthorized models from `--list-models`, exact catalog validation for that
+selected at startup, but cannot satisfy a configured pending target without
+confirmation. Because Pi hides unauthorized models from `--list-models`, exact catalog validation for that
 provider is deferred until authorization is configured; an unsupported model
 may remain pending and needs an explicit corrected model on a closed resume.
 `outcome:partial` is non-success (nonzero CLI exit / MCP `isError`); inspect its
@@ -94,8 +102,8 @@ history was persisted and native closure is positively proven, use
 `work-chat new-empty <chat-id>` and explicitly execute its preview. History and
 worktrees are not backed up by the SQLite metadata snapshot.
 
-In ordinary Pi, `/work-chat help` describes the same CLI subcommands. For
-`/work-chat execute --preview`, paste the exact returned JSON object directly:
+In ordinary Pi, `/work-chat help` describes the same CLI subcommands and
+`/work-chat adopt-model`. For `/work-chat execute --preview`, paste the exact returned JSON object directly:
 spaces and escapes inside it remain part of one preview argument, and a standalone
 `--focus` may appear before or after the preview. Other slash arguments are
 whitespace-delimited; use CLI or MCP for other values with spaces. The extension

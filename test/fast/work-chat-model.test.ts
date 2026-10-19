@@ -35,7 +35,7 @@ test('atomic model precedence, omission inheritance and native saved choice', ()
     { ...b, source: 'organization' });
   assert.equal(sameModelSelection({ ...a, source: 'default' }, { ...a, source: 'project' }), false);
   assert.equal(sameModelSelection({ ...a, source: 'default' }, { ...a, source: 'default' }), true);
-  assert.throws(() => resolveModelSelection({ identity: 'acme/tool', readDefaults: () => ({}) }), /No model selected/);
+  assert.deepEqual(resolveModelSelection({ identity: 'acme/tool', readDefaults: () => ({}) }), { source: 'unselected' });
 });
 
 test('registered constructor inherits the default unless an own override exists', () => {
@@ -86,7 +86,7 @@ test('app selection reads only needed user file and validates registry reference
     } };
     throw new Error('unknown');
   } };
-  assert.throws(() => selectWorkChatModel({ identity: 'acme/tool', userHome: home, projects }), /No model selected/);
+  assert.deepEqual(selectWorkChatModel({ identity: 'acme/tool', userHome: home, projects }), { source: 'unselected' });
   writeFileSync(filename, '{invalid');
   assert.deepEqual(selectWorkChatModel({ identity: 'acme/tool', userHome: home, projects, invocation: d }),
     { ...d, source: 'invocation' });

@@ -9,7 +9,7 @@ import type { ChatBinding, ModelPair, NativeIdentity, WorkChat } from '../module
 
 function command(binary: string, args: string[], cwd: string, env = process.env): string {
   const result = spawnSync(binary, args, { cwd, env, encoding: 'utf8', timeout: 7000, maxBuffer: 1024 * 1024 });
-  if (result.error || result.status !== 0 || result.signal || result.stderr.trim()) throw new InputError(`${basename(binary)} ${args[0]} unavailable: ${(result.stderr || result.error?.message || 'nonzero exit').slice(0, 300)}`);
+  if (result.error || result.status !== 0 || result.signal || result.stderr.trim()) throw new InputError(`${basename(binary)} ${args[0]} unavailable: ${args[0] === '--offline' ? 'model catalog could not be read' : (result.stderr || result.error?.message || 'nonzero exit').slice(0, 300)}`);
   return result.stdout;
 }
 function git(cwd: string, ...args: string[]): string { return command('git', args, cwd).trim(); }
@@ -75,7 +75,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
   const agentDir = realpathSync(input.agentDir);
   const env = { ...process.env, XDG_STATE_HOME: state, PI_CODING_AGENT_DIR: agentDir,
     PI_OFFLINE: '1', PATH: dirname(input.nodePath) + ':' + process.env.PATH };
-  function target(binding: ChatBinding) {
+  function target(binding: Pick<ChatBinding, 'installation' | 'statePath' | 'worktree'>) {
     if (binding.installation !== installation || binding.statePath !== state || !existsSync(join(installation, 'dist', 'src', 'app', 'startup-extension.js'))
       || !existsSync(join(agentDir, 'settings.json')) || !existsSync(join(input.userHome, 'USER-INSTRUCTIONS.md'))) {
       throw new InputError('Target Pi installation/state/resources unavailable');
@@ -88,6 +88,20 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
   }
   function shell(value: string): string { return "'" + value.replaceAll("'", "'\"'\"'") + "'"; }
   const runtime: ChatRuntime = {
+    receiptMatches(chat, model, generation, adopt) {
+      try {
+        const latest = ack(chat);
+        return latest?.attempt === chat.attemptId && latest.generation === generation
+          && latest.sessionId === chat.sessionId && latest.historyPath === chat.historyPath
+          && latest.processId === chat.processId && latest.cwd === chat.worktree
+          && latest.processCwd === chat.worktree && latest.installation === installation
+          && latest.state === state && latest.scope === input.identity(chat.projectId)
+          && latest.authReady === true && !latest.error && !latest.lifecycle.startsWith('shutdown:')
+          && (!adopt || latest.lifecycle === 'adopt:confirm')
+          && latest.model?.provider === model.provider && latest.model.model === model.model
+          && processStart(chat.processId!) === chat.processStart;
+      } catch { return false; }
+    },
     async validate(args) {
       const sourceClone = realpathSync(args.sourceClone), worktree = realpathSync(args.worktree);
       if (sourceClone !== args.sourceClone || worktree !== args.worktree || args.installation !== installation || args.statePath !== state
@@ -99,6 +113,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       if (realpathSync(resolve(worktree, git(worktree, 'rev-parse', '--git-common-dir'))) !== common) throw new InputError('Foreign Git worktree');
       const branch = git(worktree, 'symbolic-ref', '--quiet', '--short', 'HEAD');
       if (!branch || git(sourceClone, 'worktree', 'list', '--porcelain').split('\n').filter(line => line === `worktree ${worktree}`).length !== 1) throw new InputError('Worktree is not registered on a branch');
+      target(args);
       return { sourceClone, worktree, gitCommonDir: common, branch, installation, statePath: state };
     },
     async validateModel(pair, binding) {
@@ -178,19 +193,19 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
         const requested = { provider: chat.requestedProvider, model: chat.requestedModel };
         const matches = observation.model?.provider === requested.provider && observation.model?.model === requested.model;
         const localAuth = observation.model ? await runtime.validateModel(observation.model, chat) : 'auth-pending';
-        const readiness = observation.authReady && localAuth === 'ready' && (chat.phase !== 'auth-pending' || matches)
+        const readiness = observation.authReady && localAuth === 'ready' && (!chat.requestedProvider || matches)
           ? 'ready' : 'auth-pending';
         // Native registry/auth is only a local credential check; it makes no provider request.
-        return { status: 'live', binding: chat, process: { pane: chat.pane, processId: pid, processStart: chat.processStart }, native,
-          ...(observation.model ? { model: observation.model } : {}), readiness,
-          ...(readiness === 'auth-pending' ? { reason: 'Local auth/model not ready for requested selection; run /login then /model in this same Pi session' } : {}),
+        return { status: 'live', binding: chat, process: { pane: chat.pane, processId: pid, processStart: chat.processStart }, native, authorized: Boolean(observation.authReady && localAuth === 'ready'),
+          generation: observation.generation, ...(observation.model ? { model: observation.model } : {}), readiness,
+          ...(readiness === 'auth-pending' ? { reason: chat.requestedProvider && observation.model && localAuth === 'ready' ? `Expected ${chat.requestedProvider}/${chat.requestedModel}; selected ${observation.model.provider}/${observation.model.model}. Use /model or /work-chat adopt-model in this tab` : 'Local auth/model not ready; run /login in this same Pi session' } : {}),
           persisted: observation.everPersisted || observation.fileExists };
       } catch (error) { return { status: 'unknown', reason: String(error) }; }
     },
     async launch({ chat, model, resume, focus }) {
       const binding = await runtime.validate(chat);
       if (binding.branch !== chat.branch || binding.gitCommonDir !== chat.gitCommonDir) throw new InputError('Git association changed');
-      const readiness = await runtime.validateModel(model, chat);
+      const readiness = model.source === 'unselected' ? 'auth-pending' : await runtime.validateModel(model, chat);
       if (resume) await runtime.history(chat);
       const sessionId = resume ? chat.sessionId! : randomUUID();
       if (!resume && existsSync(join(state, 'sessions')) && readdirSync(join(state, 'sessions')).some(name => name.endsWith('_' + sessionId + '.jsonl'))) throw new InputError('Native session ID collision');
@@ -200,12 +215,12 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       const tab = json(command('herdr', ['tab', 'create', '--workspace', process.env.HERDR_WORKSPACE_ID,
         '--cwd', chat.worktree, '--label', 'work-chat-' + chat.id.slice(0, 8), ...(focus ? ['--focus'] : ['--no-focus']),
         '--env', 'XDG_STATE_HOME=' + state, '--env', 'PI_CODING_AGENT_DIR=' + agentDir,
-        '--env', 'PI_OFFLINE=1', '--env', 'PATH=' + env.PATH], chat.worktree));
+        '--env', 'PI_OFFLINE=1', '--env', 'MYPI_WORK_CHAT_PI=' + pi, '--env', 'PATH=' + env.PATH], chat.worktree));
       const pane = (tab.result as { root_pane?: { pane_id?: string } } | undefined)?.root_pane?.pane_id;
       if (!pane) return { status: 'partial', reason: 'Herdr tab creation returned no pane' };
       const args = ['--offline', '--session-dir', join(state, 'sessions'), ...(resume ? ['--session', chat.historyPath!] : ['--session-id', sessionId]),
-        ...(readiness === 'ready' ? ['--provider', model.provider, '--model', model.model] : ['--mypi-chat-unpinned']), '--mypi-scope', scope, '--mypi-chat-attempt', chat.attemptId,
-        '--mypi-chat-model', JSON.stringify({ provider: model.provider, model: model.model }),
+        ...(readiness === 'ready' && model.source !== 'unselected' ? ['--provider', model.provider, '--model', model.model] : ['--mypi-chat-unpinned']), '--mypi-scope', scope, '--mypi-chat-attempt', chat.attemptId,
+        '--mypi-chat-model', JSON.stringify(model.source === 'unselected' ? null : { provider: model.provider, model: model.model }),
         ...(resume && model.source === 'invocation' ? ['--mypi-chat-override'] : []),
         ...(existsSync(join(agentDir, 'APPEND_SYSTEM.md')) ? [] : ['--append-system-prompt', join(input.userHome, 'USER-INSTRUCTIONS.md')])];
       try {
@@ -229,7 +244,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
         ...(observedPid ? { processId: observedPid } : {}), ...(start ? { processStart: start } : {}),
         reason: 'Native acknowledgement or Herdr process observation unavailable' };
       try {
-        if (!startupReceipt(receipt, { processId: observedPid, scope, ...(readiness === 'ready' ? { model } : { allowUnpinned: true }) })) throw new InputError('Native model/scope/history or process not acknowledged');
+        if (!startupReceipt(receipt, { processId: observedPid, scope, ...(readiness === 'ready' && model.source !== 'unselected' ? { model } : { allowUnpinned: true }) })) throw new InputError('Native model/scope/history or process not acknowledged');
         const native = identity(chat, receipt);
         if (resume && (native.sessionId !== chat.sessionId || native.historyPath !== chat.historyPath)) throw new InputError('Foreign native session');
         return { status: 'acknowledged', process: { pane, processId: observedPid, processStart: start }, native,

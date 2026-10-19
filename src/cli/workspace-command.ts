@@ -14,6 +14,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'work-chat execute': [0, 0, ['preview'], ['focus']],
   'work-chat list': [0, 0, [], []],
   'work-chat show': [1, 1, [], []],
+  'work-chat sync-attempt': [0, 0, ['receipt'], ['adopt']],
   'project resolve': [1, 1, [], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],

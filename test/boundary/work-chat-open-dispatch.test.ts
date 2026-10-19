@@ -53,6 +53,11 @@ fi
     sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
   assert.equal((preview as { action: string }).action, 'open');
   assert.equal((preview as { binding: { installation: string } }).binding.installation, installation);
+  const unselected = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId, sourceClone: source, worktree }, filename, home);
+  assert.deepEqual((unselected as { model: unknown }).model, { source: 'unselected' });
+  writeFileSync(join(agent, 'settings.json'), JSON.stringify({ packages: ['/another/installation/integrations/pi'] }));
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId, sourceClone: source, worktree }, filename, home), /not uniquely configured/);
+  writeFileSync(join(agent, 'settings.json'), JSON.stringify({ packages: [join(installation, 'integrations', 'pi')] }));
   writeFileSync(pi, `#!/bin/sh
 if [ "$1" = "--offline" ]; then
   printf 'provider  model  context  max-out  thinking  images\\n'

@@ -44,6 +44,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         }
         case 'work_chat_list': return { chats: await chats.list() };
         case 'work_chat_show': return await chats.show(c.id);
+        case 'work_chat_sync_attempt': return await chats.syncAttempt({ ...c.receipt, adopt: c.adopt });
       }
     } finally { workspace.close(); }
   }

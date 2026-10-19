@@ -31,10 +31,12 @@ export function parseChatPreview(value: unknown): ChatPreview {
     || Number(binding.projectId) <= 0 || Number(binding.requestId) <= 0
     || !['sourceClone', 'worktree', 'gitCommonDir', 'installation', 'statePath'].every(key => string(binding[key]) && isAbsolute(binding[key] as string))
     || !string(binding.branch) || !string(model.source)
-    || !['invocation', 'saved session', 'project', 'organization', 'default'].includes(String(model.source))) {
+    || !['invocation', 'saved session', 'project', 'organization', 'default', 'unselected'].includes(String(model.source))) {
     throw new InputError('Invalid work-chat preview binding or source');
   }
-  validateModelPair({ provider: model.provider, model: model.model }, 'preview.model');
+  if (model.source === 'unselected') {
+    if (Object.keys(model).length !== 1 || !['open', 'new-empty', 'resume'].includes(String(preview.action))) throw new InputError('Invalid unselected preview');
+  } else validateModelPair({ provider: model.provider, model: model.model }, 'preview.model');
   for (const key of ['chatId', 'priorAttempt', 'name']) if (preview[key] !== undefined && !string(preview[key])) throw new InputError('Invalid preview ' + key);
   if (preview.readiness !== undefined && !['ready', 'auth-pending'].includes(String(preview.readiness))) throw new InputError('Invalid preview readiness');
   if (preview.persisted !== undefined && typeof preview.persisted !== 'boolean') throw new InputError('Invalid preview persistence');
@@ -48,4 +50,19 @@ export function parseChatPreview(value: unknown): ChatPreview {
   }
   if (preview.action === 'resume' && !string(preview.chatId) || preview.action === 'new-empty' && (!string(preview.chatId) || !string(preview.priorAttempt))) throw new InputError('Incomplete preview');
   return value as ChatPreview;
+}
+
+/** A caller-supplied observation never grants authority: the runtime independently checks Pi/Herdr/auth. */
+export function parseSyncReceipt(value: unknown): { attempt: string; sessionId: string; processId: number; generation: number;
+  model: { provider: string; model: string }; expectedTarget?: { provider: string; model: string } } {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new InputError('Invalid native sync receipt');
+  const entry = value as Record<string, unknown>;
+  if (!['attempt,generation,model,processId,sessionId', 'attempt,expectedTarget,generation,model,processId,sessionId'].includes(Object.keys(entry).sort().join(','))
+    || typeof entry.attempt !== 'string' || !/^[0-9a-f-]{36}$/.test(entry.attempt)
+    || typeof entry.sessionId !== 'string' || !entry.sessionId
+    || !Number.isSafeInteger(entry.processId) || Number(entry.processId) <= 0
+    || !Number.isSafeInteger(entry.generation) || Number(entry.generation) <= 0) throw new InputError('Invalid native sync receipt');
+  return { attempt: entry.attempt, sessionId: entry.sessionId, processId: entry.processId as number,
+    generation: entry.generation as number, model: validateModelPair(entry.model, 'native receipt model'),
+    ...(entry.expectedTarget === undefined ? {} : { expectedTarget: validateModelPair(entry.expectedTarget, 'expected target') }) };
 }

@@ -20,7 +20,8 @@ const native = z.strictObject({ sessionId: text, historyPath: externalPath });
 const processIdentity = z.strictObject({ pane: text, processId: z.number().int().positive(), processStart: text });
 export const chatPreview = z.strictObject({ action: z.enum(['open', 'resume', 'new-empty']), binding,
   chatId: text.optional(), priorAttempt: text.optional(), name: text.optional(),
-  model: modelPair.extend({ source: z.enum(['invocation', 'saved session', 'project', 'organization', 'default']) }),
+  model: z.union([modelPair.extend({ source: z.enum(['invocation', 'saved session', 'project', 'organization', 'default']) }),
+    z.strictObject({ source: z.literal('unselected') })]),
   native: native.optional(), live: processIdentity.optional(), persisted: z.boolean().optional() });
 // The envelope is stable; data retains the existing operation-specific CLI JSON.
 export const output = z.strictObject({

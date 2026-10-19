@@ -266,3 +266,88 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   assert.equal(entries.length, 0, 'departed session must not bind or install snapshot');
   await turn(); assert.equal(calls.length, 13);
 });
+
+test('native model_select gives non-blocking mismatch notice; adopt confirms in tab and refuses cancellation/model race', async () => {
+  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
+  let command: ((args: string, ctx: any) => Promise<void>) | undefined;
+  const notices: string[] = [], calls: string[][] = [], statuses: string[] = [];
+  let confirmation = false, race = false, authorized = true, failSync = false, delayAck = false, delayAdopt = false;
+  let syncStatus: 'mismatch' | 'ready' = 'mismatch';
+  let releaseAck: (() => void) | undefined, releaseAdopt: (() => void) | undefined;
+  let model = { provider: 'fixture', id: 'other' };
+  const expected = { provider: 'fixture', model: 'expected' };
+  const selected = { provider: 'fixture', model: 'other' };
+  const flags = new Map<string, unknown>([
+    ['mypi-chat-attempt', '11111111-2222-4333-8444-555555555555'],
+    ['mypi-chat-model', JSON.stringify(expected)], ['mypi-chat-unpinned', true], ['mypi-scope', 'fixture/tool'],
+  ]);
+  install({ registerMcpServer() {}, registerFlag() {}, getFlag(name: string) { return flags.get(name); },
+    registerCommand(name: string, value: { handler: (args: string, ctx: any) => Promise<void> }) { if (name === 'work-chat') command = value.handler; },
+    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, [...handlers.get(name) ?? [], handler]); },
+    async exec(_binary: string, args: string[]) {
+      calls.push(args);
+      if (args[0]?.endsWith('/work-chat-ack.js') && delayAck) return new Promise(resolve => {
+        releaseAck = () => resolve({ code: 0, killed: false, stderr: '', stdout: '' });
+      });
+      if (args.includes('sync-attempt') && args.includes('--adopt') && delayAdopt) return new Promise(resolve => {
+        releaseAdopt = () => resolve({ code: 0, killed: false, stderr: '', stdout: JSON.stringify({ status: 'ready', expected, selected }) });
+      });
+      if (args.includes('sync-attempt')) return failSync ? { code: 1, killed: false, stderr: '', stdout: '' }
+        : { code: 0, killed: false, stderr: '', stdout: JSON.stringify({ status: args.includes('--adopt') ? 'ready' : syncStatus, expected, selected }) };
+      return { code: 0, killed: false, stderr: '', stdout: '' };
+    },
+  } as never);
+  const ctx = { cwd: process.cwd(), hasUI: true, signal: new AbortController().signal,
+    get model() { return model; },
+    ui: { notify(text: string) { notices.push(text); }, setStatus(_key: string, value: string) { statuses.push(value); },
+      async confirm() { if (race) model = { provider: 'fixture', id: 'changed' }; return confirmation; } },
+    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return authorized; } },
+    sessionManager: { getSessionId: () => 'session', getSessionFile: () => undefined, getHeader: () => ({ id: 'session', cwd: process.cwd() }), getEntries: () => [], getBranch: () => [] },
+  };
+  for (const handler of handlers.get('session_start') ?? []) await handler({ reason: 'startup' }, ctx);
+  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert(notices.some(text => text.includes('expected fixture/expected; selected fixture/other')));
+  assert(calls.some(args => args.includes('sync-attempt')));
+  assert(command);
+  await command('adopt-model', ctx);
+  assert(notices.some(text => text.includes('cancelled')));
+  assert.equal(calls.filter(args => args.includes('--adopt')).length, 0);
+  confirmation = true; race = true;
+  await command('adopt-model', ctx);
+  assert.equal(calls.filter(args => args.includes('--adopt')).length, 0, 'changed model is never adopted');
+  model = { provider: 'fixture', id: 'other' }; race = false;
+  await command('adopt-model', ctx);
+  assert.equal(calls.filter(args => args.includes('--adopt')).length, 1);
+  assert(notices.some(text => text.includes('Work chat ready: adopted')));
+  assert.equal(statuses.at(-1), 'work chat ready', 'successful explicit adoption updates the persistent tab badge');
+  const adoptionCall = calls.find(args => args.includes('--adopt'))!;
+  assert.deepEqual(JSON.parse(adoptionCall[adoptionCall.indexOf('--receipt') + 1]!).expectedTarget, expected);
+  delayAdopt = true;
+  const staleAdoption = command('adopt-model', ctx);
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert(releaseAdopt, 'adoption response must be held while selection changes');
+  model = { provider: 'fixture', id: 'changed' };
+  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(statuses.at(-1), 'work chat pending');
+  releaseAdopt(); await staleAdoption;
+  assert.equal(statuses.at(-1), 'work chat pending', 'late adopt success cannot repaint newer model selection as ready');
+  model = { provider: 'fixture', id: 'other' }; delayAdopt = false;
+  failSync = true;
+  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(statuses.at(-1), 'work chat unknown', 'a failed sync cannot leave a stale ready status');
+  authorized = false;
+  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
+  assert.equal(statuses.at(-1), 'work chat pending/unknown', 'auth loss clears ready status without a provider call');
+  failSync = false; delayAck = true; syncStatus = 'ready';
+  const oldEvent = Promise.all((handlers.get('model_select') ?? []).map(handler => handler({}, ctx)));
+  assert(releaseAck, 'old unauthorized acknowledgement must be held');
+  authorized = true; delayAck = false;
+  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
+  for (let i = 0; i < 12; i++) await Promise.resolve();
+  assert.equal(statuses.at(-1), 'work chat ready');
+  releaseAck(); await oldEvent;
+  assert.equal(statuses.at(-1), 'work chat ready', 'older no-receipt event cannot repaint newer readiness');
+});
