@@ -6,9 +6,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { initializeState, createApp } from '../../src/app/create-app.js';
-import { executeCommand } from '../../src/app/execute-command.js';
+import { executeCommand, readonlyWorkChatCommand } from '../../src/app/execute-command.js';
 
 test('installed-layout work-chat open dispatch previews a valid Git worktree with pinned native resources', async t => {
+  assert.equal(readonlyWorkChatCommand('work_chat_open'), true, 'preview has no database writes');
+  assert.equal(readonlyWorkChatCommand('work_chat_sync_attempt'), false, 'native event reconciliation writes readiness/target');
+  assert.equal(readonlyWorkChatCommand('work_chat_show'), false, 'on-demand reconciliation also writes readiness');
   const dir = mkdtempSync(join(tmpdir(), 'mypi-chat-dispatch-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const source = join(dir, 'source'), worktree = join(dir, 'task'), home = join(dir, 'home');
