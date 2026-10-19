@@ -145,7 +145,12 @@ export default function (pi: ExtensionAPI) {
     const selected = current && ctx.modelRegistry.find(current.provider, current.id);
     const authReady = Boolean(selected && selected.provider === current?.provider && selected.id === current.id
       && ctx.modelRegistry.hasConfiguredAuth(selected));
-    if (current && (!selected || selected.provider !== current.provider || selected.id !== current.id)) {
+    // Pi 1.0.4 reports unknown/unknown, rather than undefined, if no model is
+    // available before login. Admit that sentinel only for an explicitly unpinned
+    // launch; never acknowledge it as a selected provider/model.
+    const placeholder = pi.getFlag('mypi-chat-unpinned') === true && current?.provider === 'unknown'
+      && current.id === 'unknown' && !selected;
+    if (current && !placeholder && (!selected || selected.provider !== current.provider || selected.id !== current.id)) {
       error = 'Native current model absent from registry';
     }
     if (lifecycle === 'start:startup' && authReady && !pi.getFlag('mypi-chat-unpinned')
@@ -172,7 +177,8 @@ export default function (pi: ExtensionAPI) {
       branchBinding: savedBinding, branchModel: selectedBranch && { provider: selectedBranch.provider, model: selectedBranch.modelId },
       sessionId: ctx.sessionManager.getSessionId(), historyPath: ctx.sessionManager.getSessionFile(),
       cwd: ctx.cwd, processCwd: process.cwd(), processId: process.pid, installation: root, state,
-      scope: pi.getFlag('mypi-scope'), authReady, model: ctx.model && { provider: ctx.model.provider, model: ctx.model.id },
+      scope: pi.getFlag('mypi-scope'), authReady,
+      model: current && !placeholder ? { provider: current.provider, model: current.id } : undefined,
       fileExists: Boolean(ctx.sessionManager.getSessionFile() && existsSync(ctx.sessionManager.getSessionFile()!)) };
     const result = await pi.exec('node', [ack, state, attempt, JSON.stringify(data)], { cwd: root, timeout: 5000, signal: ctx.signal });
     if (result.code !== 0 || result.killed) ctx.ui.notify('Work chat acknowledgement unavailable: ' + result.stderr.slice(0, 200), 'warning');

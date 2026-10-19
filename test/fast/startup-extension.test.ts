@@ -131,10 +131,11 @@ test('model-less native startup is an auth-pending receipt; login model_select r
   const flags = new Map<string, unknown>([
     ['mypi-chat-attempt', '11111111-2222-4333-8444-555555555555'],
     ['mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'chosen' })],
+    ['mypi-chat-unpinned', true],
     ['mypi-scope', 'fixture/tool'],
   ]);
   const reports: any[] = [];
-  let model: { provider: string; id: string } | undefined;
+  let model: { provider: string; id: string } | undefined = { provider: 'unknown', id: 'unknown' };
   let auth = false;
   const api = { registerMcpServer() {}, registerCommand() {}, registerFlag() {},
     getFlag(name: string) { return flags.get(name); },
@@ -148,7 +149,7 @@ test('model-less native startup is an auth-pending receipt; login model_select r
   };
   install(api as never);
   const ctx = { cwd: process.cwd(), signal: new AbortController().signal, hasUI: false, get model() { return model; },
-    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return auth; } },
+    modelRegistry: { find(provider: string, id: string) { return provider === 'unknown' ? undefined : { provider, id }; }, hasConfiguredAuth() { return auth; } },
     sessionManager: { getSessionId: () => 'same-session', getSessionFile: () => undefined,
       getHeader: () => ({ id: 'same-session', cwd: process.cwd() }), getEntries: () => [], getBranch: () => [] },
   };
@@ -160,6 +161,10 @@ test('model-less native startup is an auth-pending receipt; login model_select r
   assert.equal(reports.at(-1).model, undefined);
   assert.equal(reports.at(-1).authReady, false);
   assert.equal(reports.at(-1).error, undefined);
+  flags.delete('mypi-chat-unpinned');
+  await emit('session_start', { reason: 'startup' });
+  assert.match(reports.at(-1).error, /absent from registry/, 'unregistered model is not accepted in a pinned launch');
+  flags.set('mypi-chat-unpinned', true);
   model = { provider: 'fixture', id: 'automatic' }; auth = true;
   await emit('model_select');
   assert.equal(reports.at(-1).sessionId, 'same-session');
