@@ -80,8 +80,9 @@ and explicitly confirm a different, locally authorized target. Cancellation or a
 changed selection preserves the pending target. Native `session_start` and
 `model_select` normally update readiness inside the tab without a manual `show`.
 If an event arrives before the launch reservation settles, the tab reports
-unconfirmed rather than success; use `work-chat show <chat-id>` or `work-chat list`
-when that status remains. All transitions require exact native process/session,
+unconfirmed rather than success and rechecks once after the committed launch
+handoff. If that handoff or verification fails, use `work-chat show <chat-id>`
+or `work-chat list` when the unknown status remains. All transitions require exact native process/session,
 model, scope and local auth observations. Local readiness is not proof the credential works upstream;
 no failed request is replayed. An unrelated authenticated default may be
 selected at startup, but cannot satisfy a configured pending target without

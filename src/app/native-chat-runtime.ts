@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, realpathSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { InputError } from '../shared/errors.js';
@@ -88,6 +88,11 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
   }
   function shell(value: string): string { return "'" + value.replaceAll("'", "'\"'\"'") + "'"; }
   const runtime: ChatRuntime = {
+    launchCommitted(chat) {
+      // Merely wakes one in-tab follow-up; the receipt and DB are checked again.
+      writeFileSync(join(state, 'mypi', 'work-chat-acks', chat.attemptId + '-committed'), '',
+        { flag: 'wx', mode: 0o600 });
+    },
     receiptMatches(chat, model, generation, adopt) {
       try {
         const latest = ack(chat);

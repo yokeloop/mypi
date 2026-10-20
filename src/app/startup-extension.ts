@@ -1,4 +1,4 @@
-import { existsSync, realpathSync } from 'node:fs';
+import { existsSync, realpathSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -126,7 +126,12 @@ export default function (pi: ExtensionAPI) {
       if (!before) throw new Error('Native model is not locally authorized');
       const preview = await syncSelection(ctx, before, false);
       if (!current()) return;
-      if (preview.status !== 'mismatch') { ctx.ui.notify('No different model is pending adoption.', 'warning'); return; }
+      if (preview.status === 'ready') {
+        ctx.ui.setStatus?.('mypi-work-chat', 'work chat ready');
+        ctx.ui.notify('Work chat already ready for this selection; no different model to adopt.', 'warning');
+        return;
+      }
+      if (preview.status !== 'mismatch') throw new Error('Native selection unconfirmed');
       const expected = `${preview.expected.provider}/${preview.expected.model}`;
       const selected = `${preview.selected.provider}/${preview.selected.model}`;
       if (!await ctx.ui.confirm('Adopt selected work-chat model?', `Expected ${expected}; selected ${selected}. Change this chat target to ${selected}?`)) {
@@ -150,6 +155,9 @@ export default function (pi: ExtensionAPI) {
       if (!current()) return;
       ctx.ui.setStatus?.('mypi-work-chat', 'work chat unknown');
       ctx.ui.notify('Model adoption unconfirmed; target and pending reservation preserved. Inspect /work-chat show.', 'warning');
+      if (typeof attempt === 'string' && /^[0-9a-f-]{36}$/.test(attempt)) {
+        afterLaunchCommit(attempt, current, async () => { await eventReport(ctx, 'adopt:post-commit', false, false); });
+      }
     }
   }
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });
@@ -165,6 +173,7 @@ export default function (pi: ExtensionAPI) {
   const ack = fileURLToPath(new URL('../../../dist/src/app/work-chat-ack.js', import.meta.url));
   const state = resolve(process.env.XDG_STATE_HOME || join(homedir(), '.local', 'state'));
   let chatGeneration = 0;
+  let pendingHandoff: ReturnType<typeof watch> | undefined;
   let starting = true;
   type SelectionReceipt = { attempt: string; sessionId: string; processId: number; generation: number; model: { provider: string; model: string } };
   async function syncSelection(ctx: ExtensionContext, receipt: SelectionReceipt, adopt: boolean,
@@ -175,10 +184,39 @@ export default function (pi: ExtensionAPI) {
     if (result.code !== 0 || result.killed) throw new Error('Native work chat sync unavailable');
     return JSON.parse(result.stdout) as { status: string; expected: { provider: string; model: string }; selected: { provider: string; model: string } };
   }
+  function afterLaunchCommit(attempt: string, current: () => boolean, retry: () => Promise<void>) {
+    const dir = join(state, 'mypi', 'work-chat-acks');
+    const marker = attempt + '-committed';
+    let observer: ReturnType<typeof watch> | undefined;
+    let delivered = false;
+    const close = () => {
+      observer?.close();
+      if (pendingHandoff === observer) pendingHandoff = undefined;
+    };
+    const deliver = () => {
+      if (delivered) return;
+      delivered = true;
+      close();
+      if (current()) void retry();
+    };
+    try {
+      // Watch before checking existence: the commit cannot be lost between
+      // a read and subscription. At most one unref'd watcher lives per Pi
+      // session; it ends at commit, a newer native event, or session exit.
+      observer = watch(dir, (_event, filename) => {
+        if (filename === marker || filename === null && existsSync(join(dir, marker))) deliver();
+      });
+      pendingHandoff = observer;
+      observer.unref?.();
+      observer.on('error', close);
+      if (existsSync(join(dir, marker))) deliver();
+    } catch { close(); }
+  }
   async function report(ctx: ExtensionContext, lifecycle: string, persist = false): Promise<SelectionReceipt | undefined> {
     const attempt = pi.getFlag('mypi-chat-attempt');
     if (typeof attempt !== 'string' || !/^[0-9a-f-]{36}$/.test(attempt)) return;
     const token = ++chatGeneration;
+    pendingHandoff?.close(); pendingHandoff = undefined;
     let error: string | undefined;
     let target: { provider: string; model: string } | undefined;
     try {
@@ -241,8 +279,8 @@ export default function (pi: ExtensionAPI) {
       generation: token, model: { provider: current.provider, model: current.id } };
     return;
   }
-  const chatReport = (ctx: ExtensionContext) => report(ctx, 'before_agent_start');
-  async function eventReport(ctx: ExtensionContext, lifecycle: string, persist = false) {
+  const chatReport = (ctx: ExtensionContext) => eventReport(ctx, 'before_agent_start');
+  async function eventReport(ctx: ExtensionContext, lifecycle: string, persist = false, allowHandoff = true) {
     const attempt = pi.getFlag('mypi-chat-attempt');
     const session = ctx.sessionManager.getSessionId();
     const reporting = report(ctx, lifecycle, persist);
@@ -262,25 +300,33 @@ export default function (pi: ExtensionAPI) {
       && ctx.sessionManager.getSessionId() === receipt.sessionId;
     // One guarded reconciliation after the acknowledgement, not an event-loop poll.
     // The launcher's DB reservation may still be settling during session_start.
+    const apply = (result: Awaited<ReturnType<typeof syncSelection>>) => {
+      if (!current()) return;
+      if (result.status === 'mismatch') ctx.ui.notify(`Work chat pending: expected ${result.expected.provider}/${result.expected.model}; selected ${result.selected.provider}/${result.selected.model}. Use /model for the expected target or /work-chat adopt-model to confirm this selection.`, 'warning');
+      else if (result.status === 'ready') ctx.ui.notify(`Work chat ready: ${receipt.model.provider}/${receipt.model.model}. No prompt was sent.`, 'warning');
+      else throw new Error('Unconfirmed sync result');
+      ctx.ui.setStatus?.('mypi-work-chat', result.status === 'ready' ? 'work chat ready' : 'work chat pending');
+    };
     const reconcile = async () => {
-      try {
-        const result = await syncSelection(ctx, receipt, false);
-        if (!current()) return;
-        if (result.status === 'mismatch') ctx.ui.notify(`Work chat pending: expected ${result.expected.provider}/${result.expected.model}; selected ${result.selected.provider}/${result.selected.model}. Use /model for the expected target or /work-chat adopt-model to confirm this selection.`, 'warning');
-        else if (result.status === 'ready') ctx.ui.notify(`Work chat ready: ${receipt.model.provider}/${receipt.model.model}. No prompt was sent.`, 'warning');
-        else throw new Error('Unconfirmed sync result');
-        ctx.ui.setStatus?.('mypi-work-chat', result.status === 'ready' ? 'work chat ready' : 'work chat pending');
-      } catch {
+      try { apply(await syncSelection(ctx, receipt, false)); }
+      catch {
         if (!current()) return;
         ctx.ui.setStatus?.('mypi-work-chat', 'work chat unknown');
-        ctx.ui.notify('Work chat readiness unconfirmed; reservation remains pending/unknown. Use /work-chat show to reconcile.', 'warning');
+        ctx.ui.notify('Work chat readiness unconfirmed; waiting for launch commit or inspect /work-chat show.', 'warning');
+        // The one-shot marker is emitted only after the launcher's SQL commit.
+        // No polling, session restart or prompt replay; the same receipt is
+        // independently verified once more, and never overrides newer events.
+        if (allowHandoff) afterLaunchCommit(receipt.attempt, current, async () => {
+          try { apply(await syncSelection(ctx, receipt, false)); }
+          catch { /* The original unknown notice remains truthful; never re-arm. */ }
+        });
       }
     };
     void reconcile();
   }
   pi.on('session_start', (event, ctx) => eventReport(ctx, 'start:' + (event as { reason?: string }).reason,
     Boolean(pi.getFlag('mypi-chat-override')) && (event as { reason?: string }).reason === 'startup'));
-  pi.on('session_tree', async (_event, ctx) => { await report(ctx, 'tree'); });
+  pi.on('session_tree', (_event, ctx) => eventReport(ctx, 'tree'));
   pi.on('model_select', (_event, ctx) => starting ? undefined : eventReport(ctx, 'model_select'));
   pi.on('session_shutdown', async (event, ctx) => { await report(ctx, 'shutdown:' + (event as { reason?: string }).reason); });
 

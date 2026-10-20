@@ -30,6 +30,8 @@ export interface ChatRuntime {
   validateModel(pair: ModelPair, binding: ChatBinding): Promise<'ready' | 'auth-pending'>;
   /** Guard the latest native receipt synchronously inside the SQL transition. */
   receiptMatches?(chat: WorkChat, model: ModelPair, generation: number, adopt: boolean): boolean;
+  /** One-shot notification after the launch reservation is committed; not a second source of truth. */
+  launchCommitted?(chat: WorkChat): void;
   /** One background Herdr tab. Never automatically retry an uncertain result. */
   launch(input: { chat: WorkChat; model: ModelSelection; resume: boolean; focus: boolean }): Promise<
     | { status: 'acknowledged'; process: ProcessIdentity; native: NativeIdentity; model?: ModelPair; readiness: 'ready' | 'auth-pending' }
@@ -260,8 +262,15 @@ export function createWorkChats(input: {
         }
         store.update(ready);
       });
+      // The Pi model_select event may have arrived while this row was reserved.
+      // Signal only after commit; a failed signal never rolls back the verified
+      // reservation or creates a second writer. Pi independently rechecks it.
+      let handoffWarning: string | undefined;
+      try { runtime.launchCommitted?.(ready); }
+      catch { handoffWarning = 'In-tab launch handoff unavailable; inspect /work-chat show if readiness remains unconfirmed'; }
       return { chat: ready, observation: observed, outcome: ready.phase === 'auth-pending' ? 'auth-pending' : 'ready',
-        ...(ready.phase === 'auth-pending' ? { nextStep: pendingInstruction } : {}) };
+        ...(ready.phase === 'auth-pending' ? { nextStep: pendingInstruction } : {}),
+        ...(handoffWarning ? { handoffWarning } : {}) };
     } catch (error) {
       // A launcher can have created a tab before throwing; no automatic release/retry.
       store.transaction(() => {

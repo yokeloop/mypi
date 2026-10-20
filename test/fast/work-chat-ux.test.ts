@@ -21,7 +21,7 @@ test('model-less preview/execute adopts only verified authorized selection in sa
   t.after(() => { for (const [key, value] of [['HERDR_ENV', prior[0]], ['HERDR_WORKSPACE_ID', prior[1]]] as const) {
     if (value === undefined) delete process.env[key]; else process.env[key] = value;
   } });
-  let model = selected, authorized = false, generation = 1, alive = true, empty = false;
+  let model = selected, authorized = false, generation = 1, alive = true, empty = false, handoffs = 0;
   const paneProcess = { pane: 'pane', processId: 1024, processStart: 'start' };
   let native = { sessionId: 'session', historyPath: '/tmp/session.jsonl' };
   const runtime: ChatRuntime = {
@@ -32,6 +32,7 @@ test('model-less preview/execute adopts only verified authorized selection in sa
     async inspect(chat): Promise<ChatInspection> { if (!alive) return { status: 'dead' }; return { status: 'live', binding: chat, process: paneProcess, native,
       model, authorized, generation, readiness: authorized && (!chat.requestedProvider || chat.requestedProvider === model.provider && chat.requestedModel === model.model) ? 'ready' : 'auth-pending' }; },
     receiptMatches(_chat, candidate, serial, _adopt) { return authorized && serial === generation && candidate.provider === model.provider && candidate.model === model.model; },
+    launchCommitted(chat) { handoffs++; assert.equal(app.chatStore.get(chat.id)?.phase, chat.phase, 'handoff follows the SQL commit'); },
     async launch() { if (!alive) native = { sessionId: 'session-2', historyPath: '/tmp/session-2.jsonl' }; alive = true; return { status: 'acknowledged', process: paneProcess, native, model, readiness: 'auth-pending' }; },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: dir, runtime });
@@ -47,6 +48,7 @@ test('model-less preview/execute adopts only verified authorized selection in sa
   assert.equal(app.chatStore.byWorktree(args.worktree), undefined);
   unlinkSync(defaults);
   assert.equal((await chats.execute(preview)).outcome, 'auth-pending');
+  assert.equal(handoffs, 1);
   const row = app.chatStore.byWorktree(args.worktree)!;
   assert.equal(row.requestedProvider, null);
   const receipt = { attempt: row.attemptId, sessionId: native.sessionId, processId: paneProcess.processId, generation, model };
@@ -93,6 +95,7 @@ test('model-less preview/execute adopts only verified authorized selection in sa
   const replacement = await chats.previewNewEmpty(row.id);
   assert.deepEqual(replacement.model, { source: 'unselected' });
   assert.equal((await chats.execute(replacement)).outcome, 'ready');
+  assert.equal(handoffs, 2);
   assert.equal(app.chatStore.get(row.id)?.phase, 'closed');
   assert.throws(() => parseChatPreview({ ...preview, model: { source: 'unselected', provider: 'fixture' } }));
   assert.deepEqual(parseSyncReceipt({ ...receipt, expectedTarget: selected }).expectedTarget, selected);
@@ -113,8 +116,9 @@ test('initial model-less launch never adopts a model replaced between inspection
   } });
   const native = { sessionId: 'start-session', historyPath: '/tmp/start-session' };
   const paneProcess = { pane: 'start-pane', processId: 2222, processStart: 'tick' };
-  let active = selected, generation = 1, checks = 0;
+  let active = selected, generation = 1, checks = 0, handoffs = 0;
   const runtime: ChatRuntime = {
+    launchCommitted() { handoffs++; },
     async validate(args) { return { ...args, gitCommonDir: '/tmp/common', branch: 'task/startup' }; },
     async validateModel() { return 'ready'; },
     async history() { throw new Error('No session persisted'); },
@@ -133,6 +137,7 @@ test('initial model-less launch never adopts a model replaced between inspection
     installation: '/tmp/engine', statePath: filename };
   const result = await chats.execute(await chats.previewOpen(args));
   assert.equal(checks, 2);
+  assert.equal(handoffs, 0, 'uncertain launches never signal a committed reservation');
   assert.equal(result.outcome, 'partial');
   assert.equal(result.chat.requestedProvider, null);
   assert.equal(result.chat.phase, 'partial');
