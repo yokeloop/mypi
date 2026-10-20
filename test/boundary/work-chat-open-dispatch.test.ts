@@ -6,9 +6,12 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { initializeState, createApp } from '../../src/app/create-app.js';
-import { executeCommand } from '../../src/app/execute-command.js';
+import { executeCommand, readonlyWorkChatCommand } from '../../src/app/execute-command.js';
 
 test('installed-layout work-chat open dispatch previews a valid Git worktree with pinned native resources', async t => {
+  assert.equal(readonlyWorkChatCommand('work_chat_open'), true, 'preview has no database writes');
+  assert.equal(readonlyWorkChatCommand('work_chat_sync_attempt'), false, 'native event reconciliation writes readiness/target');
+  assert.equal(readonlyWorkChatCommand('work_chat_show'), false, 'on-demand reconciliation also writes readiness');
   const dir = mkdtempSync(join(tmpdir(), 'mypi-chat-dispatch-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const source = join(dir, 'source'), worktree = join(dir, 'task'), home = join(dir, 'home');
@@ -53,6 +56,48 @@ fi
     sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
   assert.equal((preview as { action: string }).action, 'open');
   assert.equal((preview as { binding: { installation: string } }).binding.installation, installation);
+  const unselected = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId, sourceClone: source, worktree }, filename, home);
+  assert.deepEqual((unselected as { model: unknown }).model, { source: 'unselected' });
+  writeFileSync(join(agent, 'settings.json'), JSON.stringify({ packages: ['/another/installation/integrations/pi'] }));
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId, sourceClone: source, worktree }, filename, home), /not uniquely configured/);
+  writeFileSync(join(agent, 'settings.json'), JSON.stringify({ packages: [join(installation, 'integrations', 'pi')] }));
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"not_ready","provider":"fixture"}\\n'
+  exit 1
+else
+  exit 2
+fi
+`);
+  const pending = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home);
+  assert.equal((pending as { action: string }).action, 'open', 'missing auth must not block preview when Pi hides the catalog');
+  const unavailableUntilLogin = await executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'absent' } }, filename, home);
+  assert.equal((unavailableUntilLogin as { action: string }).action, 'open', 'catalog validity is deferred, not invented');
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\nfixture  exact  100  50  no  no\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"ready","provider":"fixture","authType":"test"}\\n'
+else
+  exit 2
+fi
+`);
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'absent' } }, filename, home), /Exact target model unavailable/);
+  writeFileSync(pi, `#!/bin/sh
+if [ "$1" = "--offline" ]; then
+  printf 'provider  model  context  max-out  thinking  images\\nfixture  exact  100  50  no  no\\n'
+elif [ "$1" = "auth" ]; then
+  printf '{"status":"invalid","provider":"fixture"}\\n'
+  exit 2
+fi
+`);
+  await assert.rejects(executeCommand({ name: 'work_chat_open', identity: 'fixture/tool', requestId,
+    sourceClone: source, worktree, model: { provider: 'fixture', model: 'exact' } }, filename, home), /auth check unavailable or invalid/);
   const reader = createApp(filename, true);
   try { assert.deepEqual(reader.chatStore.list(), []); } finally { reader.close(); }
 });

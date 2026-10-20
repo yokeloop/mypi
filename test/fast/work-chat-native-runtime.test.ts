@@ -30,6 +30,15 @@ test('startup receipt matches actual process, model and scope even for live empt
   assert.equal(startupReceipt({ ...receipt, error: 'registry mismatch' }, expected), false);
   assert.equal(startupReceipt({ ...receipt, processId: 22 }, expected), false);
   assert.equal(startupReceipt({ ...receipt, fileExists: false }, expected), true);
+  const placeholder = { lifecycle: 'start:startup', processId: 21, scope: 'team/tool', fileExists: false, authReady: false };
+  assert.equal(startupReceipt(placeholder, { processId: 21, scope: 'team/tool', authReady: false }), true);
+  assert.equal(startupReceipt(placeholder, expected), false);
+  assert.equal(startupReceipt({ ...placeholder, authReady: true }, { processId: 21, scope: 'team/tool', authReady: false }), false);
+  const unpinned = { ...placeholder, model: { provider: 'other', model: 'automatic' }, authReady: true };
+  assert.equal(startupReceipt(unpinned, { processId: 21, scope: 'team/tool', allowUnpinned: true }), true);
+  assert.equal(startupReceipt(unpinned, expected), false);
+  assert.equal(startupReceipt({ ...unpinned, error: 'bad target' }, { processId: 21, scope: 'team/tool', allowUnpinned: true }), false);
+  assert.equal(startupReceipt(receipt, { processId: 21, scope: 'team/tool', allowUnpinned: true }), false);
 });
 test('public all-entries snapshot refuses user-only/off-branch turns even after file deletion', () => {
   const header = { id: 'session-a', cwd: '/task' };

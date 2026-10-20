@@ -27,15 +27,15 @@ test('live empty chat is ready/idempotent; positive final empty death permits ex
     async history() { throw new Error('No persisted native history'); },
     async inspect(chat) { return alive ? { status: 'live', binding: chat,
       process: { pane: chat.pane!, processId: chat.processId!, processStart: chat.processStart! },
-      native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, model: pair, persisted: false } : { status: 'dead' }; },
+      native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, model: pair, readiness: 'ready', persisted: false } : { status: 'dead' }; },
     async provenEmpty() { return finalEmpty && !alive; },
-    async validateModel() {},
+    async validateModel() { return 'ready' as const; },
     async launch() { count++; alive = true; return { status: 'acknowledged',
       native: { sessionId: `session-${count}`, historyPath: `/tmp/history-${count}` },
-      process: { pane: `pane-${count}`, processId: count + 100, processStart: `start-${count}` }, model: pair }; },
+      process: { pane: `pane-${count}`, processId: count + 100, processStart: `start-${count}` }, model: pair, readiness: 'ready' }; },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });
-  const args = { identity: 'team/tool', requestId: card.id, sourceClone: dir, worktree: dir + '/task', installation: '/tmp/installed', statePath: filename, model: pair };
+  const args = { identity: 'team/tool', requestId: card.id, sourceClone: dir, worktree: dir + '/task', installation: '/tmp/installed', statePath: filename, model: pair, readiness: 'ready' };
   const first = await chats.execute(await chats.previewOpen(args));
   assert.equal(first.outcome, 'ready');
   assert.equal(first.observation.persisted, false);

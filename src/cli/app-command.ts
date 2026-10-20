@@ -2,7 +2,7 @@ import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
-import { parseCliModel, parseChatPreview } from '../app/work-chat-input.js';
+import { parseCliModel, parseChatPreview, parseSyncReceipt } from '../app/work-chat-input.js';
 
 export function appCommand(command: Exclude<Command, { type: 'help' }>): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
@@ -42,6 +42,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     }
     case 'work-chat list': return { name: 'work_chat_list' };
     case 'work-chat show': return { name: 'work_chat_show', id: a[0]! };
+    case 'work-chat sync-attempt': {
+      let parsed: unknown;
+      try { parsed = JSON.parse(required('receipt')); } catch { throw new InputError('Invalid native receipt JSON'); }
+      return { name: 'work_chat_sync_attempt', receipt: parseSyncReceipt(parsed), adopt: Boolean(o.adopt) };
+    }
     case 'bootstrap': return { name: 'bootstrap' };
     case 'capture': return { name: 'capture', source: source(0) };
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };

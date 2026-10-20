@@ -12,6 +12,10 @@ import { realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
+export function readonlyWorkChatCommand(name: AppCommand['name']): boolean {
+  // Sync can promote/demote readiness or adopt the first authorized target.
+  return !['work_chat_execute', 'work_chat_list', 'work_chat_show', 'work_chat_resume', 'work_chat_sync_attempt'].includes(name);
+}
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
@@ -27,7 +31,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     if (!pi || !agentDir) throw new InputError('Set MYPI_WORK_CHAT_PI to the absolute target Pi executable and PI_CODING_AGENT_DIR to its configured resources');
     const installation = realpathSync(fileURLToPath(new URL('../../../', import.meta.url)));
     const statePath = dirname(dirname(filename));
-    const workspace = createWorkspace(filename, c.name !== 'work_chat_execute', root);
+    const workspace = createWorkspace(filename, readonlyWorkChatCommand(c.name), root);
     try {
       const chats = createNativeWorkChats(workspace, { pi, nodePath: process.execPath,
         statePath, installation, agentDir });
@@ -44,6 +48,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         }
         case 'work_chat_list': return { chats: await chats.list() };
         case 'work_chat_show': return await chats.show(c.id);
+        case 'work_chat_sync_attempt': return await chats.syncAttempt({ ...c.receipt, adopt: c.adopt });
       }
     } finally { workspace.close(); }
   }

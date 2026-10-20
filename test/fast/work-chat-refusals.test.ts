@@ -23,7 +23,7 @@ test('uncertain launch keeps reservation; only independently proven dead empty l
     async inspect() { return observation; },
     async history() { throw new Error('not called'); },
     async provenEmpty() { return false; },
-    async validateModel() {},
+    async validateModel() { return 'ready' as const; },
     async launch() { throw new Error('Herdr did not confirm whether a tab was created'); },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, runtime, userHome: dir });

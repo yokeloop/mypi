@@ -26,7 +26,7 @@ test('tab created without native acknowledgement preserves pane and blocks dupli
     async history(chat) { return { native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, saved: { status: 'selected', selection: pair } }; },
     async inspect() { return { status: 'unknown', reason: 'pane still occupied' }; },
     async provenEmpty() { return false; },
-    async validateModel() {},
+    async validateModel() { return 'ready' as const; },
     async launch() { return { status: 'partial', reason: 'native acknowledgement unavailable', pane: 'owned-pane' }; },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });
@@ -53,7 +53,7 @@ test('stale attempt cannot attach its pane to a newer reservation', async t => {
     async history(chat) { return { native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, saved: { status: 'none' } }; },
     async inspect() { return { status: 'unknown' }; },
     async provenEmpty() { return false; },
-    async validateModel() {},
+    async validateModel() { return 'ready' as const; },
     async launch({ chat }) {
       app.chatStore.transaction(() => app.chatStore.update({ ...chat, attemptId: 'new-attempt' }, chat.attemptId));
       return { status: 'partial', reason: 'native unavailable', pane: 'old-attempt-pane' };
@@ -81,12 +81,12 @@ test('foreign resume acknowledgement never replaces original native history', as
     async history(chat) { return { native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, saved: { status: 'selected', selection: pair } }; },
     async inspect() { return { status: 'dead' }; },
     async provenEmpty() { return false; },
-    async validateModel() {},
+    async validateModel() { return 'ready' as const; },
     async launch() {
       launch++;
       return { status: 'acknowledged', native: launch === 1
         ? { sessionId: 'original', historyPath: '/tmp/original' } : { sessionId: 'foreign', historyPath: '/tmp/foreign' },
-        process: { pane: 'owned-pane', processId: 100, processStart: 'start-1' }, model: pair };
+        process: { pane: 'owned-pane', processId: 100, processStart: 'start-1' }, model: pair, readiness: 'ready' };
     },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });

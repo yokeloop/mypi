@@ -40,4 +40,6 @@ export type AppCommand =
   | { name: 'work_chat_new_empty'; id: string; nameLabel?: string; model?: ModelPair }
   | { name: 'work_chat_execute'; preview: ChatPreview; focus?: boolean }
   | { name: 'work_chat_list' }
-  | { name: 'work_chat_show'; id: string };
+  | { name: 'work_chat_show'; id: string }
+  | { name: 'work_chat_sync_attempt'; receipt: { attempt: string; sessionId: string; processId: number; generation: number;
+    model: ModelPair; expectedTarget?: ModelPair }; adopt: boolean };

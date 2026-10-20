@@ -3,8 +3,8 @@ export { assertBinding, assertNative } from './chat.js';
 export type { ChatBinding, ChatStore, NativeIdentity, ProcessIdentity, WorkChat } from './chat.js';
 
 export interface ModelPair { provider: string; model: string }
-export type ModelSource = 'invocation' | 'saved session' | 'project' | 'organization' | 'default';
-export interface ModelSelection extends ModelPair { source: ModelSource }
+export type ModelSource = 'invocation' | 'saved session' | 'project' | 'organization' | 'default' | 'unselected';
+export type ModelSelection = (ModelPair & { source: Exclude<ModelSource, 'unselected'> }) | { source: 'unselected' }
 export interface ModelDefaults {
   default?: ModelPair;
   organizations?: Record<string, ModelPair>;
@@ -101,10 +101,10 @@ export function resolveModelSelection(input: {
     ['default', config.default],
   ];
   for (const [source, pair] of levels) if (pair) return { ...pair, source };
-  throw new InputError(`No model selected for ${input.identity}; set home/pi/work-chats.json or specify a complete model pair`);
+  return { source: 'unselected' };
 }
 
 /** Compare the entire resolved selection at execution, not just its model ID. */
 export function sameModelSelection(a: ModelSelection, b: ModelSelection): boolean {
-  return a.provider === b.provider && a.model === b.model && a.source === b.source;
+  return a.source === b.source && (a.source === 'unselected' || b.source !== 'unselected' && a.provider === b.provider && a.model === b.model);
 }
