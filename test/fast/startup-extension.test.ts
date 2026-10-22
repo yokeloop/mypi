@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import install from '../../src/app/startup-extension.js';
+import registerStartupExtension, { type ExtensionAPI } from '../../src/app/startup-registration.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { appCommand } from '../../src/cli/app-command.js';
+
+function install(api: ExtensionAPI): void {
+  registerStartupExtension(api, (cli, args, options) => api.exec('node', [cli, ...args], options));
+}
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
 test('native slash execute forwards exact saved-session preview JSON and focus to shared CLI parsing', async () => {
@@ -206,4 +210,25 @@ test('native lifecycle no longer mirrors auth/model; independent MCP, scope and 
   entries[0].data = saved;
   disabled = true; await emit('session_start'); assert.deepEqual(await turn(), {});
   assert.equal(calls.length, 1, 'autoload opt-out remains independent of MCP registration');
+});
+
+test('slash keeps the finite CLI boundary and reports interruption or spawn failure without retry', async () => {
+  let handler!: (args: string, ctx: any) => Promise<void>;
+  const notices: string[] = [];
+  let calls = 0;
+  registerStartupExtension({ registerMcpServer() {}, registerFlag() {}, on() {},
+    registerCommand(_name: string, command: { handler: typeof handler }) { handler = command.handler; },
+  } as never, async (cli, args, options) => {
+    calls++;
+    assert.equal(cli, join(process.cwd(), 'dist/src/cli/main.js'));
+    assert.deepEqual(args, ['work-chat', 'list']);
+    assert.equal(options.cwd, process.cwd()); assert.equal(options.timeout, 30000);
+    assert.equal(options.signal, undefined, 'idle Pi commands may have no operation signal');
+    if (calls === 2) throw new Error('spawn unavailable');
+    return { code: 0, killed: true, stdout: 'not success', stderr: 'cancelled' };
+  });
+  const ctx = { ui: { notify(text: string) { notices.push(text); } } };
+  await handler('list', ctx); await handler('list', ctx);
+  assert.deepEqual(notices, ['cancelled', 'work-chat command failed: spawn unavailable']);
+  assert.equal(calls, 2);
 });

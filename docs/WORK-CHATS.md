@@ -44,6 +44,17 @@ Choice/setup also mean no
 opening succeeded: CLI exits nonzero with `status:error`, MCP returns `isError`
 and the structured choice/setup data. Other errors explain the refused action.
 Slash displays the same result; it does not automatically choose, retry or prompt.
+On Linux, slash dispatch runs the same CLI through PATH's `node`, without a shell,
+in the engine cwd but in a separate child process group/session. This keeps the
+observer out of Pi's foreground process set; no native identity checks are relaxed.
+The child is awaited (not unreferenced), with a 30-second deadline and a combined
+1 MiB stdout/stderr capture limit. Cancellation, timeout or excess output kills
+only that child group; ordinary descendants are also cleaned up on CLI exit.
+An interrupted command reports failure, not rollback: inspect the existing chat
+before retrying, since native launch side effects may already have occurred.
+This is cooperative Linux process management, not security isolation: descendants
+that deliberately leave the group and abrupt termination of Pi itself are outside
+this cleanup guarantee. Warmup and MCP execution are unchanged.
 
 ## Target installation and native Herdr setup
 
