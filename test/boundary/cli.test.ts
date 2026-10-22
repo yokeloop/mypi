@@ -47,6 +47,9 @@ test('real Node launcher persists projects across independent processes without 
   });
   assert.equal(observed.status, 0, observed.stderr);
   assert.deepEqual(JSON.parse(observed.stdout), { chats: [] });
+  const removedAdopter = run('work-chat', 'adopt-model');
+  assert.equal(removedAdopter.status, 1); assert.equal(removedAdopter.stdout, '');
+  assert.match(JSON.parse(removedAdopter.stderr).message, /removed.*native \/model.*same Pi session/);
   const malformedModel = run('work-chat', 'resume', 'chat-id', '--model', 'unqualified');
   assert.equal(malformedModel.status, 1);
   assert.match(JSON.parse(malformedModel.stderr).message, /provider\/model-id/);

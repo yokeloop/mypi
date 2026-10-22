@@ -43,9 +43,12 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 41);
+  assert.equal(listed.length, 42);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   assert.equal(listed.find(t => t.name === 'work_chat_open')!.annotations!.readOnlyHint, true);
+  assert.equal(listed.find(t => t.name === 'work_chat_open_request')!.annotations!.readOnlyHint, false);
+  assert.equal(listed.find(t => t.name === 'work_chat_resume')!.annotations!.readOnlyHint, true);
+  assert.equal(listed.find(t => t.name === 'work_chat_show')!.annotations!.readOnlyHint, true);
   assert.equal(listed.find(t => t.name === 'work_chat_execute')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup_publish')!.annotations!.destructiveHint, true);
@@ -87,6 +90,12 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
   const request = await call('request_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
   assert.equal(request.key, 'MP-1');
+  const setup = await client.callTool({ name: 'work_chat_open_request', arguments: { identity: 'one/project', requestId: request.id } });
+  assert.equal(setup.isError, true, 'setup-needed is not a successful opening');
+  assert.deepEqual(setup.structuredContent, JSON.parse((setup.content as { text: string }[])[0]!.text));
+  assert.equal((setup.structuredContent as any).status, 'error');
+  assert.equal((setup.structuredContent as any).data.outcome, 'setup-needed');
+  assert.deepEqual(await call('work_chat_list'), { chats: [] });
   assert.equal(readFileSync(join(home, request.contextDir, 'source.md'), 'utf8'), source);
   await call('request_title', { key: request.key, title: 'Renamed', reason: 'clarified' });
   await call('request_progress', { key: request.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });

@@ -10,7 +10,14 @@ export interface ChatBinding {
   installation: string;
   statePath: string;
 }
-export interface ProcessIdentity { pane: string; processId: number; processStart: string }
+export interface ProcessIdentity {
+  pane: string;
+  processId: number;
+  processStart: string;
+  processBootId?: string;
+  /** Normalized absolute local socket path, not proof of a unique server instance. */
+  herdrEndpoint?: string;
+}
 export interface NativeIdentity { sessionId: string; historyPath: string }
 export interface WorkChat extends ChatBinding {
   id: string;
@@ -18,12 +25,15 @@ export interface WorkChat extends ChatBinding {
   attemptId: string;
   requestedProvider: string | null;
   requestedModel: string | null;
+  /** Last launch fact only. Legacy ready/auth-pending do not imply current liveness/auth. */
   phase: 'reserved' | 'partial' | 'auth-pending' | 'ready' | 'closed';
   sessionId: string | null;
   historyPath: string | null;
   pane: string | null;
   processId: number | null;
   processStart: string | null;
+  processBootId?: string | null;
+  herdrEndpoint?: string | null;
 }
 export interface ChatStore {
   list(): WorkChat[];
@@ -31,7 +41,6 @@ export interface ChatStore {
   byWorktree(worktree: string): WorkChat | undefined;
   reserve(chat: WorkChat): void;
   update(chat: WorkChat, previousAttempt?: string): void;
-  releaseUnused(id: string, attemptId: string): void;
   retireEmpty(id: string, attemptId: string): void;
   transaction<T>(work: () => T): T;
 }

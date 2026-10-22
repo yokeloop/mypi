@@ -6,8 +6,8 @@ function result(value: Record<string, unknown>, isError = false): CallToolResult
     content: [{ type: 'text', text: JSON.stringify(value) }] };
 }
 export function success(data: unknown): CallToolResult {
-  if (data !== null && typeof data === 'object' && 'status' in data && data.status === 'partial')
-    return result({ status: 'partial', data }, true);
+  if (data !== null && typeof data === 'object' && 'status' in data && (data.status === 'partial' || data.status === 'error'))
+    return result({ status: data.status, data }, true);
   return result({ status: 'ok', data });
 }
 export function failure(error: unknown): CallToolResult {

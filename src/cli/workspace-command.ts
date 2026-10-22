@@ -8,13 +8,13 @@ export interface WorkspaceCommand {
 import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
+  'work-chat open-request': [0, 0, ['project', 'request-id', 'chat-id', 'source-clone', 'worktree', 'name', 'provider', 'model'], ['no-focus']],
   'work-chat open': [0, 0, ['project', 'request-id', 'source-clone', 'worktree', 'name', 'provider', 'model'], []],
   'work-chat resume': [1, 1, ['provider', 'model'], []],
   'work-chat new-empty': [1, 1, ['name', 'provider', 'model'], []],
   'work-chat execute': [0, 0, ['preview'], ['focus']],
   'work-chat list': [0, 0, [], []],
   'work-chat show': [1, 1, [], []],
-  'work-chat sync-attempt': [0, 0, ['receipt'], ['adopt']],
   'project resolve': [1, 1, [], []],
   capture: [0, 1, ['file'], []],
   warmup: [0, 0, ['scope'], []],
@@ -45,6 +45,8 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   restore: [0, 1, ['repository', 'commit'], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
+  if (args[0] === 'work-chat' && args[1] === 'adopt-model')
+    throw new InputError('adopt-model was removed: use native /model in the same Pi session. Pi owns the saved selection; no mypi adoption is needed. Use /login there if required.');
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');
   const spec = specs[name];
   if (!spec) throw new InputError('Unknown command; use --help');

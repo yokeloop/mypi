@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isAbsolute } from 'node:path';
+import { parseChatPreview } from '../app/work-chat-input.js';
 import { scopeValue } from '../shared/scope.js';
 
 export const text = z.string();
@@ -17,12 +18,15 @@ const binding = z.strictObject({ projectId: z.number().int().positive(), request
   sourceClone: externalPath, worktree: externalPath, gitCommonDir: externalPath, branch: z.string().min(1),
   installation: externalPath, statePath: externalPath });
 const native = z.strictObject({ sessionId: text, historyPath: externalPath });
-const processIdentity = z.strictObject({ pane: text, processId: z.number().int().positive(), processStart: text });
+const processIdentity = z.strictObject({ pane: text, processId: z.number().int().positive(), processStart: text,
+  processBootId: text.optional(), herdrEndpoint: externalPath.optional() });
 export const chatPreview = z.strictObject({ action: z.enum(['open', 'resume', 'new-empty']), binding,
-  chatId: text.optional(), priorAttempt: text.optional(), name: text.optional(),
+  chatId: text.optional(), priorAttempt: text.optional(), priorRevision: text.optional(), name: text.optional(),
   model: z.union([modelPair.extend({ source: z.enum(['invocation', 'saved session', 'project', 'organization', 'default']) }),
     z.strictObject({ source: z.literal('unselected') })]),
-  native: native.optional(), live: processIdentity.optional(), persisted: z.boolean().optional() });
+  native: native.optional(), live: processIdentity.optional(), persisted: z.boolean().optional() }).refine(value => {
+    try { parseChatPreview(value); return true; } catch { return false; }
+  }, 'Invalid or stale work-chat preview');
 // The envelope is stable; data retains the existing operation-specific CLI JSON.
 export const output = z.strictObject({
   status: z.enum(['ok', 'error', 'partial']), data: z.unknown().optional(),

@@ -22,7 +22,6 @@ test('atomic model precedence, omission inheritance and native saved choice', ()
     [{ invocation: d }, d, 'invocation'],
     [{ saved: { status: 'selected', selection: b } }, b, 'saved session'],
     [{ saved: { status: 'selected', selection: b }, invocation: d }, d, 'invocation'],
-    [{ saved: { status: 'none' } }, c, 'project'],
   ] as const;
   for (const [params, pair, source] of choices) {
     assert.deepEqual(resolveModelSelection({ identity: 'acme/tool', readDefaults: () => config, ...params }), { ...pair, source });
@@ -48,6 +47,7 @@ test('registered constructor inherits the default unless an own override exists'
 
 test('explicit or native saved selection bypasses broken defaults, but corrupt history never inherits', () => {
   const fail = () => { throw new Error('broken config read'); };
+  assert.deepEqual(resolveModelSelection({ identity: 'acme/tool', saved: { status: 'none' }, readDefaults: fail }), { source: 'unselected' });
   assert.equal(resolveModelSelection({ identity: 'acme/tool', invocation: d, readDefaults: fail }).source, 'invocation');
   assert.equal(resolveModelSelection({ identity: 'acme/tool', saved: { status: 'selected', selection: b }, readDefaults: fail }).source, 'saved session');
   assert.throws(() => resolveModelSelection({ identity: 'acme/tool', invocation: d,
