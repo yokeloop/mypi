@@ -2,6 +2,12 @@ import type { NativeHistoryFacts } from './native-chat-facts.js';
 import type { ChatInspection, ChatLaunchResult } from './work-chats.js';
 import type { ModelPair, ModelSelection, WorkChat } from '../modules/work-chats/public.js';
 
+/** Only explicit shell configuration roots cross into a new tab; never copy caller credentials. */
+export function nativeShellEnvironment(env: Readonly<Record<string, string | undefined>>): string[] {
+  return ['HOME', 'ZDOTDIR', 'XDG_CONFIG_HOME', 'XDG_CACHE_HOME']
+    .flatMap(key => env[key] === undefined ? [] : ['--env', key + '=' + env[key]]);
+}
+
 /** A saved model describes native history; only invocation overrides a resume. */
 export function launchPreference(model: ModelSelection, resume: boolean): ModelPair | undefined {
   return model.source !== 'unselected' && (!resume || model.source === 'invocation')

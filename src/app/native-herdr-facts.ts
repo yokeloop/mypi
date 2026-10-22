@@ -15,13 +15,20 @@ export function localEndpoint(value: unknown): string {
 export class HerdrError extends InputError {
   constructor(message: string, readonly code?: string) { super(message); }
 }
-export function herdrResponse(stdout: string, stderr: string, status: number | null): Record<string, unknown> {
+/** Exit-status actions (pane run) need no stdout payload; this does not prove completion. */
+export function herdrExit(stderr: string, status: number | null): void {
   if (status !== 0) {
     let code: string | undefined;
     try { const error = object(object(JSON.parse(stderr)).error); if (typeof error.code === 'string') code = error.code; } catch { /* Transport/syntax failure is not pane absence. */ }
     throw new HerdrError(`Herdr observation/action failed${code ? ': ' + code : ' (transport or invalid response)'}`, code);
   }
+}
+export function herdrResponse(stdout: string, stderr: string, status: number | null): Record<string, unknown> {
+  herdrExit(stderr, status);
   return object(object(JSON.parse(stdout)).result);
+}
+export function matchedPaneOutput(result: Record<string, unknown>, pane: string): void {
+  if (result.type !== 'output_matched' || result.pane_id !== pane) throw new InputError('Herdr shell resolution completion unconfirmed');
 }
 export interface NativeAgent { pane: string; cwd?: string; kind?: string; sessionPath?: string }
 export function nativeAgent(value: unknown): NativeAgent {

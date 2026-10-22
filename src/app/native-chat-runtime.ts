@@ -6,8 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { InputError } from '../shared/errors.js';
 import type { ChatRuntime, ChatInspection } from './work-chats.js';
 import { nativeHistory, nativeHistoryFacts } from './native-chat-facts.js';
-import { freshNativeModel, launchPreference, nativeArguments, openingResult } from './native-chat-launch.js';
-import { herdrResponse, localEndpoint, nativeAgent, nativeProcessIdentity, object, option, paneProcesses, procStart, resolvedPi } from './native-herdr-facts.js';
+import { freshNativeModel, launchPreference, nativeArguments, nativeShellEnvironment, openingResult } from './native-chat-launch.js';
+import { herdrExit, herdrResponse, localEndpoint, matchedPaneOutput, nativeAgent, nativeProcessIdentity, object, option, paneProcesses, procStart, resolvedPi } from './native-herdr-facts.js';
 import { linuxBootId, readNativeProcess } from './native-chat-process.js';
 import { nativeOwnership, ownershipRoute, type AgentObservation, type ProcessAbsence } from './native-chat-ownership.js';
 import type { NativeAgent } from './native-herdr-facts.js';
@@ -77,9 +77,13 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
     }
     return path;
   }
-  function herdr(args: string[], cwd: string, endpoint: string, timeout = 7000): Record<string, unknown> {
+  function herdrCommand(args: string[], cwd: string, endpoint: string, timeout = 7000) {
     const result = spawnSync('herdr', args, { cwd, env: { ...process.env, HERDR_SOCKET_PATH: localEndpoint(endpoint) }, encoding: 'utf8', timeout, maxBuffer: 1024 * 1024 });
     if (result.error || result.signal) throw new InputError('Herdr transport unavailable; action may have occurred');
+    return result;
+  }
+  function herdr(args: string[], cwd: string, endpoint: string, timeout = 7000): Record<string, unknown> {
+    const result = herdrCommand(args, cwd, endpoint, timeout);
     return herdrResponse(result.stdout, result.stderr, result.status);
   }
   function agents(chat: WorkChat, endpoint: string): NativeAgent[] {
@@ -141,8 +145,10 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
     try {
       // Resolution only, NEVER a Pi launcher. Split marker avoids matching terminal input echo.
       const probe = `(umask 077; command -v pi > ${shellQuote(output)}; printf '\\n%s%s\\n' ${shellQuote(marker.slice(0, 18))} ${shellQuote(marker.slice(18))})`;
-      herdr(['pane', 'run', pane, probe], chat.worktree, endpoint);
-      herdr(['pane', 'wait-output', pane, '--match', marker, '--timeout', '3000'], chat.worktree, endpoint, 4000);
+      // Herdr 0.8.2 pane run has empty stdout on success. wait-output/focus return JSON.
+      const sent = herdrCommand(['pane', 'run', pane, probe], chat.worktree, endpoint);
+      herdrExit(sent.stderr, sent.status);
+      matchedPaneOutput(herdr(['pane', 'wait-output', pane, '--match', marker, '--timeout', '3000'], chat.worktree, endpoint, 4000), pane);
       if (realpathSync(resolvedPi(readFileSync(output, 'utf8'))) !== pi) throw new InputError('Target shell resolves pi to another executable; configure its PATH without the global-mutating wrapper');
       const after = shellReady(chat, pane, endpoint);
       if (after.pid !== before.pid || after.start !== before.start) throw new InputError('Shell changed during Pi executable preflight');
@@ -217,6 +223,7 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
       const args = nativeArguments({ chat, model, resume, extension: stock, scope,
         ...(existsSync(join(agentDir, 'APPEND_SYSTEM.md')) ? {} : { instructions: join(input.userHome, 'USER-INSTRUCTIONS.md') }) });
       if (agents(chat, endpoint).some(agent => agent.cwd === chat.worktree || chat.historyPath && agent.sessionPath === chat.historyPath)) throw new InputError('Worktree/session already has a native agent; inspect before opening');
+      const shellEnvironment = nativeShellEnvironment(process.env);
       // Capture checked configuration; never rediscover deterministic prerequisites after SQL reservation.
       return async () => {
         let pane: string | undefined, observedProcess: ProcessIdentity | undefined, found: NativeIdentity | undefined;
@@ -224,7 +231,8 @@ export function nativeChatRuntime(input: { pi: string; userHome: string; agentDi
           const tab = herdr(['tab', 'create', '--workspace', workspace, '--cwd', chat.worktree,
             '--label', 'work-chat-' + chat.id.slice(0, 8), ...(focus ? ['--focus'] : ['--no-focus']),
             '--env', 'XDG_STATE_HOME=' + state, '--env', 'PI_CODING_AGENT_DIR=' + agentDir,
-            '--env', 'PI_OFFLINE=1', '--env', 'MYPI_WORK_CHAT_PI=' + pi, '--env', 'PATH=' + env.PATH], chat.worktree, endpoint);
+            '--env', 'PI_OFFLINE=1', '--env', 'MYPI_WORK_CHAT_PI=' + pi, '--env', 'PATH=' + env.PATH,
+            ...shellEnvironment], chat.worktree, endpoint);
           const root = object(tab.root_pane);
           if (typeof root.pane_id !== 'string' || !root.pane_id) throw new InputError('Herdr tab creation returned no pane; do not repeat create');
           pane = root.pane_id;

@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { nativeHistory, nativeHistoryFacts } from '../../src/app/native-chat-facts.js';
-import { herdrResponse, HerdrError, localEndpoint, nativeAgent, nativeProcessIdentity, paneProcesses, resolvedPi } from '../../src/app/native-herdr-facts.js';
-import { freshNativeModel, launchPreference, nativeArguments, openingResult } from '../../src/app/native-chat-launch.js';
+import { herdrExit, herdrResponse, HerdrError, localEndpoint, matchedPaneOutput, nativeAgent, nativeProcessIdentity, paneProcesses, resolvedPi } from '../../src/app/native-herdr-facts.js';
+import { freshNativeModel, launchPreference, nativeArguments, nativeShellEnvironment, openingResult } from '../../src/app/native-chat-launch.js';
 import type { NativeProcessSnapshot } from '../../src/app/native-herdr-facts.js';
 import { nativeOwnership, ownershipRoute, type AgentObservation } from '../../src/app/native-chat-ownership.js';
 import type { WorkChat } from '../../src/modules/work-chats/public.js';
@@ -23,9 +23,32 @@ test('Herdr structured pane absence is distinct from transport failure, never an
   }
   assert.throws(() => herdrResponse('', 'socket refused', 1), error => error instanceof HerdrError && error.code === undefined);
   assert.deepEqual(herdrResponse('{"result":{"agents":[]}}', '', 0), { agents: [] });
-  assert.throws(() => herdrResponse('{"result":null}', '', 0));
+  for (const stdout of ['', 'not-json', '{}', '{"result":null}', '{"result":[]}', '{"error":{"code":"failed"}}']) {
+    assert.throws(() => herdrResponse(stdout, '', 0), 'structured observations never accept empty/malformed payloads');
+  }
   assert.equal(localEndpoint('/tmp/herdr.sock'), '/tmp/herdr.sock');
   for (const value of ['https://server/path?token=x', '/tmp/../run/socket', 'relative', '/tmp/socket?token=x']) assert.throws(() => localEndpoint(value));
+});
+
+test('pane input exit status is separate from structured completion and focus observations', () => {
+  assert.doesNotThrow(() => herdrExit('', 0));
+  for (const status of [1, null]) assert.throws(() => herdrExit('', status), HerdrError);
+  assert.throws(() => herdrExit('{"error":{"code":"pane_not_found"}}', 1), error => error instanceof HerdrError && error.code === 'pane_not_found');
+  const matched = { type: 'output_matched', pane_id: 'w1:p2' };
+  assert.doesNotThrow(() => matchedPaneOutput(herdrResponse(JSON.stringify({ result: matched }), '', 0), 'w1:p2'));
+  for (const result of [{}, { ...matched, type: 'ok' }, { ...matched, pane_id: 'w1:p3' }]) {
+    assert.throws(() => matchedPaneOutput(result, 'w1:p2'), /completion unconfirmed/);
+  }
+  // Herdr 0.8.2 agent focus uses print_response, not the empty-output pane-run contract.
+  assert.deepEqual(herdrResponse('{"result":{"type":"ok"}}', '', 0), { type: 'ok' });
+});
+
+test('native shell configuration forwarding is explicit, filtered and does not override pinned resources', () => {
+  const allowed = { HOME: '/target home', ZDOTDIR: '', XDG_CONFIG_HOME: '/target/config', XDG_CACHE_HOME: '/target/cache' };
+  assert.deepEqual(nativeShellEnvironment({ ...allowed, PATH: '/wrong', XDG_STATE_HOME: '/wrong', PI_CODING_AGENT_DIR: '/wrong',
+    PI_OFFLINE: '0', MYPI_WORK_CHAT_PI: '/wrong', API_KEY: 'synthetic-test-only', HERDR_SOCKET_PATH: '/wrong' }),
+  ['--env', 'HOME=/target home', '--env', 'ZDOTDIR=', '--env', 'XDG_CONFIG_HOME=/target/config', '--env', 'XDG_CACHE_HOME=/target/cache']);
+  assert.deepEqual(nativeShellEnvironment({ HOME: undefined, UNRELATED: 'value' }), []);
 });
 
 test('stock native session metadata is independent of mutable labels and readiness', () => {

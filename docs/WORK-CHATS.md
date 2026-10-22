@@ -52,6 +52,11 @@ Configure the intended installation before opening:
 - Node 24, a built mypi installation and its user `USER-INSTRUCTIONS.md`.
 - `XDG_STATE_HOME`: canonical existing target state directory. Managed native
   histories use its `sessions/` directory; SQLite remains under `mypi/`.
+- Explicit caller `HOME`, `ZDOTDIR`, `XDG_CONFIG_HOME` and `XDG_CACHE_HOME` are
+  passed to the new tab through Herdr `--env`. Unset roots remain inherited from
+  Herdr; mypi does not forward the whole caller environment or credentials.
+  State, agent resources and executable PATH remain pinned separately. Shell RC
+  files can still change PATH, so the owned-shell resolution check remains mandatory.
 - `PI_CODING_AGENT_DIR`: canonical absolute resource directory with `settings.json`
   containing exactly one package entry for this installation's `integrations/pi`.
   Keep its other packages, including pi-subagents, MCP, skills and instructions.
@@ -73,7 +78,10 @@ The native feasibility check used Pi 1.0.4, Herdr 0.8.2, stock integration v8.
 The adapter uses one native `agent start --kind pi`, not a shell Pi launcher or
 mypi readiness polling loop. A bounded `command -v pi` probe in the newly owned
 shell first verifies routing after shell initialization; configured PATH alone
-is insufficient. Supported shells: bash/zsh/dash/sh. Alias/function, wrong binary,
+is insufficient. Herdr `pane run` acknowledges input by exit status (empty stdout
+is valid), not command completion. The bounded `pane wait-output` JSON observation,
+captured resolution and unchanged shell identity must all succeed before native
+start. Structured list/get/start/process-info and focus responses still require JSON. Supported shells: bash/zsh/dash/sh. Alias/function, wrong binary,
 unavailable shell or unsupported shell leaves an explicit partial result and the
 known pane intact. Configure the target shell to resolve the same direct binary;
 there is no wrapper fallback or automatic tab cleanup/recreation.
