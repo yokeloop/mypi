@@ -35,11 +35,11 @@ export type AppCommand =
   | { name: 'backup_publish'; dryRun?: boolean; selectedPaths?: string[] }
   | { name: 'restore'; backupDirectory: string }
   | { name: 'restore_published'; repository: string; commit: string }
+  | { name: 'work_chat_open_request'; identity: string; requestId: number; chatId?: string;
+    association?: { sourceClone: string; worktree: string }; nameLabel?: string; model?: ModelPair; focus?: boolean }
   | { name: 'work_chat_open'; identity: string; requestId: number; sourceClone: string; worktree: string; nameLabel?: string; model?: ModelPair }
   | { name: 'work_chat_resume'; id: string; model?: ModelPair }
   | { name: 'work_chat_new_empty'; id: string; nameLabel?: string; model?: ModelPair }
   | { name: 'work_chat_execute'; preview: ChatPreview; focus?: boolean }
   | { name: 'work_chat_list' }
-  | { name: 'work_chat_show'; id: string }
-  | { name: 'work_chat_sync_attempt'; receipt: { attempt: string; sessionId: string; processId: number; generation: number;
-    model: ModelPair; expectedTarget?: ModelPair }; adopt: boolean };
+  | { name: 'work_chat_show'; id: string };

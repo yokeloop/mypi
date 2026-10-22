@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { InputError } from '../shared/errors.js';
 import type { ChatBinding, ChatStore, NativeIdentity, ProcessIdentity, WorkChat, ModelPair, ModelSelection, SavedModel } from '../modules/work-chats/public.js';
 import { assertBinding, assertNative, sameModelSelection } from '../modules/work-chats/public.js';
@@ -11,50 +11,83 @@ export interface ChatInspection {
   binding?: ChatBinding;
   native?: NativeIdentity;
   model?: ModelPair;
-  readiness?: 'ready' | 'auth-pending';
-  authorized?: boolean;
-  generation?: number;
   persisted?: boolean;
   reason?: string;
 }
 export interface ChatRuntime {
-  /** Return canonical Git identity and binding; reject foreign clone/worktree, branch and invalid installation/state. */
+  /** Canonical Git/worktree and installation/state checks; no worktree creation. */
   validate(input: { sourceClone: string; worktree: string; installation: string; statePath: string }): Promise<Omit<ChatBinding, 'requestId' | 'projectId'>>;
-  /** Exact existing history/header and active branch; missing/corrupt is unavailable, never "none". */
+  /** Exact existing header/cwd/tree; absent or corrupt history is an error, never a new session. */
   history(chat: WorkChat): Promise<{ native: NativeIdentity; saved: SavedModel }>;
-  /** Positive normal-final empty snapshot, exact identity and no history; not mere ENOENT. */
+  /** Positive empty-closure evidence only. Without native continuity evidence return false. */
   provenEmpty(chat: WorkChat): Promise<boolean>;
-  /** Observe Herdr pane AND process PID/start plus native session; unknown never grants another writer. */
+  /** Read-only. Live requires exact native/cwd/process/resource identity, not name/readiness.
+   * Dead requires positive absence of the old writer AND no conflicting worktree writer.
+   * Missing pane/server/metadata alone is unknown. Legacy provenance may be absent: positive
+   * local process absence is usable, but a reused/ambiguous live PID is not identity.
+   * For incomplete launches, correlate the reserved native UUID/attempt before reporting live. */
   inspect(chat: WorkChat): Promise<ChatInspection>;
-  /** Checks actual target Pi registry and usable auth without a model request. */
-  validateModel(pair: ModelPair, binding: ChatBinding): Promise<'ready' | 'auth-pending'>;
-  /** Guard the latest native receipt synchronously inside the SQL transition. */
-  receiptMatches?(chat: WorkChat, model: ModelPair, generation: number, adopt: boolean): boolean;
-  /** One-shot notification after the launch reservation is committed; not a second source of truth. */
-  launchCommitted?(chat: WorkChat): void;
-  /** One background Herdr tab. Never automatically retry an uncertain result. */
-  launch(input: { chat: WorkChat; model: ModelSelection; resume: boolean; focus: boolean }): Promise<
-    | { status: 'acknowledged'; process: ProcessIdentity; native: NativeIdentity; model?: ModelPair; readiness: 'ready' | 'auth-pending' }
-    | { status: 'partial'; reason: string; pane?: string; processId?: number; processStart?: string; native?: NativeIdentity }
-  >;
+  /** Validate an exact launch preference, never credentials. Auth-filtered catalog omission
+   * is not invalidity. Missing auth must not prevent opening; unconfirmed application of an
+   * explicit choice must produce partial, never silent fallback success. */
+  validateModel(pair: ModelPair, binding: ChatBinding): Promise<void>;
+  /** Recheck actionable identity before focusing: a stale pane must never focus another chat. */
+  focus(chat: WorkChat, observation: ChatInspection): Promise<void>;
+  /** Read-only launch preparation, before reservation. Returns one dispatch operation;
+   * invoke only after committing this exact chat/UUID. Setup errors leave SQL unchanged.
+   * No new-launch prerequisites belong on existing-live focus or diagnostic reads. */
+  prepareLaunch(input: { chat: WorkChat; model: ModelSelection; resume: boolean; focus: boolean }): Promise<PreparedChatLaunch>;
 }
+/** One native launch, no prompt/replay/retry. Saved model is diagnostic only; only
+ * invocation overrides resume. Opened means native identity, not provider readiness. */
+export type PreparedChatLaunch = () => Promise<ChatLaunchResult>;
+export type ChatLaunchResult =
+  | { status: 'opened'; process: ProcessIdentity; native: NativeIdentity; model?: ModelPair }
+  // Include native only when its path/ID were independently validated.
+  | { status: 'partial'; reason: string; pane?: string; processId?: number; processStart?: string; processBootId?: string; herdrEndpoint?: string; native?: NativeIdentity };
 export interface ChatPreview {
   action: 'open' | 'resume' | 'new-empty';
   binding: ChatBinding;
   chatId?: string;
   priorAttempt?: string;
+  /** Fingerprint of the exact row inspected; execution compares it again inside reservation. */
+  priorRevision?: string;
   name?: string;
   model: ModelSelection;
-  /** For resume, exact saved session and the observed pane at preview time. */
   native?: NativeIdentity;
   live?: ProcessIdentity;
-  readiness?: 'ready' | 'auth-pending';
   persisted?: boolean;
 }
-export interface ChatResult { chat: WorkChat; observation: ChatInspection; outcome: 'ready' | 'auth-pending' | 'existing' | 'partial' | 'blocked'; nextStep?: string }
-const pendingInstruction = 'In this same Pi session, run /login; the exact target becomes ready automatically when selected. For a different selected model use /model for the target or /work-chat adopt-model to confirm it. No work prompt was sent.';
+export interface ChatResult { chat: WorkChat; observation: ChatInspection; outcome: 'opened' | 'existing' | 'partial' }
+export interface OpenForRequestInput {
+  identity: string;
+  requestId: number;
+  chatId?: string;
+  /** Required only when no chat exists; existing worktrees only. */
+  association?: { sourceClone: string; worktree: string; installation: string; statePath: string };
+  name?: string;
+  model?: ModelPair;
+  focus?: boolean;
+}
+export type OpenForRequestResult = ChatResult
+  | { outcome: 'choice-needed'; chats: WorkChat[] }
+  | { outcome: 'setup-needed'; reason: string };
 
-/** External observations happen outside SQL transactions. Only short reservation/transition writes are atomic. */
+// Hash a stable field list, not object insertion order. This is a concurrency token, not authority.
+function revision(chat: WorkChat): string {
+  const fields: (keyof WorkChat)[] = ['id', 'name', 'attemptId', 'requestId', 'projectId', 'sourceClone', 'worktree',
+    'gitCommonDir', 'branch', 'installation', 'statePath', 'sessionId', 'historyPath', 'pane', 'processId',
+    'processStart', 'processBootId', 'herdrEndpoint', 'requestedProvider', 'requestedModel', 'phase'];
+  return createHash('sha256').update(JSON.stringify(fields.map(field => chat[field] ?? null))).digest('hex');
+}
+function sameProcess(a: ProcessIdentity, b: ProcessIdentity): boolean {
+  // Pane movement alone does not change native process identity.
+  return a.processId === b.processId && a.processStart === b.processStart
+    && (!a.processBootId || a.processBootId === b.processBootId)
+    && (!a.herdrEndpoint || a.herdrEndpoint === b.herdrEndpoint);
+}
+
+/** Observations are read-only. Only explicit mutations perform short SQL transactions. */
 export function createWorkChats(input: {
   store: ChatStore;
   projects: { resolveScope(identity: string): ProjectScope; list(): { id: number; org: string; slug: string }[] };
@@ -63,21 +96,65 @@ export function createWorkChats(input: {
   runtime: ChatRuntime;
 }) {
   const { store, projects, requests, runtime } = input;
+  function projectScope(identity: string, requestId: number) {
+    const scope = projects.resolveScope(identity);
+    if (scope.type !== 'project') throw new InputError('Registered project required');
+    if (requests.get(requestId).projectId !== scope.project.id) throw new InputError('Request belongs to a different project');
+    return scope.project;
+  }
   async function binding(args: { identity: string; requestId: number; sourceClone: string; worktree: string; installation: string; statePath: string }): Promise<ChatBinding> {
-    const scope = projects.resolveScope(args.identity);
-    if (scope.type !== 'project' || !scope.project.checkoutPath) throw new InputError('Registered project and source clone required');
-    if (scope.project.checkoutPath !== args.sourceClone) throw new InputError('Source clone must equal registered project checkout');
-    if (requests.get(args.requestId).projectId !== scope.project.id) throw new InputError('Request belongs to a different project');
+    const project = projectScope(args.identity, args.requestId);
+    if (!project.checkoutPath) throw new InputError('Registered project and source clone required');
+    if (project.checkoutPath !== args.sourceClone) throw new InputError('Source clone must equal registered project checkout');
     const checked = await runtime.validate(args);
     if (!checked.gitCommonDir || !checked.branch || !checked.sourceClone || !checked.worktree || !checked.installation || !checked.statePath
-      || checked.sourceClone !== scope.project.checkoutPath || checked.worktree !== args.worktree
+      || checked.sourceClone !== project.checkoutPath || checked.worktree !== args.worktree
       || checked.installation !== args.installation || checked.statePath !== args.statePath) {
       throw new InputError('Runtime binding differs from explicit project/worktree/installation/state');
     }
-    return { ...checked, projectId: scope.project.id, requestId: args.requestId };
+    return { ...checked, projectId: project.id, requestId: args.requestId };
   }
   function select(identity: string, invocation?: ModelPair, saved?: SavedModel) {
     return selectWorkChatModel({ identity, ...(invocation ? { invocation } : {}), ...(saved ? { saved } : {}), userHome: input.userHome, projects });
+  }
+  function projectIdentity(projectId: number): string {
+    const project = projects.list().find(p => p.id === projectId);
+    if (!project) throw new InputError('Registered project unavailable');
+    return project.org + '/' + project.slug;
+  }
+  function expected(preview: ChatPreview): WorkChat {
+    const chat = preview.chatId ? store.get(preview.chatId) : undefined;
+    if (!chat || chat.attemptId !== preview.priorAttempt || revision(chat) !== preview.priorRevision) {
+      throw new InputError('Work chat changed since inspection');
+    }
+    const occupant = store.byWorktree(chat.worktree);
+    if (occupant && occupant.id !== chat.id) throw new InputError('Worktree has another managed chat');
+    return chat;
+  }
+  function updateExact(before: WorkChat, after: WorkChat) {
+    if (!store.get(before.id) || revision(store.get(before.id)!) !== revision(before)) throw new InputError('Stale launch attempt or association');
+    store.update(after, before.attemptId);
+  }
+  async function observe(chat: WorkChat): Promise<{ chat: WorkChat; observation: ChatInspection }> {
+    let observation: ChatInspection;
+    try {
+      observation = await runtime.inspect(chat);
+      if (observation.status === 'live') {
+        if (!observation.binding || !observation.native || !observation.process || !chat.sessionId
+          || !observation.native.historyPath || !observation.process.pane || !observation.process.processStart
+          || !Number.isSafeInteger(observation.process.processId) || observation.process.processId <= 0
+          || observation.native.sessionId !== chat.sessionId
+          || chat.historyPath && observation.native.historyPath !== chat.historyPath
+          || chat.processId !== null && (observation.process.processId !== chat.processId
+            || observation.process.processStart !== chat.processStart)
+          || chat.processBootId && observation.process.processBootId !== chat.processBootId
+          || chat.herdrEndpoint && observation.process.herdrEndpoint !== chat.herdrEndpoint) {
+          throw new InputError('Native process/session differs from reserved association');
+        }
+        assertBinding(chat, observation.binding);
+      }
+    } catch (error) { observation = { status: 'unknown', reason: String(error) }; }
+    return { chat, observation };
   }
   async function previewOpen(args: Parameters<typeof binding>[0] & { name?: string; model?: ModelPair }): Promise<ChatPreview> {
     const checked = await binding(args);
@@ -88,69 +165,43 @@ export function createWorkChats(input: {
   }
   async function previewNewEmpty(id: string, options: { name?: string; model?: ModelPair } = {}): Promise<ChatPreview> {
     const old = store.get(id);
-    if (!old || old.phase === 'closed' || !old.sessionId || !old.historyPath || store.byWorktree(old.worktree)?.id !== id) {
+    if (!old || old.phase === 'closed' || old.phase === 'reserved' || !old.sessionId || !old.historyPath || store.byWorktree(old.worktree)?.id !== id) {
       throw new InputError('No occupied managed empty chat to replace');
     }
-    const checked = await binding({ identity: projectIdentity(old.projectId), requestId: old.requestId,
-      sourceClone: old.sourceClone, worktree: old.worktree, installation: old.installation, statePath: old.statePath });
+    const checked = await binding({ ...old, identity: projectIdentity(old.projectId) });
     assertBinding(old, checked);
-    const observed = await runtime.inspect(old);
-    if (observed.status !== 'dead' || !await runtime.provenEmpty(old)) throw new InputError('Native empty closure and process death unconfirmed; cannot open a new empty chat');
-    const original = old.phase === 'auth-pending' && old.requestedProvider && old.requestedModel
-      ? { status: 'selected' as const, selection: { provider: old.requestedProvider, model: old.requestedModel } } : undefined;
-    const model = select(projectIdentity(old.projectId), options.model, original);
+    const { observation } = await observe(old);
+    if (observation.status !== 'dead' || !await runtime.provenEmpty(old)) throw new InputError('Native empty closure and process death unconfirmed; cannot open a new empty chat');
+    const model = select(projectIdentity(old.projectId), options.model);
     if (model.source !== 'unselected') await runtime.validateModel(model, checked);
-    return { action: 'new-empty', binding: checked, chatId: id, priorAttempt: old.attemptId, model,
+    return { action: 'new-empty', binding: checked, chatId: id, priorAttempt: old.attemptId, priorRevision: revision(old), model,
       ...(options.name === undefined ? {} : { name: options.name }) };
   }
   async function previewResume(id: string, invocation?: ModelPair): Promise<ChatPreview> {
-    const stored = store.get(id);
-    if (!stored) throw new InputError('Unknown work chat');
-    const { chat, observation } = await reconcile(stored);
-    const checked = await binding({ identity: projectIdentity(chat.projectId), requestId: chat.requestId,
-      sourceClone: chat.sourceClone, worktree: chat.worktree, installation: chat.installation, statePath: chat.statePath });
+    const chat = store.get(id);
+    if (!chat) throw new InputError('Unknown work chat');
+    const checked = await binding({ ...chat, identity: projectIdentity(chat.projectId) });
     assertBinding(chat, checked);
+    const { observation } = await observe(chat);
     if (observation.status === 'unknown') throw new InputError('Chat ownership unknown; inspect existing pane before retry: ' + (observation.reason ?? 'unknown'));
+    const prior = { chatId: id, priorAttempt: chat.attemptId, priorRevision: revision(chat) };
     if (observation.status === 'live') {
-      if (!observation.process || !observation.binding || !observation.native || !chat.sessionId || !chat.historyPath) {
-        throw new InputError('Live pane identity/model unconfirmed; do not launch another writer');
+      if (invocation && (invocation.provider !== observation.model?.provider || invocation.model !== observation.model?.model)) {
+        throw new InputError('Live chat has another or unconfirmed model; use /model in that chat');
       }
-      assertBinding(chat, observation.binding);
-      assertNative({ sessionId: chat.sessionId, historyPath: chat.historyPath }, observation.native);
-      if (chat.pane !== observation.process.pane || chat.processId !== observation.process.processId || chat.processStart !== observation.process.processStart) {
-        throw new InputError('Pane occupant changed; inspect before resuming');
-      }
-      if (invocation && (invocation.provider !== (chat.phase === 'auth-pending' ? chat.requestedProvider : observation.model?.provider)
-        || invocation.model !== (chat.phase === 'auth-pending' ? chat.requestedModel : observation.model?.model))) {
-        throw new InputError('Live chat has another model; change it there or close it before resuming with override');
-      }
-      const model = chat.phase === 'auth-pending' && !chat.requestedProvider && !invocation
-        ? { source: 'unselected' as const } : select(projectIdentity(chat.projectId), invocation, { status: 'selected', selection:
-        chat.phase === 'auth-pending' ? { provider: chat.requestedProvider!, model: chat.requestedModel! } : observation.model! });
-      return { action: 'resume', binding: checked, chatId: id, model, native: observation.native,
-        live: observation.process, ...(observation.readiness ? { readiness: observation.readiness } : {}), ...(observation.persisted === undefined ? {} : { persisted: observation.persisted }) };
+      const model = select(projectIdentity(chat.projectId), invocation, observation.model
+        ? { status: 'selected', selection: observation.model } : { status: 'none' });
+      return { action: 'resume', binding: checked, ...prior, model, native: observation.native!, live: observation.process!,
+        ...(observation.persisted === undefined ? {} : { persisted: observation.persisted }) };
     }
-    if (!chat.sessionId || !chat.historyPath || await runtime.provenEmpty(chat)) throw new InputError('Empty chat has no persisted history; explicitly preview a new empty chat for this worktree');
+    if (chat.phase === 'reserved') throw new InputError('Prior launch uncertain; inspect it first');
+    if (!chat.sessionId || !chat.historyPath) throw new InputError('Exact native history unavailable; no automatic empty replacement');
     const saved = await runtime.history(chat);
     assertNative({ sessionId: chat.sessionId, historyPath: chat.historyPath }, saved.native);
-    if (saved.saved.status === 'unavailable') throw new InputError(`Native session model unavailable: ${saved.saved.reason}`);
-    // A model chosen during a pending session is not implicit consent to change
-    // the requested target. Only an explicit resume override can do that.
-    const target = chat.phase === 'auth-pending' && chat.requestedProvider && chat.requestedModel
-      ? { status: 'selected' as const, selection: { provider: chat.requestedProvider, model: chat.requestedModel } }
-      : saved.saved;
-    if (chat.phase === 'auth-pending' && chat.requestedProvider !== null && !chat.requestedModel) {
-      throw new InputError('Pending chat has no requested model; inspect before resuming');
-    }
-    const model = select(projectIdentity(chat.projectId), invocation, target);
-    if (model.source !== 'unselected') await runtime.validateModel(model, checked);
-    return { action: 'resume', binding: checked, chatId: id, native: saved.native, model };
-  }
-  function projectIdentity(projectId: number): string {
-    // resolveScope has no ID lookup; supplied registry is the only identity authority.
-    const project = projects.list().find(p => p.id === projectId);
-    if (!project) throw new InputError('Registered project unavailable');
-    return project.org + '/' + project.slug;
+    const model = select(projectIdentity(chat.projectId), invocation, saved.saved);
+    // Pi restores its saved model itself; only a deliberate override needs launch validation.
+    if (model.source === 'invocation') await runtime.validateModel(model, checked);
+    return { action: 'resume', binding: checked, ...prior, native: saved.native, model };
   }
   async function execute(preview: ChatPreview, focus = false): Promise<ChatResult> {
     const identity = projectIdentity(preview.binding.projectId);
@@ -165,214 +216,105 @@ export function createWorkChats(input: {
     assertBinding(preview.binding, fresh.binding);
     if (!sameModelSelection(preview.model, fresh.model) || preview.action !== fresh.action) throw new InputError('Model changed since preview; request a fresh preview');
     if (Boolean(preview.live) !== Boolean(fresh.live)) throw new InputError('Live state changed since preview; request a fresh preview');
-    if (preview.action === 'new-empty' && (preview.priorAttempt !== fresh.priorAttempt || preview.chatId !== fresh.chatId)) {
-      throw new InputError('Empty chat attempt changed since preview');
+    if (preview.action !== 'open' && (preview.priorAttempt !== fresh.priorAttempt || preview.priorRevision !== fresh.priorRevision)) {
+      throw new InputError('Work chat changed since inspection');
     }
     if (preview.action === 'resume' && (preview.native?.sessionId !== fresh.native?.sessionId || preview.native?.historyPath !== fresh.native?.historyPath)) {
       throw new InputError('Native history changed since preview');
     }
     if (fresh.live) {
-      if (!preview.live || preview.live.pane !== fresh.live.pane || preview.live.processId !== fresh.live.processId || preview.live.processStart !== fresh.live.processStart) {
-        throw new InputError('Live process changed since preview');
+      if (!preview.live || !sameProcess(preview.live, fresh.live)) throw new InputError('Live process changed since preview');
+      const chat = expected(fresh);
+      const { observation } = await observe(chat);
+      if (observation.status !== 'live' || !observation.process || !sameProcess(fresh.live, observation.process)
+        || observation.native?.sessionId !== fresh.native?.sessionId || observation.native?.historyPath !== fresh.native?.historyPath) {
+        throw new InputError('Live process/native identity changed; inspect before retry');
       }
-      const current = await reconcile(store.get(preview.chatId!)!);
-      if (current.observation.status !== 'live' || current.observation.process?.pane !== fresh.live.pane
-        || current.observation.process.processId !== fresh.live.processId
-        || current.observation.process.processStart !== fresh.live.processStart
-        || current.observation.native?.sessionId !== fresh.native?.sessionId
-        || current.observation.native?.historyPath !== fresh.native?.historyPath) {
-        throw new InputError('Live process/native readiness changed; inspect same pane before retry');
-      }
-      return { chat: current.chat, observation: current.observation, outcome: 'existing',
-        ...(current.chat.phase === 'auth-pending' ? { nextStep: pendingInstruction } : {}) };
+      if (focus) await runtime.focus(chat, observation);
+      // Explicit opening may record recovered launch/pane facts. show/list/preview never do.
+      const updated: WorkChat = { ...chat, ...observation.native, ...observation.process, phase: 'ready' };
+      store.transaction(() => { expected(fresh); updateExact(chat, updated); });
+      return { chat: store.get(chat.id)!, observation, outcome: 'existing' };
     }
-    // A launch-only prerequisite must fail before retiring an empty row or reserving a worktree.
-    if (process.env.HERDR_ENV !== '1' || !process.env.HERDR_WORKSPACE_ID) {
-      throw new InputError('Persistent Herdr environment required');
-    }
-    const chat = store.transaction(() => {
-      if (preview.action !== 'resume') {
-        if (preview.action === 'new-empty') {
-          const prior = store.get(preview.chatId!);
-          if (!prior || prior.attemptId !== preview.priorAttempt || store.byWorktree(prior.worktree)?.id !== prior.id) {
-            throw new InputError('Empty chat changed during reservation');
-          }
+    if (process.env.HERDR_ENV !== '1' || !process.env.HERDR_WORKSPACE_ID) throw new InputError('Persistent Herdr environment required');
+    const previous = fresh.action === 'resume' ? expected(fresh) : undefined;
+    if (previous?.phase === 'reserved') throw new InputError('Prior launch uncertain; inspect it first');
+    const chat: WorkChat = {
+      ...(previous ?? { ...fresh.binding, id: randomUUID(), name: fresh.name ?? null,
+        sessionId: randomUUID(), historyPath: null }),
+      requestedProvider: fresh.model.source === 'unselected' ? null : fresh.model.provider,
+      requestedModel: fresh.model.source === 'unselected' ? null : fresh.model.model,
+      phase: 'reserved', attemptId: randomUUID(), pane: null, processId: null, processStart: null,
+      processBootId: null, herdrEndpoint: null,
+    };
+    const launch = await runtime.prepareLaunch({ chat, model: fresh.model, resume: fresh.action === 'resume', focus });
+    store.transaction(() => {
+      if (previous) {
+        expected(fresh); // Preparation may have yielded while another caller changed the row.
+        updateExact(previous, chat);
+      } else {
+        if (fresh.action === 'new-empty') {
+          const prior = expected(fresh);
+          if (store.byWorktree(prior.worktree)?.id !== prior.id) throw new InputError('Empty chat changed during reservation');
           store.retireEmpty(prior.id, prior.attemptId);
-        } else if (store.byWorktree(preview.binding.worktree)) throw new InputError('Worktree reservation already exists');
-        const created: WorkChat = { ...preview.binding, id: randomUUID(), name: preview.name ?? null, attemptId: randomUUID(),
-          phase: 'reserved', requestedProvider: fresh.model.source === 'unselected' ? null : fresh.model.provider, requestedModel: fresh.model.source === 'unselected' ? null : fresh.model.model, sessionId: null, historyPath: null, pane: null, processId: null, processStart: null };
-        store.reserve(created);
-        return created;
+        } else if (store.byWorktree(fresh.binding.worktree)) throw new InputError('Worktree reservation already exists');
+        store.reserve(chat);
       }
-      const existing = store.get(preview.chatId!);
-      if (!existing) throw new InputError('Work chat changed');
-      if (existing.phase === 'reserved') throw new InputError('Prior launch uncertain; inspect it first');
-      if (existing.phase === 'partial' && (!existing.sessionId || !existing.historyPath)) throw new InputError('Partial launch without confirmed history requires inspection');
-      const next = { ...existing, requestedProvider: fresh.model.source === 'unselected' ? null : fresh.model.provider, requestedModel: fresh.model.source === 'unselected' ? null : fresh.model.model, phase: 'reserved' as const, attemptId: randomUUID(), pane: null, processId: null, processStart: null };
-      store.update(next, existing.attemptId);
-      return next;
     });
     let partial = chat;
+    let committed = chat;
     try {
-      const launched = await runtime.launch({ chat, model: fresh.model, resume: preview.action === 'resume', focus });
+      const launched = await launch();
       const actualNative = launched.native;
-      const matchingNative = actualNative && (!chat.sessionId || (chat.sessionId === actualNative.sessionId && chat.historyPath === actualNative.historyPath));
-      partial = { ...chat,
-        ...(matchingNative && actualNative?.sessionId && actualNative.historyPath ? actualNative : {}),
-        pane: (launched.status === 'partial' ? launched.pane : launched.process.pane) || null,
-        processId: (launched.status === 'partial' ? launched.processId : launched.process.processId) ?? null,
-        processStart: (launched.status === 'partial' ? launched.processStart : launched.process.processStart) || null, phase: 'partial' };
-      store.transaction(() => {
-        if (store.get(chat.id)?.attemptId !== chat.attemptId) throw new InputError('Stale launch attempt');
-        store.update(partial);
-      });
+      const matchingNative = actualNative && chat.sessionId === actualNative.sessionId && (!chat.historyPath || chat.historyPath === actualNative.historyPath);
+      const process = launched.status === 'opened' ? launched.process : launched;
+      partial = { ...chat, ...(matchingNative ? actualNative : {}), pane: process.pane || null,
+        processId: process.processId ?? null, processStart: process.processStart || null,
+        processBootId: process.processBootId ?? null, herdrEndpoint: process.herdrEndpoint ?? null, phase: 'partial' };
+      store.transaction(() => updateExact(committed, partial));
+      committed = partial;
       if (launched.status === 'partial') throw new InputError(launched.reason);
-      if (!matchingNative || !partial.sessionId || !partial.historyPath || !partial.pane || !partial.processId || !partial.processStart) {
-        throw new InputError('Native session/history or process identity not persisted; cannot mark ready');
+      if (!matchingNative || !partial.historyPath || !partial.pane || !partial.processId || !partial.processStart) throw new InputError('Native session/history or process identity unconfirmed');
+      const { observation } = await observe(partial);
+      if (observation.status !== 'live' || !observation.process || !sameProcess(launched.process, observation.process)
+        || observation.native?.sessionId !== launched.native.sessionId || observation.native.historyPath !== launched.native.historyPath) {
+        throw new InputError('Launch and independent process/native observation disagree');
       }
-      const observed = await runtime.inspect(partial);
-      if (observed.status !== 'live' || !observed.process || !observed.binding || !observed.native
-        || observed.process.pane !== launched.process.pane || observed.process.processId !== launched.process.processId
-        || observed.process.processStart !== launched.process.processStart || observed.native.sessionId !== launched.native.sessionId
-        || observed.native.historyPath !== launched.native.historyPath) {
-        throw new InputError('Launch acknowledgement and independent process/native observation disagree');
+      // Launch preferences are not permanent model targets. Check only the opening result.
+      if (fresh.model.source !== 'unselected' && fresh.model.source !== 'saved session'
+        && (launched.model?.provider !== fresh.model.provider || launched.model.model !== fresh.model.model)) {
+        throw new InputError('Requested launch model was not confirmed; use /model in the same Pi');
       }
-      if (fresh.model.source !== 'unselected' && launched.readiness === 'ready' && (!observed.model
-        || observed.model.provider !== fresh.model.provider || observed.model.model !== fresh.model.model
-        || launched.model?.provider !== fresh.model.provider || launched.model.model !== fresh.model.model)) {
-        throw new InputError('Launch acknowledgement and independent model/auth observation disagree');
-      }
-      assertBinding(chat, observed.binding);
-      if (preview.action === 'resume') assertNative(preview.native!, launched.native);
-      const exact = fresh.model.source !== 'unselected' && observed.model?.provider === fresh.model.provider && observed.model?.model === fresh.model.model;
-      const adopted = fresh.model.source === 'unselected' && observed.readiness === 'ready' && observed.model ? observed.model : undefined;
-      if (adopted && (!observed.authorized || !observed.generation
-        || !runtime.receiptMatches?.(partial, adopted, observed.generation, false))) {
-        throw new InputError('Initial native model changed before first-target adoption');
-      }
-      const ready: WorkChat = { ...chat, ...launched.native,
-        ...(adopted ? { requestedProvider: adopted.provider, requestedModel: adopted.model } : {}), pane: launched.process.pane,
-        processId: launched.process.processId, processStart: launched.process.processStart,
-        phase: !adopted && (observed.readiness === 'auth-pending' || !exact || launched.readiness === 'auth-pending' && observed.readiness !== 'ready')
-          ? 'auth-pending' : 'ready' };
-      store.transaction(() => {
-        if (store.get(chat.id)?.attemptId !== chat.attemptId
-          || adopted && (!observed.generation || !runtime.receiptMatches?.(partial, adopted, observed.generation, false))) {
-          throw new InputError('Stale launch acknowledgement or first native selection');
-        }
-        store.update(ready);
-      });
-      // The Pi model_select event may have arrived while this row was reserved.
-      // Signal only after commit; a failed signal never rolls back the verified
-      // reservation or creates a second writer. Pi independently rechecks it.
-      let handoffWarning: string | undefined;
-      try { runtime.launchCommitted?.(ready); }
-      catch { handoffWarning = 'In-tab launch handoff unavailable; inspect /work-chat show if readiness remains unconfirmed'; }
-      return { chat: ready, observation: observed, outcome: ready.phase === 'auth-pending' ? 'auth-pending' : 'ready',
-        ...(ready.phase === 'auth-pending' ? { nextStep: pendingInstruction } : {}),
-        ...(handoffWarning ? { handoffWarning } : {}) };
+      const opened: WorkChat = { ...partial, ...observation.process, phase: 'ready' };
+      store.transaction(() => updateExact(committed, opened));
+      return { chat: store.get(chat.id)!, observation, outcome: 'opened' };
     } catch (error) {
-      // A launcher can have created a tab before throwing; no automatic release/retry.
+      // Never attach late results to a changed row, or retry/clean up a potentially live tab.
       store.transaction(() => {
-        if (store.get(chat.id)?.attemptId === chat.attemptId) store.update({ ...partial, phase: 'partial' });
+        const current = store.get(chat.id);
+        if (current && revision(current) === revision(committed)) store.update({ ...partial, phase: 'partial' });
       });
-      const current = store.get(chat.id)!;
-      const evidence = current.attemptId === chat.attemptId ? ''
-        : `; stale attempt ${chat.attemptId} observed pane=${partial.pane ?? 'unknown'} pid=${partial.processId ?? 'unknown'} start=${partial.processStart ?? 'unknown'} (not attached to newer attempt)`;
-      return { chat: current, observation: { status: 'unknown', reason: String(error) + evidence }, outcome: 'partial' };
-    }
-  }
-  async function releaseUnused(id: string): Promise<void> {
-    const chat = store.get(id);
-    if (!chat || chat.phase !== 'partial' || chat.sessionId || chat.historyPath) {
-      throw new InputError('Only a partial attempt without persisted history may be released');
-    }
-    const observation = await runtime.inspect(chat);
-    if (observation.status !== 'dead') throw new InputError('Ownership not proven dead; preserve reservation');
-    store.transaction(() => store.releaseUnused(id, chat.attemptId));
-  }
-  async function reconcile(chat: WorkChat): Promise<{ chat: WorkChat; observation: ChatInspection }> {
-    const observation = await runtime.inspect(chat);
-    if ((chat.phase === 'auth-pending' || chat.phase === 'ready') && observation.status === 'live') {
-      if (!observation.binding || !observation.native || !observation.process
-        || observation.process.pane !== chat.pane || observation.process.processId !== chat.processId
-        || observation.process.processStart !== chat.processStart || observation.native.sessionId !== chat.sessionId
-        || observation.native.historyPath !== chat.historyPath) {
-        return { chat, observation: { status: 'unknown', reason: 'Native process/session differs from reserved attempt' } };
-      }
-      try {
-        assertBinding(chat, observation.binding);
-        // v3 ready rows had no stored target; their verified live native selection is the only safe target to adopt.
-        const requestedProvider = chat.requestedProvider ?? (chat.phase === 'ready' ? observation.model?.provider : undefined);
-        const requestedModel = chat.requestedModel ?? (chat.phase === 'ready' ? observation.model?.model : undefined);
-        if ((!requestedProvider || !requestedModel) && !(chat.phase === 'auth-pending' && !chat.requestedProvider && !chat.requestedModel)) throw new InputError('Requested native model unconfirmed');
-        const adopted = !requestedProvider && observation.readiness === 'ready' && observation.model;
-        const targetProvider = adopted ? adopted.provider : requestedProvider ?? null;
-        const targetModel = adopted ? adopted.model : requestedModel ?? null;
-        const matches = observation.model?.provider === requestedProvider && observation.model?.model === requestedModel;
-        const nextPhase = observation.readiness === 'ready' && (adopted || matches)
-          ? 'ready' : 'auth-pending';
-        if (chat.phase !== nextPhase || chat.requestedProvider !== targetProvider || chat.requestedModel !== targetModel) {
-          const updated: WorkChat = { ...chat, requestedProvider: targetProvider, requestedModel: targetModel, phase: nextPhase };
-          // The native selection can change between observation and SQL. Only
-          // a still-current receipt may choose the first target for this chat.
-          const firstTarget = chat.phase === 'auth-pending' && chat.requestedProvider === null && adopted;
-          store.transaction(() => {
-            const current = store.get(chat.id);
-            if (!current || current.attemptId !== chat.attemptId || current.phase !== chat.phase
-              || current.requestedProvider !== chat.requestedProvider || current.requestedModel !== chat.requestedModel
-              || current.sessionId !== chat.sessionId || current.processId !== chat.processId
-              || firstTarget && (!observation.authorized || !observation.model || !observation.generation
-                || !runtime.receiptMatches?.(chat, observation.model, observation.generation, false))) {
-              throw new InputError('Stale work chat observation');
-            }
-            store.update(updated);
-          });
-          return { chat: updated, observation };
-        }
-      } catch (error) {
-        return { chat, observation: { status: 'unknown', reason: 'Readiness transition unconfirmed: ' + String(error) } };
-      }
-    }
-    return { chat, observation };
-  }
-  async function syncAttempt(input: { attempt: string; sessionId: string; processId: number; generation: number;
-    model: ModelPair; adopt: boolean; expectedTarget?: ModelPair }) {
-    if (input.adopt !== Boolean(input.expectedTarget)) throw new InputError('Confirmed adoption requires the previewed target');
-    const stored = store.list().find(row => row.attemptId === input.attempt);
-    if (!stored || !['auth-pending', 'ready'].includes(stored.phase)
-      || stored.sessionId !== input.sessionId || stored.processId !== input.processId) throw new InputError('Work chat attempt/session/process changed');
-    const checked = await binding({ identity: projectIdentity(stored.projectId), requestId: stored.requestId,
-      sourceClone: stored.sourceClone, worktree: stored.worktree, installation: stored.installation, statePath: stored.statePath });
-    assertBinding(stored, checked);
-    // A model mismatch can demote a previously ready chat. Report only the
-    // reconciled phase, not a pending UI state alongside stale ready metadata.
-    const { chat, observation } = await reconcile(stored);
-    if (observation.status !== 'live' || !observation.authorized || !observation.model
-      || observation.model.provider !== input.model.provider || observation.model.model !== input.model.model
-      || observation.process?.pane !== chat.pane || observation.process.processId !== chat.processId
-      || observation.process.processStart !== chat.processStart || observation.native?.sessionId !== chat.sessionId
-      || observation.native.historyPath !== chat.historyPath || !observation.binding) throw new InputError('Native model/auth/process unconfirmed; pending preserved');
-    assertBinding(chat, observation.binding);
-    if (!runtime.receiptMatches?.(chat, input.model, input.generation, input.adopt)) throw new InputError('Native selection changed; pending preserved');
-    const mismatch = chat.requestedProvider !== null && (chat.requestedProvider !== input.model.provider || chat.requestedModel !== input.model.model);
-    if (input.adopt && (!mismatch || chat.requestedProvider !== input.expectedTarget?.provider
-      || chat.requestedModel !== input.expectedTarget.model)) throw new InputError('Expected target changed while confirming; pending preserved');
-    if (mismatch && !input.adopt) return { status: 'mismatch', expected: { provider: chat.requestedProvider, model: chat.requestedModel }, selected: input.model };
-    const updated: WorkChat = { ...chat, phase: 'ready', requestedProvider: input.model.provider, requestedModel: input.model.model };
-    store.transaction(() => {
       const current = store.get(chat.id);
-      if (!current || current.attemptId !== chat.attemptId || current.phase !== chat.phase
-        || current.requestedProvider !== chat.requestedProvider || current.requestedModel !== chat.requestedModel
-        || input.adopt && (current.requestedProvider !== input.expectedTarget?.provider
-          || current.requestedModel !== input.expectedTarget.model)
-        || !runtime.receiptMatches?.(chat, input.model, input.generation, input.adopt)) throw new InputError('Native selection/attempt changed; pending preserved');
-      store.update(updated);
-    });
-    return { status: 'ready', expected: input.model, selected: input.model };
+      const stale = !current || revision(current) !== revision({ ...partial, phase: 'partial' });
+      const evidence = stale ? `; stale attempt ${chat.attemptId} observed pane=${partial.pane ?? 'unknown'} pid=${partial.processId ?? 'unknown'} (not attached to changed row)` : '';
+      return { chat: current ?? partial, observation: { status: 'unknown', reason: String(error) + evidence }, outcome: 'partial' };
+    }
   }
-  return { previewOpen, previewResume, previewNewEmpty, execute, releaseUnused, syncAttempt,
-    async list() { return Promise.all(store.list().map(reconcile)); },
+  async function openForRequest(args: OpenForRequestInput): Promise<OpenForRequestResult> {
+    const project = projectScope(args.identity, args.requestId);
+    const chats = store.list().filter(chat => chat.projectId === project.id && chat.requestId === args.requestId);
+    if (args.chatId) {
+      if (!chats.some(chat => chat.id === args.chatId)) throw new InputError('Selected chat belongs to another request/project');
+      return execute(await previewResume(args.chatId, args.model), args.focus ?? true);
+    }
+    if (chats.length > 1) return { outcome: 'choice-needed', chats };
+    if (chats.length === 1) return execute(await previewResume(chats[0]!.id, args.model), args.focus ?? true);
+    if (!args.association || !project.checkoutPath) return { outcome: 'setup-needed', reason: 'Supply an existing registered source clone and task worktree/installation/state association' };
+    return execute(await previewOpen({ ...args.association, identity: args.identity, requestId: args.requestId,
+      ...(args.name === undefined ? {} : { name: args.name }), ...(args.model ? { model: args.model } : {}) }), args.focus ?? true);
+  }
+  return { previewOpen, previewResume, previewNewEmpty, execute, openForRequest,
+    async list() { return Promise.all(store.list().map(observe)); },
     get: (id: string) => store.get(id),
-    async show(id: string) { const chat = store.get(id); if (!chat) throw new InputError('Unknown work chat'); return reconcile(chat); } };
+    async show(id: string) { const chat = store.get(id); if (!chat) throw new InputError('Unknown work chat'); return observe(chat); } };
 }

@@ -14,7 +14,7 @@ function herdrEnvironment(t: { after(fn: () => void): void }) {
     if (previousWorkspace === undefined) delete process.env.HERDR_WORKSPACE_ID; else process.env.HERDR_WORKSPACE_ID = previousWorkspace;
   });
 }
-test('live empty chat is ready/idempotent; positive final empty death permits explicit fresh chat in same worktree', async t => {
+test('live empty chat is opened/idempotent; positive final empty death permits explicit fresh chat in same worktree', async t => {
   herdrEnvironment(t);
   const { filename, dir } = state(t);
   const app = createApp(filename, false);
@@ -27,17 +27,18 @@ test('live empty chat is ready/idempotent; positive final empty death permits ex
     async history() { throw new Error('No persisted native history'); },
     async inspect(chat) { return alive ? { status: 'live', binding: chat,
       process: { pane: chat.pane!, processId: chat.processId!, processStart: chat.processStart! },
-      native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, model: pair, readiness: 'ready', persisted: false } : { status: 'dead' }; },
+      native: { sessionId: chat.sessionId!, historyPath: chat.historyPath! }, model: pair, persisted: false } : { status: 'dead' }; },
     async provenEmpty() { return finalEmpty && !alive; },
-    async validateModel() { return 'ready' as const; },
-    async launch() { count++; alive = true; return { status: 'acknowledged',
-      native: { sessionId: `session-${count}`, historyPath: `/tmp/history-${count}` },
-      process: { pane: `pane-${count}`, processId: count + 100, processStart: `start-${count}` }, model: pair, readiness: 'ready' }; },
+    async validateModel() {},
+    async focus() {},
+    async prepareLaunch({ chat }) { return async () => { count++; alive = true; return { status: 'opened',
+      native: { sessionId: chat.sessionId!, historyPath: `/tmp/history-${count}` },
+      process: { pane: `pane-${count}`, processId: count + 100, processStart: `start-${count}` }, model: pair }; }; },
   };
   const chats = createWorkChats({ store: app.chatStore, projects: app.projects, requests: app.requests, userHome: '/tmp/no-config', runtime });
-  const args = { identity: 'team/tool', requestId: card.id, sourceClone: dir, worktree: dir + '/task', installation: '/tmp/installed', statePath: filename, model: pair, readiness: 'ready' };
+  const args = { identity: 'team/tool', requestId: card.id, sourceClone: dir, worktree: dir + '/task', installation: '/tmp/installed', statePath: filename, model: pair };
   const first = await chats.execute(await chats.previewOpen(args));
-  assert.equal(first.outcome, 'ready');
+  assert.equal(first.outcome, 'opened');
   assert.equal(first.observation.persisted, false);
   assert.equal((await chats.execute(await chats.previewResume(first.chat.id))).outcome, 'existing');
   assert.equal(count, 1);
@@ -64,10 +65,10 @@ test('live empty chat is ready/idempotent; positive final empty death permits ex
   assert.equal((await chats.list())[0]?.chat.id, first.chat.id);
   process.env.HERDR_WORKSPACE_ID = 'test-workspace';
   const second = await chats.execute(preview);
-  assert.equal(second.outcome, 'ready');
+  assert.equal(second.outcome, 'opened');
   assert.notEqual(second.chat.id, first.chat.id);
   assert.equal(app.chatStore.get(first.chat.id)?.phase, 'closed');
-  assert.equal(app.chatStore.get(first.chat.id)?.sessionId, 'session-1');
+  assert.equal(app.chatStore.get(first.chat.id)?.sessionId, first.chat.sessionId);
   assert.equal(app.chatStore.byWorktree(args.worktree)?.id, second.chat.id);
   assert.equal(count, 2);
   await assert.rejects(chats.execute(preview), /No occupied|changed/);

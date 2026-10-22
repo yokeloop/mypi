@@ -10,7 +10,7 @@ try {
   // Help must work without a configured home, initialized DB or any filesystem changes.
   const output = command.type === 'help' ? { usage } : await run(command,
     resolveStatePath(process.env, homedir()));
-  if (output !== null && typeof output === 'object' && 'status' in output && output.status === 'partial') {
+  if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
     process.stderr.write(JSON.stringify(output) + '\n');
     process.exitCode = 1;
   } else process.stdout.write(JSON.stringify(output) + '\n');

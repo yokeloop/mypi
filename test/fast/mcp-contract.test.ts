@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tools, toolCommand } from '../../src/mcp/tools.js';
+import { tools, toolCommand, readOnly } from '../../src/mcp/tools.js';
 import { success, failure } from '../../src/mcp/result.js';
 import { PartialError } from '../../src/shared/context.js';
 import { serialCalls } from '../../src/mcp/serial.js';
@@ -34,13 +34,15 @@ const examples: [string, Record<string, unknown>][] = [
   ['restore', { backupDirectory: '/tmp/snapshot' }],
   ['backup_publish', { dryRun: true, selectedPaths: ['chosen.md'] }],
   ['restore_published', { repository: '/tmp/clone', commit: 'a'.repeat(40) }],
+  ['work_chat_open_request', { identity: 'one/project', requestId: 2, chatId: 'chat-id',
+    association: { sourceClone: '/tmp/clone', worktree: '/tmp/task' }, nameLabel: 'Chat', model: { provider: 'provider', model: 'model/id' }, focus: false }],
   ['work_chat_open', { identity: 'one/project', requestId: 2, sourceClone: '/tmp/clone', worktree: '/tmp/task', model: { provider: 'provider', model: 'model/id' } }],
   ['work_chat_resume', { id: 'chat-id', model: { provider: 'provider', model: 'model/id' } }],
   ['work_chat_new_empty', { id: 'chat-id' }], ['work_chat_execute', { preview, focus: false }],
   ['work_chat_list', {}], ['work_chat_show', { id: 'chat-id' }],
 ];
-test('41 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 41);
+test('42 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
+  assert.equal(examples.length, 42);
   assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
   for (const [name, args] of examples) {
     assert.deepEqual(toolCommand(name, args), { name, ...args });
@@ -59,6 +61,9 @@ test('41 independent tool examples retain every field; strict schemas reject unk
     ['backup', { destination: 'relative' }],
     ['backup_publish', { selectedPaths: 'not an array' }], ['restore_published', { repository: 'relative', commit: 'a'.repeat(40) }],
     ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
+    ['work_chat_open_request', { identity: 'one/project', requestId: 2, model: { provider: 'fixture', model: 'exact', source: 'invocation' } }],
+    ['work_chat_open_request', { identity: 'one/project', requestId: 2, model: { model: 'exact' } }],
+    ['work_chat_open_request', { identity: 'one/project', requestId: 2, chatId: '' }],
     ['unknown', {}], ['__proto__', {}],
   ] as const) assert.throws(() => toolCommand(name, args));
 });
@@ -137,4 +142,56 @@ test('calls serialize async work; cancelled pending calls and calls after stop h
   assert.equal(events.at(-1), 'drained');
   await queue.stop();
   await assert.rejects(queue.run(new AbortController().signal, async () => { events.push('forbidden'); }), /cancelled/);
+});
+
+test('work-chat opening is an explicit mutation with CLI/MCP selection and setup parity; previews stay read-only', () => {
+  const translate = (args: string[]) => {
+    const parsed = parseCommand(['work-chat', ...args]);
+    assert.notEqual(parsed.type, 'help');
+    return appCommand(parsed as Exclude<typeof parsed, { type: 'help' }>);
+  };
+  const base = { identity: 'one/project', requestId: 2 };
+  assert.deepEqual(translate(['open-request', '--project', 'one/project', '--request-id', '2']),
+    toolCommand('work_chat_open_request', base));
+  assert.deepEqual(translate(['open-request', '--project', 'one/project', '--request-id', '2', '--chat-id', 'chosen',
+    '--source-clone', '/tmp/clone', '--worktree', '/tmp/task', '--name', 'Chat', '--model', 'provider/model/id', '--no-focus']),
+    toolCommand('work_chat_open_request', { ...base, chatId: 'chosen', association: { sourceClone: '/tmp/clone', worktree: '/tmp/task' },
+      nameLabel: 'Chat', model: { provider: 'provider', model: 'model/id' }, focus: false }));
+  for (const args of [['--source-clone', '/tmp/clone'], ['--worktree', '/tmp/task'], ['--request-id', '0']]) {
+    assert.throws(() => translate(['open-request', '--project', 'one/project', '--request-id', '2', ...args]));
+  }
+  assert.throws(() => toolCommand('work_chat_open_request', { ...base, association: { sourceClone: '/tmp/clone' } }));
+  assert.throws(() => translate(['adopt-model']), /removed.*native \/model.*same Pi session/);
+  assert.throws(() => translate(['sync-attempt', '--receipt', '{}']), /Unknown command/);
+  assert.throws(() => toolCommand('work_chat_sync_attempt', {}), /Unknown tool/);
+  for (const name of ['work_chat_open', 'work_chat_resume', 'work_chat_new_empty', 'work_chat_list', 'work_chat_show'] as const)
+    assert.equal(readOnly.has(name), true, name);
+  assert.equal(readOnly.has('work_chat_open_request'), false);
+  assert.equal(readOnly.has('work_chat_execute'), false);
+  const choice = { status: 'error', outcome: 'choice-needed', chats: [{ id: 'a' }, { id: 'b' }], reason: 'Select a chat' };
+  const result = success(choice);
+  assert.equal(result.isError, true);
+  assert.deepEqual(result.structuredContent, { status: 'error', data: choice });
+});
+
+test('CLI and MCP preview inputs require current revision and preserve optional origin without readiness', () => {
+  const current = { ...preview, action: 'resume', chatId: 'chat', priorAttempt: 'attempt', priorRevision: 'a'.repeat(64),
+    live: { pane: 'w1:p1', processId: 123, processStart: 'tick', processBootId: 'boot', herdrEndpoint: '/tmp/herdr.sock' }, persisted: false };
+  const parse = (value: unknown) => {
+    const command = parseCommand(['work-chat', 'execute', '--preview', JSON.stringify(value)]);
+    if (command.type === 'help') throw new Error('Unexpected help');
+    return appCommand(command);
+  };
+  for (const value of [current, { ...current, action: 'new-empty' }, { ...current, live: undefined }]) {
+    const jsonValue = JSON.parse(JSON.stringify(value));
+    assert.deepEqual(parse(jsonValue), toolCommand('work_chat_execute', { preview: jsonValue, focus: false }));
+  }
+  for (const value of [{ ...current, priorRevision: undefined }, { ...current, priorAttempt: undefined },
+    { ...current, readiness: 'ready' }, { ...current, live: { ...current.live, herdrEndpoint: 'https://foreign' } },
+    { ...current, live: { ...current.live, herdrEndpoint: '/tmp/herdr.sock?secret' } },
+    { ...current, live: { ...current.live, processBootId: '' } }, { ...current, live: { ...current.live, herdrEndpoint: '/tmp/a/../b' } }]) {
+    const jsonValue = JSON.parse(JSON.stringify(value));
+    assert.throws(() => parse(jsonValue));
+    assert.throws(() => toolCommand('work_chat_execute', { preview: jsonValue }));
+  }
 });

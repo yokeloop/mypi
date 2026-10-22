@@ -5,7 +5,7 @@ A project-centered memory and request system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB request cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 34 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, CLI and 42 stdio MCP tools over one API.
 The Pi package optionally autoloads the ordinary scoped CLI warmup into the system
 prompt; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
@@ -196,6 +196,17 @@ arbitrary symlinks are rejected. See [M1-CLI](docs/M1-CLI.md).
 
 This organization supports one Pi workspace for multiple projects; it does not yet
 implement a parallel task runner or protection against concurrent code edits.
+
+## Native work chats
+
+`mypi work-chat open-request --project org/project --request-id N` opens or focuses
+one associated Pi conversation. The MCP tool is `work_chat_open_request`; Pi exposes
+the same action as `/work-chat open-request`. First opening requires an explicitly
+supplied existing clone/task worktree; ambiguous histories require selection.
+Low-level `open`/`resume` remain read-only previews. Pi owns history, `/model` and
+same-session `/login`; opening never sends a prompt or promises provider readiness.
+This requires native Herdr start/session integration and a direct Pi executable.
+See [Work chats](docs/WORK-CHATS.md) for exact setup, limitations and schema-5 migration.
 
 ## Develop and verify
 

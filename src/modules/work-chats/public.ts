@@ -93,6 +93,8 @@ export function resolveModelSelection(input: {
   if (input.saved?.status === 'selected') {
     return { ...validateModelPair(input.saved.selection, 'saved session'), source: 'saved session' };
   }
+  // A valid native history without a saved model still belongs to Pi, not current defaults.
+  if (input.saved?.status === 'none') return { source: 'unselected' };
   const config = input.readDefaults();
   const org = input.identity.split('/')[0]!;
   const levels: [ModelSource, ModelPair | undefined][] = [

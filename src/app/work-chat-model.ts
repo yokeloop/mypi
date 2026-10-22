@@ -3,7 +3,7 @@ import { parseModelDefaults, resolveModelSelection } from '../modules/work-chats
 import type { ModelPair, ModelSelection, SavedModel } from '../modules/work-chats/public.js';
 import type { ProjectScope } from '../modules/projects/public.js';
 
-/** Registry checks use the existing projects public API; runtime validates target Pi model/auth separately. */
+/** Registry checks use the existing projects public API; runtime validates launch preferences, never provider authorization. */
 export function selectWorkChatModel(input: {
   identity: string;
   userHome: string;

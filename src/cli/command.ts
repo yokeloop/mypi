@@ -12,6 +12,7 @@ export type Command =
   | { type: 'update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string };
 
 export const usage = `mypi db init
+mypi work-chat open-request --project org/project --request-id N [--chat-id ID] [--source-clone /absolute/clone --worktree /absolute/task] [--name label] [--model provider/model-id | --provider provider-id --model model-id] [--no-focus]
 mypi work-chat open --project org/project --request-id N --source-clone /absolute/clone --worktree /absolute/task-worktree [--name label] [--model provider/model-id | --provider provider-id --model model-id]
 mypi work-chat resume <chat-id> [--model provider/model-id | --provider provider-id --model model-id]
 mypi work-chat new-empty <chat-id> [--name label] [--model provider/model-id | --provider provider-id --model model-id]
@@ -36,18 +37,24 @@ mypi restore <backup-directory> | restore --repository <absolute-local-clone> --
 Task and journal saves are local SQLite operations, not Git commits or remote backups.
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
-Work-chat open/resume/new-empty only preview. Execute the returned exact JSON separately; no prompt/task is sent.
-Models: home/pi/work-chats.json: default, organizations, projects (complete provider/model pairs).
-No configured model for a new chat opens an unpinned tab; first verified local selection becomes its target.
-An exact configured model becomes ready automatically after /login; for another model use /model
-or explicitly confirm /work-chat adopt-model in the same tab.
-Precedence: invocation > project > organization > default; resume: invocation > saved native > config.
-Set MYPI_WORK_CHAT_PI to absolute target Pi executable, PI_CODING_AGENT_DIR to its configured resources,
-and XDG_STATE_HOME to the target state directory. Requires persistent Herdr (HERDR_ENV/HERDR_WORKSPACE_ID),
-existing registered source clone/task worktree, Node 24, installed mypi package and native history.
-Live resume returns its existing pane; a different model must be chosen there or after closing it.
-Missing persisted history cannot be resumed; only proven closed empty chats allow explicit new-empty.
-No credential isolation, automatic worktree creation, provider request, prompt, daemon or retry is provided.
+Work-chat open-request opens/focuses now; multiple saved chats require --chat-id.
+With no association, supply an existing registered clone/task worktree. Nothing is created implicitly.
+Low-level open/resume/new-empty and list/show are read-only. Execute exact preview JSON separately.
+Opened/existing means verified native identity, not provider/auth readiness; partial is non-success.
+Models: home/pi/work-chats.json: default, organizations, projects (complete launch preferences).
+New-chat precedence: invocation > project > organization > default > native Pi choice.
+Resume uses native saved choice unless explicitly overridden; current config never overrides history.
+Use native /model and /login in that same Pi. adopt-model was removed; no mypi adoption is needed.
+Set MYPI_WORK_CHAT_PI to the direct absolute Linux Pi executable (not a shell wrapper),
+PI_CODING_AGENT_DIR to configured resources and XDG_STATE_HOME to target state.
+Requires persistent Herdr (HERDR_ENV/HERDR_WORKSPACE_ID/HERDR_SOCKET_PATH), installed stock Herdr
+Pi session integration (optional MYPI_WORK_CHAT_HERDR_EXTENSION), Node 24 and installed mypi package.
+The owned shell must resolve pi to that same executable; shell aliases/functions are refused.
+Missing saved history cannot be resumed or silently replaced. Stock native empty-closure proof
+is unavailable, so low-level new-empty conservatively refuses rather than inventing history.
+Historical SQL ready/auth-pending is not current liveness; list/show never reconcile it.
+No credential isolation, global history lock, automatic setup, prompt, daemon or retry is provided.
+See docs/WORK-CHATS.md for setup, partial-result recovery limits and schema migration.
 All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
 `;
 

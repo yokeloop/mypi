@@ -13,8 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
 export function readonlyWorkChatCommand(name: AppCommand['name']): boolean {
-  // Sync can promote/demote readiness or adopt the first authorized target.
-  return !['work_chat_execute', 'work_chat_list', 'work_chat_show', 'work_chat_resume', 'work_chat_sync_attempt'].includes(name);
+  // Observations and low-level previews never reconcile persisted launch facts.
+  return !['work_chat_execute', 'work_chat_open_request'].includes(name);
 }
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
@@ -36,6 +36,16 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       const chats = createNativeWorkChats(workspace, { pi, nodePath: process.execPath,
         statePath, installation, agentDir });
       switch (c.name) {
+        case 'work_chat_open_request': {
+          const result = await chats.openForRequest({ identity: c.identity, requestId: c.requestId,
+            ...(c.chatId === undefined ? {} : { chatId: c.chatId }),
+            ...(c.association === undefined ? {} : { association: { ...c.association, installation, statePath } }),
+            ...(c.nameLabel === undefined ? {} : { name: c.nameLabel }),
+            ...(c.model === undefined ? {} : { model: c.model }), ...(c.focus === undefined ? {} : { focus: c.focus }) });
+          if (result.outcome === 'choice-needed') return { status: 'error', ...result, reason: 'Select a chat with --chat-id (MCP chatId); no chat was opened' };
+          if (result.outcome === 'setup-needed') return { status: 'error', ...result };
+          return result.outcome === 'partial' ? { status: 'partial', ...result } : result;
+        }
         case 'work_chat_open': return await chats.previewOpen({ identity: c.identity, requestId: c.requestId,
           sourceClone: c.sourceClone, worktree: c.worktree, installation, statePath,
           ...(c.nameLabel === undefined ? {} : { name: c.nameLabel }), ...(c.model ? { model: c.model } : {}) });
@@ -44,11 +54,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
           ...(c.nameLabel === undefined ? {} : { name: c.nameLabel }), ...(c.model ? { model: c.model } : {}) });
         case 'work_chat_execute': {
           const result = await chats.execute(c.preview, c.focus);
-          return result.outcome === 'partial' || result.outcome === 'blocked' ? { status: 'partial', ...result } : result;
+          return result.outcome === 'partial' ? { status: 'partial', ...result } : result;
         }
         case 'work_chat_list': return { chats: await chats.list() };
         case 'work_chat_show': return await chats.show(c.id);
-        case 'work_chat_sync_attempt': return await chats.syncAttempt({ ...c.receipt, adopt: c.adopt });
       }
     } finally { workspace.close(); }
   }

@@ -2,6 +2,10 @@ import { z } from 'zod';
 import { chatPreview, externalPath, modelPair, text } from '../schemas.js';
 
 export const workChats = {
+  work_chat_open_request: { schema: z.strictObject({ identity: text, requestId: z.number().int().positive(),
+    chatId: text.min(1).optional(), association: z.strictObject({ sourceClone: externalPath, worktree: externalPath }).optional(),
+    nameLabel: text.optional(), model: modelPair.optional(), focus: z.boolean().optional() }),
+  description: 'Open/focus a request chat now (mutation). Exactly resume saved history; select chatId when ambiguous. First opening needs an existing sourceClone/worktree association. No automatic setup or prompt. Defaults to focus.' },
   work_chat_open: { schema: z.strictObject({ identity: text, requestId: z.number().int().positive(),
     sourceClone: externalPath, worktree: externalPath, nameLabel: text.optional(), model: modelPair.optional() }),
   description: 'Preview a chat in an existing registered project task worktree; does not start Pi or send a prompt.' },

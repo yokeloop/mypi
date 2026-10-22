@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import install from '../../src/app/startup-extension.js';
+import registerStartupExtension, { type ExtensionAPI } from '../../src/app/startup-registration.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { appCommand } from '../../src/cli/app-command.js';
+
+function install(api: ExtensionAPI): void {
+  registerStartupExtension(api, (cli, args, options) => api.exec('node', [cli, ...args], options));
+}
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
 test('native slash execute forwards exact saved-session preview JSON and focus to shared CLI parsing', async () => {
@@ -23,7 +27,7 @@ test('native slash execute forwards exact saved-session preview JSON and focus t
   } as never);
   assert(handler, 'registered native command must be exercised');
   const ctx = { signal: new AbortController().signal, ui: { notify(message: string) { notices.push(message); } } };
-  const preview = { action: 'resume', chatId: 'chat-1',
+  const preview = { action: 'resume', chatId: 'chat-1', priorAttempt: 'attempt-1', priorRevision: 'a'.repeat(64),
     binding: { projectId: 1, requestId: 2, sourceClone: '/source', worktree: '/worktree',
       gitCommonDir: '/source/.git', branch: 'task/a', installation: '/engine', statePath: '/state' },
     model: { provider: 'fixture', model: 'model/id', source: 'saved session' },
@@ -56,142 +60,6 @@ test('native slash execute forwards exact saved-session preview JSON and focus t
   }
   assert.deepEqual(await cli('list'), ['work-chat', 'list']);
   assert.equal(notices.length, calls.length);
-});
-test('managed flags applied after extension loading produce native lifecycle acknowledgements without replaying model choice', async () => {
-  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
-  const flags = new Map<string, unknown>();
-  const reports: Array<{ lifecycle: string; attempt: string; model: { provider: string; model: string }; sessionId: string; finalEmpty: boolean; error?: string }> = [];
-  const branch: any[] = [];
-  const attempt = '11111111-2222-4333-8444-555555555555';
-  const root = process.cwd();
-  let sessionId = 'first-session';
-  let selected = { provider: 'fixture', id: 'initial' };
-  let selections = 0;
-  const api = {
-    registerMcpServer() {}, registerCommand() {}, registerFlag() {},
-    getFlag(name: string) { return flags.get(name); },
-    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) {
-      handlers.set(name, [...(handlers.get(name) ?? []), handler]);
-    },
-    appendEntry(_name: string, value: unknown) { branch.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
-    async setModel(model: { provider: string; id: string }) {
-      selections++;
-      branch.push({ type: 'model_change', provider: model.provider, modelId: model.id });
-      return true;
-    },
-    async exec(_command: string, args: string[]) {
-      if (args[0]?.endsWith('/work-chat-ack.js')) {
-        reports.push(JSON.parse(args[3]!) as (typeof reports)[number]);
-        return { code: 0, killed: false, stdout: '', stderr: '' };
-      }
-      return { code: 0, killed: false, stdout: JSON.stringify({ memory: [], work: { tasks: [] } }), stderr: '' };
-    },
-  };
-  install(api as never); // Pi loads extensions before it applies CLI flag values.
-  const ctx = { cwd: root, signal: new AbortController().signal, hasUI: false,
-    get model() { return selected; },
-    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return true; } },
-    sessionManager: { getSessionId: () => sessionId, getSessionFile: () => undefined,
-      getHeader: () => ({ id: sessionId, cwd: root }), getEntries: () => [], getBranch: () => branch },
-  };
-  const emit = async (name: string, event: any = {}) => {
-    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
-  };
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.length, 0, 'unmanaged sessions must not emit native acknowledgements');
-  flags.set('mypi-chat-attempt', attempt);
-  flags.set('mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'initial' }));
-  flags.set('mypi-chat-override', true);
-  flags.set('mypi-scope', 'fixture/tool');
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
-  assert.equal(reports.at(-1)?.attempt, attempt);
-  assert.equal(reports.at(-1)?.error, undefined);
-  assert.equal(selections, 1, 'explicit resume override persists exactly once at startup');
-  selected = { provider: 'fixture', id: 'manual' };
-  branch.push({ type: 'model_change', provider: 'fixture', modelId: 'manual' });
-  await emit('model_select');
-  assert.deepEqual(reports.at(-1)?.model, { provider: 'fixture', model: 'manual' });
-  await emit('session_start', { reason: 'reload' });
-  assert.equal(reports.at(-1)?.lifecycle, 'start:reload');
-  assert.equal(selections, 1, 'reload must preserve the manual choice');
-  sessionId = 'changed-session';
-  await emit('session_tree');
-  assert.equal(reports.at(-1)?.sessionId, 'changed-session', 'native identity changes must remain observable');
-  await emit('session_shutdown', { reason: 'quit' });
-  assert.equal(reports.at(-1)?.finalEmpty, true, 'shutdown reports the real final empty snapshot');
-  flags.set('mypi-chat-model', '{invalid');
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.at(-1)?.lifecycle, 'start:startup');
-  assert.match(reports.at(-1)?.error ?? '', /model/i, 'malformed late target cannot be acknowledged as ready');
-  assert.equal(selections, 1);
-});
-test('model-less native startup is an auth-pending receipt; login model_select reports local readiness in same session', async () => {
-  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
-  const flags = new Map<string, unknown>([
-    ['mypi-chat-attempt', '11111111-2222-4333-8444-555555555555'],
-    ['mypi-chat-model', JSON.stringify({ provider: 'fixture', model: 'chosen' })],
-    ['mypi-chat-unpinned', true],
-    ['mypi-scope', 'fixture/tool'],
-  ]);
-  const reports: any[] = [];
-  let model: { provider: string; id: string } | undefined = { provider: 'unknown', id: 'unknown' };
-  let auth = false;
-  const api = { registerMcpServer() {}, registerCommand() {}, registerFlag() {},
-    getFlag(name: string) { return flags.get(name); },
-    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) {
-      handlers.set(name, [...(handlers.get(name) ?? []), handler]);
-    },
-    async exec(_command: string, args: string[]) {
-      if (args[0]?.endsWith('/work-chat-ack.js')) reports.push(JSON.parse(args[3]!));
-      return { code: 0, killed: false, stderr: '', stdout: '' };
-    },
-  };
-  install(api as never);
-  const ctx = { cwd: process.cwd(), signal: new AbortController().signal, hasUI: false, get model() { return model; },
-    modelRegistry: { find(provider: string, id: string) { return provider === 'unknown' ? undefined : { provider, id }; }, hasConfiguredAuth() { return auth; } },
-    sessionManager: { getSessionId: () => 'same-session', getSessionFile: () => undefined,
-      getHeader: () => ({ id: 'same-session', cwd: process.cwd() }), getEntries: () => [], getBranch: () => [] },
-  };
-  const emit = async (name: string, event: any = {}) => {
-    for (const handler of handlers.get(name) ?? []) await handler(event, ctx);
-  };
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.at(-1).lifecycle, 'start:startup');
-  assert.equal(reports.at(-1).model, undefined);
-  assert.equal(reports.at(-1).authReady, false);
-  assert.equal(reports.at(-1).error, undefined);
-  flags.delete('mypi-chat-unpinned');
-  await emit('session_start', { reason: 'startup' });
-  assert.match(reports.at(-1).error, /absent from registry/, 'unregistered model is not accepted in a pinned launch');
-  flags.set('mypi-chat-unpinned', true);
-  model = { provider: 'fixture', id: 'automatic' }; auth = true;
-  await emit('model_select');
-  assert.equal(reports.at(-1).sessionId, 'same-session');
-  assert.equal(reports.at(-1).model.model, 'automatic');
-  model = { provider: 'fixture', id: 'chosen' };
-  await emit('model_select');
-  assert.equal(reports.at(-1).model.model, 'chosen');
-  assert.equal(reports.at(-1).authReady, true);
-  model = { provider: 'fixture', id: 'automatic' };
-  flags.set('mypi-chat-unpinned', true);
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.at(-1).model.model, 'automatic');
-  assert.equal(reports.at(-1).authReady, true);
-  assert.equal(reports.at(-1).error, undefined, 'unrelated authenticated default may start an unpinned pending tab');
-  flags.delete('mypi-chat-unpinned');
-  await emit('session_start', { reason: 'startup' });
-  assert.match(reports.at(-1).error, /another model/, 'pinned launches still enforce the exact target');
-  flags.set('mypi-chat-unpinned', true);
-  flags.set('mypi-chat-override', true);
-  await emit('session_start', { reason: 'startup' });
-  assert.equal(reports.at(-1).error, undefined, 'pending resume must not persist or reject another authenticated model');
-  assert.equal(reports.at(-1).model.model, 'automatic');
-  model = { provider: 'fixture', id: 'chosen' };
-  await emit('model_select');
-  assert.equal(reports.at(-1).sessionId, 'same-session');
-  assert.equal(reports.at(-1).model.model, 'chosen');
-  assert.equal(reports.at(-1).error, undefined);
 });
 test('session snapshot survives ordinary turns/compaction, refreshes on memory tools and lifecycle, rejects late reads', async t => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
@@ -267,87 +135,100 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   await turn(); assert.equal(calls.length, 13);
 });
 
-test('native model_select gives non-blocking mismatch notice; adopt confirms in tab and refuses cancellation/model race', async () => {
-  const handlers = new Map<string, Array<(event: any, ctx: any) => Promise<void> | void>>();
-  let command: ((args: string, ctx: any) => Promise<void>) | undefined;
-  const notices: string[] = [], calls: string[][] = [], statuses: string[] = [];
-  let confirmation = false, race = false, authorized = true, failSync = false, delayAck = false, delayAdopt = false;
-  let syncStatus: 'mismatch' | 'ready' = 'mismatch';
-  let releaseAck: (() => void) | undefined, releaseAdopt: (() => void) | undefined;
-  let model = { provider: 'fixture', id: 'other' };
-  const expected = { provider: 'fixture', model: 'expected' };
-  const selected = { provider: 'fixture', model: 'other' };
-  const flags = new Map<string, unknown>([
-    ['mypi-chat-attempt', '11111111-2222-4333-8444-555555555555'],
-    ['mypi-chat-model', JSON.stringify(expected)], ['mypi-chat-unpinned', true], ['mypi-scope', 'fixture/tool'],
-  ]);
-  install({ registerMcpServer() {}, registerFlag() {}, getFlag(name: string) { return flags.get(name); },
-    registerCommand(name: string, value: { handler: (args: string, ctx: any) => Promise<void> }) { if (name === 'work-chat') command = value.handler; },
-    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, [...handlers.get(name) ?? [], handler]); },
+
+test('slash open-request forwards one shared command and displays opening, selection and error without retry', async () => {
+  let command!: (args: string, ctx: any) => Promise<void>;
+  const calls: string[][] = [], notices: string[] = [];
+  let response = { code: 0, stdout: JSON.stringify({ outcome: 'opened', chat: { id: 'chat' } }), stderr: '' };
+  install({ registerMcpServer() {}, registerFlag() {}, on() {},
+    registerCommand(_name: string, value: { handler: typeof command }) { command = value.handler; },
     async exec(_binary: string, args: string[]) {
       calls.push(args);
-      if (args[0]?.endsWith('/work-chat-ack.js') && delayAck) return new Promise(resolve => {
-        releaseAck = () => resolve({ code: 0, killed: false, stderr: '', stdout: '' });
-      });
-      if (args.includes('sync-attempt') && args.includes('--adopt') && delayAdopt) return new Promise(resolve => {
-        releaseAdopt = () => resolve({ code: 0, killed: false, stderr: '', stdout: JSON.stringify({ status: 'ready', expected, selected }) });
-      });
-      if (args.includes('sync-attempt')) return failSync ? { code: 1, killed: false, stderr: '', stdout: '' }
-        : { code: 0, killed: false, stderr: '', stdout: JSON.stringify({ status: args.includes('--adopt') ? 'ready' : syncStatus, expected, selected }) };
-      return { code: 0, killed: false, stderr: '', stdout: '' };
+      try {
+        const parsed = parseCommand(args.slice(1));
+        assert.notEqual(parsed.type, 'help'); appCommand(parsed as Exclude<typeof parsed, { type: 'help' }>);
+      }
+      catch (error) { return { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', message: (error as Error).message }) }; }
+      return response;
     },
   } as never);
-  const ctx = { cwd: process.cwd(), hasUI: true, signal: new AbortController().signal,
-    get model() { return model; },
-    ui: { notify(text: string) { notices.push(text); }, setStatus(_key: string, value: string) { statuses.push(value); },
-      async confirm() { if (race) model = { provider: 'fixture', id: 'changed' }; return confirmation; } },
-    modelRegistry: { find(provider: string, id: string) { return { provider, id }; }, hasConfiguredAuth() { return authorized; } },
-    sessionManager: { getSessionId: () => 'session', getSessionFile: () => undefined, getHeader: () => ({ id: 'session', cwd: process.cwd() }), getEntries: () => [], getBranch: () => [] },
+  const ctx = { signal: new AbortController().signal, ui: { notify(text: string) { notices.push(text); } } };
+  await command('open-request --project one/project --request-id 2', ctx);
+  assert.deepEqual(calls[0]!.slice(1), ['work-chat', 'open-request', '--project', 'one/project', '--request-id', '2']);
+  assert.equal(JSON.parse(notices.at(-1)!).outcome, 'opened');
+  response = { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', outcome: 'choice-needed', chats: [{ id: 'a' }, { id: 'b' }], reason: 'Select chatId' }) };
+  await command('open-request --project one/project --request-id 2', ctx);
+  assert.deepEqual(JSON.parse(notices.at(-1)!).chats, [{ id: 'a' }, { id: 'b' }]);
+  response = { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', message: 'Exact native history unavailable' }) };
+  await command('open-request --project one/project --request-id 2 --chat-id a', ctx);
+  assert.match(notices.at(-1)!, /Exact native history unavailable/);
+  await command('adopt-model', ctx);
+  assert.match(notices.at(-1)!, /removed.*native \/model.*same Pi session/);
+  assert.equal(calls.length, 4, 'no hidden launch, sync, adoption or retry');
+  await command('help', ctx);
+  assert.equal(calls.length, 4);
+  assert.match(notices.at(-1)!, /open-request.*open\/focus now.*only preview.*read-only/);
+});
+
+test('native lifecycle no longer mirrors auth/model; independent MCP, scope and warmup guards remain', async () => {
+  const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
+  const flags: string[] = [], calls: string[][] = [], servers: any[] = [], entries: any[] = [];
+  let disabled = false;
+  install({
+    registerMcpServer(name: string, server: unknown) { servers.push({ name, server }); },
+    registerCommand() {}, registerFlag(name: string) { flags.push(name); },
+    getFlag(name: string) { return name === 'mypi-scope' ? 'one/project' : disabled; },
+    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
+    appendEntry(name: string, data: unknown) { entries.push({ type: 'custom', customType: name, data }); },
+    async exec(_binary: string, args: string[]) { calls.push(args); return { code: 0, stdout: '{"memory":[],"work":{"tasks":[]}}', stderr: '' }; },
+  } as never);
+  assert.deepEqual(flags.sort(), ['mypi-no-autoload', 'mypi-scope']);
+  assert.equal(servers[0].name, 'mypi');
+  assert.deepEqual(servers[0].server.toolExposure, { project_resolve: 'direct', warmup: 'direct' });
+  assert.equal(handlers.has('model_select'), false, 'Pi model/login changes need no synchronization');
+  const ctx = { cwd: process.cwd(), signal: new AbortController().signal, hasUI: false,
+    get model() { throw new Error('Native model must not be read by mypi'); },
+    get modelRegistry() { throw new Error('Auth must not be read by mypi'); },
+    sessionManager: { getSessionId: () => 'native', getBranch: () => entries } };
+  const emit = async (name: string, event: any = {}) => { await handlers.get(name)?.(event, ctx); };
+  for (const name of ['session_start', 'session_tree', 'session_shutdown']) await emit(name);
+  assert.equal(calls.length, 0, 'lifecycle invalidates only: no ack, warmup-at-start, watcher or model action');
+  await emit('session_start');
+  const turn = async () => {
+    const event = { systemPromptOptions: { sections: {} as Record<string, string> } };
+    await emit('before_agent_start', event);
+    return event.systemPromptOptions.sections;
   };
-  for (const handler of handlers.get('session_start') ?? []) await handler({ reason: 'startup' }, ctx);
-  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
-  for (let i = 0; i < 12; i++) await Promise.resolve();
-  assert(notices.some(text => text.includes('expected fixture/expected; selected fixture/other')));
-  assert(calls.some(args => args.includes('sync-attempt')));
-  assert(command);
-  await command('adopt-model', ctx);
-  assert(notices.some(text => text.includes('cancelled')));
-  assert.equal(calls.filter(args => args.includes('--adopt')).length, 0);
-  confirmation = true; race = true;
-  await command('adopt-model', ctx);
-  assert.equal(calls.filter(args => args.includes('--adopt')).length, 0, 'changed model is never adopted');
-  model = { provider: 'fixture', id: 'other' }; race = false;
-  await command('adopt-model', ctx);
-  assert.equal(calls.filter(args => args.includes('--adopt')).length, 1);
-  assert(notices.some(text => text.includes('Work chat ready: adopted')));
-  assert.equal(statuses.at(-1), 'work chat ready', 'successful explicit adoption updates the persistent tab badge');
-  const adoptionCall = calls.find(args => args.includes('--adopt'))!;
-  assert.deepEqual(JSON.parse(adoptionCall[adoptionCall.indexOf('--receipt') + 1]!).expectedTarget, expected);
-  delayAdopt = true;
-  const staleAdoption = command('adopt-model', ctx);
-  for (let i = 0; i < 12; i++) await Promise.resolve();
-  assert(releaseAdopt, 'adoption response must be held while selection changes');
-  model = { provider: 'fixture', id: 'changed' };
-  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
-  for (let i = 0; i < 12; i++) await Promise.resolve();
-  assert.equal(statuses.at(-1), 'work chat pending');
-  releaseAdopt(); await staleAdoption;
-  assert.equal(statuses.at(-1), 'work chat pending', 'late adopt success cannot repaint newer model selection as ready');
-  model = { provider: 'fixture', id: 'other' }; delayAdopt = false;
-  failSync = true;
-  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
-  for (let i = 0; i < 12; i++) await Promise.resolve();
-  assert.equal(statuses.at(-1), 'work chat unknown', 'a failed sync cannot leave a stale ready status');
-  authorized = false;
-  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
-  assert.equal(statuses.at(-1), 'work chat pending/unknown', 'auth loss clears ready status without a provider call');
-  failSync = false; delayAck = true; syncStatus = 'ready';
-  const oldEvent = Promise.all((handlers.get('model_select') ?? []).map(handler => handler({}, ctx)));
-  assert(releaseAck, 'old unauthorized acknowledgement must be held');
-  authorized = true; delayAck = false;
-  for (const handler of handlers.get('model_select') ?? []) await handler({}, ctx);
-  for (let i = 0; i < 12; i++) await Promise.resolve();
-  assert.equal(statuses.at(-1), 'work chat ready');
-  releaseAck(); await oldEvent;
-  assert.equal(statuses.at(-1), 'work chat ready', 'older no-receipt event cannot repaint newer readiness');
+  assert.match((await turn()).mypi_memory!, /scope: one\/project/);
+  assert.deepEqual(calls[0]!.slice(1), ['warmup', '-s', 'one/project']);
+  const saved = { ...entries[0].data };
+  for (const change of [{ installation: '/foreign' }, { state: '/foreign' }, { scope: 'other/project' }]) {
+    entries[0].data = { ...saved, ...change }; await emit('session_start');
+    assert.match((await turn()).mypi_memory!, /context unavailable/);
+  }
+  assert.equal(calls.length, 1, 'conflicting saved binding never reads another scope');
+  entries[0].data = saved;
+  disabled = true; await emit('session_start'); assert.deepEqual(await turn(), {});
+  assert.equal(calls.length, 1, 'autoload opt-out remains independent of MCP registration');
+});
+
+test('slash keeps the finite CLI boundary and reports interruption or spawn failure without retry', async () => {
+  let handler!: (args: string, ctx: any) => Promise<void>;
+  const notices: string[] = [];
+  let calls = 0;
+  registerStartupExtension({ registerMcpServer() {}, registerFlag() {}, on() {},
+    registerCommand(_name: string, command: { handler: typeof handler }) { handler = command.handler; },
+  } as never, async (cli, args, options) => {
+    calls++;
+    assert.equal(cli, join(process.cwd(), 'dist/src/cli/main.js'));
+    assert.deepEqual(args, ['work-chat', 'list']);
+    assert.equal(options.cwd, process.cwd()); assert.equal(options.timeout, 30000);
+    assert.equal(options.signal, undefined, 'idle Pi commands may have no operation signal');
+    if (calls === 2) throw new Error('spawn unavailable');
+    return { code: 0, killed: true, stdout: 'not success', stderr: 'cancelled' };
+  });
+  const ctx = { ui: { notify(text: string) { notices.push(text); } } };
+  await handler('list', ctx); await handler('list', ctx);
+  assert.deepEqual(notices, ['cancelled', 'work-chat command failed: spawn unavailable']);
+  assert.equal(calls, 2);
 });
