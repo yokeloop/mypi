@@ -1,7 +1,8 @@
 # MP30: Claude Code support alongside Pi
 
 Status: plan with phase 0 results. Implementation starts after operator approval
-of the revised design below.
+of the revised design below. Proposed: no root `CLAUDE.md`; the personal layer
+reaches Claude through a `SessionStart` hook.
 
 ## Goal and boundaries
 
@@ -63,6 +64,43 @@ fixture with disposable state) and by reading Pi 1.0.4 package-manager source.
    project `.claude/settings.json` (hooks) and `.mcp.json` were not loaded, and a
    nested project's `CLAUDE.md` suppressed the root `AGENTS.md`. This matches the
    existing rule that the agent starts from this checkout.
+8. **A root `CLAUDE.md` also breaks sessions started inside a nested checkout.**
+   Started in `projects/acme/app` (which has only `AGENTS.md`) with a root
+   `CLAUDE.md`, Claude loaded neither that directory's `AGENTS.md` nor the
+   `@AGENTS.md` import of the ancestor `CLAUDE.md`. Without a root `CLAUDE.md`,
+   both the ancestor and the cwd `AGENTS.md` loaded — the same set Pi loads from
+   its cwd ancestry (`core/resource-loader.js`: first of `AGENTS.override.md`,
+   `AGENTS.md`, `CLAUDE.md` per ancestor directory, no lazy nested loading).
+
+## Alignment with the planned session model
+
+The planned v2 session model (scoped sessions global -> project -> task opened by
+`/open` in Herdr tabs, task sessions in their worktree, warmup with role and a
+"how to work in mypi" instruction, a queue fed by turn-end events, request renamed
+to task) is not implemented here. This task must not block it:
+
+- **No root `CLAUDE.md`** (results 1 and 8): task sessions start inside worktrees
+  under `projects/`, where Claude then loads the engine and project `AGENTS.md`
+  exactly like Pi.
+- **Agent-neutral context.** `mypi agent-context` is the single source for startup
+  context so the later role prompt and "how to work in mypi" text are added once
+  for both agents. Its scope argument reuses the existing resolver and stays a
+  plain string, so a later task scope does not change the adapters.
+- **Scope by environment.** Both adapters accept `MYPI_SCOPE` (Pi keeps its flag),
+  so a future launcher passes scope the same way to either agent.
+- **Hooks as the Claude adapter surface.** `SessionStart` (startup/resume/compact)
+  matches "warmup on every start and resume"; a later turn-end event maps to Claude
+  `Stop` and Pi's turn event without new adapter mechanisms.
+- **Explicit resources for non-root sessions.** A Claude session started in a
+  worktree does not load the engine `.claude/settings.json` or `.mcp.json`
+  (result 7); the future launcher must pass them (`--settings`, `--mcp-config`)
+  as Pi's launcher passes `-e`. Keep these files free of cwd assumptions where
+  possible; do not build the launcher now.
+- **Session identity.** Claude `--session-id` takes a UUID and `--name` sets a
+  display name; a readable session key therefore lives in mypi, mapped to the
+  agent's native ID.
+- **No new request-named surface** and no Claude port of `/work-chat`, which the
+  v2 `/open` replaces. Work chats stay Pi-only and untouched.
 
 ## Revised target layout
 
@@ -98,7 +136,8 @@ file, two loaders; no new symlink in `home/`.
 ### Phase 2. Claude adapter files
 
 - `.mcp.json`, `.claude/settings.json`, skill symlinks, `.gitignore` entries.
-- Scope for Claude: `MYPI_SCOPE` environment variable, otherwise cwd resolution.
+- Scope: `MYPI_SCOPE` environment variable for both adapters, otherwise cwd
+  resolution; Pi's `--mypi-scope` flag remains and wins when both are set.
 - Documented limits: context is loaded at session start (and on compact if phase 5
   confirms it), not refreshed after each memory write; Claude exposes MCP tools
   directly (deferred loading) instead of Pi codemode.
