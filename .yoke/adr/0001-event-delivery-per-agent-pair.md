@@ -30,14 +30,16 @@ Agent pair:
 
 | Child → Parent | Transport |
 |---|---|
-| any → Pi | `mypi event emit` writes the Event, looks the parent up in the session registry and sends a wake signal to the parent's socket; the parent's extension reads the Queue and injects it with `sendUserMessage(followUp)` |
+| any → Pi | `mypi event emit` writes the Event, looks the parent up in the session registry and pushes the Event itself to the parent's socket; the parent's extension injects it with `sendUserMessage(followUp)` and acknowledges, which marks the Event delivered; no socket or no ack leaves it in the Queue for warmup |
 | any → Claude that is acting | Event waits; at the end of the parent's current turn its `Stop` hook reads the Queue and continues the turn with `decision: block` |
 | Claude → idle Claude | parent subscribed with `SendMessage(notify_when_idle)` when opening the child; Claude Code delivers the idle notification itself, which starts a parent turn; the Event text comes from the Queue (tool or `Stop` hook) |
 | Pi → idle Claude | `mypi event emit` types the marker line `mypi inbox` into the parent's Herdr tab; the parent's `UserPromptSubmit` hook replaces the marker with the Queue contents |
 
 Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → idle Claude.
-No Agent polls: every delivery starts from an explicit trigger (socket signal,
-subscription notification, terminal line, turn end, session start).
+No Agent polls: every delivery starts from an explicit trigger (Event pushed to
+the socket, subscription notification, terminal line, turn end, session start).
+`sendUserMessage` is an in-process extension API, so the socket is the only way
+a foreign process reaches a Pi parent; the Queue is the fallback, not the path.
 
 Liveness and busy state come from one mypi session registry
 (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, same shape for both Agents): the
@@ -59,6 +61,8 @@ idle on `agent_settled`, removed on `session_shutdown`). Herdr is not consulted.
   grill removed and fails for mixed pairs.
 - Polling the Queue from the Pi extension (turn boundary plus an idle timer):
   simplest code, but a timer where an explicit trigger exists; rejected in review.
+- A wake signal ("check the Queue") over the socket instead of the Event itself:
+  one extra round trip through the database for nothing; rejected in review.
 - Asking Herdr (`herdr agent get`) for Pi busy state: ties liveness to Herdr,
   which is required only for `/open`.
 
