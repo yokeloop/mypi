@@ -15,12 +15,14 @@ interactive session" API usable from a foreign process:
   keeps no registry of live sessions, but the extension observes `agent_start`,
   `agent_settled` and `session_shutdown`. The mypi extension is present in every
   Pi session started from the engine root.
-- Claude Code: live sessions register in `~/.claude/sessions/<pid>.json` and listen
-  on a keyed local socket (`cc-socks`) used by the in-session `SendMessage` tool
-  (with `notify_when_idle`). The protocol is undocumented; only another Claude
-  session can use it. Hooks (`Stop` with `decision: block`, `UserPromptSubmit`,
-  `SessionStart`) can inject text, but only when the session is already acting.
-  Herdr can type a line into any tab (`herdr agent prompt`).
+- Claude Code (checked against the current hooks and CLI reference, 2026-10-26):
+  `claude agents --json` lists live sessions (interactive and background) with
+  pid, sessionId, name and busy/idle status. The in-session `SendMessage` tool
+  delivers text to another named session; it is a model tool, and no hook output
+  field or CLI command can send into another session. Hooks (`Stop` with
+  `decision: block`, `UserPromptSubmit`, `SessionStart`) inject text only into
+  their own session and only when it is already acting; `PostToolUse` can match
+  `SendMessage` by name. Herdr can type a line into any tab (`herdr agent prompt`).
 
 ## Decision
 
@@ -31,20 +33,21 @@ Agent pair:
 | Child → Parent | Transport |
 |---|---|
 | any → Pi | `mypi event emit` writes the Event, looks the parent up in the session registry and pushes the Event itself to the parent's socket; the parent's extension injects it with `sendUserMessage(followUp)` and acknowledges, which marks the Event delivered; no socket or no ack leaves it in the Queue for warmup |
-| any → Claude that is acting | Event waits; at the end of the parent's current turn its `Stop` hook reads the Queue and continues the turn with `decision: block` |
-| Claude → idle Claude | parent subscribed with `SendMessage(notify_when_idle)` when opening the child; Claude Code delivers the idle notification itself, which starts a parent turn; the Event text comes from the Queue (tool or `Stop` hook). The subscription is one-shot and carries no text, so the delivered Event text ends with a reminder to re-subscribe while the child lives; an expired subscription leaves the Event in the Queue for the next `Stop` hook or warmup |
+| Claude → Claude | the child's `Stop` hook writes the Event (pending), finds a live named Claude parent via `claude agents --json`, and blocks once with "send this Event to parent <name> via SendMessage: <text>"; the child makes one `SendMessage` call; the child's `PostToolUse` hook on `SendMessage` marks the Event delivered; the next `Stop` carries `stop_hook_active` and never blocks again. An idle parent is woken by the message, a busy parent sees it at its next tool step |
 | Pi → idle Claude | `mypi event emit` types the marker line `mypi inbox` into the parent's Herdr tab; the parent's `UserPromptSubmit` hook replaces the marker with the Queue contents |
+| Pi → busy Claude | Event waits; at the end of the parent's current turn its `Stop` hook reads the Queue and continues the turn with `decision: block` |
 
 Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → idle Claude.
 No Agent polls: every delivery starts from an explicit trigger (Event pushed to
-the socket, subscription notification, terminal line, turn end, session start).
+the socket, the child's `SendMessage`, terminal line, turn end, session start).
+Anything a model step failed to deliver stays pending in the Queue and is
+drained by the parent's `Stop` hook or warmup; the Queue is the source of truth.
 `sendUserMessage` is an in-process extension API, so the socket is the only way
 a foreign process reaches a Pi parent; the Queue is the fallback, not the path.
 
 Liveness and busy state come from one mypi session registry
 (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, same shape for both Agents): the
-Claude record is derived from Claude's own `~/.claude/sessions/<pid>.json` by
-session id; the Pi record is written by the extension (busy on `agent_start`,
+Claude record is derived from `claude agents --json` by session id; the Pi record is written by the extension (busy on `agent_start`,
 idle on `agent_settled`, removed on `session_shutdown`). Herdr is not consulted.
 
 ## Alternatives rejected
@@ -65,6 +68,12 @@ idle on `agent_settled`, removed on `session_shutdown`). Herdr is not consulted.
   one extra round trip through the database for nothing; rejected in review.
 - Asking Herdr (`herdr agent get`) for Pi busy state: ties liveness to Herdr,
   which is required only for `/open`.
+- Parent subscription `SendMessage(notify_when_idle)`: one-shot, carries no text,
+  must be renewed by the parent model after every child stop; more steps for the
+  same result. Replaced by the child-side send in review.
+- Herdr marker line for Claude children too: the only path with no model step,
+  but it makes Herdr mandatory for messaging and types into an input box the
+  operator may be using.
 
 ## Consequences
 
