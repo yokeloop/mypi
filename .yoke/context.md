@@ -36,7 +36,7 @@ The structural owner of a Session: Task chat → Project chat → Main chat. Par
 A record created every time a child Session's turn stops (finished, asked a question, stopped for any reason), carrying the final message of that turn. Events flow to the Parent.
 
 ## Queue
-The ordered list of Events not yet delivered to their Parent. The Queue drives proactivity: an Event is delivered to a live Parent at once and shown in the Parent's warmup otherwise.
+The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Pi Parent receives an Event at once; a live Claude Parent receives it at its next turn boundary (MVP); a closed Parent sees it in warmup. Delivery is at-least-once.
 
 ## Launcher
 The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root.
@@ -45,7 +45,7 @@ The mypi operation behind `/open` that starts or continues a child Session for a
 The small tracked per-Agent configuration and code in the engine (`.claude/`, `.pi/`, `.mcp.json`) that connects that Agent to mypi: context at start, turn-end detection, Event delivery. Adapters implement one shared contract; their transport differs.
 
 ## Session registry
-One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, status (busy/idle), and for Pi the wake socket path. Written by the Adapter; the only source of liveness for `/open`, `sessions` and Event delivery.
+One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, status (busy/idle), and for Pi the socket path. Derived from `claude agents --json` for Claude and written by the extension for Pi; the only source of liveness for `/open`, `sessions` and Event delivery. A Session started by hand registers itself under its key; with two live Sessions for one key the newest is canonical.
 
 ## Warmup
 The context loaded at every start or continuation of a Session: the Scope's memory, the role of the Scope, the "how to work in mypi" instruction and undelivered Events.
