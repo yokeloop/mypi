@@ -11,8 +11,10 @@ Parent Session. Neither Agent offers an external "send a message into a live
 interactive session" API usable from a foreign process:
 
 - Pi: an extension running inside the session can call
-  `pi.sendUserMessage(text, { deliverAs })`. The mypi extension is present in every
-  Pi session started by the Launcher.
+  `pi.sendUserMessage(text, { deliverAs })` and may listen on a local socket; Pi
+  keeps no registry of live sessions, but the extension observes `agent_start`,
+  `agent_settled` and `session_shutdown`. The mypi extension is present in every
+  Pi session started from the engine root.
 - Claude Code: live sessions register in `~/.claude/sessions/<pid>.json` and listen
   on a keyed local socket (`cc-socks`) used by the in-session `SendMessage` tool
   (with `notify_when_idle`). The protocol is undocumented; only another Claude
@@ -28,12 +30,20 @@ Agent pair:
 
 | Child → Parent | Transport |
 |---|---|
-| any → Pi | child writes Event to the Queue; parent's mypi extension injects it with `sendUserMessage` |
-| Claude → Claude | parent subscribes with `SendMessage(notify_when_idle)` when opening the child; child's `Stop` hook writes the Event and, if the parent is live, blocks once with "deliver Event N to parent via SendMessage" |
-| Pi → Claude | child writes the Event; mypi types a short marker line into the parent's Herdr tab; the parent's `UserPromptSubmit` hook replaces the marker with the Queue contents |
-| any → busy Claude | Event waits; the parent's own `Stop` hook drains the Queue with `decision: block` |
+| any → Pi | `mypi event emit` writes the Event, looks the parent up in the session registry and sends a wake signal to the parent's socket; the parent's extension reads the Queue and injects it with `sendUserMessage(followUp)` |
+| any → Claude that is acting | Event waits; at the end of the parent's current turn its `Stop` hook reads the Queue and continues the turn with `decision: block` |
+| Claude → idle Claude | parent subscribed with `SendMessage(notify_when_idle)` when opening the child; Claude Code delivers the idle notification itself, which starts a parent turn; the Event text comes from the Queue (tool or `Stop` hook) |
+| Pi → idle Claude | `mypi event emit` types the marker line `mypi inbox` into the parent's Herdr tab; the parent's `UserPromptSubmit` hook replaces the marker with the Queue contents |
 
-Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → Claude.
+Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → idle Claude.
+No Agent polls: every delivery starts from an explicit trigger (socket signal,
+subscription notification, terminal line, turn end, session start).
+
+Liveness and busy state come from one mypi session registry
+(`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, same shape for both Agents): the
+Claude record is derived from Claude's own `~/.claude/sessions/<pid>.json` by
+session id; the Pi record is written by the extension (busy on `agent_start`,
+idle on `agent_settled`, removed on `session_shutdown`). Herdr is not consulted.
 
 ## Alternatives rejected
 
@@ -47,11 +57,15 @@ Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → Cl
   pair, but the operator wants to mix Agents freely.
 - Requiring children to report explicitly: reintroduces the discipline the product
   grill removed and fails for mixed pairs.
+- Polling the Queue from the Pi extension (turn boundary plus an idle timer):
+  simplest code, but a timer where an explicit trigger exists; rejected in review.
+- Asking Herdr (`herdr agent get`) for Pi busy state: ties liveness to Herdr,
+  which is required only for `/open`.
 
 ## Consequences
 
 - A `SessionAdapter` per Agent implements: launch arguments, turn-end detection and
-  final-message capture, delivery, warmup injection, liveness.
+  final-message capture, delivery, warmup injection, registry record.
 - Delivery happens only at turn boundaries for every Agent, even where Pi could
   steer mid-turn, so a tree behaves the same regardless of its Agents.
 - If Anthropic documents the peer protocol, only the Claude adapter changes.

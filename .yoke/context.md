@@ -44,5 +44,8 @@ The mypi operation behind `/open` that starts or continues a child Session for a
 ## Adapter
 The small tracked per-Agent configuration and code in the engine (`.claude/`, `.pi/`, `.mcp.json`) that connects that Agent to mypi: context at start, turn-end detection, Event delivery. Adapters implement one shared contract; their transport differs.
 
+## Session registry
+One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, status (busy/idle), and for Pi the wake socket path. Written by the Adapter; the only source of liveness for `/open`, `sessions` and Event delivery.
+
 ## Warmup
 The context loaded at every start or continuation of a Session: the Scope's memory, the role of the Scope, the "how to work in mypi" instruction and undelivered Events.
