@@ -32,7 +32,7 @@ Agent pair:
 |---|---|
 | any → Pi | `mypi event emit` writes the Event, looks the parent up in the session registry and pushes the Event itself to the parent's socket; the parent's extension injects it with `sendUserMessage(followUp)` and acknowledges, which marks the Event delivered; no socket or no ack leaves it in the Queue for warmup |
 | any → Claude that is acting | Event waits; at the end of the parent's current turn its `Stop` hook reads the Queue and continues the turn with `decision: block` |
-| Claude → idle Claude | parent subscribed with `SendMessage(notify_when_idle)` when opening the child; Claude Code delivers the idle notification itself, which starts a parent turn; the Event text comes from the Queue (tool or `Stop` hook) |
+| Claude → idle Claude | parent subscribed with `SendMessage(notify_when_idle)` when opening the child; Claude Code delivers the idle notification itself, which starts a parent turn; the Event text comes from the Queue (tool or `Stop` hook). The subscription is one-shot and carries no text, so the delivered Event text ends with a reminder to re-subscribe while the child lives; an expired subscription leaves the Event in the Queue for the next `Stop` hook or warmup |
 | Pi → idle Claude | `mypi event emit` types the marker line `mypi inbox` into the parent's Herdr tab; the parent's `UserPromptSubmit` hook replaces the marker with the Queue contents |
 
 Mixed-Agent trees are allowed. Herdr participates in delivery only for Pi → idle Claude.
