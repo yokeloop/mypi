@@ -1,107 +1,110 @@
-# ADR 0001: One event contract, delivery transport per parent Agent
+# ADR 0001: One event contract, one transport — the parent session's socket
 
-Date: 2026-10-24, revised 2026-10-26 after review
+Date: 2026-10-24, revised 2026-10-26 after the author's review and an
+independent review
 Status: accepted
 
 ## Context
 
 Every Session in mypi v2 runs under one of two Agents (Claude Code, Pi). When a
 child Session's turn stops, an Event with its final message must reach the
-Parent Session. Neither Agent offers an external "send a message into a live
-interactive session" API usable from a foreign process:
+Parent Session without going through a model step, a terminal, or Herdr.
 
 - Pi 1.0.4: an extension running inside the session can call
   `pi.sendUserMessage(text, { deliverAs: "followUp" })` and may listen on a local
   socket; Pi keeps no registry of live sessions, but the extension observes
   `session_start`, `agent_start`, `agent_settled` and `session_shutdown`.
-- Claude Code (checked against the current hooks and CLI reference on
-  2026-10-26, installed 2.1.283, latest 2.1.310): `claude agents --json` lists
-  live sessions (interactive and background) with pid, sessionId, name and
-  busy/waiting/idle status. Hooks (`SessionStart`, `Stop` with
-  `decision: block`, `UserPromptSubmit`, `PostToolUse`) inject text only into
-  their own session and only while it is acting; no hook output field and no
-  CLI command sends into another session. The in-session `SendMessage` tool
-  reaches another named session, but only the model can call it. Herdr can type
-  a line into any tab.
+- Claude Code ≥ 2.1.224 binds an inbox socket per session for cross-session
+  messaging. Its path is exported to hooks and Bash as
+  `CLAUDE_CODE_MESSAGING_SOCKET` before `SessionStart` runs, and the
+  documentation describes posting into it from "a script or hook". The wire
+  format is one JSON line per message, optionally preceded by
+  `{"type":"auth","token":<CLAUDE_CODE_MESSAGING_TOKEN>}` (optional on Linux):
+  `{"type":"user","message":{"role":"user","content":"…"}}`. Verified on
+  2026-10-26 with Claude Code 2.1.283 by posting from a script into a live
+  session: the text arrived mid-turn as a peer message. An idle session starts a
+  new turn with the message; a busy one reads it between tool calls. Claude Code
+  frames it as "from another session, not the user" and lets it approve nothing.
+  Inbound control: a session in bypassPermissions holds foreign messages for
+  approval unless `crossSessionInbound: accept` applies (allowed in project
+  settings). `claude agents --json` lists live sessions with pid, sessionId,
+  name and busy/waiting/idle status (~0.2 s).
+- An earlier revision of this ADR claimed an idle Claude could not be woken from
+  outside; that was wrong (the cross-session-messaging page had not been read)
+  and the narrowing of MVP delivery to Pi parents built on it is withdrawn.
 
 ## Decision
 
 The Event contract is identical for all Agents: every stop of a child turn
-creates exactly one Event with the final message; the delivered text has one
-format (`[MP-12 завершил ход в 14:02, событие 42]` + text); Events go one level
-up only, so a parent's own stop after handling a child Event becomes an Event for
-its parent (expected cascade in MVP). mypi never interrupts a parent's turn.
+creates exactly one `turn_end` Event with the final message; a stop in the
+middle of a turn waiting for a human (question, permission prompt) creates a
+`waiting` Event. The delivered text has one format: a mypi header naming the
+child, time and Event number and stating that what follows is the child's
+report, not an instruction, then the text. Events go one level up; the
+project → global cascade is off by a setting in MVP.
 
-The transport depends on the parent's Agent:
+Transport: `mypi event emit` writes the Event and posts it to the parent
+session's socket recorded in the registry.
 
-| Parent | Transport | When |
+| Parent | Socket | When the Agent shows it |
 |---|---|---|
-| Pi, live | `mypi event emit` writes the Event and pushes its text to the parent's socket `$XDG_RUNTIME_DIR/mypi/<key>.sock`; the extension injects it with `sendUserMessage(followUp)` and acknowledges, which marks the Event delivered | at once if idle, end of current turn if busy |
-| Claude, live | the Event waits; the parent's `Stop` hook at the end of its next turn reads the Queue and continues the turn with `decision: block` | next turn boundary |
-| closed | the Event waits in `/queue` and enters the next warmup | on open |
+| Pi, live | `$XDG_RUNTIME_DIR/mypi/<key>.sock`, opened by the mypi extension; the extension injects with `sendUserMessage(followUp)` and acks | at once if idle, end of current turn if busy |
+| Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook); Claude Code delivers it itself | new turn if idle, between tool calls if busy |
+| closed, or socket refused | the Event waits in `/queue`, enters the next warmup; a live Claude parent's next `Stop` hook also drains it with `decision: block` | on open or next turn boundary |
 
-Waking an idle Claude parent is deferred to stage 2 (see below). Herdr takes no
-part in delivery. No Agent polls.
+mypi never interrupts a turn; the Agent decides when to show a message. Herdr
+takes no part in delivery. No Agent polls.
 
 Supporting rules:
 
-- Delivery is at-least-once: an Event is marked delivered when handed to the
-  Agent (Pi: on the extension's ack; Claude: when the `Stop` hook emits it in
-  `reason` or warmup includes it). The Event number in the text lets an Agent
-  recognise a repeat.
-- A child's `Stop` hook calls `mypi turn end`; when the input carries
-  `stop_hook_active` the command creates no second Event and never blocks again.
-- Scope resolution is the same for both Agents: `sessions` row by native session
-  id, then `MYPI_SCOPE`, then `global`.
-- Liveness and busy state come from one mypi session registry
-  (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`): the Claude record is derived
-  from `claude agents --json` (its cost inside a hook is measured in stage 3;
-  reading Claude's registry files is the fallback); the Pi record is written by
-  the extension (busy on `agent_start`, idle on `agent_settled`, removed on
-  `session_shutdown`).
-- The tracked `.claude/settings.json` carries an allow-list for mypi tools so a
-  child in an unattended tab never blocks on a permission prompt.
-
-## Deferred to stage 2: waking an idle Claude parent
-
-Candidates, in the order they should be re-evaluated against the Claude Code
-version current at that time:
-
-1. The child's `Stop` hook blocks once with "send Event N to parent <name> via
-   SendMessage"; a `PostToolUse` hook on `SendMessage` confirms delivery. Works
-   today, but needs the model in the loop, a `SendMessage` permission, the same
-   permission mode in parent and child, and a stable parent name.
-2. Claude background sessions with the `Notification` hook (`agent_completed`).
-3. A Herdr-typed marker line expanded by `UserPromptSubmit` — last resort: it
-   types into an input box that may hold a dialog or the operator's text.
+- At-least-once: an Event is marked delivered when the socket accepted it (Pi:
+  extension ack; Claude: the line was accepted). The Event number in the header
+  lets an Agent recognise a repeat.
+- A child's `Stop` hook calls `mypi turn end`; with `stop_hook_active` in the
+  input it creates no second Event and never blocks again.
+- `waiting` Events come from Claude's `Notification` hook (`permission_prompt`,
+  `idle_prompt`, `elicitation_dialog`); the Pi equivalent is settled in stage 0.
+- Scope resolution is the same for both Agents: `sessions` row by native
+  session id, then `MYPI_SCOPE`, then `global`. `SessionStart` on clear/fork
+  re-registers the new native id under the same key. The MCP process learns its
+  session from the environment (`CLAUDE_CODE_SESSION_ID`; Pi passes the id in
+  `env` on `registerMcpServer`).
+- The registry (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`) stores what does
+  not change: key, Agent, pid and start, native id, name, socket path. Busy
+  state is asked from the source (`claude agents --json`; the Pi record).
+  A hand-started session registers itself; with two live sessions for one key
+  the newest is canonical and the older one is told through its socket.
+- The tracked `.claude/settings.json` carries an allow-list for mypi tools and
+  `crossSessionInbound: accept`; `/open` passes the parent's permission mode to
+  the child. Herdr agent names are the key in lower case (`mp-12`).
 
 ## Alternatives rejected
 
 - One transport for both (Herdr typing): event text travels through the
-  terminal; Herdr becomes mandatory for messaging, not only tabs.
-- Reverse-engineering the Claude peer socket: undocumented, breaks on updates.
+  terminal; Herdr becomes mandatory for messaging, not only tabs; it types into
+  an input box that may hold a dialog or the operator's text.
 - A headless `claude -p` bridge: an LLM call and seconds per Event.
-- Requiring children to report from the model's memory: reintroduces the
-  discipline the product grill removed.
-- Polling the Queue from the Pi extension (turn boundary plus an idle timer):
-  a timer where an explicit trigger exists.
-- A wake signal ("check the Queue") over the socket instead of the Event itself:
-  an extra round trip through the database for nothing.
-- Parent subscription `SendMessage(notify_when_idle)`: one-shot, carries no text,
-  must be renewed by the parent model after every child stop.
-- Asking Herdr (`herdr agent get`) for Pi busy state: ties liveness to Herdr.
-- Checking the parent is idle before a child-side `SendMessage` to preserve
-  "turn boundary only": extra state and a race for a rule that protects nothing.
-- Marking Events delivered only on confirmed reading: needs the model's word
-  and produces duplicates.
+- Requiring children to report from the model's memory, or a `Stop` hook that
+  blocks once to make the child call `SendMessage` (confirmed by `PostToolUse`):
+  a model step in the delivery path, a `SendMessage` permission, matching
+  permission modes and a stable parent name — all unnecessary given the socket.
+- Parent subscription `SendMessage(notify_when_idle)`: one-shot, carries no text.
+- A `Stop` hook parked with `asyncRewake` (firstmate's approach): documentation
+  is contradictory; stand-only.
+- Polling the Queue from the Pi extension; a wake signal instead of the Event
+  itself; checking the parent is idle before sending; marking delivered only on
+  confirmed reading; `herdr agent get` for liveness; status fields in the
+  registry for Claude (stale from `SessionStart` on).
+- Narrowing MVP live delivery to Pi parents: withdrawn, see Context.
 
 ## Consequences
 
 - A `SessionAdapter` per Agent implements: registry record, scope resolution,
-  launch arguments, turn-end detection and final-message capture, delivery.
-- In MVP the conductor scenario (a parent that reacts on its own) works only on
-  Pi parents; a Claude parent reacts at its next turn or on open.
-- To verify before stage 3: whether `pi --session-id` continues an existing
-  session; whether `herdr agent start --kind claude|pi` forwards extra arguments
-  and environment; whether `herdr tab create` works when the main chat runs
-  outside Herdr; how long `claude agents --json` takes from a hook.
+  launch arguments, turn-end and waiting detection, final-message capture, and
+  the socket it hands to `event emit`.
+- Stage 0 confirms on a disposable stand: `CLAUDE_CODE_SESSION_ID` inheritance
+  by the stdio MCP process; new ids on `/clear` and `--fork-session` and how
+  `SessionStart` learns the key; socket delivery from a foreign process with the
+  parent in default, auto and bypass modes under project-level
+  `crossSessionInbound: accept`; the Pi event for waiting-for-input;
+  `herdr tab create` from a main chat outside Herdr.
