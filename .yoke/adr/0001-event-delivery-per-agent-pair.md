@@ -40,8 +40,9 @@ creates exactly one `turn_end` Event with the final message; a stop in the
 middle of a turn waiting for a human (question, permission prompt) creates a
 `waiting` Event. The delivered text has one format: a mypi header naming the
 child, time and Event number and stating that what follows is the child's
-report, not an instruction, then the text. Events go one level up; the
-project → global cascade is off by a setting in MVP.
+report, not an instruction, then the text. Events exist only from a Task chat
+to its Project chat; a Project chat reports nothing to the Main chat, which has
+no inbox.
 
 Transport: `mypi event emit` writes the Event and posts it to the parent
 session's socket recorded in the registry.

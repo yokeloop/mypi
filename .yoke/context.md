@@ -15,7 +15,7 @@ The human-readable name of a Session, equal to its Scope: `global`, the Project 
 The zone a Session works in: `global`, `project` or `task`. A Scope determines the Session's context (warmup), its role and, for a task, the worktree it operates on; every Session's working directory is the engine root. Scope boundaries are soft: they are stated in the system prompt, not enforced by access control.
 
 ## Main chat
-The Session with the `global` Scope. Started from the engine root; administers all of mypi and all memory; opens Project chats on request. Top of the parent chain.
+The Session with the `global` Scope. Started from the engine root; administers all of mypi and all memory; opens Project chats on request. Top of the parent chain; receives no Events.
 
 ## Project chat
 The Session with a `project` Scope. Exactly one per Project. Works in the context of the whole Project, opens and manages its Task chats, receives their Events.
@@ -33,7 +33,7 @@ A registered Project belongs to one Organization. Organization is a grouping and
 The structural owner of a Session: Task chat → Project chat → Main chat. Parenthood never changes and does not depend on who opened the Session.
 
 ## Event
-A record created every time a child Session's turn stops, carrying the final message of that turn (`turn_end`), or every time it stops mid-turn waiting for a human (`waiting`). Events flow to the Parent, one level up.
+A record created every time a child Session's turn stops, carrying the final message of that turn (`turn_end`), or every time it stops mid-turn waiting for a human (`waiting`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
 
 ## Queue
 The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket); a closed Parent sees it in warmup. Delivery is at-least-once.
