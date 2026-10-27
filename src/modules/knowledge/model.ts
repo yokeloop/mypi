@@ -2,7 +2,7 @@ import type { Scope } from '../../shared/scope.js';
 import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
 
-export type EventType = 'note' | 'request_created' | 'status_changed';
+export type EventType = 'note' | 'task_created' | 'status_changed';
 export interface Entry { at: string; scope: Scope; event_type: EventType; text: string; artifacts?: string[] }
 export function utc(value: string): number {
   const time = Date.parse(value);
@@ -23,8 +23,8 @@ export function entryValue(value: unknown): Entry {
   utc(x['at']);
   const scope = scopeValue(x['scope']);
   const type = x['event_type'];
-  if (typeof type !== 'string' || !['note', 'request_created', 'status_changed'].includes(type)
-    || (type !== 'note' && scope.type !== 'request')) throw new InputError('Invalid event type/scope');
+  if (typeof type !== 'string' || !['note', 'task_created', 'status_changed'].includes(type)
+    || (type !== 'note' && scope.type !== 'task')) throw new InputError('Invalid event type/scope');
   const entry: Entry = { at: x['at'], scope, event_type: type as EventType, text: x['text'] };
   if ('artifacts' in x) {
     if (!Array.isArray(x['artifacts']) || !x['artifacts'].length) throw new InputError('Invalid artifacts');

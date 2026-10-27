@@ -16,13 +16,13 @@ export type AppCommand =
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
   | { name: 'error_add'; project: string; text: string }
-  | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'request_created' | 'status_changed'; limit?: number }
-  | { name: 'request_list'; project?: string; status?: string }
-  | { name: 'request_show' | 'request_touch'; key: string }
-  | { name: 'request_create'; project: string | null; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
-  | { name: 'request_status'; key: string; status: string; reason: string }
-  | { name: 'request_title'; key: string; title: string; reason: string }
-  | { name: 'request_progress'; key: string; text: string; artifacts?: Artifact[] }
+  | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; limit?: number }
+  | { name: 'task_list'; project?: string; status?: string }
+  | { name: 'task_show' | 'task_touch'; key: string }
+  | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
+  | { name: 'task_status'; key: string; status: string; reason: string }
+  | { name: 'task_title'; key: string; title: string; reason: string }
+  | { name: 'task_progress'; key: string; text: string; artifacts?: Artifact[] }
   | { name: 'status_add' | 'status_terminal'; code: string; terminal: boolean }
   | { name: 'status_rename'; code: string; newCode: string }
   | { name: 'status_remove'; code: string }

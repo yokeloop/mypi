@@ -13,10 +13,11 @@ test('explicit legacy import preserves exact rows/files, empty input and replay;
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
-    const card = app.requests.create({ title: 'Legacy', status: 'new', slug: 'legacy', source: 'original' });
+    app.projects.add('one/project', 'MP');
+    const card = app.tasks.create({ project: 'one/project', title: 'Legacy', status: 'new', slug: 'legacy', source: 'original' });
     const artifact = card.contextDir + '/proof.md', log = 'journal/2026-01.jsonl', empty = 'journal/2026-02.jsonl';
     contextFiles(root).create(artifact, 'evidence');
-    const entry = { at: '2026-01-01T00:00:00Z', scope: { type: 'request', key: card.key },
+    const entry = { at: '2026-01-01T00:00:00Z', scope: { type: 'task', key: card.key },
       event_type: 'note', text: 'same', artifacts: [artifact] };
     const bytes = Buffer.from(JSON.stringify(entry) + '\n' + JSON.stringify(entry) + '\n'
       + JSON.stringify({ ...entry, text: 'different\ntext' }) + '\n');
@@ -32,14 +33,14 @@ test('explicit legacy import preserves exact rows/files, empty input and replay;
     assert.deepEqual(app.importJournal(), { imported: 3 });
     assert.deepEqual(readFileSync(join(root, log)), bytes);
     assert.equal(readFileSync(join(root, empty)).length, 0);
-    assert.deepEqual(app.history({ type: 'request', key: card.key }).map(e => [e.text, e.artifacts ?? []]),
-      [['same', [artifact]], ['same', [artifact]], ['different\ntext', [artifact]], ['Request registered.', []]]);
+    assert.deepEqual(app.history({ type: 'task', key: card.key }).map(e => [e.text, e.artifacts ?? []]),
+      [['same', [artifact]], ['same', [artifact]], ['different\ntext', [artifact]], ['Task registered.', []]]);
     const saved = rows();
     assert.equal(saved.imports.length, 2);
     assert.deepEqual(app.importJournal(), { imported: 0 });
     assert.deepEqual(rows(), saved);
     writeFileSync(join(root, artifact), 'changed');
-    assert.throws(() => app.requests.progress(card.key, 'reuse', [{ path: 'proof.md' }]), /Registered file changed/);
+    assert.throws(() => app.tasks.progress(card.key, 'reuse', [{ path: 'proof.md' }]), /Registered file changed/);
     writeFileSync(join(root, artifact), 'evidence');
     writeFileSync(join(root, log), Buffer.concat([bytes, Buffer.from('broken\n')]));
     assert.throws(() => app.importJournal(), /Legacy journal changed after import/);

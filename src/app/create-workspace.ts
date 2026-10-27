@@ -13,10 +13,10 @@ import { importLegacyJournal } from './import-journal.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 import { sameScope, scopeValue } from '../shared/scope.js';
 import type { Scope } from '../shared/scope.js';
-import type { Card } from '../modules/requests/public.js';
+import type { Card } from '../modules/tasks/public.js';
 import { InputError } from '../shared/errors.js';
 import { changeContext } from './context-changes.js';
-import { requestWork } from './request-work.js';
+import { taskWork } from './task-work.js';
 
 export function defaultContextRoot(): string { return fileURLToPath(new URL('../../../home', import.meta.url)); }
 export function initializeWorkspace(filename: string, root = defaultContextRoot()): void {
@@ -41,17 +41,17 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     if (!result) throw new InputError('Unknown parent project');
     return result;
   }
-  function requestKey(card: Card): string { return (card.projectId === null ? 'REQ' : project(card.projectId).code) + '-' + card.number; }
+  function taskKey(card: Card): string { return (card.projectId === null ? 'REQ' : project(card.projectId).code) + '-' + card.number; }
   function resolve(scope: Scope): void {
     scopeValue(scope);
     if (scope.type === 'org') core.projects.resolveScope(scope.key);
     if (scope.type === 'project' && !core.projects.list().some(p => p.code === scope.key)) throw new InputError('Unknown project');
-    if (scope.type === 'request' && !core.requests.list().some(r => requestKey(r) === scope.key)) throw new InputError('Unknown request');
+    if (scope.type === 'task' && !core.tasks.list().some(r => taskKey(r) === scope.key)) throw new InputError('Unknown task');
   }
   function contains(filter: Scope, scope: Scope): boolean {
     if (sameScope(filter, scope)) return true;
-    if (scope.type === 'request') {
-      const card = core.requests.list().find(r => requestKey(r) === scope.key)!;
+    if (scope.type === 'task') {
+      const card = core.tasks.list().find(r => taskKey(r) === scope.key)!;
       if (card.projectId === null) return false;
       const p = project(card.projectId);
       return (filter.type === 'org' && filter.key === p.org) || (filter.type === 'project' && filter.key === p.code);
@@ -65,7 +65,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
     matchesFingerprint(saved, fileFingerprint(files, path, clock()));
   }
-  const requests = requestWork(database, files, database.journalStore, journal, requestKey, clock);
+  const tasks = taskWork(database, files, database.journalStore, journal, taskKey, clock);
   function contextPath(scope?: string): string {
     const resolved = core.projects.resolveScope(scope);
     if (resolved.type === 'global') return '';
@@ -84,11 +84,11 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
   const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
   const memory = createMemory(texts, text => createHash('sha256').update(text).digest('hex')), inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
   return {
-    projects: core.projects, close: core.close, requests,
+    projects: core.projects, close: core.close, tasks,
     statuses: {
-      statuses: core.requests.statuses, addStatus: core.requests.addStatus,
-      renameStatus: core.requests.renameStatus, setTerminal: core.requests.setTerminal,
-      removeStatus: core.requests.removeStatus,
+      statuses: core.tasks.statuses, addStatus: core.tasks.addStatus,
+      renameStatus: core.tasks.renameStatus, setTerminal: core.tasks.setTerminal,
+      removeStatus: core.tasks.removeStatus,
     },
     history: journal.read,
     journal(scope: Scope, text: string) {
@@ -96,7 +96,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       return database.serialize(() => journal.append(entry));
     },
     importJournal() { return importLegacyJournal(files, git, database.journalStore, database.serialize, clock,
-      database.requests.list().map(card => card.contextDir + '/source.md'), resolve); },
+      database.tasks.list().map(card => card.contextDir + '/source.md'), resolve); },
     verifyFile,
     read: files.read,
     restoreContext(path: string, revision: string) {
@@ -131,7 +131,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
         const projects = core.projects.list();
         return warmup(resolved, memory, inbox, files.read,
           resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects,
-          core.requests.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
+          core.tasks.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
           (selected, limit) => database.journalStore.recentWork(selected.type === 'global' ? { type: 'global' }
             : selected.type === 'org' ? { type: 'org', slug: selected.slug }
               : { type: 'project', code: selected.project.code }, limit));

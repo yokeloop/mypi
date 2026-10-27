@@ -1,8 +1,8 @@
 import { InputError } from '../../shared/errors.js';
-import type { RequestStore } from './ports.js';
+import type { TaskStore } from './ports.js';
 export type { Card, Status } from './ports.js';
 function nonempty(text: string): void { if (typeof text !== 'string' || !text.trim()) throw new InputError('Nonempty text required'); }
-export function createRequests(store: RequestStore, clock: () => string,
+export function createTasks(store: TaskStore, clock: () => string,
   project: (id: number) => { code: string; prefix: string }) {
   function status(code: string) {
     const result = store.statuses().find(s => s.code === code);
@@ -27,14 +27,16 @@ export function createRequests(store: RequestStore, clock: () => string,
       saveSource: (contextDir: string) => void) {
       nonempty(input.title);
       if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(input.slug)) throw new InputError('Invalid English slug');
+      if (input.projectId === null) throw new InputError('Project required');
+      const projectId = input.projectId;
       return store.transaction(() => {
-        const state = status(input.status), number = store.nextNumber(input.projectId);
+        const state = status(input.status), number = store.nextNumber(projectId);
         if (!Number.isSafeInteger(number) || number < 1) throw new InputError('Number exhausted');
-        const parent = input.projectId === null ? { prefix: 'requests', code: 'REQ' } : project(input.projectId);
+        const parent = project(projectId);
         const contextDir = parent.prefix + '/' + parent.code + '-' + number + '-' + input.slug;
         const at = clock();
         saveSource(contextDir);
-        return store.insert({ projectId: input.projectId, number, title: input.title, statusId: state.id,
+        return store.insert({ projectId, number, title: input.title, statusId: state.id,
           contextDir, createdAt: at, updatedAt: at });
       });
     },
@@ -46,7 +48,7 @@ export function createRequests(store: RequestStore, clock: () => string,
         const next = input.status === undefined ? before.statusId : status(input.status).id;
         const title = input.title ?? before.title;
         if (next === before.statusId && title === before.title) return { before, after: before, changed: false };
-        if (before.isTerminal && next !== before.statusId) throw new InputError('Terminal request cannot change status; create a continuation');
+        if (before.isTerminal && next !== before.statusId) throw new InputError('Terminal task cannot change status; create a continuation');
         return { before, after: store.update(id, title, next, clock()), changed: true };
       });
     },

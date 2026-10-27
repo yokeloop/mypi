@@ -23,7 +23,7 @@ function git(...args: string[]): string {
 function logicalState(filename: string) {
   const db = new Database(filename, { readonly: true });
   try {
-    return Object.fromEntries(['organizations', 'projects', 'request_statuses', 'requests', 'knowledge_journal',
+    return Object.fromEntries(['organizations', 'projects', 'task_statuses', 'tasks', 'knowledge_journal',
       'knowledge_journal_imports', 'knowledge_file_fingerprints'].map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()]));
   } finally { db.close(); }
 }
@@ -50,9 +50,9 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   app.statuses.addStatus('checking', false);
   app.journal({ type: 'global' }, 'duplicate'); app.journal({ type: 'global' }, 'duplicate');
   app.journal({ type: 'global' }, 'large-' + 'x'.repeat(1_200_000));
-  const card = app.requests.create({ title: 'Backup', status: 'new', slug: 'backup', source: 'source\r\n' });
-  app.requests.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
-  app.requests.create({ title: 'Project', status: 'checking', slug: 'project', source: 'project source', project: 'sample/engine' });
+  const card = app.tasks.create({ title: 'Backup', status: 'new', slug: 'backup', source: 'source\r\n', project: 'sample/engine' });
+  app.tasks.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
+  app.tasks.create({ title: 'Project', status: 'checking', slug: 'project', source: 'project source', project: 'sample/engine' });
   app.close();
   writeFileSync(join(home, 'MEMORY.md'), 'unselected edit\n');
   const chosen = Buffer.from('selected exact bytes\r\n' + 'z'.repeat(1_100_000) + '\r\n');
@@ -136,7 +136,8 @@ test('push rejection retains exact local commit; required excluded files refuse,
   git('-C', home, 'config', 'user.name', 'Fixture'); git('-C', home, 'config', 'user.email', 'fixture@example.test');
   const app = createWorkspace(filename, false, home);
   app.memory.add('keep');
-  const card = app.requests.create({ title: 'Required', status: 'new', slug: 'required', source: 'required' });
+  app.projects.add('sample/engine', 'SAMPLE');
+  const card = app.tasks.create({ project: 'sample/engine', title: 'Required', status: 'new', slug: 'required', source: 'required' });
   app.close();
   writeFileSync(join(home, '.gitignore'), card.contextDir + '/source.md\n');
   // Git ignores only untracked files. Explicit exclusion of a registered new source must refuse.

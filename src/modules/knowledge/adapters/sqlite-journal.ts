@@ -47,15 +47,15 @@ export function sqliteJournalStore(db: Database): JournalStore & {
           j.event_type AS eventType,j.text,j.artifacts_json AS artifactsJson
         FROM knowledge_journal j WHERE
           (? = 'global' AND (j.scope_type = 'global' OR
-            (j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r
+            (j.scope_type = 'task' AND EXISTS (SELECT 1 FROM tasks r
               WHERE r.project_id IS NULL AND j.scope_key = 'REQ-' || r.number))))
           OR (? = 'org' AND (j.scope_type = 'org' AND j.scope_key = ? OR
             j.scope_type = 'project' AND EXISTS (SELECT 1 FROM projects p JOIN organizations o ON o.id = p.org_id
               WHERE p.code = j.scope_key AND o.slug = ?) OR
-            j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r JOIN projects p ON p.id = r.project_id
+            j.scope_type = 'task' AND EXISTS (SELECT 1 FROM tasks r JOIN projects p ON p.id = r.project_id
               JOIN organizations o ON o.id = p.org_id WHERE j.scope_key = p.code || '-' || r.number AND o.slug = ?)))
           OR (? = 'project' AND (j.scope_type = 'project' AND j.scope_key = ? OR
-            j.scope_type = 'request' AND EXISTS (SELECT 1 FROM requests r JOIN projects p ON p.id = r.project_id
+            j.scope_type = 'task' AND EXISTS (SELECT 1 FROM tasks r JOIN projects p ON p.id = r.project_id
               WHERE j.scope_key = p.code || '-' || r.number AND p.code = ?)))
         ORDER BY j.at DESC,j.id DESC LIMIT ?`)
         .all(scope.type, scope.type, scope.type === 'org' ? scope.slug : null,

@@ -3,15 +3,15 @@ import type { ContextFiles } from '../shared/context.js';
 import { InputError } from '../shared/errors.js';
 import type { createApp } from './create-app.js';
 import type { createJournal, sqliteJournalStore } from '../modules/knowledge/public.js';
-import type { Card } from '../modules/requests/public.js';
+import type { Card } from '../modules/tasks/public.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 
-export function requestWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
+export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
   store: ReturnType<typeof sqliteJournalStore>, journal: ReturnType<typeof createJournal>,
   key: (card: Card) => string, clock: () => string) {
   function find(publicKey: string): Card {
-    const result = core.requests.list().find(card => key(card) === publicKey);
-    if (!result) throw new InputError('Unknown request key');
+    const result = core.tasks.list().find(card => key(card) === publicKey);
+    if (!result) throw new InputError('Unknown task key');
     return result;
   }
   function register(path: string): void {
@@ -24,22 +24,20 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
     list(options: { project?: string | undefined; status?: string | undefined } = {}) {
       const scope = options.project === undefined ? undefined : core.projects.resolveScope(options.project);
       if (scope && scope.type !== 'project') throw new InputError('Project identity required');
-      if (options.status !== undefined && !core.requests.statuses().some(s => s.code === options.status)) throw new InputError('Unknown status');
-      return core.requests.list().filter(c => (!scope || (scope.type === 'project' && c.projectId === scope.project.id))
+      if (options.status !== undefined && !core.tasks.statuses().some(s => s.code === options.status)) throw new InputError('Unknown status');
+      return core.tasks.list().filter(c => (!scope || (scope.type === 'project' && c.projectId === scope.project.id))
         && (options.status === undefined || c.status === options.status)).map(card => ({ ...card, key: key(card) }));
     },
-    create(input: { project?: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean }) {
+    create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean }) {
       if (typeof input.source !== 'string') throw new InputError('Source text required');
-      let project = null;
-      if (input.project !== undefined) {
-        const scope = core.projects.resolveScope(input.project);
-        if (scope.type !== 'project') throw new InputError('Project identity required');
-        project = scope.project;
-      }
+      if (typeof input.project !== 'string') throw new InputError('Project identity required');
+      const scope = core.projects.resolveScope(input.project);
+      if (scope.type !== 'project') throw new InputError('Project identity required');
+      const project = scope.project;
       let path: string | undefined, saved = false;
       try {
         const card = core.serialize(() => {
-          const result = core.requests.create({ projectId: project?.id ?? null, slug: input.slug, title: input.title, status: input.status }, dir => {
+          const result = core.tasks.create({ projectId: project.id, slug: input.slug, title: input.title, status: input.status }, dir => {
             path = dir + '/source.md';
             if (input.adoptSource) {
               if (files.read(path) !== input.source) throw new InputError('Existing source differs/missing; inspect before adoption');
@@ -47,7 +45,7 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
             saved = true;
           });
           register(result.contextDir + '/source.md');
-          journal.append(journal.record({ type: 'request', key: key(result) }, 'Request registered.', 'request_created'));
+          journal.append(journal.record({ type: 'task', key: key(result) }, 'Task registered.', 'task_created'));
           return result;
         });
         return { ...card, key: key(card) };
@@ -59,19 +57,19 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
     change(publicKey: string, input: { status?: string; title?: string }, reason: string) {
       const card = find(publicKey);
       return core.serialize(() => {
-        const result = core.requests.change(card.id, input, reason);
+        const result = core.tasks.change(card.id, input, reason);
         if (!result.changed) return result.after;
         const statusChanged = result.before.statusId !== result.after.statusId;
         const parts = [];
         if (statusChanged) parts.push(result.before.status + ' → ' + result.after.status);
         if (result.before.title !== result.after.title) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
-        journal.append(journal.record({ type: 'request', key: key(result.after) }, parts.join('. ') + '. ' + reason,
+        journal.append(journal.record({ type: 'task', key: key(result.after) }, parts.join('. ') + '. ' + reason,
           statusChanged ? 'status_changed' : 'note'));
         return result.after;
       });
     },
     progress(publicKey: string, text: string, artifacts: { path: string; text?: string }[] = []) {
-      const card = find(publicKey), entry = journal.record({ type: 'request', key: publicKey }, text, 'note');
+      const card = find(publicKey), entry = journal.record({ type: 'task', key: publicKey }, text, 'note');
       const paths = artifacts.map(a => card.contextDir + '/' + a.path);
       if (new Set(paths).size !== paths.length || artifacts.some(a => a.path === 'source.md')) throw new InputError('Invalid artifact set');
       if (paths.length) entry.artifacts = paths;
@@ -86,11 +84,11 @@ export function requestWork(core: ReturnType<typeof createApp>, files: ContextFi
             register(path);
           }
           journal.append(entry);
-          return core.requests.touch(card.id);
+          return core.tasks.touch(card.id);
         });
       } catch (e) { throw new PartialError(String(e), created.length ? ['artifacts'] : [],
         ['inspect artifacts', 'journal', 'activity timestamp'], created.length ? created : [card.contextDir], card.id); }
     },
-    touch(publicKey: string) { return core.requests.touch(find(publicKey).id); },
+    touch(publicKey: string) { return core.tasks.touch(find(publicKey).id); },
   };
 }

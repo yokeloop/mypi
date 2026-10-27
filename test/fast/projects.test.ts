@@ -66,7 +66,7 @@ test('invalid identities/codes never register an organization or create context'
   } finally { app.close(); }
 });
 
-test('project checkout update preserves identity and requests, rejects stale and duplicate paths without rewriting history', t => {
+test('project checkout update preserves identity and tasks, rejects stale and duplicate paths without rewriting history', t => {
   const { dir, filename } = state(t);
   const oldPath = join(dir, 'old'), newPath = join(dir, 'new');
   mkdirSync(oldPath); mkdirSync(newPath);
@@ -75,7 +75,7 @@ test('project checkout update preserves identity and requests, rejects stale and
   try {
     const first = app.projects.add('one/project', 'MP');
     const other = app.projects.add('two/project', 'YM', oldPath);
-    const request = app.requests.create({ projectId: first.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
+    const task = app.tasks.create({ projectId: first.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
     assert.throws(() => app.projects.updateCheckout('one/absent', null, newPath), /Unknown project/);
     assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /Stale project checkout path/);
     assert.throws(() => app.projects.updateCheckout('one/project', null, oldPath), /already registered/);
@@ -85,11 +85,14 @@ test('project checkout update preserves identity and requests, rejects stale and
     const updated = app.projects.updateCheckout('one/project', null, join(dir, 'alias'));
     assert.deepEqual(updated, { ...first, checkoutPath: newPath });
     assert.deepEqual(app.projects.list(), [updated, other]);
-    assert.deepEqual(app.requests.get(request.id), request);
+    assert.deepEqual(app.tasks.get(task.id), task);
     assert.throws(() => app.projects.updateCheckout('one/project', null, oldPath), /Stale project checkout path/);
     assert.throws(() => app.projects.updateCheckout('one/project', newPath, oldPath), /already registered/);
     assert.deepEqual(app.projects.list(), [updated, other]);
-    assert.deepEqual(app.requests.get(request.id), request);
+    assert.deepEqual(app.tasks.get(task.id), task);
+    let standalone = false;
+    assert.throws(() => app.tasks.create({ projectId: null, slug: 'standalone', title: 'Standalone', status: 'new' }, () => { standalone = true; }), /Project required/);
+    assert.equal(standalone, false);
   } finally { app.close(); }
 });
 
@@ -104,7 +107,7 @@ test('read APIs leave database bytes and filesystem unchanged; absent database i
     assert.deepEqual(read.projects.list(), [expected]);
     assert.throws(() => read.projects.add('two/project', 'YM'), /readonly/);
     let sourceCalled = false;
-    assert.throws(() => read.requests.create({ projectId: null, title: 'Read only', status: 'new', slug: 'readonly' },
+    assert.throws(() => read.tasks.create({ projectId: expected.id, title: 'Read only', status: 'new', slug: 'readonly' },
       () => { sourceCalled = true; }), /readonly/i);
     assert.equal(sourceCalled, false, 'readonly must reject before source writes');
   } finally { read.close(); }

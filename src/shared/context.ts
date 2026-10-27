@@ -15,5 +15,5 @@ export class PartialError extends Error {
   override name = 'PartialError';
   readonly status = 'partial';
   constructor(message: string, readonly saved: string[], readonly missing: string[],
-    readonly paths: string[], readonly requestId?: number) { super(message); }
+    readonly paths: string[], readonly taskId?: number) { super(message); }
 }

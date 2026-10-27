@@ -1,7 +1,7 @@
 import type { ProjectScope } from '../modules/projects/public.js';
 import type { createMemory } from '../modules/memory/public.js';
 import type { createInbox } from '../modules/inbox/public.js';
-import type { Card } from '../modules/requests/public.js';
+import type { Card } from '../modules/tasks/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
 
 function brief(text: string) {

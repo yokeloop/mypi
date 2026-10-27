@@ -17,11 +17,11 @@ export function requiredReferences(filename: string, root: string): string[] {
   const required: string[] = [];
   const app = createWorkspace(filename, true, root), files = contextFiles(root);
   try {
-    for (const card of app.requests.list()) {
+    for (const card of app.tasks.list()) {
       const parent = card.projectId === null ? undefined : app.projects.list().find(p => p.id === card.projectId);
-      const prefix = parent ? 'projects/' + parent.org + '/' + parent.slug + '/requests/' : 'requests/';
-      if (!card.contextDir.startsWith(prefix + card.key + '-')
-        || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(card.contextDir.slice((prefix + card.key + '-').length))) throw new Error('Invalid request context link');
+      const base = parent ? 'projects/' + parent.org + '/' + parent.slug + '/' : '';
+      const prefix = ['tasks/', 'requests/'].map(dir => base + dir).find(p => card.contextDir.startsWith(p + card.key + '-'));
+      if (!prefix || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(card.contextDir.slice((prefix + card.key + '-').length))) throw new Error('Invalid task context link');
       app.verifyFile(card.contextDir + '/source.md');
       required.push(card.contextDir + '/source.md');
     }

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-test('complete Node CLI dispatch: memory/context/request lifecycle, partial repair, backup and restore into a fresh installation', async t => {
+test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair, backup and restore into a fresh installation', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-all-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function installation(name: string) {
@@ -54,22 +54,22 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   await cli('journal', 'add', 'org-only outcome', '-s', 'all');
   assert.deepEqual((await cli('journal', 'read', '-s', 'all')).map((e: { text: string }) => e.text), ['org-only outcome']);
   assert.equal((await cli('journal', 'read', '--all')).length, 2);
-  const request = await cli('request', 'create', '--file', source, '--project', 'one/project',
+  const task = await cli('task', 'create', '--file', source, '--project', 'one/project',
     '--title', 'Task', '--slug', 'task', '--status', 'planning');
-  assert.equal(request.key, 'MP-1');
-  assert.equal((await cli('request', 'list', '--status', 'planning')).length, 1);
-  await cli('request', 'title', request.key, 'Renamed', '--reason', 'clarification');
+  assert.equal(task.key, 'MP-1');
+  assert.equal((await cli('task', 'list', '--status', 'planning')).length, 1);
+  await cli('task', 'title', task.key, 'Renamed', '--reason', 'clarification');
   const artifacts = join(dir, 'artifacts.json');
   writeFileSync(artifacts, JSON.stringify([{ path: 'artifacts/proof.md', text: 'proof' }]));
-  await cli('request', 'progress', request.key, 'progress', '--artifacts', artifacts);
+  await cli('task', 'progress', task.key, 'progress', '--artifacts', artifacts);
   await cli('status', 'add', 'accepted', '--terminal');
   await cli('status', 'rename', 'accepted', 'verified');
   writeFileSync(join(root, 'home/.git/index.lock'), 'busy');
-  run(root, ['request', 'status', request.key, 'verified', '--reason', 'verified']);
-  assert.equal((await cli('request', 'show', request.key)).status, 'verified');
+  run(root, ['task', 'status', task.key, 'verified', '--reason', 'verified']);
+  assert.equal((await cli('task', 'show', task.key)).status, 'verified');
   rmSync(join(root, 'home/.git/index.lock'));
-  await cli('context', 'commit', request.contextDir + '/source.md', request.contextDir + '/artifacts/proof.md', '--message', 'Publish files for backup');
-  assert.equal((await cli('journal', 'read', '-s', 'request:MP-1', '--type', 'status_changed')).length, 1);
+  await cli('context', 'commit', task.contextDir + '/source.md', task.contextDir + '/artifacts/proof.md', '--message', 'Publish files for backup');
+  assert.equal((await cli('journal', 'read', '-s', 'task:MP-1', '--type', 'status_changed')).length, 1);
   assert(!JSON.stringify(await cli('warmup', '-s', 'one/project')).includes('original'));
   const beforeRemoval = await cli('memory', 'show');
   await assert.rejects(cli('memory', 'remove', '1'), /expected-revision/);
@@ -81,6 +81,6 @@ test('complete Node CLI dispatch: memory/context/request lifecycle, partial repa
   const snapshot = join(dir, 'snapshot'); await cli('backup', snapshot);
   const restored = installation('restored');
   run(restored, ['restore', snapshot]);
-  assert.equal(run(restored, ['request', 'show', request.key]).status, 'verified');
+  assert.equal(run(restored, ['task', 'show', task.key]).status, 'verified');
   run(restored, ['restore', snapshot], 1);
 });

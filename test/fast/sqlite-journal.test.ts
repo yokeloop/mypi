@@ -24,13 +24,13 @@ test('legacy import primitives retain duplicate source rows, reject changed repl
       journal.importEntry('journal/2026-10.jsonl', 1, entry('same'));
       journal.importEntry('journal/2026-10.jsonl', 2, entry('same'));
       journal.recordJournalImport({ path: 'journal/2026-10.jsonl', sha256: digest, byteLength: 20, importedAt: entry('x').at });
-      journal.saveFingerprint({ path: 'requests/REQ-1/result.md', sha256: digest, byteLength: 20, registeredAt: entry('x').at });
+      journal.saveFingerprint({ path: 'tasks/MP-1-first/result.md', sha256: digest, byteLength: 20, registeredAt: entry('x').at });
     }).immediate();
     assert.equal([...journal.entries()].length, 2);
     assert.throws(() => journal.importEntry('journal/2026-10.jsonl', 1, entry('duplicate replay')), /UNIQUE/);
     assert.doesNotThrow(() => journal.recordJournalImport({ path: 'journal/2026-10.jsonl', sha256: digest, byteLength: 20, importedAt: entry('x').at }));
     assert.throws(() => journal.recordJournalImport({ path: 'journal/2026-10.jsonl', sha256: 'b'.repeat(64), byteLength: 20, importedAt: entry('x').at }), /changed/);
-    journal.saveFingerprint({ path: 'requests/REQ-1/result.md', sha256: 'b'.repeat(64), byteLength: 24, registeredAt: '2026-10-03T00:00:00Z' });
-    assert.deepEqual(journal.fingerprint('requests/REQ-1/result.md'), { path: 'requests/REQ-1/result.md', sha256: digest, byteLength: 20, registeredAt: '2026-10-02T00:00:00Z' });
+    journal.saveFingerprint({ path: 'tasks/MP-1-first/result.md', sha256: 'b'.repeat(64), byteLength: 24, registeredAt: '2026-10-03T00:00:00Z' });
+    assert.deepEqual(journal.fingerprint('tasks/MP-1-first/result.md'), { path: 'tasks/MP-1-first/result.md', sha256: digest, byteLength: 20, registeredAt: '2026-10-02T00:00:00Z' });
   } finally { db.close(); }
 });

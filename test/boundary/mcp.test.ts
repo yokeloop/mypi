@@ -80,22 +80,22 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   const warm = JSON.stringify(await call('warmup', { scope }));
   assert(warm.includes('parent fact') && warm.includes('project fact'));
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
-  const request = await call('request_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
-  assert.equal(request.key, 'MP-1');
-  assert.equal(readFileSync(join(home, request.contextDir, 'source.md'), 'utf8'), source);
-  await call('request_title', { key: request.key, title: 'Renamed', reason: 'clarified' });
-  await call('request_progress', { key: request.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
-  assert.equal((await call('request_list', { project: 'one/project' }))[0].title, 'Renamed');
+  const task = await call('task_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
+  assert.equal(task.key, 'MP-1');
+  assert.equal(readFileSync(join(home, task.contextDir, 'source.md'), 'utf8'), source);
+  await call('task_title', { key: task.key, title: 'Renamed', reason: 'clarified' });
+  await call('task_progress', { key: task.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
+  assert.equal((await call('task_list', { project: 'one/project' }))[0].title, 'Renamed');
   writeFileSync(join(home, '.git/index.lock'), 'busy');
-  await call('request_status', { key: request.key, status: 'accepted', reason: 'verified' });
+  await call('task_status', { key: task.key, status: 'accepted', reason: 'verified' });
   rmSync(join(home, '.git/index.lock'));
-  assert.equal((await call('request_show', { key: request.key })).status, 'accepted');
-  const history = await call('journal_read', { scope: { type: 'request', key: request.key }, eventType: 'status_changed' });
+  assert.equal((await call('task_show', { key: task.key })).status, 'accepted');
+  const history = await call('journal_read', { scope: { type: 'task', key: task.key }, eventType: 'status_changed' });
   assert.equal(history.length, 1);
-  await call('request_touch', { key: request.key });
-  await call('request_status', { key: request.key, status: 'accepted', reason: 'no-op' });
-  assert.equal((await call('journal_read', { scope: { type: 'request', key: request.key }, eventType: 'status_changed' })).length, 1);
-  assert.equal((await client.callTool({ name: 'request_status', arguments: { key: request.key, status: 'new', reason: 'reopen' } })).isError, true);
+  await call('task_touch', { key: task.key });
+  await call('task_status', { key: task.key, status: 'accepted', reason: 'no-op' });
+  assert.equal((await call('journal_read', { scope: { type: 'task', key: task.key }, eventType: 'status_changed' })).length, 1);
+  assert.equal((await client.callTool({ name: 'task_status', arguments: { key: task.key, status: 'new', reason: 'reopen' } })).isError, true);
   const git = (...args: string[]) => {
     const result = spawnSync('git', ['-C', home, ...args], { encoding: 'utf8', timeout: 4000 });
     assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
@@ -114,26 +114,26 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await Promise.all(['concurrent A', 'concurrent B'].map(text => call('memory_add', { scope, text })));
   assert.deepEqual((await call('memory_show', { scope })).items.map((item: { text: string }) => item.text),
     ['project fact', 'concurrent A', 'concurrent B']);
-  // Send requests from two independent MCP processes and a real CLI writer.
-  const child = spawn(process.execPath, [join(root, 'dist/src/cli/main.js'), 'request', 'create', 'cli source',
+  // Send calls from two independent MCP processes and a real CLI writer.
+  const child = spawn(process.execPath, [join(root, 'dist/src/cli/main.js'), 'task', 'create', 'cli source',
     '--title', 'CLI', '--slug', 'cli', '--status', 'new', '--project', 'one/project'], { env: env(root) });
   let cliOut = '', cliError = '';
   child.stdout.on('data', b => { cliOut += String(b); }); child.stderr.on('data', b => { cliError += String(b); });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
   const exited = once(child, 'exit');
-  const cards = await Promise.all([client, second].map((target, i) => call('request_create', {
+  const cards = await Promise.all([client, second].map((target, i) => call('task_create', {
     project: 'one/project', title: 'Concurrent', slug: 'concurrent-' + i, status: 'new', source: { text: 'source ' + i },
   }, target)));
   const [code] = await exited; assert.equal(code, 0, cliError);
   assert.deepEqual([...cards.map(c => c.number), JSON.parse(cliOut).number].sort(), [2, 3, 4]);
   // Backup holds an async reservation: a queued write in this process must wait, not self-deadlock.
-  await call('context_commit', { paths: [request.contextDir + '/source.md', request.contextDir + '/proof.md',
-    ...cards.map(c => c.contextDir + '/source.md'), 'projects/one/project/requests/MP-' + JSON.parse(cliOut).number + '-cli/source.md'], message: 'Publish local files for backup' });
+  await call('context_commit', { paths: [task.contextDir + '/source.md', task.contextDir + '/proof.md',
+    ...cards.map(c => c.contextDir + '/source.md'), 'projects/one/project/tasks/MP-' + JSON.parse(cliOut).number + '-cli/source.md'], message: 'Publish local files for backup' });
   const snapshot = join(dir, 'snapshot');
   await Promise.all([call('backup', { destination: snapshot }), call('journal_add', { scope, text: 'after snapshot' })]);
   const restored = install('restored'), restoredClient = (await connect(restored)).client;
   await call('restore', { backupDirectory: snapshot }, restoredClient);
-  assert.equal((await call('request_show', { key: request.key }, restoredClient)).status, 'accepted');
+  assert.equal((await call('task_show', { key: task.key }, restoredClient)).status, 'accepted');
   assert.equal((await restoredClient.callTool({ name: 'restore', arguments: { backupDirectory: snapshot } })).isError, true);
   const gitExternal = (...args: string[]) => {
     const result = spawnSync('git', args, { encoding: 'utf8', env: env(root), timeout: 5000 });
@@ -153,7 +153,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   const publishedInstall = install('published-restored');
   const publishedClient = (await connect(publishedInstall)).client;
   await call('restore_published', { repository: clone, commit: published.commit }, publishedClient);
-  assert.equal((await call('request_show', { key: request.key }, publishedClient)).status, 'accepted');
+  assert.equal((await call('task_show', { key: task.key }, publishedClient)).status, 'accepted');
   assert.equal((await publishedClient.callTool({ name: 'restore_published', arguments: { repository: clone, commit: published.commit } })).isError, true);
 });
 

@@ -16,12 +16,12 @@ const examples: [string, Record<string, unknown>][] = [
   ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
   ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }], ['journal_import', {}],
   ['journal_read', { scope: 'all', from: '2026-01-01T00:00:00Z', to: '2026-12-31T00:00:00Z', eventType: 'note', limit: 10 }],
-  ['request_list', { project: 'one/project', status: 'custom' }], ['request_show', { key: 'MP-1' }],
-  ['request_create', { project: null, title: 'T', status: 'custom', slug: 'task', source: { text: 'source' }, adoptSource: true }],
-  ['request_status', { key: 'MP-1', status: 'done', reason: 'verified' }],
-  ['request_title', { key: 'MP-1', title: 'new', reason: 'clarified' }],
-  ['request_progress', { key: 'MP-1', text: 'done', artifacts: [{ path: 'a.md', text: 'proof' }, { path: 'b.png' }] }],
-  ['request_touch', { key: 'MP-1' }], ['status_list', {}], ['status_add', { code: 'custom', terminal: false }],
+  ['task_list', { project: 'one/project', status: 'custom' }], ['task_show', { key: 'MP-1' }],
+  ['task_create', { project: 'one/project', title: 'T', status: 'custom', slug: 'task', source: { text: 'source' }, adoptSource: true }],
+  ['task_status', { key: 'MP-1', status: 'done', reason: 'verified' }],
+  ['task_title', { key: 'MP-1', title: 'new', reason: 'clarified' }],
+  ['task_progress', { key: 'MP-1', text: 'done', artifacts: [{ path: 'a.md', text: 'proof' }, { path: 'b.png' }] }],
+  ['task_touch', { key: 'MP-1' }], ['status_list', {}], ['status_add', { code: 'custom', terminal: false }],
   ['status_rename', { code: 'custom', newCode: 'renamed' }], ['status_terminal', { code: 'custom', terminal: true }],
   ['status_remove', { code: 'custom' }], ['context_read', { path: 'MEMORY.md' }],
   ['context_commit', { paths: ['MEMORY.md'], message: 'reconciled' }],
@@ -39,11 +39,11 @@ test('35 independent tool examples retain every field; strict schemas reject unk
     assert.throws(() => toolCommand(name, { ...args, unexpected: true }), /Unrecognized/);
   }
   for (const [name, args] of [
-    ['memory_add', { text: 'no default scope' }], ['warmup', { scope: { type: 'request', key: 'MP-1' } }],
+    ['memory_add', { text: 'no default scope' }], ['warmup', { scope: { type: 'task', key: 'MP-1' } }],
     ['warmup', { scope: { type: 'global', key: 'MP' } }], ['memory_remove', { scope, number: '1', expectedRevision: 'a'.repeat(64) }], ['memory_remove', { scope, number: 1 }],
     ['capture', { source: { text: 'x', file: '/tmp/x' } }], ['capture', { source: { file: 'relative' } }],
-    ['request_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
-    ['request_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
+    ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
+    ['task_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
     ['project_resolve', { path: 'relative' }],
     ['project_update', { identity: 'one/project', checkoutPath: '/tmp/new' }],
     ['project_update', { identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }],
@@ -76,8 +76,9 @@ test('CLI translates to the same subject commands without changing text or defau
     { name: 'memory_remove', scope: { type: 'global' }, number: 1, expectedRevision: 'a'.repeat(64) });
   assert.throws(() => translate(['memory', 'remove', '1']), /expected-revision/);
   assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
-  assert.deepEqual(translate(['request', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']),
-    { name: 'request_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: null, adoptSource: false });
+  assert.deepEqual(translate(['task', 'create', 's', '--project', 'one/project', '--title', 'T', '--status', 'custom', '--slug', 'task']),
+    { name: 'task_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: 'one/project', adoptSource: false });
+  assert.throws(() => translate(['task', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']), /--project required/);
   assert.deepEqual(translate(['backup', '--publish', '--dry-run', '--file', 'a.md', '--file', 'b.md']),
     { name: 'backup_publish', dryRun: true, selectedPaths: ['a.md', 'b.md'] });
   assert.deepEqual(translate(['restore', '--repository', '/tmp/clone', '--commit', 'a'.repeat(40)]),
@@ -90,7 +91,7 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
-  const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], requestId: 17 };
+  const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], taskId: 17 };
   const result = failure(new PartialError('commit failed', ['database'], ['git'], ['x'], 17));
   assert.equal(result.isError, true); assert.deepEqual(result.structuredContent, expected);
   assert.deepEqual(JSON.parse((result.content[0] as { text: string }).text), expected);

@@ -14,6 +14,6 @@ export function failure(error: unknown): CallToolResult {
   const message = error instanceof Error ? error.message : String(error);
   return result(error instanceof PartialError ? {
     status: 'partial', message, saved: error.saved, missing: error.missing, paths: error.paths,
-    ...(error.requestId === undefined ? {} : { requestId: error.requestId }),
+    ...(error.taskId === undefined ? {} : { taskId: error.taskId }),
   } : { status: 'error', message }, true);
 }

@@ -30,7 +30,7 @@ export function createJournal(store: JournalStore, resolve: (scope: Scope) => vo
       const from = options.from === undefined ? -Infinity : utc(options.from);
       const to = options.to === undefined ? Infinity : utc(options.to);
       if (from > to || (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 1))
-        || (options.type !== undefined && !['note', 'request_created', 'status_changed'].includes(options.type))) {
+        || (options.type !== undefined && !['note', 'task_created', 'status_changed'].includes(options.type))) {
         throw new InputError('Invalid history filters');
       }
       const result: Entry[] = [];

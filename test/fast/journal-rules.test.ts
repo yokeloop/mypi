@@ -7,7 +7,7 @@ test('journal validates envelope and applies overall ordering/limit even for uno
   const rows = [3, 1, 2].map(day => ({ at: '2026-10-0' + day + 'T00:00:00Z', scope: { type: 'global' }, event_type: 'note', text: String(day) }));
   const journal = createJournal({ append: () => '', entries: () => rows }, () => {}, sameScope, () => '2026-10-02T00:00:00Z');
   assert.deepEqual(journal.read({ type: 'global' }, { limit: 2 }).map(e => e.text), ['2', '3']);
-  for (const scope of [{ type: 'global', key: null }, { type: 'all' }, [], { type: 'request', key: 'REQ-0' }]) {
+  for (const scope of [{ type: 'global', key: null }, { type: 'all' }, [], { type: 'task', key: 'REQ-0' }]) {
     assert.throws(() => journal.record(scope as never, 'bad'));
   }
   assert.throws(() => journal.record({ type: 'global' }, ' '));

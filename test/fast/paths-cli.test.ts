@@ -36,10 +36,10 @@ test('CLI parsing is strict without invoking a process for the validation matrix
   assert.deepEqual(parseCommand(['project', 'list', '--org', 'one']), { type: 'list', org: 'one' });
   assert.deepEqual(parseCommand(['db', 'init']), { type: 'initialize' });
   assert.deepEqual(parseCommand(['--help']), { type: 'help' });
-  const parsed = parseCommand(['request', 'create', 'exact source', '--project', 'one/project', '--title', 'Title', '--slug', 'slug', '--status', 'planning']);
+  const parsed = parseCommand(['task', 'create', 'exact source', '--project', 'one/project', '--title', 'Title', '--slug', 'slug', '--status', 'planning']);
   assert.equal(parsed.type, 'workspace');
   if (parsed.type === 'workspace') {
-    assert.equal(parsed.name, 'request create'); assert.deepEqual(parsed.args, ['exact source']);
+    assert.equal(parsed.name, 'task create'); assert.deepEqual(parsed.args, ['exact source']);
     assert.deepEqual({ ...parsed.options }, { project: 'one/project', title: 'Title', slug: 'slug', status: 'planning' });
   }
   for (const args of [
@@ -47,9 +47,9 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['note', 'title', 'text'], ['error', 'one/project', 'error'],
     ['memory', 'show'], ['memory', 'add', 'fact'], ['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)], ['project', 'resolve', '/tmp'],
     ['journal', 'add', 'outcome'], ['journal', 'read', '--all'],
-    ['request', 'create', 'source'], ['request', 'list'], ['request', 'show', 'REQ-1'],
-    ['request', 'title', 'REQ-1', 'title'], ['request', 'status', 'REQ-1', 'new'],
-    ['request', 'progress', 'REQ-1', 'progress'], ['request', 'touch', 'REQ-1'],
+    ['task', 'create', 'source'], ['task', 'list'], ['task', 'show', 'REQ-1'],
+    ['task', 'title', 'REQ-1', 'title'], ['task', 'status', 'REQ-1', 'new'],
+    ['task', 'progress', 'REQ-1', 'progress'], ['task', 'touch', 'REQ-1'],
     ['status', 'list'], ['status', 'add', 'custom'], ['status', 'rename', 'a', 'b'],
     ['status', 'terminal', 'a', 'true'], ['status', 'remove', 'a'],
     ['context', 'read', 'MEMORY.md'], ['context', 'commit', 'MEMORY.md'],
