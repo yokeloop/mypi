@@ -1,13 +1,13 @@
 # mypi roadmap
 
-Current foundation: local project memory and DB-backed request accounting, exposed
+Current foundation: local project memory and DB-backed task accounting, exposed
 through optional CLI and MCP tools. Development guidance: [AGENTS](AGENTS.md).
 The former agent workflow is [withdrawn](docs/AGENT-WORKFLOW.md).
 Architecture: [ARCHITECTURE](docs/ARCHITECTURE.md).
 
 ## Product direction
 
-Requests and memory are available as explicit data operations. There is no mandatory
+Tasks and memory are available as explicit data operations. There is no mandatory
 agent startup, registration, logging or Herdr-session procedure. The earlier policy
 has been withdrawn without deleting existing records or changing the API.
 
@@ -20,7 +20,7 @@ support that evolution without claiming that permissions/isolation are enforced 
 - [x] M0 architecture contract accepted; historical record: [M0-CONTRACT](docs/M0-CONTRACT.md).
 - [x] M1 TypeScript/Node 24, SQLite authority, pnpm, modular monolith and Ports & Adapters.
 - [x] Organization/project registry, optional checkout mapping, memory, capture, notes/errors.
-- [x] DB request cards/status dictionary; immutable source and artifacts in home.
+- [x] DB task cards/status dictionary; immutable source and artifacts in home.
 - [x] Common append-only JSONL journal with monthly UTC rotation and scoped selection.
 - [x] Scoped warmup, safe context operations and local Git commits.
 - [x] Explicit partial outcomes, reconciliation, SQLite backup + Git bundle, safe restore.
@@ -35,7 +35,7 @@ GitHub App issuer, required check and negative spoofing check remain outstanding
 ## Current operating foundation
 
 - Project-local English instructions; communicate in the user's language.
-- Optional request/memory tools without automatic task accounting or session routing.
+- Optional task/memory tools without automatic task accounting or session routing.
 - Distinct context and checkout; explicit scope, permission and outcome evidence.
 - CLI/MCP APIs remain usable as independent operations.
 - Bootstrap, registration, migration, backup destination and network actions are
@@ -49,8 +49,8 @@ acceptance details must be agreed for concrete work; no new M2–M5 numbering is
 | Direction | Intended result | Boundary to retain now |
 |---|---|---|
 | Units | Reusable role, inputs/outputs, restrictions and acceptance contract | A unit is not an agent process or extension; do not impose human-only acceptance |
-| Project flows and runtime | Compose units; validate and persist execution/progress/results in DB | Request statuses are not a hardcoded pipeline; Markdown changes do not trigger work |
-| Scoped coordination | Root/org/project coordination and request workers with relevant context and explicit permissions | Inherit relevant parent knowledge, not sibling/inbox contents; context selection is not an ACL |
+| Project flows and runtime | Compose units; validate and persist execution/progress/results in DB | Task statuses are not a hardcoded pipeline; Markdown changes do not trigger work |
+| Scoped coordination | Root/org/project coordination and task workers with relevant context and explicit permissions | Inherit relevant parent knowledge, not sibling/inbox contents; context selection is not an ACL |
 | Runner safety | Verified launch, cancellation, resource bounds, isolation, ownership and recovery | Neither cwd, tool descriptions nor process ancestry proves exclusivity/cleanup |
 | Parallel work and handoff | Task pipelines/tabs and controlled transfer between sessions, later devices if needed | Ownership must be solved before multiple autonomous writers; no mutable DB sync through Git |
 | Reuse and integrations | Reusable units and optional tracker/distribution integrations | No mandatory tracker, marketplace or cloud before a concrete need |

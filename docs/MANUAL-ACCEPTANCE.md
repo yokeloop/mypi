@@ -172,22 +172,22 @@ count **before** restarting. Do not replay creation or import to reconstruct the
 After observing the old Pi exit, start a new session with the test launcher, inspect
 `/mcp`, then ask it to read only:
 
-- `request_show` for REQ-1;
-- `context_read` for `requests/REQ-1-manual/source.md` and `result.md`;
-- `journal_read` scoped to `request:REQ-1`.
+- `task_show` for REQ-1;
+- `context_read` for `tasks/REQ-1-manual/source.md` and `result.md`;
+- `journal_read` scoped to `task:REQ-1`.
 
 Independently, from the test root with its local wrapper:
 
 ```bash
-./mp20-cli.sh request show REQ-1
+./mp20-cli.sh task show REQ-1
 ./mp20-cli.sh journal read --all | jq length
-cmp mp20-fixtures/source.txt home/requests/REQ-1-manual/source.md
+cmp mp20-fixtures/source.txt home/tasks/REQ-1-manual/source.md
 ```
 
 These helper/fixture names belong to that prepared stand; create/check the appropriate
 ones for a future scenario before using them. Expected in MP-20: title `MP20 renamed`,
 status `in_progress`, artifact exactly `MP20 proof\nВторая строка.` with a real newline,
-five existing request events, and full journal count **14 before and 14 after**.
+five existing task events, and full journal count **14 before and 14 after**.
 `cmp` must produce no output and exit 0. The frozen count 14 is historical evidence,
 not the expected count for future stands. Compare full history/card snapshots too:
 unchanged count alone would miss replacement or modification of an event.

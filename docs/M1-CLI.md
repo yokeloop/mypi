@@ -36,67 +36,77 @@ not managed facts. `memory show` returns the exact file text and SHA-256 `revisi
 Removal requires the displayed number and that revision; stale/missing revisions refuse
 without modifying files. Reread and retry deliberately, never reuse an old number.
 Capture creates a separate immutable inbox/*.md original, not a SQL copy; no BOM/CRLF
-stripping. It does not replace a request card or authorize execution. Notes never
+stripping. It does not replace a task card or authorize execution. Notes never
 silently overwrite another note with the same topic. Scoped warmup excludes global
 inbox/unrelated projects; read full artifacts rather than treating its index as memory.
 `work` includes up to 20 nonterminal tasks (key, bounded title with truncated flag,
 status, updatedAt, source path), `openTaskCount`, 10 newest scoped events in
 chronological order (bounded text with truncated flag and scope/time read reference),
-and `olderEvents`. Global work includes projectless requests and their events, unlike
+and `olderEvents`. Global work includes projectless tasks and their events, unlike
 `journal read` global, which remains global-only. Existing `history` is retained.
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
 
-## Requests and journal
+## Tasks and journal
 
 ```text
-request create --project org/project --title "Title" --status research --slug short-slug --file /path/to/source
-request create --title "Unassigned" --status new --slug short-slug "source"
-request list [--project org/project] [--status code]
-request show MP-1
-request status MP-1 review --reason "ready for review"
-request title MP-1 "Better title" --reason "clarification"
-request progress MP-1 "actual outcome" [--artifacts /path/to/artifacts.json]
+task create --project org/project --title "Title" --status research --slug short-slug --file /path/to/source
+task list [--project org/project] [--status code]
+task show MP-1
+task status MP-1 review --reason "ready for review"
+task title MP-1 "Better title" --reason "clarification"
+task progress MP-1 "actual outcome" [--artifacts /path/to/artifacts.json]
 status list
 status add accepted --terminal
 status rename accepted verified
 status terminal unused-code true
 status remove unused-code
 journal add "outcome" -s org/project
-journal add "checked current state" -s request:MP-1
+journal add "checked current state" -s task:MP-1
 journal read -s project:MP --from 2026-09-01T00:00:00Z --limit 10
 journal read --all --type status_changed
 ```
 
-These are independent syntax examples, not a mandatory sequence. Both project-linked
-requests and standalone REQ records are supported by the API.
+These are independent syntax examples, not a mandatory sequence. Tasks belong to a
+registered project; existing standalone REQ records remain readable.
 
 Progress artifacts: JSON array `[{"path":"research/result.md","text":"new content"}]`;
-omit text to reference an existing file. Paths are relative to the request directory;
+omit text to reference an existing file. Paths are relative to the task directory;
 journal stores home-relative references. New content is created without overwrite.
 Read the DB status dictionary and choose explicitly; used status terminality cannot
-change. REQ has its own numbering and request scope. Title does not rename the folder;
-terminal requests cannot reopen. Original source is immutable; additional material
+change. Legacy REQ records keep their own numbering and task scope. Title does not rename the folder;
+terminal tasks cannot reopen. Original source is immutable; additional material
 can be stored separately.
 
-Journal filters: global (default), org:slug, project:CODE, request:KEY; org/project
+Journal filters: global (default), org:slug, project:CODE, task:KEY; org/project
 resolves through DB. Global is not the whole journal. Results are time-ordered; limit
 selects the newest entries across the whole filtered selection. Do not duplicate
-request progress by recording the same event in the project journal.
+task progress by recording the same event in the project journal.
+
+## Moving task folders
+
+`home migrate-tasks [--dry-run]` moves every task folder from `requests/` to `tasks/`
+(home root for legacy REQ records, `projects/<org>/<project>/` for project tasks) with
+`git mv`, commits once in home as `Move task directories from requests/ to tasks/`, then
+rewrites `context_dir`, file fingerprints and journal artifact paths of exactly those
+folders in one SQLite transaction. `--dry-run` prints `{status:"preview",moves,rewrites}`
+and changes nothing. A dirty home or an existing target folder refuses; a folder already
+moved by hand gets only the DB rewrite; nothing left to do returns `{status:"noop"}`.
+Never pushes. Run `backup` before and after.
 
 ## Partial: reconcile before retrying
 
 1. Read the card and specific files; inspect Git status and journal.
 2. If the entry exists, do not append again. Complete only a verified missing commit:
-   `context commit journal/2026-10.jsonl requests/REQ-1-slug/source.md --message "Finish checked partial"`.
+   `context commit journal/2026-10.jsonl projects/one/project/tasks/MP-1-slug/source.md --message "Finish checked partial"`.
 3. If the SQL card is absent but source exists, a checked repeat create with
    `--adopt-source` is possible. Exact source is validated; changed numbering/path
    stops the operation. Never use adoption as an unchecked retry switch.
 4. For uncertain transition history, record a factual note of observed state, not
    an invented status_changed event.
 5. If progress artifacts/journal/Git are saved but activity timestamp is missing,
-   explicitly complete it with `request touch KEY`.
+   explicitly complete it with `task touch KEY`.
 
 `context read path` does not create files; missing means error. `context restore path
 --revision FULL_SHA` restores a mutable file (including a deleted one) from a saved

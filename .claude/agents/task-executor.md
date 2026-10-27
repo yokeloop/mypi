@@ -12,7 +12,7 @@ You implement one part of a ticket. Your world is one worktree; the plan slice y
 - Make the smallest change that completes the step. Match the surrounding code: its naming, its idioms. Add no abstraction, parameter or config the plan did not name. Write no comments in code. None.
 - The contract with sibling parts (export names, API shapes, versions) is in the plan. A detail the plan does not settle is an open point in your report — the parent settles it with the sibling part; never guess, never wait.
 - If the part is a library another part consumes, set the new version in the same commit as the change.
-- Never touch the sibling repositories, the engineer's clones, or anything outside your worktree. Artifacts go to the task's context folder in mypi home (`home/projects/<org>/<project>/requests/<KEY>-<slug>/`), never into the repository.
+- Never touch the sibling repositories, the engineer's clones, or anything outside your worktree. Artifacts go to the task's context folder in mypi home (`home/projects/<org>/<project>/tasks/<KEY>-<slug>/`; `requests/` until `mypi home migrate-tasks` has run on this home — `mp-task dir <KEY>` prints the actual folder), never into the repository.
 - Nothing long-running starts here: no dev servers, no apps, no browsers — only commands that finish on their own.
 - Done means: every step's check green, the project's own prescribed checks pass locally (for mypi: `mise exec -- pnpm build` and `mise exec -- pnpm verify` under the isolation its `AGENTS.md` prescribes, disposable data only), ready for review.
 

@@ -23,8 +23,9 @@ batch branch the engineer checks as a whole.
   on branch `task/<KEY>-<slug>`. One writer per worktree. `scripts/pipeline/mp-worktree`
   creates it and installs dependencies.
 - Task folder in mypi home (its own Git repository, direct `main`):
-  `home/projects/yokeloop/mypi/requests/<KEY>-<slug>/`
-  (`requests/` becomes `tasks/` after the v2 rename). Files: `source.md`
+  `home/projects/yokeloop/mypi/tasks/<KEY>-<slug>/`
+  (`requests/` until `mypi home migrate-tasks` has run on this home — T14 (MP-45);
+  `scripts/pipeline/mp-task dir <KEY>` prints the actual folder). Files: `source.md`
   (registration, immutable), `plan.md`, `derive.json`, `progress.md`,
   `do-report.json`, `review-report.json`, `pr.md`. After every write:
   `scripts/pipeline/mp-home-commit "<message>"`.

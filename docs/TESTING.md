@@ -12,7 +12,7 @@ Basis: [the pinned research report](https://gist.github.com/prineycom/0bce7da0b3
 its primary sources, [M0-CONTRACT](M0-CONTRACT.md) and [ARCHITECTURE](ARCHITECTURE.md).
 Scope: developing mypi tests before future delegation to units. Accepting this policy
 does not authorize implementation or introduce a flow/agent runner. M0 acceptance
-and subsequent stack decisions are separate records. Current request-accounting rules
+and subsequent stack decisions are separate records. Current task-accounting rules
 are in [AGENT-WORKFLOW](AGENT-WORKFLOW.md).
 
 For operator-directed checks in a clean test installation, see

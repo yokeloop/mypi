@@ -2,13 +2,13 @@
 
 ## Scope
 
-mypi provides local memory, projects, request records, CLI and stdio MCP tools.
+mypi provides local memory, projects, task records, CLI and stdio MCP tools.
 Pi starts from this checkout as one workspace for all managed projects. These
 workspace rules apply to user-directed work here; engine-development rules below
 apply only when changing mypi itself, not the code in managed project checkouts.
 The former mandatory memory/task/session workflow has been withdrawn. Optional
 Pi CLI autoload reads scoped context at model start; it does not register tasks,
-log outcomes or authorize work. No MCP warmup, request registration, outcome
+log outcomes or authorize work. No MCP warmup, task registration, outcome
 logging or Herdr tab is a prerequisite. Follow the user's requested scope and session.
 
 ## Instruction ownership
