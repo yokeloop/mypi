@@ -52,6 +52,10 @@ export function createTasks(store: TaskStore, clock: () => string,
         return { before, after: store.update(id, title, next, clock()), changed: true };
       });
     },
+    relocate(id: number, contextDir: string) {
+      nonempty(contextDir);
+      return store.transaction(() => { store.get(id); return store.relocate(id, contextDir); });
+    },
     touch(id: number) { return store.transaction(() => { const card = store.get(id); return store.update(id, card.title, card.statusId, clock()); }); },
   };
 }

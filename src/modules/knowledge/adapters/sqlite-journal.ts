@@ -18,6 +18,7 @@ export function sqliteJournalStore(db: Database): JournalStore & {
   recordJournalImport(input: JournalImport): void;
   fingerprint(path: string): FileFingerprint | undefined;
   saveFingerprint(input: FileFingerprint): void;
+  relocateFiles(from: string, to: string): { fingerprints: number; artifacts: number };
 } {
   const assertWritable = () => { if (db.readonly) throw new Error('Cannot mutate a readonly journal database'); };
   const insert = db.prepare(`INSERT INTO knowledge_journal(at,scope_type,scope_key,event_type,text,artifacts_json,import_path,import_line)
@@ -90,6 +91,23 @@ export function sqliteJournalStore(db: Database): JournalStore & {
       if (!input.path || !Number.isSafeInteger(input.byteLength) || input.byteLength < 0) throw new Error('Invalid file fingerprint metadata');
       db.prepare(`INSERT INTO knowledge_file_fingerprints(path,sha256,byte_length,registered_at) VALUES (?,?,?,?)
         ON CONFLICT(path) DO NOTHING`).run(input.path, input.sha256, input.byteLength, input.registeredAt);
+    },
+    relocateFiles(from, to) {
+      assertWritable();
+      const fingerprints = db.prepare(`UPDATE knowledge_file_fingerprints SET path = ? || substr(path, length(?) + 1)
+        WHERE substr(path, 1, length(?) + 1) = ? || '/'`).run(to, from, from, from).changes;
+      const rows = db.prepare(`SELECT id, artifacts_json AS artifactsJson FROM knowledge_journal
+        WHERE artifacts_json IS NOT NULL AND instr(artifacts_json, '"' || ? || '/') > 0`).all(from) as { id: number; artifactsJson: string }[];
+      let artifacts = 0;
+      for (const row of rows) {
+        const paths = JSON.parse(row.artifactsJson) as string[];
+        const mapped = paths.map(p => p.startsWith(from + '/') ? to + p.slice(from.length) : p);
+        if (mapped.some((p, i) => p !== paths[i])) {
+          db.prepare('UPDATE knowledge_journal SET artifacts_json = ? WHERE id = ?').run(JSON.stringify(mapped), row.id);
+          artifacts++;
+        }
+      }
+      return { fingerprints, artifacts };
     },
   };
 }

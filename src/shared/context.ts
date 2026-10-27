@@ -10,6 +10,8 @@ export interface ContextHistory {
   validate(paths: string[]): void;
   clean(paths: string[]): void;
   commit(paths: string[], message: string): string;
+  cleanAll(): void;
+  moveDirectories(pairs: { from: string; to: string }[], message: string): string;
 }
 export class PartialError extends Error {
   override name = 'PartialError';

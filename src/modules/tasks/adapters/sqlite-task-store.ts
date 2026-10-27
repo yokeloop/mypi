@@ -33,5 +33,9 @@ export function sqliteTaskStore(db: Database): TaskStore {
       db.prepare('UPDATE tasks SET title=?,status_id=?,updated_at=? WHERE id=?').run(title,statusId,at,id);
       return get(id);
     },
+    relocate(id, contextDir) {
+      db.prepare('UPDATE tasks SET context_dir=? WHERE id=?').run(contextDir, id);
+      return get(id);
+    },
   };
 }

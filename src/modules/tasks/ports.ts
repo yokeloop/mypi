@@ -15,4 +15,5 @@ export interface TaskStore {
   list(): Card[];
   get(id: number): Card;
   update(id: number, title: string, statusId: number, at: string): Card;
+  relocate(id: number, contextDir: string): Card;
 }

@@ -10,6 +10,7 @@ import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
 import { createJournal, createNotes } from '../modules/knowledge/public.js';
 import { importLegacyJournal } from './import-journal.js';
+import { migrateTaskDirectories } from './migrate-tasks.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 import { sameScope, scopeValue } from '../shared/scope.js';
 import type { Scope } from '../shared/scope.js';
@@ -97,6 +98,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     },
     importJournal() { return importLegacyJournal(files, git, database.journalStore, database.serialize, clock,
       database.tasks.list().map(card => card.contextDir + '/source.md'), resolve); },
+    migrateTasks(dryRun: boolean) { return migrateTaskDirectories(database, files, git, taskKey, dryRun); },
     verifyFile,
     read: files.read,
     restoreContext(path: string, revision: string) {

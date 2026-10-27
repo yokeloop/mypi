@@ -32,4 +32,5 @@ export type AppCommand =
   | { name: 'backup'; destination: string }
   | { name: 'backup_publish'; dryRun?: boolean; selectedPaths?: string[] }
   | { name: 'restore'; backupDirectory: string }
-  | { name: 'restore_published'; repository: string; commit: string };
+  | { name: 'restore_published'; repository: string; commit: string }
+  | { name: 'home_migrate_tasks'; dryRun?: boolean };

@@ -71,6 +71,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       }
       case 'context_commit': return { commit: app.complete(c.paths, c.message) };
       case 'context_restore': return { commit: app.restoreContext(c.path, c.revision) };
+      case 'home_migrate_tasks': return app.migrateTasks(Boolean(c.dryRun));
       default: throw new InputError('Unknown workspace command');
     }
   } finally { app.close(); }

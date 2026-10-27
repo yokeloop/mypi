@@ -68,6 +68,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
       { name: 'backup', destination: a[0]! };
     case 'restore': return opt('repository') ? { name: 'restore_published', repository: required('repository'), commit: required('commit') } :
       { name: 'restore', backupDirectory: a[0]! };
+    case 'home migrate-tasks': return { name: 'home_migrate_tasks', dryRun: Boolean(o['dry-run']) };
     default: throw new InputError('Unknown workspace command');
   }
 }
