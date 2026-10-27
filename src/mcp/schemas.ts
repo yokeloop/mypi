@@ -5,16 +5,16 @@ import { scopeValue } from '../shared/scope.js';
 export const text = z.string();
 export const externalPath = text.refine(p => isAbsolute(p) && !p.includes('\0'), 'Absolute path without NUL required');
 const globalScope = z.strictObject({ type: z.literal('global') });
-const keyedScope = z.strictObject({ type: z.enum(['org', 'project', 'request']), key: text });
+const keyedScope = z.strictObject({ type: z.enum(['org', 'project', 'task']), key: text });
 export const scope = z.union([globalScope, keyedScope]).refine(value => {
   try { scopeValue(value); return true; } catch { return false; }
 }, 'Invalid scope');
-export const contextScope = scope.refine(value => value.type !== 'request', 'Context scope cannot be request');
+export const contextScope = scope.refine(value => value.type !== 'task', 'Context scope cannot be task');
 export const textInput = z.union([z.strictObject({ text }), z.strictObject({ file: externalPath })]);
 export const artifact = z.strictObject({ path: text, text: text.optional() });
 // The envelope is stable; data retains the existing operation-specific CLI JSON.
 export const output = z.strictObject({
   status: z.enum(['ok', 'error', 'partial']), data: z.unknown().optional(),
   message: text.optional(), saved: z.array(text).optional(), missing: z.array(text).optional(),
-  paths: z.array(text).optional(), requestId: z.number().int().positive().optional(),
+  paths: z.array(text).optional(), taskId: z.number().int().positive().optional(),
 });

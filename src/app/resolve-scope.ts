@@ -25,7 +25,7 @@ export function contextScope(input: ScopeInput, projects: Projects): string | un
   if ('reference' in input) { projects.resolveScope(input.reference); return input.reference; }
   const scope = resolveScope(input, projects);
   if (scope.type === 'global') return undefined;
-  if (scope.type === 'request') throw new InputError('Context scope cannot be request');
+  if (scope.type === 'task') throw new InputError('Context scope cannot be task');
   if (scope.type === 'org') { projects.resolveScope(scope.key); return scope.key; }
   const project = projects.list().find(p => p.code === scope.key);
   if (!project) throw new InputError('Unknown project');

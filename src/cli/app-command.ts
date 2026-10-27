@@ -36,23 +36,23 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     case 'journal read': return { name: 'journal_read', scope: o['all'] ? 'all' : journalScope,
       ...(opt('from') === undefined ? {} : { from: opt('from')! }),
       ...(opt('to') === undefined ? {} : { to: opt('to')! }),
-      ...(opt('type') === undefined ? {} : { eventType: opt('type') as 'note' | 'request_created' | 'status_changed' }),
+      ...(opt('type') === undefined ? {} : { eventType: opt('type') as 'note' | 'task_created' | 'status_changed' }),
       ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }) };
-    case 'request create': return { name: 'request_create', title: required('title'), status: required('status'),
-      slug: required('slug'), source: source(0), project: opt('project') ?? null, adoptSource: Boolean(o['adopt-source']) };
-    case 'request list': return { name: 'request_list',
+    case 'task create': return { name: 'task_create', title: required('title'), status: required('status'),
+      slug: required('slug'), source: source(0), project: required('project'), adoptSource: Boolean(o['adopt-source']) };
+    case 'task list': return { name: 'task_list',
       ...(opt('project') === undefined ? {} : { project: opt('project')! }),
       ...(opt('status') === undefined ? {} : { status: opt('status')! }) };
-    case 'request show': return { name: 'request_show', key: a[0]! };
-    case 'request touch': return { name: 'request_touch', key: a[0]! };
-    case 'request status': return { name: 'request_status', key: a[0]!, status: a[1]!, reason: required('reason') };
-    case 'request title': return { name: 'request_title', key: a[0]!, title: a[1]!, reason: required('reason') };
-    case 'request progress': {
+    case 'task show': return { name: 'task_show', key: a[0]! };
+    case 'task touch': return { name: 'task_touch', key: a[0]! };
+    case 'task status': return { name: 'task_status', key: a[0]!, status: a[1]!, reason: required('reason') };
+    case 'task title': return { name: 'task_title', key: a[0]!, title: a[1]!, reason: required('reason') };
+    case 'task progress': {
       const artifacts: unknown = opt('artifacts') ? JSON.parse(readInputFile(required('artifacts'))) : [];
       if (!Array.isArray(artifacts) || artifacts.some(a => !a || typeof a !== 'object'
         || typeof a.path !== 'string' || (a.text !== undefined && typeof a.text !== 'string')
         || Object.keys(a).some(k => !['path', 'text'].includes(k)))) throw new InputError('Artifacts must be [{path,text?}]');
-      return { name: 'request_progress', key: a[0]!, text: a[1]!, artifacts: artifacts as Artifact[] };
+      return { name: 'task_progress', key: a[0]!, text: a[1]!, artifacts: artifacts as Artifact[] };
     }
     case 'status list': return { name: 'status_list' };
     case 'status add': return { name: 'status_add', code: a[0]!, terminal: Boolean(o['terminal']) };
@@ -68,6 +68,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
       { name: 'backup', destination: a[0]! };
     case 'restore': return opt('repository') ? { name: 'restore_published', repository: required('repository'), commit: required('commit') } :
       { name: 'restore', backupDirectory: a[0]! };
+    case 'home migrate-tasks': return { name: 'home_migrate_tasks', dryRun: Boolean(o['dry-run']) };
     default: throw new InputError('Unknown workspace command');
   }
 }

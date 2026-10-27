@@ -1,10 +1,10 @@
 # mypi
 
-A project-centered memory and request system for explicit user-directed work.
+A project-centered memory and task system for explicit user-directed work.
 [Workspace and development guidance](AGENTS.md) · [Workflow withdrawal](docs/AGENT-WORKFLOW.md) ·
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
-**Implemented:** local memory, organizations/projects, DB request cards/statuses,
+**Implemented:** local memory, organizations/projects, DB task cards/statuses,
 scoped journal, context Git, backup/restore, CLI and 35 stdio MCP tools over one API.
 The Pi package optionally autoloads the ordinary scoped CLI warmup into the system
 prompt; no task registration, automatic logging or separate Herdr tab is required.
@@ -27,12 +27,12 @@ describe older revisions, not the current operating policy.
 
 - **State in SQLite; knowledge in files.** DB owns cards/statuses/relationships;
   Markdown does not duplicate live status. DB needs its own backup.
-- **Request records are explicit data operations.** A card or saved capture does not
+- **Task records are explicit data operations.** A card or saved capture does not
   launch work, create a session or authorize execution.
-- **Project context is a directory.** MEMORY, glossary, notes, decisions and request
+- **Project context is a directory.** MEMORY, glossary, notes, decisions and task
   materials live under home/projects/<org>/<project>, separate from the source checkout.
 - **History records outcomes.** One factual outcome with evidence paths, not a narration
-  of activity. Request history is an ordered append-only SQLite journal.
+  of activity. Task history is an ordered append-only SQLite journal.
 - **Published artifacts remain addressable.** New versions use new paths. Mutable
   memory/context can change with history; original source and append-only logs cannot.
 - **Saving is not synchronization.** Task and journal operations save locally in
@@ -262,13 +262,13 @@ mypi/
 │   ├── inbox/*.md
 │   ├── notes/*.md
 │   ├── journal/YYYY-MM.jsonl
-│   ├── requests/REQ-number-slug/
+│   ├── tasks/REQ-number-slug/        # legacy standalone records
 │   └── projects/<org>/
 │       ├── MEMORY.md
 │       └── <project>/
 │           ├── MEMORY.md, context.md, errors.md
 │           ├── notes/
-│           └── requests/CODE-number-slug/
+│           └── tasks/CODE-number-slug/
 └── projects/                    # ignored project code, not project knowledge
     └── <org>/
         ├── <project>/           # independent base clone
@@ -279,8 +279,9 @@ $XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
 
 A card's context_dir locates source.md and artifacts. Its current status is in DB;
 history is in the SQLite journal. Existing monthly UTC JSONL files remain unchanged;
-explicit `mypi journal import` imports them once after old writers are stopped. Standalone REQ records remain supported
-by the storage/API, independently of any agent workflow.
+explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
+to a registered project; existing standalone REQ records stay readable under their keys. Homes created
+before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
 Scoped warmup inherits parent MEMORY, not global inbox or sibling context. Global
 journal means global entries only; reading all history is explicit.
 
@@ -293,7 +294,7 @@ permission to restore the old model.
 - [AGENTS](AGENTS.md): development guidance; [AGENT-WORKFLOW](docs/AGENT-WORKFLOW.md): withdrawal of the former mandatory workflow.
 - [PLAN](PLAN.md), [ARCHITECTURE](docs/ARCHITECTURE.md): direction and actual capabilities.
 - [M1-DESIGN](docs/M1-DESIGN.md): accepted stack, module/dependency design and decision history.
-- [M1-REQUESTS](docs/M1-REQUESTS.md), [M1-START](docs/M1-START.md): accepted storage contracts;
+- [M1-REQUESTS](docs/M1-REQUESTS.md), [M1-START](docs/M1-START.md): accepted storage contracts of the request era;
   historical accounting guidance does not impose an agent workflow.
 - [TESTING](docs/TESTING.md): sole test-policy source, budgets, review and isolation.
 - [M1-CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): active operation guides.

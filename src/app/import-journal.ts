@@ -23,7 +23,11 @@ export function importLegacyJournal(files: ContextFiles & { path(path: string): 
     const entries: Entry[] = [];
     for (const [index, line] of (text ? text.slice(0, -1).split('\n') : []).entries()) {
       try {
-        const entry = JSON.parse(line) as Entry;
+        const raw = JSON.parse(line) as Record<string, unknown>;
+        const scope = raw.scope as Record<string, unknown> | undefined;
+        if (scope && typeof scope === 'object' && scope.type === 'request') raw.scope = { type: 'task', key: scope.key };
+        if (raw.event_type === 'request_created') raw.event_type = 'task_created';
+        const entry = raw as unknown as Entry;
         if (!entry.at.startsWith(name.slice(0, 7) + '-')) throw new Error('Wrong rotation month');
         resolve(entry.scope);
         if (entry.artifacts !== undefined && (!Array.isArray(entry.artifacts)

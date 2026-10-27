@@ -55,7 +55,7 @@ export default function registerStartupExtension(pi: ExtensionAPI) {
   if (!existsSync(entry) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
   pi.registerMcpServer('mypi', {
     command: 'node', args: [entry], cwd: root,
-    description: 'Local mypi tools for memory, projects, requests and history. No automatic initialization or writes.',
+    description: 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.',
     exposure: 'codemode', toolExposure: { project_resolve: 'direct', warmup: 'direct' },
   });
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });

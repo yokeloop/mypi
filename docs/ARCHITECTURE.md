@@ -1,6 +1,6 @@
 # mypi architecture
 
-Local memory, organizations/projects and request accounting. TypeScript strict,
+Local memory, organizations/projects and task accounting. TypeScript strict,
 Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations without ORM.
 One package: modular monolith, Ports & Adapters, use cases within domain modules.
 
@@ -13,10 +13,10 @@ record evidence. Historical contracts describe their time, not extra current com
 ## 1. Product and operating boundaries
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
-scoped warmup/history, request cards/statuses/progress, local context commits,
+scoped warmup/history, task cards/statuses/progress, local context commits,
 SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
 
-The memory/request APIs are optional data operations. They do not impose agent
+The memory/task APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
 workflow has been withdrawn; existing cards, immutable sources and storage/API
 contracts, including nullable project_id, are unchanged.
@@ -35,7 +35,7 @@ src/
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
 │   ├── projects/        # registry, identity, checkout and scope
-│   ├── requests/        # cards, numbering, status dictionary
+│   ├── tasks/           # cards, numbering, status dictionary
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   └── knowledge/       # journal, notes and errors
@@ -58,9 +58,9 @@ SQLite owns state and relationships:
 ```text
 organizations(id, slug)
 projects(id, org_id, slug, code, checkout_path)
-request_statuses(id, code, is_terminal)
-requests(id, project_id, number, title, status_id,
-         context_dir, created_at, updated_at)
+task_statuses(id, code, is_terminal)
+tasks(id, project_id, number, title, status_id,
+      context_dir, worktree_path, created_at, updated_at)
 ```
 
 Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
@@ -82,7 +82,7 @@ home/                           # separate ignored Git inside the engine clone
 ├── inbox/<UTC>-<UUID>.md
 ├── notes/<UTC>-<UUID>.md
 ├── journal/YYYY-MM.jsonl      # legacy, retained unchanged after explicit import
-├── requests/REQ-number-slug/
+├── tasks/REQ-number-slug/     # legacy standalone records
 │   ├── source.md
 │   └── <artifact-path>
 └── projects/<org>/
@@ -91,31 +91,36 @@ home/                           # separate ignored Git inside the engine clone
     └── <project>/
         ├── MEMORY.md, context.md, errors.md
         ├── notes/
-        └── requests/CODE-number-slug/
+        └── tasks/CODE-number-slug/
             ├── source.md
             └── <artifact-path>
 ```
 
+Homes created before v2 keep task folders under requests/ in both places until mypi home
+migrate-tasks moves them in one commit and rewrites the stored paths; every reader accepts
+both layouts.
+
 home/projects is context, not the working-clone directory projects/. Engine code stays
-in its checkout; using project/request context is not a prerequisite for development.
+in its checkout; using project/task context is not a prerequisite for development.
 Source/progress are not duplicated in SQL fields; the journal event text and file
 fingerprints live in SQLite. There is no per-task journal/status.md.
 Personal context is not part of the engine repository and is not moved by cleanup.
 
-## 4. Projects, requests and statuses
+## 4. Projects, tasks and statuses
 
 org/project is identity; canonical checkout is optional metadata. Project code is
 unique uppercase letters; REQ is reserved. Code cannot change after tasks exist.
-Title does not rename a key/folder. Request ID and local number are distinct.
-MAX+1 allocation uses BEGIN IMMEDIATE before source creation; request deletion and
-number reuse are not provided. Null project_id uses independent REQ numbering and
-request scope, not a fake project/global scope. The API does not currently reassign it.
+Title does not rename a key/folder. Task ID and local number are distinct.
+MAX+1 allocation uses BEGIN IMMEDIATE before source creation; task deletion and
+number reuse are not provided. Null project_id (legacy REQ records) uses independent
+REQ numbering and task scope, not a fake project/global scope. New tasks require a
+project; the API does not reassign one.
 
 Initial status is explicit. DB dictionary, not fixed code enum/pipeline, determines
 validity/terminality. Used statuses cannot be deleted or have terminality changed;
-renaming preserves stable IDs and is not request progress. Same status is a no-op.
-Terminal requests do not reopen; continuation is a new explicitly linked record.
-[M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history.
+renaming preserves stable IDs and is not task progress. Same status is a no-op.
+Terminal tasks do not reopen; continuation is a new explicitly linked record.
+[M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history of the request era.
 
 ## 5. Memory, journal and warmup
 
@@ -126,14 +131,14 @@ Notes have unique paths; errors append rather than rewrite.
 
 Journal: ordered append-only SQLite rows in the task database, with required
 at/scope/event_type/text and optional home-relative artifacts. Types:
-note/request_created/status_changed. Events do not launch flow. Existing monthly
+note/task_created/status_changed. Events do not launch flow. Existing monthly
 JSONL files are read only by explicit `journal import`; originals remain untouched.
 Stop old writers before cutover. Import rejects changed or corrupt input and retains
 legitimate duplicate entries. Legacy source/artifact fingerprints require unchanged,
 published files; reconcile dirty legacy files separately.
 
-Selection: global only global; org includes projects/requests; project includes its
-requests; request only itself; all is explicit. Relations resolve through DB; relevant
+Selection: global only global; org includes projects/tasks; project includes its
+tasks; task only itself; all is explicit. Relations resolve through DB; relevant
 months are selected and filtered before the overall sort/limit.
 Warmup inherits parent MEMORY, not global inbox or sibling content. It returns an index
 and paths, not complete history. Reads do not create DB/files. Scope is not an ACL.
@@ -142,14 +147,14 @@ and paths, not complete history. Reads do not create DB/files. Scope is not an A
 
 - DB-only: transaction, independent of workspace/Git, no empty commit.
 - Context changes: safe file writes and commits of exact operation paths.
-- Request create: source file first; task row, source fingerprint and event commit
+- Task create: source file first; task row, source fingerprint and event commit
   together in SQLite. SQL failure discloses the orphaned source.
 - Status/title: task row and event commit together. Progress: files first, then
   fingerprints, event and activity timestamp in one SQLite transaction.
   Task/journal saves do not invoke Git; local success is not publication or backup.
 
 No global SQLite/FS/Git atomicity. Partial reports saved/missing work, paths and
-requestId when known. CLI exits nonzero; MCP returns an error/partial envelope.
+taskId when known. CLI exits nonzero; MCP returns an error/partial envelope.
 Do not automatically repeat append/create, roll back a saved card or delete source.
 Inspect first, then complete checked files' commit, strict source adoption, factual
 recovery note instead of invented transition, or explicit touch as appropriate.
@@ -188,6 +193,6 @@ admins remain trusted. Evidence does not claim final production acceptance.
 
 A future unit defines role, interface, restrictions and acceptance. Flow composes units;
 runtime validates permissions/results and persists state. Root/org/project coordination
-and request workers should receive relevant context and explicit capabilities. No
+and task workers should receive relevant context and explicit capabilities. No
 mandatory LLM process per level, automatic status-triggered execution, process-tree
 ownership guarantee or universal human-only acceptance is implemented or assumed.

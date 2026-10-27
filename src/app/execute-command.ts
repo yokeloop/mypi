@@ -7,7 +7,7 @@ import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 
-const reads = new Set(['warmup', 'memory_show', 'journal_read', 'request_list', 'request_show', 'context_read']);
+const reads = new Set(['warmup', 'memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
@@ -27,11 +27,11 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath) };
         case 'project_update': return { project: app.projects.updateCheckout(c.identity, c.expectedCheckoutPath, c.checkoutPath) };
         case 'project_resolve': return app.projects.resolveCheckout(c.path);
-        case 'status_list': return app.requests.statuses();
-        case 'status_add': app.requests.addStatus(c.code, c.terminal); break;
-        case 'status_rename': app.requests.renameStatus(c.code, c.newCode); break;
-        case 'status_terminal': app.requests.setTerminal(c.code, c.terminal); break;
-        case 'status_remove': app.requests.removeStatus(c.code); break;
+        case 'status_list': return app.tasks.statuses();
+        case 'status_add': app.tasks.addStatus(c.code, c.terminal); break;
+        case 'status_rename': app.tasks.renameStatus(c.code, c.newCode); break;
+        case 'status_terminal': app.tasks.setTerminal(c.code, c.terminal); break;
+        case 'status_remove': app.tasks.removeStatus(c.code); break;
         default: throw new InputError('Unknown database command');
       }
       return { status: 'ok' };
@@ -53,17 +53,17 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
         ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.limit === undefined ? {} : { limit: c.limit }),
       });
-      case 'request_create': return app.requests.create({
+      case 'task_create': return app.tasks.create({
         title: c.title, status: c.status, slug: c.slug, source: inputText(c.source),
-        ...(c.project === null ? {} : { project: c.project }),
+        project: c.project,
         ...(c.adoptSource === undefined ? {} : { adoptSource: c.adoptSource }),
       });
-      case 'request_list': return app.requests.list(c);
-      case 'request_show': return app.requests.get(c.key);
-      case 'request_status': return app.requests.change(c.key, { status: c.status }, c.reason);
-      case 'request_title': return app.requests.change(c.key, { title: c.title }, c.reason);
-      case 'request_touch': return app.requests.touch(c.key);
-      case 'request_progress': return app.requests.progress(c.key, c.text, c.artifacts);
+      case 'task_list': return app.tasks.list(c);
+      case 'task_show': return app.tasks.get(c.key);
+      case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason);
+      case 'task_title': return app.tasks.change(c.key, { title: c.title }, c.reason);
+      case 'task_touch': return app.tasks.touch(c.key);
+      case 'task_progress': return app.tasks.progress(c.key, c.text, c.artifacts);
       case 'context_read': {
         const content = app.read(c.path);
         if (content === undefined) throw new InputError('Missing context file');
@@ -71,6 +71,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       }
       case 'context_commit': return { commit: app.complete(c.paths, c.message) };
       case 'context_restore': return { commit: app.restoreContext(c.path, c.revision) };
+      case 'home_migrate_tasks': return app.migrateTasks(Boolean(c.dryRun));
       default: throw new InputError('Unknown workspace command');
     }
   } finally { app.close(); }

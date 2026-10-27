@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import { chmodSync, mkdirSync, readFileSync, openSync, closeSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-const schemaVersion = 6;
+const schemaVersion = 7;
 
 function connect(filename: string, readonly: boolean, fileMustExist: boolean): Database.Database {
   const db = new Database(filename, { readonly, fileMustExist, timeout: 1000 });
@@ -56,6 +56,10 @@ export function initializeDatabase(filename: string, createOnly = false): void {
       if (current < 6) {
         db.exec(readFileSync(new URL('./migrations/006-drop-work-chats.sql', import.meta.url), 'utf8'));
         db.pragma('user_version = 6');
+      }
+      if (current < 7) {
+        db.exec(readFileSync(new URL('./migrations/007-rename-requests-tasks.sql', import.meta.url), 'utf8'));
+        db.pragma('user_version = 7');
       }
     }).immediate();
     chmodSync(filename, 0o600);

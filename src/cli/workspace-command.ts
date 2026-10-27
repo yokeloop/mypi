@@ -19,13 +19,13 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'journal add': [1, 1, ['scope'], []],
   'journal import': [0, 0, [], []],
   'journal read': [0, 0, ['scope', 'from', 'to', 'type', 'limit'], ['all']],
-  'request create': [0, 1, ['project', 'title', 'status', 'slug', 'file'], ['adopt-source']],
-  'request list': [0, 0, ['project', 'status'], []],
-  'request show': [1, 1, [], []],
-  'request status': [2, 2, ['reason'], []],
-  'request title': [2, 2, ['reason'], []],
-  'request progress': [2, 2, ['artifacts'], []],
-  'request touch': [1, 1, [], []],
+  'task create': [0, 1, ['project', 'title', 'status', 'slug', 'file'], ['adopt-source']],
+  'task list': [0, 0, ['project', 'status'], []],
+  'task show': [1, 1, [], []],
+  'task status': [2, 2, ['reason'], []],
+  'task title': [2, 2, ['reason'], []],
+  'task progress': [2, 2, ['artifacts'], []],
+  'task touch': [1, 1, [], []],
   'status list': [0, 0, [], []],
   'status add': [1, 1, [], ['terminal']],
   'status rename': [2, 2, [], []],
@@ -36,6 +36,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'context restore': [1, 1, ['revision'], []],
   backup: [0, 1, ['file'], ['publish', 'dry-run']],
   restore: [0, 1, ['repository', 'commit'], []],
+  'home migrate-tasks': [0, 0, [], ['dry-run']],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, openSync, closeSync, readSync, readlinkSync, fstatSync, constants } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { join, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { contextFiles, relativeContextPath } from '../filesystem/context-files.js';
 import { PartialError } from '../../shared/context.js';
 import { InputError } from '../../shared/errors.js';
@@ -152,6 +152,23 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       git(['add', '--', ...paths]);
       const dirty = git(['status', '--porcelain=v1', '--', ...paths]);
       if (dirty) git(['commit', '--quiet', '--only', '-m', message, '--', ...paths]);
+      return git(['rev-parse', 'HEAD']).trim();
+    },
+    moveDirectories(pairs: { from: string; to: string }[], message: string) {
+      check(pairs.flatMap(pair => [pair.from, pair.to]));
+      for (const { from, to } of pairs) {
+        if (!existsSync(files.path(from)) || !lstatSync(files.path(from)).isDirectory()) throw new InputError('Source directory missing: ' + from);
+        if (existsSync(files.path(to))) throw new InputError('Target directory exists: ' + to);
+      }
+      const moved: string[] = [];
+      try {
+        for (const { from, to } of pairs) {
+          mkdirSync(dirname(files.path(to)), { recursive: true, mode: 0o700 });
+          git(['mv', '--', from, to]);
+          moved.push(to);
+        }
+        git(['commit', '--quiet', '--only', '-m', message, '--', ...pairs.flatMap(pair => [pair.from, pair.to])]);
+      } catch (e) { throw new PartialError(String(e), moved.length ? ['context'] : [], ['git', 'database'], moved); }
       return git(['rev-parse', 'HEAD']).trim();
     },
   };

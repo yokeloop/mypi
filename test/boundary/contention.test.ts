@@ -8,10 +8,11 @@ import { createApp } from '../../src/app/create-app.js';
 
 test('writer reservation blocks a second source callback before number allocation completes', async t => {
   const { filename } = state(t);
+  const setup = createApp(filename, false); setup.projects.add('one/project', 'MP'); setup.close();
   const module = fileURLToPath(new URL('../../src/app/create-app.js', import.meta.url));
   const program = `import {createApp} from ${JSON.stringify(module)};
 const app=createApp(process.argv[1],false);
-app.requests.create({projectId:null,title:'Held',status:'new',slug:'held'},()=>{
+app.tasks.create({projectId:1,title:'Held',status:'new',slug:'held'},()=>{
   process.send('inside-source-before-insert');
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)),0,0);
 });`;
@@ -25,10 +26,10 @@ app.requests.create({projectId:null,title:'Held',status:'new',slug:'held'},()=>{
   const second = createApp(filename, false);
   try {
     let sourceCalled = false;
-    assert.throws(() => second.requests.create({projectId:null,title:'Other',status:'new',slug:'other'},
+    assert.throws(() => second.tasks.create({projectId:1,title:'Other',status:'new',slug:'other'},
       () => { sourceCalled = true; }), /locked/);
     assert.equal(sourceCalled, false, 'reservation must precede source side effects');
-    assert.equal(second.requests.list().length, 0);
+    assert.equal(second.tasks.list().length, 0);
   } finally {
     second.close();
     const exit = once(child, 'exit'); child.kill('SIGKILL'); await exit;

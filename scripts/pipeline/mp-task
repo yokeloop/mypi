@@ -25,25 +25,25 @@ EOF
 }
 cmd=${1:-}; [[ -n "$cmd" ]] || usage; shift
 case "$cmd" in
-  show) [[ $# -eq 1 ]] || usage; cli request show "$1" ;;
+  show) [[ $# -eq 1 ]] || usage; cli task show "$1" ;;
   dir) [[ $# -eq 1 ]] || usage
-    rel=$(cli request show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
+    rel=$(cli task show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
     echo "$HOME_DIR/$rel" ;;
   slug) [[ $# -eq 1 ]] || usage
     base=$(basename "$("$self" dir "$1")"); echo "${base#"$1"-}" ;;
   source) [[ $# -eq 1 ]] || usage; cat "$("$self" dir "$1")/source.md" ;;
-  status) [[ $# -eq 3 ]] || usage; cli request status "$1" "$2" --reason "$3" ;;
+  status) [[ $# -eq 3 ]] || usage; cli task status "$1" "$2" --reason "$3" ;;
   progress) [[ $# -ge 2 ]] || usage
     key=$1; text=$2; shift 2
     if [[ $# -gt 0 ]]; then
       tmp=$(mktemp)
       python3 -c 'import sys,json;print(json.dumps([{"path":p} for p in sys.argv[1:]]))' "$@" > "$tmp"
-      cli request progress "$key" "$text" --artifacts "$tmp"; rm -f "$tmp"
+      cli task progress "$key" "$text" --artifacts "$tmp"; rm -f "$tmp"
     else
-      cli request progress "$key" "$text"
+      cli task progress "$key" "$text"
     fi ;;
-  list) cli request list --project "$PROJECT" ;;
-  v2) cli request list --project "$PROJECT" | python3 -c '
+  list) cli task list --project "$PROJECT" ;;
+  v2) cli task list --project "$PROJECT" | python3 -c '
 import sys,json
 rows=[r for r in json.load(sys.stdin) if r["title"].startswith("v2 ")]
 for r in sorted(rows,key=lambda r:r["number"]):

@@ -16,6 +16,6 @@ try {
   } else process.stdout.write(JSON.stringify(output) + '\n');
 } catch (error) {
   process.stderr.write(JSON.stringify({ ...(error instanceof PartialError ? { status: 'partial', saved: error.saved,
-    missing: error.missing, paths: error.paths, requestId: error.requestId } : { status: 'error' }), message: error instanceof Error ? error.message : String(error) }) + '\n');
+    missing: error.missing, paths: error.paths, taskId: error.taskId } : { status: 'error' }), message: error instanceof Error ? error.message : String(error) }) + '\n');
   process.exitCode = 1;
 }

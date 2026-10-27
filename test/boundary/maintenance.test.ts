@@ -18,8 +18,9 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   // Tracked attributes must not normalize original CRLF bytes in a restored checkout.
   contextFiles(root).create('.gitattributes', '*.md text eol=lf\n');
   app.complete(['.gitattributes'], 'Fixture attributes');
-  const card = app.requests.create({ title: 'Backup', status: 'new', slug: 'backup', source: 'source\r\n' });
-  app.requests.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
+  app.projects.add('one/project', 'MP');
+  const card = app.tasks.create({ project: 'one/project', title: 'Backup', status: 'new', slug: 'backup', source: 'source\r\n' });
+  app.tasks.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
   app.memory.add('before');
   const old = contextGit(root).head()!;
   app.memory.add('after');
@@ -39,7 +40,7 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   assert.equal(readFileSync(join(root, '.cache', 'ignored'), 'utf8'), 'runtime cache');
   const restored = createWorkspace(restoredDB, true, restoredRoot);
   try {
-    assert.equal(restored.requests.get(card.key).id, card.id);
+    assert.equal(restored.tasks.get(card.key).id, card.id);
     assert.equal(restored.read(card.contextDir + '/source.md'), 'source\r\n');
     assert.equal(restored.history('all').length, 2);
     assert.equal(restored.read(card.contextDir + '/artifacts/result.md'), 'evidence');
