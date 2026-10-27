@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { isAbsolute } from 'node:path';
-import { parseChatPreview } from '../app/work-chat-input.js';
 import { scopeValue } from '../shared/scope.js';
 
 export const text = z.string();
@@ -13,20 +12,6 @@ export const scope = z.union([globalScope, keyedScope]).refine(value => {
 export const contextScope = scope.refine(value => value.type !== 'request', 'Context scope cannot be request');
 export const textInput = z.union([z.strictObject({ text }), z.strictObject({ file: externalPath })]);
 export const artifact = z.strictObject({ path: text, text: text.optional() });
-export const modelPair = z.strictObject({ provider: z.string().min(1), model: z.string().min(1) });
-const binding = z.strictObject({ projectId: z.number().int().positive(), requestId: z.number().int().positive(),
-  sourceClone: externalPath, worktree: externalPath, gitCommonDir: externalPath, branch: z.string().min(1),
-  installation: externalPath, statePath: externalPath });
-const native = z.strictObject({ sessionId: text, historyPath: externalPath });
-const processIdentity = z.strictObject({ pane: text, processId: z.number().int().positive(), processStart: text,
-  processBootId: text.optional(), herdrEndpoint: externalPath.optional() });
-export const chatPreview = z.strictObject({ action: z.enum(['open', 'resume', 'new-empty']), binding,
-  chatId: text.optional(), priorAttempt: text.optional(), priorRevision: text.optional(), name: text.optional(),
-  model: z.union([modelPair.extend({ source: z.enum(['invocation', 'saved session', 'project', 'organization', 'default']) }),
-    z.strictObject({ source: z.literal('unselected') })]),
-  native: native.optional(), live: processIdentity.optional(), persisted: z.boolean().optional() }).refine(value => {
-    try { parseChatPreview(value); return true; } catch { return false; }
-  }, 'Invalid or stale work-chat preview');
 // The envelope is stable; data retains the existing operation-specific CLI JSON.
 export const output = z.strictObject({
   status: z.enum(['ok', 'error', 'partial']), data: z.unknown().optional(),

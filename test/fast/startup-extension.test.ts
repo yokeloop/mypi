@@ -4,63 +4,12 @@ import { mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import registerStartupExtension, { type ExtensionAPI } from '../../src/app/startup-registration.js';
-import { parseCommand } from '../../src/cli/command.js';
-import { appCommand } from '../../src/cli/app-command.js';
 
 function install(api: ExtensionAPI): void {
-  registerStartupExtension(api, (cli, args, options) => api.exec('node', [cli, ...args], options));
+  registerStartupExtension(api);
 }
 
 // Exercise the actual extension handlers without a Pi process or external CLI.
-test('native slash execute forwards exact saved-session preview JSON and focus to shared CLI parsing', async () => {
-  let handler: ((args: string, ctx: any) => Promise<void>) | undefined;
-  const calls: string[][] = [];
-  const notices: string[] = [];
-  install({ registerMcpServer() {}, registerFlag() {}, on() {},
-    registerCommand(name: string, command: { handler: (args: string, ctx: any) => Promise<void> }) {
-      if (name === 'work-chat') handler = command.handler;
-    },
-    async exec(_command: string, argv: string[]) {
-      calls.push(argv);
-      return { code: 0, stdout: '{}', stderr: '' };
-    },
-  } as never);
-  assert(handler, 'registered native command must be exercised');
-  const ctx = { signal: new AbortController().signal, ui: { notify(message: string) { notices.push(message); } } };
-  const preview = { action: 'resume', chatId: 'chat-1', priorAttempt: 'attempt-1', priorRevision: 'a'.repeat(64),
-    binding: { projectId: 1, requestId: 2, sourceClone: '/source', worktree: '/worktree',
-      gitCommonDir: '/source/.git', branch: 'task/a', installation: '/engine', statePath: '/state' },
-    model: { provider: 'fixture', model: 'model/id', source: 'saved session' },
-    native: { sessionId: 'session-1', historyPath: '/state/sessions/a.jsonl' },
-    name: 'marker with spaces, escaped "quotes" and \\slashes --focus',
-  };
-  const json = JSON.stringify(preview);
-  const cli = async (input: string) => {
-    await handler!(input, ctx);
-    return calls.at(-1)!.slice(1);
-  };
-  const argv = await cli(`execute --preview ${json} --focus`);
-  assert.deepEqual(argv, ['work-chat', 'execute', '--preview', json, '--focus']);
-  assert.deepEqual(appCommand(parseCommand(argv) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>),
-    { name: 'work_chat_execute', preview, focus: true });
-  const noFocus = await cli(`execute --preview ${json}`);
-  assert.deepEqual(noFocus, ['work-chat', 'execute', '--preview', json]);
-  assert.equal((appCommand(parseCommand(noFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, false);
-  const embeddedFocus = JSON.stringify({ ...preview, name: 'suffix --focus' });
-  assert.deepEqual(await cli(`execute --preview ${embeddedFocus}`), ['work-chat', 'execute', '--preview', embeddedFocus]);
-  const formatted = JSON.stringify(preview, null, 2);
-  const leadingFocus = await cli(`execute --focus --preview ${formatted}`);
-  assert.deepEqual(leadingFocus, ['work-chat', 'execute', '--focus', '--preview', formatted]);
-  assert.equal((appCommand(parseCommand(leadingFocus) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>) as { focus?: boolean }).focus, true);
-  for (const input of ['execute --preview', 'execute --preview {invalid',
-    `execute --preview ${json} extra`, `execute --preview ${json} --preview ${json}`,
-    `execute --preview ${json} --focus --focus`, `execute --preview ${json}--focus`]) {
-    const forwarded = await cli(input);
-    assert.throws(() => appCommand(parseCommand(forwarded) as Exclude<ReturnType<typeof parseCommand>, { type: 'help' }>));
-  }
-  assert.deepEqual(await cli('list'), ['work-chat', 'list']);
-  assert.equal(notices.length, calls.length);
-});
 test('session snapshot survives ordinary turns/compaction, refreshes on memory tools and lifecycle, rejects late reads', async t => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const entries: any[] = [];
@@ -75,7 +24,7 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   t.after(() => rmSync(aliasDir, { recursive: true, force: true }));
   const alias = join(aliasDir, 'root'); symlinkSync(root, alias);
   const api = {
-    registerMcpServer() {}, registerCommand() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
+    registerMcpServer() {}, registerFlag() {}, getFlag(name: string) { return name === 'mypi-scope' ? scope : false; },
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     appendEntry(_name: string, value: unknown) { entries.push({ type: 'custom', customType: 'mypi-startup-binding', data: value }); },
     exec(_command: string, args: string[]) {
@@ -135,48 +84,13 @@ test('session snapshot survives ordinary turns/compaction, refreshes on memory t
   await turn(); assert.equal(calls.length, 13);
 });
 
-
-test('slash open-request forwards one shared command and displays opening, selection and error without retry', async () => {
-  let command!: (args: string, ctx: any) => Promise<void>;
-  const calls: string[][] = [], notices: string[] = [];
-  let response = { code: 0, stdout: JSON.stringify({ outcome: 'opened', chat: { id: 'chat' } }), stderr: '' };
-  install({ registerMcpServer() {}, registerFlag() {}, on() {},
-    registerCommand(_name: string, value: { handler: typeof command }) { command = value.handler; },
-    async exec(_binary: string, args: string[]) {
-      calls.push(args);
-      try {
-        const parsed = parseCommand(args.slice(1));
-        assert.notEqual(parsed.type, 'help'); appCommand(parsed as Exclude<typeof parsed, { type: 'help' }>);
-      }
-      catch (error) { return { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', message: (error as Error).message }) }; }
-      return response;
-    },
-  } as never);
-  const ctx = { signal: new AbortController().signal, ui: { notify(text: string) { notices.push(text); } } };
-  await command('open-request --project one/project --request-id 2', ctx);
-  assert.deepEqual(calls[0]!.slice(1), ['work-chat', 'open-request', '--project', 'one/project', '--request-id', '2']);
-  assert.equal(JSON.parse(notices.at(-1)!).outcome, 'opened');
-  response = { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', outcome: 'choice-needed', chats: [{ id: 'a' }, { id: 'b' }], reason: 'Select chatId' }) };
-  await command('open-request --project one/project --request-id 2', ctx);
-  assert.deepEqual(JSON.parse(notices.at(-1)!).chats, [{ id: 'a' }, { id: 'b' }]);
-  response = { code: 1, stdout: '', stderr: JSON.stringify({ status: 'error', message: 'Exact native history unavailable' }) };
-  await command('open-request --project one/project --request-id 2 --chat-id a', ctx);
-  assert.match(notices.at(-1)!, /Exact native history unavailable/);
-  await command('adopt-model', ctx);
-  assert.match(notices.at(-1)!, /removed.*native \/model.*same Pi session/);
-  assert.equal(calls.length, 4, 'no hidden launch, sync, adoption or retry');
-  await command('help', ctx);
-  assert.equal(calls.length, 4);
-  assert.match(notices.at(-1)!, /open-request.*open\/focus now.*only preview.*read-only/);
-});
-
 test('native lifecycle no longer mirrors auth/model; independent MCP, scope and warmup guards remain', async () => {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const flags: string[] = [], calls: string[][] = [], servers: any[] = [], entries: any[] = [];
   let disabled = false;
   install({
     registerMcpServer(name: string, server: unknown) { servers.push({ name, server }); },
-    registerCommand() {}, registerFlag(name: string) { flags.push(name); },
+    registerFlag(name: string) { flags.push(name); },
     getFlag(name: string) { return name === 'mypi-scope' ? 'one/project' : disabled; },
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     appendEntry(name: string, data: unknown) { entries.push({ type: 'custom', customType: name, data }); },
@@ -210,25 +124,4 @@ test('native lifecycle no longer mirrors auth/model; independent MCP, scope and 
   entries[0].data = saved;
   disabled = true; await emit('session_start'); assert.deepEqual(await turn(), {});
   assert.equal(calls.length, 1, 'autoload opt-out remains independent of MCP registration');
-});
-
-test('slash keeps the finite CLI boundary and reports interruption or spawn failure without retry', async () => {
-  let handler!: (args: string, ctx: any) => Promise<void>;
-  const notices: string[] = [];
-  let calls = 0;
-  registerStartupExtension({ registerMcpServer() {}, registerFlag() {}, on() {},
-    registerCommand(_name: string, command: { handler: typeof handler }) { handler = command.handler; },
-  } as never, async (cli, args, options) => {
-    calls++;
-    assert.equal(cli, join(process.cwd(), 'dist/src/cli/main.js'));
-    assert.deepEqual(args, ['work-chat', 'list']);
-    assert.equal(options.cwd, process.cwd()); assert.equal(options.timeout, 30000);
-    assert.equal(options.signal, undefined, 'idle Pi commands may have no operation signal');
-    if (calls === 2) throw new Error('spawn unavailable');
-    return { code: 0, killed: true, stdout: 'not success', stderr: 'cancelled' };
-  });
-  const ctx = { ui: { notify(text: string) { notices.push(text); } } };
-  await handler('list', ctx); await handler('list', ctx);
-  assert.deepEqual(notices, ['cancelled', 'work-chat command failed: spawn unavailable']);
-  assert.equal(calls, 2);
 });

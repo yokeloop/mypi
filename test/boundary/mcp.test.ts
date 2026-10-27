@@ -18,10 +18,8 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return root;
   }
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
-  const agentDir = join(dir, 'agent'); mkdirSync(agentDir);
   const env = (where: string) => ({ PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state',
-    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
-    MYPI_WORK_CHAT_PI: process.execPath, PI_CODING_AGENT_DIR: agentDir });
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
   async function connect(where: string) {
     const transport = new StdioClientTransport({ command: process.execPath, args: [join(where, 'dist/src/mcp/main.js')],
       cwd: dir, env: env(where), stderr: 'pipe' });
@@ -43,13 +41,8 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     return value['data'];
   }
   const listed = (await client.listTools()).tools;
-  assert.equal(listed.length, 42);
+  assert.equal(listed.length, 35);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
-  assert.equal(listed.find(t => t.name === 'work_chat_open')!.annotations!.readOnlyHint, true);
-  assert.equal(listed.find(t => t.name === 'work_chat_open_request')!.annotations!.readOnlyHint, false);
-  assert.equal(listed.find(t => t.name === 'work_chat_resume')!.annotations!.readOnlyHint, true);
-  assert.equal(listed.find(t => t.name === 'work_chat_show')!.annotations!.readOnlyHint, true);
-  assert.equal(listed.find(t => t.name === 'work_chat_execute')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup')!.annotations!.readOnlyHint, false);
   assert.equal(listed.find(t => t.name === 'backup_publish')!.annotations!.destructiveHint, true);
   assert.equal(listed.find(t => t.name === 'restore_published')!.annotations!.destructiveHint, true);
@@ -63,7 +56,6 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert.equal(existsSync(home), false);
   assert.equal(existsSync(root + '-state'), false, 'connect/list/invalid calls must not initialize DB');
   await call('db_init');
-  assert.deepEqual(await call('work_chat_list'), { chats: [] });
   await call('project_add', { identity: 'one/project', code: 'MP', checkoutPath: dir });
   assert.equal((await call('project_update', { identity: 'one/project', expectedCheckoutPath: dir, checkoutPath: root })).project.checkoutPath, root);
   assert.equal((await call('project_list', { org: 'one' })).projects[0].code, 'MP');
@@ -90,12 +82,6 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
   const request = await call('request_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
   assert.equal(request.key, 'MP-1');
-  const setup = await client.callTool({ name: 'work_chat_open_request', arguments: { identity: 'one/project', requestId: request.id } });
-  assert.equal(setup.isError, true, 'setup-needed is not a successful opening');
-  assert.deepEqual(setup.structuredContent, JSON.parse((setup.content as { text: string }[])[0]!.text));
-  assert.equal((setup.structuredContent as any).status, 'error');
-  assert.equal((setup.structuredContent as any).data.outcome, 'setup-needed');
-  assert.deepEqual(await call('work_chat_list'), { chats: [] });
   assert.equal(readFileSync(join(home, request.contextDir, 'source.md'), 'utf8'), source);
   await call('request_title', { key: request.key, title: 'Renamed', reason: 'clarified' });
   await call('request_progress', { key: request.key, text: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
