@@ -17,10 +17,10 @@ test('explicit legacy import preserves exact rows/files, empty input and replay;
     const card = app.tasks.create({ project: 'one/project', title: 'Legacy', status: 'new', slug: 'legacy', source: 'original' });
     const artifact = card.contextDir + '/proof.md', log = 'journal/2026-01.jsonl', empty = 'journal/2026-02.jsonl';
     contextFiles(root).create(artifact, 'evidence');
-    const entry = { at: '2026-01-01T00:00:00Z', scope: { type: 'task', key: card.key },
+    const entry = { at: '2026-01-01T00:00:00Z', scope: { type: 'request', key: card.key },
       event_type: 'note', text: 'same', artifacts: [artifact] };
     const bytes = Buffer.from(JSON.stringify(entry) + '\n' + JSON.stringify(entry) + '\n'
-      + JSON.stringify({ ...entry, text: 'different\ntext' }) + '\n');
+      + JSON.stringify({ ...entry, text: 'different\ntext', event_type: 'request_created' }) + '\n');
     contextFiles(root).create(log, bytes.toString('utf8'));
     contextFiles(root).create(empty, '');
     contextGit(root).commit([card.contextDir + '/source.md', artifact, log, empty], 'Publish legacy files');
@@ -31,6 +31,7 @@ test('explicit legacy import preserves exact rows/files, empty input and replay;
       finally { db.close(); }
     };
     assert.deepEqual(app.importJournal(), { imported: 3 });
+    assert.deepEqual(app.history({ type: 'task', key: card.key }).map(e => e.event_type), ['note', 'note', 'task_created', 'task_created']);
     assert.deepEqual(readFileSync(join(root, log)), bytes);
     assert.equal(readFileSync(join(root, empty)).length, 0);
     assert.deepEqual(app.history({ type: 'task', key: card.key }).map(e => [e.text, e.artifacts ?? []]),
