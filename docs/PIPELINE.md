@@ -34,6 +34,20 @@ batch branch the engineer checks as a whole.
 - `scripts/pipeline/mp-task` subcommands: `show`, `dir`, `slug`, `source`, `status`,
   `progress`, `v2` (table of the v2 tasks). Run it without arguments for usage.
 
+## Temporary scripts
+
+Two of the three scripts stand in for mypi features the v2 plan adds later; each
+is removed by the task that makes it redundant, and that task's done criteria say
+so:
+
+- `scripts/pipeline/mp-task` — until MP-36 (T5, Claude adapter) gives the main
+  chat on Claude Code the mypi MCP (`task_show`, `task_update`, `inbox`); then
+  the skills call the MCP tools and the script goes.
+- `scripts/pipeline/mp-worktree` — until MP-39 (T8) ships `mypi task worktree`;
+  then the skills call that command and the script goes.
+- `scripts/pipeline/mp-home-commit` has no planned replacement: `context commit`
+  commits locally only and publication goes through `backup --publish`.
+
 ## Roles
 
 Subagent types from `.claude/agents/`: `plan-scout` (read-only reconnaissance),
