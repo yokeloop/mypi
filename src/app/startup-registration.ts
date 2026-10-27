@@ -15,7 +15,6 @@ interface ExtensionContext {
 export interface ExtensionAPI {
   registerMcpServer(name: string, server: { command: string; args: string[]; cwd: string; description: string; exposure: string; toolExposure: Record<string, string> }): void;
   registerFlag(name: string, flag: { type: 'boolean' | 'string'; description: string }): void;
-  registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   getFlag(name: string): unknown;
   appendEntry<T>(name: string, value: T): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number; signal: AbortSignal | undefined }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
@@ -49,43 +48,7 @@ function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/** Keep the preview's JSON bytes together; the shared CLI still validates its contents. */
-function slashWorkChatArgs(input: string): string[] {
-  const text = input.trim();
-  const execute = /^execute\s+(--focus\s+)?--preview(?:\s+|=)([\s\S]*)$/.exec(text);
-  if (!execute) return text.split(/\s+/);
-  const body = execute[2]!;
-  let end = body.length;
-  if (body.startsWith('{') || body.startsWith('[')) {
-    let depth = 0, quoted = false, escaped = false;
-    for (let i = 0; i < body.length; i++) {
-      const char = body[i];
-      if (escaped) { escaped = false; continue; }
-      if (quoted && char === '\\') { escaped = true; continue; }
-      if (char === '"') { quoted = !quoted; continue; }
-      if (quoted) continue;
-      if (char === '{' || char === '[') depth++;
-      if (char === '}' || char === ']') {
-        depth--;
-        if (depth === 0) { end = i + 1; break; }
-      }
-    }
-  }
-  const suffix = body.slice(end), remainder = suffix.trim();
-  const before = execute[1] ? ['--focus'] : [];
-  // Only one whitespace-separated trailing focus flag is meaningful; other tails
-  // remain one invalid CLI argument rather than becoming a replacement preview.
-  const after = remainder ? [/^\s+--focus$/.test(suffix) && !execute[1] ? '--focus'
-    : remainder === '--focus' ? '--focus --focus' : remainder] : [];
-  return ['execute', ...before, '--preview', body.slice(0, end), ...after];
-}
-
-export type WorkChatCli = (cli: string, args: string[], options: {
-  cwd: string; timeout: number; signal: AbortSignal | undefined;
-}) => Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
-
-/** Registration stays process-free; only the work-chat command uses the separate CLI executor. */
-export default function registerStartupExtension(pi: ExtensionAPI, workChatCli: WorkChatCli) {
+export default function registerStartupExtension(pi: ExtensionAPI) {
   const root = realpathSync(fileURLToPath(new URL('../../../', import.meta.url)));
   const entry = fileURLToPath(new URL('../../../dist/src/mcp/main.js', import.meta.url));
   const cli = fileURLToPath(new URL('../../../dist/src/cli/main.js', import.meta.url));
@@ -94,23 +57,6 @@ export default function registerStartupExtension(pi: ExtensionAPI, workChatCli: 
     command: 'node', args: [entry], cwd: root,
     description: 'Local mypi tools for memory, projects, requests and history. No automatic initialization or writes.',
     exposure: 'codemode', toolExposure: { project_resolve: 'direct', warmup: 'direct' },
-  });
-  pi.registerCommand('work-chat', { description: 'Open a request chat, or inspect/preview work chats (see /work-chat help)',
-    async handler(args, ctx) {
-      if (!args.trim() || args.trim() === 'help') {
-        ctx.ui.notify('work-chat open-request --project org/project --request-id N [--chat-id ID] [--source-clone /clone --worktree /worktree] [--model provider/model-id] [--no-focus]: open/focus now. Low-level open/resume/new-empty only preview; execute --preview JSON [--focus] launches. list/show are read-only. Use native /model and /login; adopt-model was removed. Never sends a prompt. See mypi --help.', 'warning');
-        return;
-      }
-      // CLI remains the validator and application dispatch; no shell evaluates arguments.
-      // Only execute --preview needs one intact JSON argv item from the slash input.
-      try {
-        const result = await workChatCli(cli, ['work-chat', ...slashWorkChatArgs(args)],
-          { cwd: root, timeout: 30000, signal: ctx.signal });
-        ctx.ui.notify((result.code === 0 && !result.killed ? result.stdout : result.stderr).slice(0, 4000) || 'work-chat command failed', 'warning');
-      } catch (error) {
-        ctx.ui.notify(`work-chat command failed: ${errorText(error)}`, 'warning');
-      }
-    },
   });
   pi.registerFlag('mypi-scope', { type: 'string', description: 'Explicit mypi scope (organization or organization/project); omit for automatic cwd/global.' });
   pi.registerFlag('mypi-no-autoload', { type: 'boolean', description: 'Disable mypi CLI context autoload, independently of MCP.' });

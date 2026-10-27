@@ -93,24 +93,6 @@ test('project checkout update preserves identity and requests, rejects stale and
   } finally { app.close(); }
 });
 
-test('project checkout update refuses managed work chats, including closed history', t => {
-  const { dir, filename } = state(t);
-  const oldPath = join(dir, 'old'), newPath = join(dir, 'new');
-  mkdirSync(oldPath); mkdirSync(newPath);
-  const app = createApp(filename, false);
-  try {
-    const project = app.projects.add('one/project', 'MP', oldPath);
-    const request = app.requests.create({ projectId: project.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
-    app.chatStore.reserve({ id: 'chat', requestId: request.id, projectId: project.id, name: null,
-      sourceClone: oldPath, worktree: join(dir, 'worktree'), gitCommonDir: join(dir, '.git'), branch: 'task',
-      installation: dir, statePath: filename, sessionId: null, historyPath: null, attemptId: 'attempt',
-      pane: null, processId: null, processStart: null, requestedProvider: null, requestedModel: null, phase: 'closed' });
-    assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /managed work chats/);
-    assert.deepEqual(app.projects.list(), [project]);
-    assert.deepEqual(app.projects.updateCheckout('one/project', oldPath, oldPath), project);
-  } finally { app.close(); }
-});
-
 test('read APIs leave database bytes and filesystem unchanged; absent database is not initialized', t => {
   const { dir, filename } = state(t);
   const write = createApp(filename, false);

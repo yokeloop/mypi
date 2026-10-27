@@ -84,8 +84,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
   const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
   const memory = createMemory(texts, text => createHash('sha256').update(text).digest('hex')), inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
   return {
-    projects: core.projects, close: core.close, requests, chatStore: database.chatStore,
-    chatRequests: { get: (id: number) => database.requests.get(id) }, root,
+    projects: core.projects, close: core.close, requests,
     statuses: {
       statuses: core.requests.statuses, addStatus: core.requests.addStatus,
       renameStatus: core.requests.renameStatus, setTerminal: core.requests.setTerminal,

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, readFileSync, existsSync, mkdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -36,21 +36,4 @@ test('real Node launcher persists projects across independent processes without 
   assert.equal(JSON.parse(duplicate.stderr).status, 'error');
   assert.equal(duplicate.stdout, '');
   assert.equal(existsSync(join(dir, 'home')), false);
-  const missingTarget = run('work-chat', 'list');
-  assert.equal(missingTarget.status, 1);
-  assert.match(JSON.parse(missingTarget.stderr).message, /MYPI_WORK_CHAT_PI.*PI_CODING_AGENT_DIR/);
-  assert.equal(missingTarget.stdout, '');
-  const agentDir = join(dir, 'agent'); mkdirSync(agentDir);
-  const observed = spawnSync(process.execPath, [entry, 'work-chat', 'list'], {
-    env: { ...env, MYPI_WORK_CHAT_PI: process.execPath, PI_CODING_AGENT_DIR: agentDir },
-    cwd: dir, encoding: 'utf8', timeout: 3000,
-  });
-  assert.equal(observed.status, 0, observed.stderr);
-  assert.deepEqual(JSON.parse(observed.stdout), { chats: [] });
-  const removedAdopter = run('work-chat', 'adopt-model');
-  assert.equal(removedAdopter.status, 1); assert.equal(removedAdopter.stdout, '');
-  assert.match(JSON.parse(removedAdopter.stderr).message, /removed.*native \/model.*same Pi session/);
-  const malformedModel = run('work-chat', 'resume', 'chat-id', '--model', 'unqualified');
-  assert.equal(malformedModel.status, 1);
-  assert.match(JSON.parse(malformedModel.stderr).message, /provider\/model-id/);
 });

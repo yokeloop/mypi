@@ -6,7 +6,6 @@ import { createRequests } from '../modules/requests/public.js';
 import { sqliteRequestStore } from '../modules/requests/adapters/sqlite-request-store.js';
 import { createProjects } from '../modules/projects/public.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
-import { sqliteChatStore } from '../modules/work-chats/adapters/sqlite-chat-store.js';
 
 function engineRoot(): string {
   return fileURLToPath(new URL('../../../', import.meta.url));
@@ -33,7 +32,6 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    chatStore: sqliteChatStore(db),
     close: () => db.close(),
   };
 }

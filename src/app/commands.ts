@@ -1,6 +1,4 @@
 import type { Scope } from '../shared/scope.js';
-import type { ChatPreview } from './work-chats.js';
-import type { ModelPair } from '../modules/work-chats/public.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
@@ -34,12 +32,4 @@ export type AppCommand =
   | { name: 'backup'; destination: string }
   | { name: 'backup_publish'; dryRun?: boolean; selectedPaths?: string[] }
   | { name: 'restore'; backupDirectory: string }
-  | { name: 'restore_published'; repository: string; commit: string }
-  | { name: 'work_chat_open_request'; identity: string; requestId: number; chatId?: string;
-    association?: { sourceClone: string; worktree: string }; nameLabel?: string; model?: ModelPair; focus?: boolean }
-  | { name: 'work_chat_open'; identity: string; requestId: number; sourceClone: string; worktree: string; nameLabel?: string; model?: ModelPair }
-  | { name: 'work_chat_resume'; id: string; model?: ModelPair }
-  | { name: 'work_chat_new_empty'; id: string; nameLabel?: string; model?: ModelPair }
-  | { name: 'work_chat_execute'; preview: ChatPreview; focus?: boolean }
-  | { name: 'work_chat_list' }
-  | { name: 'work_chat_show'; id: string };
+  | { name: 'restore_published'; repository: string; commit: string };

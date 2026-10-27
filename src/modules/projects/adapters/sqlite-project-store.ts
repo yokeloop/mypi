@@ -27,8 +27,6 @@ export function sqliteProjectStore(db: Database): ProjectStore {
       if (project.checkoutPath !== input.expectedCheckoutPath) throw new InputError('Stale project checkout path');
       if (db.prepare('SELECT id FROM projects WHERE checkout_path = ? AND id <> ?')
         .get(input.checkoutPath, project.id)) throw new InputError('Checkout path already registered to another project');
-      if (project.checkoutPath !== input.checkoutPath && db.prepare('SELECT id FROM work_chats WHERE project_id = ? LIMIT 1')
-        .get(project.id)) throw new InputError('Cannot change checkout path while project has managed work chats');
       db.prepare('UPDATE projects SET checkout_path = ? WHERE id = ?').run(input.checkoutPath, project.id);
       return db.prepare(select + ' WHERE p.id = ?').get(project.id) as Project;
     }).immediate,
