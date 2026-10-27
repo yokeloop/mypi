@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+# Create or reuse the task worktree of a mypi task. Prints one JSON object.
+#   mp-worktree <KEY> [--base <ref>]     default base: origin/main
+# Never touches the base clone's checked-out branch; never cleans a dirty worktree.
+set -euo pipefail
+ENGINE=${MYPI_ENGINE_ROOT:-$PWD}
+# The installation root: the engine checkout with home/ and projects/ beside it.
+[[ -f "$ENGINE/package.json" && -d "$ENGINE/home" && -d "$ENGINE/projects" ]] \
+  || { echo "{\"error\":\"run from the installation root (engine checkout with home/ and projects/), got $ENGINE\"}" >&2; exit 2; }
+BASE_CLONE=$ENGINE/projects/yokeloop/mypi
+BIN=$(cd "$(dirname "$0")" && pwd)
+key=${1:-}; [[ -n "$key" ]] || { echo "usage: mp-worktree <KEY> [--base <ref>]" >&2; exit 2; }
+shift
+base_ref=origin/main
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --base) base_ref=$2; shift 2 ;;
+    *) echo "unknown option $1" >&2; exit 2 ;;
+  esac
+done
+slug=$("$BIN/mp-task" slug "$key")
+branch="task/$key-$slug"
+wt="$ENGINE/projects/yokeloop/mypi--$key-$slug"
+
+git -C "$BASE_CLONE" fetch -q origin
+# A batch base lives on origin; take it from there when it is not a local ref.
+if ! git -C "$BASE_CLONE" rev-parse -q --verify "$base_ref^{commit}" >/dev/null; then
+  if git -C "$BASE_CLONE" rev-parse -q --verify "origin/$base_ref^{commit}" >/dev/null; then
+    base_ref="origin/$base_ref"
+  else
+    echo "{\"error\":\"base ref not found: $base_ref\"}"; exit 1
+  fi
+fi
+base_sha=$(git -C "$BASE_CLONE" rev-parse "$base_ref")
+
+created_branch=false
+if ! git -C "$BASE_CLONE" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
+  if git -C "$BASE_CLONE" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
+    git -C "$BASE_CLONE" branch -q --track "$branch" "origin/$branch"
+  else
+    git -C "$BASE_CLONE" branch -q "$branch" "$base_sha"; created_branch=true
+  fi
+fi
+
+created_worktree=false
+if [[ ! -d "$wt" ]]; then
+  git -C "$BASE_CLONE" worktree add -q "$wt" "$branch"; created_worktree=true
+fi
+current=$(git -C "$wt" branch --show-current)
+[[ "$current" == "$branch" ]] || { echo "{\"error\":\"worktree $wt is on $current, expected $branch\"}"; exit 1; }
+dirty=false; [[ -z "$(git -C "$wt" status --porcelain)" ]] || dirty=true
+
+installed=false
+if [[ ! -d "$wt/node_modules" ]]; then
+  (cd "$wt" && mise exec -- pnpm install --frozen-lockfile --prefer-offline >&2); installed=true
+fi
+head_sha=$(git -C "$wt" rev-parse HEAD)
+python3 - "$key" "$branch" "$wt" "$base_ref" "$base_sha" "$head_sha" "$dirty" "$created_branch" "$created_worktree" "$installed" <<'EOF'
+import sys,json
+k,b,w,br,bs,h,d,cb,cw,i=sys.argv[1:]
+print(json.dumps({"key":k,"branch":b,"worktree":w,"base_ref":br,"base":bs,"head":h,
+  "dirty":d=="true","created_branch":cb=="true","created_worktree":cw=="true","installed":i=="true"}))
+EOF

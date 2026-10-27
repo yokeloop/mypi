@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Commit task-folder changes in mypi home on main and push (home is direct-main).
+#   mp-home-commit "<message>"
+# Stages only projects/yokeloop/mypi/requests|tasks; everything else is reported, not staged.
+set -euo pipefail
+ENGINE=${MYPI_ENGINE_ROOT:-$PWD}
+# The installation root: the engine checkout with home/ and projects/ beside it.
+[[ -f "$ENGINE/package.json" && -d "$ENGINE/home" && -d "$ENGINE/projects" ]] \
+  || { echo "{\"error\":\"run from the installation root (engine checkout with home/ and projects/), got $ENGINE\"}" >&2; exit 2; }
+HOME_DIR=$ENGINE/home
+msg=${1:-}; [[ -n "$msg" ]] || { echo "usage: mp-home-commit \"<message>\"" >&2; exit 2; }
+cd "$HOME_DIR"
+[[ "$(git branch --show-current)" == main ]] || { echo '{"error":"home is not on main"}'; exit 1; }
+paths=()
+for p in projects/yokeloop/mypi/requests projects/yokeloop/mypi/tasks; do [[ -d "$p" ]] && paths+=("$p"); done
+git add -A -- "${paths[@]}"
+if git diff --cached --quiet; then
+  echo "{\"committed\":false,\"reason\":\"nothing staged\",\"other_changes\":$(git status --porcelain | wc -l)}"; exit 0
+fi
+git commit -q -m "$msg"
+git push -q origin main
+sha=$(git rev-parse --short HEAD)
+other=$(git status --porcelain | wc -l)
+echo "{\"committed\":true,\"sha\":\"$sha\",\"other_changes\":$other}"
