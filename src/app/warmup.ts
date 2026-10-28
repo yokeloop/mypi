@@ -9,6 +9,7 @@ import type { Card } from '../modules/tasks/public.js';
 import { InputError } from '../shared/errors.js';
 
 export const WARMUP_LIMIT = 64 * 1024;
+export const WARMUP_MAX_CHARS = Math.floor(WARMUP_LIMIT / 3);
 
 export function warmupScope(explicit: string | undefined, env: string | undefined): string {
   if (explicit !== undefined) return explicit;
@@ -41,20 +42,26 @@ function demote(text: string, by: number): string {
   }).join('\n');
 }
 
-function marker(zone: Zone, hidden: number): string {
-  return '> ' + hidden + ' older facts hidden from ' + zone.path + ' to fit the 64 KiB warmup limit. Read in full: memory '
+function marker(zone: Zone, hidden: number, label: string): string {
+  return '> ' + hidden + ' older facts hidden from ' + zone.path + ' to fit the ' + label + ' warmup limit. Read in full: memory '
     + zone.scope + ' (CLI: mypi memory show' + zone.cli + ')';
 }
 
-function memoryText(zone: Zone, hidden: number): string {
+function memoryText(zone: Zone, hidden: number, label: string): string {
   if (zone.text === undefined || zone.text.trimEnd() === '') return '(empty)';
   if (hidden === 0) return zone.text.trimEnd();
   const gone = new Set(zone.facts.slice(0, hidden));
-  return zone.text.split('\n').flatMap((line, index) => index === zone.facts[0] ? [marker(zone, hidden)]
+  return zone.text.split('\n').flatMap((line, index) => index === zone.facts[0] ? [marker(zone, hidden, label)]
     : gone.has(index) ? [] : [line]).join('\n').trimEnd();
 }
 
-export function readWarmup(filename: string, root: string, key: string): string {
+export function readWarmup(filename: string, root: string, key: string, maxChars?: number): string {
+  if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 1 && maxChars <= WARMUP_MAX_CHARS)) {
+    throw new InputError('Warmup max-chars must be an integer from 1 to ' + WARMUP_MAX_CHARS);
+  }
+  const limit = maxChars === undefined
+    ? { size: (text: string) => Buffer.byteLength(text), max: WARMUP_LIMIT, label: '64 KiB' }
+    : { size: (text: string) => text.length, max: maxChars, label: maxChars + '-character' };
   externalDatabasePath(filename, root);
   const app = createApp(filename, true);
   try {
@@ -114,25 +121,24 @@ export function readWarmup(filename: string, root: string, key: string): string 
       const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
       const render = (hidden: number[], note: boolean) => [...head,
-        '## Memory\n\n' + (note ? '> This warmup exceeds the 64 KiB limit even without memory facts; all facts are hidden.\n\n' : '')
-          + zones.map((z, i) => '### ' + z.path + '\n\n' + memoryText(z, hidden[i]!)).join('\n\n'),
+        '## Memory\n\n' + (note ? '> This warmup exceeds the ' + limit.label + ' limit even without memory facts; all facts are hidden.\n\n' : '')
+          + zones.map((z, i) => '### ' + z.path + '\n\n' + memoryText(z, hidden[i]!, limit.label)).join('\n\n'),
         ...tail].map(section => section.trimEnd()).join('\n\n') + '\n';
-      const size = (text: string) => Buffer.byteLength(text);
-      const lines = zones.map(z => { const all = (z.text ?? '').split('\n'); return z.facts.map(line => size(all[line]!) + 1); });
+      const lines = zones.map(z => { const all = (z.text ?? '').split('\n'); return z.facts.map(line => limit.size(all[line]!) + 1); });
       const hidden = zones.map(() => 0);
       let out = render(hidden, false);
-      let excess = size(out) - WARMUP_LIMIT;
+      let excess = limit.size(out) - limit.max;
       for (let i = 0; i < zones.length && excess > 0; i++) {
         let saved = 0;
         for (let h = 1; h <= lines[i]!.length; h++) {
           saved += lines[i]![h - 1]!;
           hidden[i] = h;
-          if (saved - size(marker(zones[i]!, h)) - 1 >= excess) break;
+          if (saved - limit.size(marker(zones[i]!, h, limit.label)) - 1 >= excess) break;
         }
-        if (hidden[i]! > 0) excess -= saved - size(marker(zones[i]!, hidden[i]!)) - 1;
+        if (hidden[i]! > 0) excess -= saved - limit.size(marker(zones[i]!, hidden[i]!, limit.label)) - 1;
       }
       out = render(hidden, false);
-      while (size(out) > WARMUP_LIMIT) {
+      while (limit.size(out) > limit.max) {
         const next = zones.findIndex((_, i) => hidden[i]! < lines[i]!.length);
         if (next === -1) return render(hidden, true);
         hidden[next]!++;

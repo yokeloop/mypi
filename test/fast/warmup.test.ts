@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { readWarmup, warmupScope, WARMUP_LIMIT } from '../../src/app/warmup.js';
+import { readWarmup, warmupScope, WARMUP_LIMIT, WARMUP_MAX_CHARS } from '../../src/app/warmup.js';
 
 function fixture(t: TestContext, personal?: string) {
   const { dir, filename } = state(t);
@@ -54,8 +54,8 @@ function fixture(t: TestContext, personal?: string) {
 }
 
 const normal = (dir: string, out: string) => out.replaceAll(realpathSync(dir), '<TMP>').replaceAll(dir, '<TMP>');
-const facts = (zone: string, title: string, count: number) => '# Memory\n\n' + title + ' conventions by hand.\n\n'
-  + Array.from({ length: count }, (_, i) => '- ' + JSON.stringify(zone + ' fact ' + String(i).padStart(3, '0') + ' ' + 'x'.repeat(150)) + '\n').join('');
+const facts = (zone: string, title: string, count: number, filler = 'x') => '# Memory\n\n' + title + ' conventions by hand.\n\n'
+  + Array.from({ length: count }, (_, i) => '- ' + JSON.stringify(zone + ' fact ' + String(i).padStart(3, '0') + ' ' + filler.repeat(150)) + '\n').join('');
 const fact = (zone: string, i: number) => zone + ' fact ' + String(i).padStart(3, '0') + ' ';
 
 test('global, MP and MP-12 warmups match the golden files and read nothing but files and the DB', t => {
@@ -149,5 +149,46 @@ test('memory over 64 KiB hides the oldest facts of the farthest zone first, keep
     assert(out.includes('Project conventions by hand.'));
     assert(!out.includes('org fact') && !out.includes('project fact'));
     assert(out.includes('## Open tasks'));
+  }
+});
+
+test('a character budget cuts memory by the same rules, counts characters as Claude Code does and names the budget', t => {
+  const orgMarker = /^> (\d+) older facts hidden from projects\/one\/MEMORY\.md to fit the 9500-character warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"org","key":"one"\}\} \(CLI: mypi memory show -s one\)$/m;
+  {
+    const { filename, root, write } = fixture(t);
+    write('projects/one/MEMORY.md', facts('org', 'Org', 60, 'ж'));
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 10, 'ж'));
+    const out = readWarmup(filename, root, 'MP', 9500);
+    assert(out.length <= 9500);
+    assert(Buffer.byteLength(out) > 9500);
+    assert(out.includes('Org conventions by hand.'));
+    const hidden = Number(orgMarker.exec(out)![1]);
+    assert(hidden > 0 && hidden < 60);
+    for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
+    assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 59)));
+    for (let i = 0; i < 10; i++) assert(out.includes(fact('project', i)));
+    assert(!out.includes('older facts hidden from projects/one/project/MEMORY.md'));
+    const full = readWarmup(filename, root, 'MP');
+    assert(!full.includes('older facts hidden'));
+    assert(full.includes(fact('org', 0)));
+  }
+  {
+    const { filename, root } = fixture(t, 'п'.repeat(10_000));
+    const out = readWarmup(filename, root, 'MP', 9500);
+    assert(out.length > 9500);
+    assert(out.includes('п'.repeat(10_000)));
+    assert(out.includes('## Memory\n\n> This warmup exceeds the 9500-character limit even without memory facts; all facts are hidden.\n'));
+    assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md to fit the 9500-character warmup limit'));
+    assert(out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md to fit the 9500-character warmup limit'));
+    assert(out.includes('Project conventions by hand.'));
+    assert(out.includes('## Open tasks'));
+  }
+  {
+    const { filename, root } = fixture(t);
+    for (const n of [0, WARMUP_MAX_CHARS + 1, 1.5, Number.NaN]) {
+      assert.throws(() => readWarmup(filename, root, 'global', n), /Warmup max-chars must be an integer from 1 to 21845/);
+    }
+    assert.equal(WARMUP_MAX_CHARS, 21845);
+    assert.equal(readWarmup(filename, root, 'global', WARMUP_MAX_CHARS), readWarmup(filename, root, 'global'));
   }
 });

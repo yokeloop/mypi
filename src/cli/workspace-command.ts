@@ -10,7 +10,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
   'project resolve': [1, 1, [], []],
   capture: [0, 1, ['file'], []],
-  warmup: [0, 0, ['scope'], []],
+  warmup: [0, 0, ['scope', 'max-chars'], []],
   note: [1, 2, ['scope', 'file'], []],
   error: [2, 2, [], []],
   'memory show': [0, 0, ['scope'], []],
