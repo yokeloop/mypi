@@ -38,7 +38,7 @@ match the GitHub releases.
 
 - Tasks replace requests everywhere: CLI `mypi task …` (was `mypi request …`),
   MCP tools `task_*` (was `request_*`), journal scope `task:KEY` and
-  event `task_created` (`journal_read` filter `eventType`), partial result
+  event `task_created` (`journal` filter `eventType`), partial result
   field `taskId` (was `requestId`). Legacy JSONL import maps the old literals.
 - SQLite schema 6 → 7 renames `requests` → `tasks` and `request_statuses` →
   `task_statuses` with their index and triggers, rebuilds `knowledge_journal`
@@ -88,7 +88,7 @@ match the GitHub releases.
   Existing `REQ-N` records remain readable under their keys.
 - Work chats: the `work-chats` module, the `mypi work-chat *` CLI commands,
   the `/work-chat` slash command of the Pi extension, the seven `work_chat_*`
-  MCP tools (35 tools remain) and `docs/WORK-CHATS.md`. Pi history files and
+  MCP tools and `docs/WORK-CHATS.md`. Pi history files and
   `home/pi/work-chats.json` are left untouched.
 - The JSON warmup (`memory`, `projects`, `inbox`, `history`, `work`,
   `glossary`) and organization scopes for warmup.
