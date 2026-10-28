@@ -19,11 +19,11 @@
   "hooks": {
     "SessionStart": [
       {
-        "matcher": "startup|resume|clear|compact",
+        "matcher": "startup|resume|clear|compact|fork",
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" warmup --max-chars 9500",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" session register --agent claude --hook --pid \"$PPID\" >/dev/null 2>&1; node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" warmup --max-chars 9500",
             "timeout": 30
           }
         ]
