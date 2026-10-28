@@ -8,6 +8,7 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
+import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
@@ -20,8 +21,13 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
-  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(), warmupScope(c.scope, c.envScope), c.maxChars);
+  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(),
+    warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined), c.maxChars);
   if (c.name === 'task_worktree') return openTaskWorktree(filename, c.key);
+  if (c.name === 'session_register') return registerSession(filename, c);
+  if (c.name === 'session_unregister') return unregisterSession(filename, c);
+  if (c.name === 'session_forget') return forgetSession(filename, c);
+  if (c.name === 'sessions') return listSessions(filename, c);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));

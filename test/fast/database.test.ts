@@ -51,7 +51,7 @@ test('readonly connection observes committed rows in an active writer WAL withou
       assert.equal(reader.pragma('journal_mode', { simple: true }), 'wal');
       assert.deepEqual(reader.prepare('SELECT slug FROM organizations WHERE slug = ?').get('visible'), { slug: 'visible' });
       assert.throws(() => reader.prepare("INSERT INTO organizations(slug) VALUES ('forbidden')").run(), /readonly/i);
-      assert.equal((reader.pragma('user_version', { simple: true }) as number), 7);
+      assert.equal((reader.pragma('user_version', { simple: true }) as number), 8);
     } finally { reader.close(); }
   } finally { writer.close(); }
 });
@@ -71,8 +71,8 @@ test('initialization is a no-op on a current database and rejects a newer schema
   db = openDatabase(filename);
   try {
     assert.deepEqual(db.prepare('SELECT * FROM task_statuses ORDER BY id').all(), expected);
-    assert.equal(db.pragma('user_version', { simple: true }), 7);
-    db.pragma('user_version = 8');
+    assert.equal(db.pragma('user_version', { simple: true }), 8);
+    db.pragma('user_version = 9');
     assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
@@ -80,7 +80,7 @@ test('initialization is a no-op on a current database and rejects a newer schema
   const unsupported = new Database(filename, { readonly: true, fileMustExist: true });
   try {
     assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
-    assert.equal(unsupported.pragma('user_version', { simple: true }), 8);
+    assert.equal(unsupported.pragma('user_version', { simple: true }), 9);
   } finally { unsupported.close(); }
 });
 
@@ -139,7 +139,7 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   t.diagnostic('migrations 006+007 on 50 tasks and ' + seed.length + ' journal rows: ' + Math.round(performance.now() - started) + ' ms');
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 7);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 8);
     const names = (upgraded.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
     for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'used_status_terminality', 'used_project_code',
       'preserve_task_numbers', 'knowledge_journal', 'knowledge_journal_order']) assert.ok(names.includes(name), name);
@@ -171,14 +171,51 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   assert.equal(existsSync(join(dir, 'snapshot.sqlite3')), true);
 });
 
-test('empty database initializes at schema 7 with the tasks tables only', t => {
+test('empty database initializes at schema 8 with the tasks, sessions and events tables', t => {
   const { filename } = state(t);
   const db = openDatabase(filename, true);
   try {
-    assert.equal(db.pragma('user_version', { simple: true }), 7);
+    assert.equal(db.pragma('user_version', { simple: true }), 8);
     const names = (db.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
-    for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'preserve_task_numbers']) assert.ok(names.includes(name), name);
+    for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'preserve_task_numbers', 'sessions', 'events']) assert.ok(names.includes(name), name);
     for (const name of ['requests', 'request_statuses', 'requests_unassigned_number', 'preserve_request_numbers']) assert.ok(!names.includes(name), name);
     assert.deepEqual(names.filter(name => name.startsWith('work_chats')), []);
+  } finally { db.close(); }
+});
+
+test('sessions rows keep the scope shape, one native id per agent and the project code', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    app.projects.add('one/project', 'MP');
+    app.projects.add('two/other', 'OT');
+  } finally { app.close(); }
+  const db = openDatabase(filename);
+  try {
+    db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, created_at, updated_at)
+      VALUES ((SELECT id FROM projects WHERE code = 'MP'), 1, 'First', (SELECT id FROM task_statuses WHERE code = 'new'),
+      'projects/one/project/tasks/MP-1-first', '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`).run();
+    const p = (db.prepare("SELECT id FROM projects WHERE code = 'MP'").get() as { id: number }).id;
+    const p2 = (db.prepare("SELECT id FROM projects WHERE code = 'OT'").get() as { id: number }).id;
+    const task = (db.prepare('SELECT id FROM tasks WHERE project_id = ?').get(p) as { id: number }).id;
+    const insert = db.prepare(`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, '2026-10-28T00:00:00.000Z')`);
+    insert.run('global', 'global', null, null, 'claude', 'c1');
+    insert.run('MP', 'project', p, null, 'pi', 'p1');
+    insert.run('MP-1', 'task', p, task, 'claude', 'c2');
+    assert.throws(() => insert.run('other', 'global', null, null, 'claude', 'x1'), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => insert.run('MP', 'project', null, null, 'claude', 'x2'), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => insert.run('MP-2', 'task', p, null, 'claude', 'x3'), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => insert.run('MP-3', 'task', p, task, 'codex', 'x4'), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => insert.run('MP-4', 'task', p, task, 'claude', ''), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => insert.run('MP-9', 'task', p, task, 'claude', 'c1'), /CHECK|UNIQUE|FOREIGN/);
+    assert.throws(() => db.prepare("UPDATE projects SET code = 'MQ' WHERE id = ?").run(p), /Cannot rename a project code with tasks or sessions/);
+    insert.run('OT', 'project', p2, null, 'pi', 'p2');
+    assert.throws(() => db.prepare("UPDATE projects SET code = 'OU' WHERE id = ?").run(p2), /Cannot rename a project code with tasks or sessions/);
+    db.prepare("DELETE FROM sessions WHERE key = 'OT'").run();
+    db.prepare("UPDATE projects SET code = 'OU' WHERE id = ?").run(p2);
+    const event = db.prepare("INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP-1', 'MP', ?, 'done', '2026-10-28T00:00:00.000Z')");
+    event.run('turn_end');
+    assert.throws(() => event.run('busy'), /CHECK/);
   } finally { db.close(); }
 });

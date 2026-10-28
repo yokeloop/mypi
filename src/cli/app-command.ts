@@ -1,9 +1,11 @@
 import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
+import { hookInput, sessionHint } from '../app/session-input.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
-export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Readonly<Record<string, string | undefined>> = {}): AppCommand {
+export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Readonly<Record<string, string | undefined>> = {},
+  parentPid = process.ppid): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
@@ -15,6 +17,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
   const required = (key: string) => { const value = opt(key); if (!value) throw new InputError('--' + key + ' required'); return value; };
   const scope = opt('scope') === undefined ? { type: 'global' as const } : { reference: opt('scope')! };
   const journalScope = opt('scope') ? { reference: opt('scope')! } : { type: 'global' as const };
+  const runtime = env['XDG_RUNTIME_DIR'] ? { runtime: env['XDG_RUNTIME_DIR'] } : {};
   function source(index: number): TextInput {
     if (opt('file') && a[index] !== undefined) throw new InputError('Use text or --file, not both');
     if (opt('file')) return { file: required('file') };
@@ -27,9 +30,13 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };
     case 'error': return { name: 'error_add', project: a[0]!, text: a[1]! };
     case 'project resolve': return { name: 'project_resolve', path: a[0]! };
-    case 'warmup': return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
-      ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
-      ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }) };
+    case 'warmup': {
+      const hint = sessionHint(env, parentPid);
+      return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
+        ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }),
+        ...(hint === undefined ? {} : { session: hint }) };
+    }
     case 'memory show': return { name: 'memory_show', scope };
     case 'memory add': return { name: 'memory_add', text: a[0]!, scope };
     case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), expectedRevision: required('expected-revision'), scope };
@@ -72,6 +79,23 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'restore': return opt('repository') ? { name: 'restore_published', repository: required('repository'), commit: required('commit') } :
       { name: 'restore', backupDirectory: a[0]! };
     case 'home migrate-tasks': return { name: 'home_migrate_tasks', dryRun: Boolean(o['dry-run']) };
+    case 'sessions': return { name: 'sessions', ...runtime };
+    case 'session register': {
+      const agent = required('agent');
+      if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      let session: { nativeId: string; name?: string; fork: boolean };
+      if (o['hook']) {
+        if (agent !== 'claude') throw new InputError('--hook is only for --agent claude');
+        if (opt('native-id') !== undefined || opt('name') !== undefined || o['fork']) throw new InputError('Use --hook or --native-id, not both');
+        session = hookInput(readInputFile(0));
+      } else session = { nativeId: required('native-id'), ...(opt('name') === undefined ? {} : { name: opt('name')! }), fork: Boolean(o['fork']) };
+      const socket = opt('socket') ?? (agent === 'claude' && env['CLAUDE_CODE_MESSAGING_SOCKET'] ? env['CLAUDE_CODE_MESSAGING_SOCKET'] : undefined);
+      return { name: 'session_register', agent, pid: Number(required('pid')), nativeId: session.nativeId,
+        ...(session.name === undefined ? {} : { sessionName: session.name }), ...(socket === undefined ? {} : { socket }), fork: session.fork,
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+    }
+    case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
+    case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };
     default: throw new InputError('Unknown workspace command');
   }
 }

@@ -1,4 +1,5 @@
 import type { Scope } from '../shared/scope.js';
+import type { SessionHint } from './session-input.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
@@ -11,7 +12,7 @@ export type AppCommand =
   | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'memory_show'; scope: ScopeInput }
-  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number }
+  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint }
   | { name: 'memory_add' | 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'memory_remove'; scope: ScopeInput; number: number; expectedRevision: string }
   | { name: 'capture'; source: TextInput }
@@ -34,4 +35,8 @@ export type AppCommand =
   | { name: 'backup_publish'; dryRun?: boolean; selectedPaths?: string[] }
   | { name: 'restore'; backupDirectory: string }
   | { name: 'restore_published'; repository: string; commit: string }
-  | { name: 'home_migrate_tasks'; dryRun?: boolean };
+  | { name: 'home_migrate_tasks'; dryRun?: boolean }
+  | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; runtime?: string }
+  | { name: 'session_unregister'; pid: number; runtime?: string }
+  | { name: 'session_forget'; key: string; runtime?: string }
+  | { name: 'sessions'; runtime?: string };

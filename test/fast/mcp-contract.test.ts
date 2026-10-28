@@ -17,15 +17,15 @@ const cli = (argv: string[]) => {
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
-test('MCP lists exactly eleven agent tools; maintenance and replaced names are unknown tools', () => {
+test('MCP lists exactly twelve agent tools; maintenance and replaced names are unknown tools', () => {
   assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'projects',
-    'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
-  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'task_list', 'task_show', 'warmup']);
+    'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
+  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show', 'warmup']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
-    'restore_published', 'home_migrate_tasks', 'task_worktree', 'unknown', '__proto__'])
+    'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {
@@ -56,6 +56,7 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
       [['task', 'status', 'MP-1', 'done', '--reason', 'verified'], ['task', 'title', 'MP-1', 'new', '--reason', 'verified'], ['task', 'progress', 'MP-1', 'done']]],
     ['context_read', { path: 'MEMORY.md' }, [['context', 'read', 'MEMORY.md']]],
     ['context_write', { paths: ['MEMORY.md'], message: 'reconciled' }, [['context', 'commit', 'MEMORY.md', '--message', 'reconciled']]],
+    ['sessions', {}, [['sessions']]],
   ];
   for (const [tool, args, argvs, patch] of rows) {
     assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));
@@ -99,10 +100,10 @@ test('action tools and task_update reject missing, foreign and malformed fields'
   ] as const) assert.throws(() => toolCommand(name, args), re);
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
-  const translate = (args: string[], env: Record<string, string> = {}) => {
+  const translate = (args: string[], env: Record<string, string> = {}, parentPid?: number) => {
     const parsed = parseCommand(args);
     if (parsed.type === 'help') throw new Error('Unexpected help');
-    return appCommand(parsed, env);
+    return appCommand(parsed, env, parentPid);
   };
   assert.deepEqual(translate(['warmup']), { name: 'warmup' });
   assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
@@ -139,6 +140,22 @@ test('CLI translates to the same subject commands without changing text or defau
     ['backup', '/tmp/snapshot', '--file', 'x'], ['restore', '--repository', '/tmp/clone'],
     ['restore', '/tmp/snapshot', '--commit', 'a'.repeat(40)]]) assert.throws(() => translate(args));
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
+  assert.deepEqual(translate(['session', 'register', '--agent', 'pi', '--pid', '42', '--native-id', 'p1', '--name', 'n', '--fork'],
+    { MYPI_SCOPE: 'MP-12', XDG_RUNTIME_DIR: '/run/user/1' }),
+  { name: 'session_register', agent: 'pi', pid: 42, nativeId: 'p1', sessionName: 'n', fork: true, envScope: 'MP-12', runtime: '/run/user/1' });
+  assert.equal((translate(['session', 'register', '--agent', 'claude', '--pid', '42', '--native-id', 'c1', '--socket', '/s']) as { socket?: string }).socket, '/s');
+  assert.equal((translate(['session', 'register', '--agent', 'claude', '--pid', '42', '--native-id', 'c1'],
+    { CLAUDE_CODE_MESSAGING_SOCKET: '/m' }) as { socket?: string }).socket, '/m');
+  assert.throws(() => translate(['session', 'register', '--agent', 'codex', '--pid', '42', '--native-id', 'c1']), /--agent must be claude or pi/);
+  assert.throws(() => translate(['session', 'register', '--agent', 'pi', '--pid', '42', '--hook']), /only for --agent claude/);
+  assert.throws(() => translate(['session', 'register', '--agent', 'claude', '--pid', '42', '--hook', '--native-id', 'x']), /not both/);
+  assert.deepEqual(translate(['session', 'unregister', '--pid', '7']), { name: 'session_unregister', pid: 7 });
+  assert.deepEqual(translate(['session', 'forget', 'MP-12']), { name: 'session_forget', key: 'MP-12' });
+  assert.deepEqual(translate(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }, 42), { name: 'warmup', session: { agent: 'claude', nativeId: 'c1', pid: 42 } });
+  assert.deepEqual(toolCommand('warmup', {}, { PI_SESSION_ID: 'p1', XDG_RUNTIME_DIR: '/run/user/1' }, 7),
+    [{ name: 'warmup', session: { agent: 'pi', nativeId: 'p1', pid: 7, runtime: '/run/user/1' } }]);
+  assert.deepEqual(toolCommand('sessions', {}, { XDG_RUNTIME_DIR: '/run/user/1' }), [{ name: 'sessions', runtime: '/run/user/1' }]);
+  assert.throws(() => toolCommand('sessions', { key: 'x' }), /Unrecognized/);
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
   const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], taskId: 17 };

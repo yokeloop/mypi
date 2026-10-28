@@ -2,7 +2,7 @@ import { z } from 'zod';
 import type { AppCommand } from '../../app/commands.js';
 import { text, scope, contextScope, textInput, tool, actions } from '../schemas.js';
 export const knowledge = {
-  warmup: tool(z.strictObject({ scope: text.optional() }), 'Call at session start or to reload context: returns the scoped startup context as Markdown (personal instructions, role, how to work in mypi, zone memory, then the project list, open tasks or the task card with its worktree). scope: global, a project code (MP) or a task key (MP-12); default: MYPI_SCOPE of the server, else global. Writes nothing and registers no session.',
+  warmup: tool(z.strictObject({ scope: text.optional() }), 'Call at session start or to reload context: returns the scoped startup context as Markdown (personal instructions, role, how to work in mypi, zone memory, then the project list, open tasks or the task card with its worktree). scope: global, a project code (MP) or a task key (MP-12); default: this session\'s registered key, else MYPI_SCOPE of the server, else global. Writes nothing and registers no session.',
     a => [{ name: 'warmup', ...a } as AppCommand]),
   memory: tool(actions('action', { show: { required: ['scope'] }, add: { required: ['scope', 'text'] },
     remove: { required: ['scope', 'number', 'expectedRevision'] } },

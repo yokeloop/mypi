@@ -46,7 +46,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-11 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write and projects. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+12 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects and sessions. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
 `memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
@@ -60,8 +60,11 @@ Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 taskId when known. structuredContent equals parsed JSON in text content. The data
 payload retains CLI JSON shapes. `memory` show includes SHA-256 `revision`; `memory` remove requires `number` and `expectedRevision` for that exact file.
 `warmup` takes optional `scope`: `global`, a project code or a task key; without it the
-server's `MYPI_SCOPE`, else `global`. Its data is the Markdown text the CLI prints
+key registered for this session (the row for the session id in the server's environment,
+else the live record of the server's parent process), else the server's `MYPI_SCOPE`,
+else `global`. Its data is the Markdown text the CLI prints
 (sections, order and the 64 KiB memory rule: ARCHITECTURE §5).
+`sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.
 `journal` global remains global-only. CLI `project resolve /absolute/path`
 exposes the same operation as projects action resolve. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.

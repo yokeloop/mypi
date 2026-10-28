@@ -73,7 +73,9 @@ Supporting rules:
   `ui_prompt_start` / `ui_prompt_end` (`reason: "ui_prompt"`, `kind`, `title`),
   during which no `agent_settled` arrives (fact 4).
 - Scope resolution is the same for both Agents: `sessions` row by native
-  session id, then `MYPI_SCOPE`, then `global`. Claude `/clear` and
+  session id, then the live registry record of the same process (pid and
+  start; this covers Claude `/clear`, Pi `/new` and the MCP process's stale
+  id), then `MYPI_SCOPE`, then `global`. Claude `/clear` and
   `--fork-session` give a new native id with `SessionStart.source` `clear` /
   `fork` and no previous id in the input; Pi `/new` gives `reason: "new"`, Pi
   `--fork` gives `reason: "startup"` with `parentSession` in the session header.
@@ -81,14 +83,16 @@ Supporting rules:
   (`session_title` = `--name <key>` as a check) and re-register the new native
   id under it (facts 2). The MCP process sees `CLAUDE_CODE_SESSION_ID` at start
   but keeps the old id after `/clear` (the process is not restarted), so it
-  resolves the current session through the registry record for its
-  `MYPI_SCOPE`; its own id is only the initial binding (fact 1). Pi passes the
+  resolves the current session through the registry record of its parent
+  process; its own id is only the initial binding (fact 1). Pi passes the
   id in `env` on `registerMcpServer`.
 - The registry (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`) stores what does
-  not change: key, Agent, pid and start, native id, name, socket path. Busy
-  state is asked from the source (`claude agents --json`; the Pi record).
+  not change: key, Agent, pid and start, native id, name, socket path. There
+  is no busy state: both Agents hold an incoming message until their turn
+  ends, and waiting arrives as an Event (MP-38 decision).
   A hand-started session registers itself; with two live sessions for one key
-  the newest is canonical and the older one is told through its socket.
+  the newest is canonical and the older one is told through its socket. A hand
+  fork without `MYPI_SCOPE` is not registered.
 - The tracked `.claude/settings.json` carries an allow-list for mypi tools and
   no `crossSessionInbound` (not needed in `manual` and `auto`; fact 3); the
   Launcher passes `--settings '{"crossSessionInbound":"accept"}'` to every

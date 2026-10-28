@@ -41,6 +41,19 @@ match the GitHub releases.
   settings do not set `crossSessionInbound`: project settings can only tighten it.
 - `mypi warmup --max-chars n` (1–21845): caps the warmup at n characters with
   the same memory cut as the 64 KiB limit; the marker names the limit.
+- Session registry: schema 8 adds the `sessions` table (key → agent and native
+  id, kept for continuation) and the `events` table (filled later). Live records
+  in `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and start,
+  native id, name, socket, start permission mode); reads skip dead records and
+  the next registration, unregistration or forget removes them. A newer live session under a key becomes canonical; the older record
+  moves to `<key>~<pid>.json`.
+- CLI `session register|unregister|forget` and `sessions`; MCP tool `sessions`
+  (read-only tree global → project → task with live/closed).
+- Claude Code's SessionStart hook registers the session on every source,
+  including fork, before the warmup; the Pi extension registers at session start,
+  passes the key to the warmup and unregisters on quit. A hand fork without
+  `MYPI_SCOPE` is not registered. Checked manually with Claude Code 2.1.283 and
+  Pi 1.0.4.
 
 ### Changed
 
@@ -77,9 +90,9 @@ match the GitHub releases.
   packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
   before updating and remove a stale `integrations/pi` entry from
   `~/.pi/agent/settings.json`.
-- MCP exposes 11 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
+- MCP exposes 12 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
   `task_create`, `task_update`, `memory`, `note`, `journal`, `context_read`,
-  `context_write`, `projects`. `task_update` replaces `task_status`,
+  `context_write`, `projects`, `sessions`. `task_update` replaces `task_status`,
   `task_title`, `task_progress` and `task_touch` (one call with a reason; parts
   run status → title → progress, a later failure returns `partial`); `memory`
   (action show|add|remove) replaces `memory_*`; `note` (kind
@@ -89,6 +102,11 @@ match the GitHub releases.
   `project_*`. Application commands and the CLI are unchanged. Warmup's
   truncation marker and its "no clone" error name the new calls; the Pi
   extension exposes `projects` and `warmup` directly.
+- Warmup without `-s` (CLI, hook, MCP) uses the key registered for the session —
+  the row for its native id, else the live record of its process — before
+  `MYPI_SCOPE`; a task session continued with `--resume` gets its task warmup.
+- Upgrading: schema 8 requires `mypi db init` once after the update; until then
+  commands that open the database ask for it.
 
 ### Removed
 
