@@ -21,7 +21,7 @@ function prompt(name: string): string {
   return readFileSync(new URL('../../../integrations/prompts/' + name + '.md', import.meta.url), 'utf8');
 }
 
-function noClone(project: Project): InputError {
+export function noCloneError(project: { org: string; slug: string; code: string }): InputError {
   const identity = project.org + '/' + project.slug;
   return new InputError('Project ' + identity + ' (' + project.code + ') has no clone; register one with project_update {"identity":"'
     + identity + '","expectedCheckoutPath":null,"checkoutPath":"<checkout>"} (CLI: mypi project update ' + identity
@@ -83,7 +83,7 @@ export function readWarmup(filename: string, root: string, key: string): string 
       } else if (/^[A-Z]+$/.test(key)) {
         const project = projects.find(p => p.code === key);
         if (!project) throw new InputError('Unknown project: ' + key);
-        if (project.checkoutPath === null) throw noClone(project);
+        if (project.checkoutPath === null) throw noCloneError(project);
         header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')\n\nBase clone: ' + project.checkoutPath;
         role = 'project';
         zones = [orgZone(project), projectZone(project)];
@@ -95,7 +95,7 @@ export function readWarmup(filename: string, root: string, key: string): string 
         if (!card) throw new InputError('Unknown task: ' + key);
         const project = owner(card);
         if (!project) throw new InputError('Task ' + key + ' has no project; warmup needs a task of a registered project');
-        if (project.checkoutPath === null) throw noClone(project);
+        if (project.checkoutPath === null) throw noCloneError(project);
         header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')';
         role = 'task';
         zones = [projectZone(project)];

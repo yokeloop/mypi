@@ -26,6 +26,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'task title': [2, 2, ['reason'], []],
   'task progress': [2, 2, ['artifacts'], []],
   'task touch': [1, 1, [], []],
+  'task worktree': [1, 1, [], []],
   'status list': [0, 0, [], []],
   'status add': [1, 1, [], ['terminal']],
   'status rename': [2, 2, [], []],

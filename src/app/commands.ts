@@ -19,7 +19,7 @@ export type AppCommand =
   | { name: 'error_add'; project: string; text: string }
   | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; limit?: number }
   | { name: 'task_list'; project?: string; status?: string }
-  | { name: 'task_show' | 'task_touch'; key: string }
+  | { name: 'task_show' | 'task_touch' | 'task_worktree'; key: string }
   | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
   | { name: 'task_status'; key: string; status: string; reason: string }
   | { name: 'task_title'; key: string; title: string; reason: string }
