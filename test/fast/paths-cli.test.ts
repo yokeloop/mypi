@@ -43,7 +43,7 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     assert.deepEqual({ ...parsed.options }, { project: 'one/project', title: 'Title', slug: 'slug', status: 'planning' });
   }
   for (const args of [
-    ['bootstrap'], ['capture', '--file', 'source'], ['warmup', '-s', 'one/project'],
+    ['bootstrap'], ['capture', '--file', 'source'], ['warmup', '-s', 'MP-12'],
     ['note', 'title', 'text'], ['error', 'one/project', 'error'],
     ['memory', 'show'], ['memory', 'add', 'fact'], ['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)], ['project', 'resolve', '/tmp'],
     ['journal', 'add', 'outcome'], ['journal', 'read', '--all'],

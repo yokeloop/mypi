@@ -3,7 +3,7 @@ import { readInputFile } from '../app/input-text.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
-export function appCommand(command: Exclude<Command, { type: 'help' }>): AppCommand {
+export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Readonly<Record<string, string | undefined>> = {}): AppCommand {
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
@@ -27,7 +27,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>): AppComm
     case 'note': return { name: 'note_add', title: a[0]!, body: source(1), scope };
     case 'error': return { name: 'error_add', project: a[0]!, text: a[1]! };
     case 'project resolve': return { name: 'project_resolve', path: a[0]! };
-    case 'warmup': return { name: 'warmup', scope };
+    case 'warmup': return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
+      ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
     case 'memory show': return { name: 'memory_show', scope };
     case 'memory add': return { name: 'memory_add', text: a[0]!, scope };
     case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), expectedRevision: required('expected-revision'), scope };

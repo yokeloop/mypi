@@ -14,6 +14,7 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
     const root = join(dir, name); mkdirSync(root);
     cpSync('/work/dist', join(root, 'dist'), { recursive: true });
     symlinkSync('/work/node_modules', join(root, 'node_modules'));
+    symlinkSync('/work/integrations', join(root, 'integrations'));
     return root;
   }
   const root = installation('engine');
@@ -25,6 +26,15 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
     assert.ifError(result.error);
     assert.equal(result.status, expected, result.stderr);
     return JSON.parse(expected ? result.stderr : result.stdout);
+  }
+  function text(args: string[], env: Record<string, string> = {}, expected = 0): string {
+    const result = spawnSync(process.execPath, [join(root, 'dist/src/cli/main.js'), ...args], {
+      env: { PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: root + '-state', ...env },
+      encoding: 'utf8', timeout: 4000,
+    });
+    assert.ifError(result.error);
+    assert.equal(result.status, expected, result.stderr);
+    return expected ? result.stderr : result.stdout;
   }
   async function cli(...args: string[]) {
     const command = parseCommand(args);
@@ -70,7 +80,11 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
   rmSync(join(root, 'home/.git/index.lock'));
   await cli('context', 'commit', task.contextDir + '/source.md', task.contextDir + '/artifacts/proof.md', '--message', 'Publish files for backup');
   assert.equal((await cli('journal', 'read', '-s', 'task:MP-1', '--type', 'status_changed')).length, 1);
-  assert(!JSON.stringify(await cli('warmup', '-s', 'one/project')).includes('original'));
+  const warm = text(['warmup']);
+  assert.match(warm, /^# mypi warmup: global\n/); assert(warm.includes('## Role: global')); assert(!warm.includes('original'));
+  assert.match(text(['warmup', '-s', 'MP'], {}, 1), /"status":"error","message":"Project one\/project \(MP\) has no clone/);
+  assert.match(text(['warmup'], { MYPI_SCOPE: 'MP' }, 1), /has no clone/);
+  assert.match(text(['warmup', '--scope', 'global'], { MYPI_SCOPE: 'MP' }), /^# mypi warmup: global\n/);
   const beforeRemoval = await cli('memory', 'show');
   await assert.rejects(cli('memory', 'remove', '1'), /expected-revision/);
   assert.deepEqual(await cli('memory', 'show'), beforeRemoval);

@@ -140,8 +140,27 @@ published files; reconcile dirty legacy files separately.
 Selection: global only global; org includes projects/tasks; project includes its
 tasks; task only itself; all is explicit. Relations resolve through DB; relevant
 months are selected and filtered before the overall sort/limit.
-Warmup inherits parent MEMORY, not global inbox or sibling content. It returns an index
-and paths, not complete history. Reads do not create DB/files. Scope is not an ACL.
+Warmup (`mypi warmup`, MCP `warmup`) prints a session's starting context as Markdown in
+a fixed order: personal instructions (`home/USER-INSTRUCTIONS.md`, omitted when absent),
+the scope's role (`integrations/prompts/global.md`, `project.md` or `task.md`), how to
+work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`;
+project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then the
+project list (global), the open tasks (project) or the task card with its worktree
+(task). Scope: `--scope`, else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
+and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
+Embedded files are inserted as written, except that their ATX headings outside fenced code
+blocks are demoted below the enclosing warmup heading (by two levels under a section, by
+three under a memory file's path, at most to level six).
+Reads create no DB rows, files or Git state. Scope is not an ACL.
+
+The output is limited to 64 KiB of UTF-8. Only memory facts are cut: never the
+personal instructions, role, how-to, project list, task list, task card or worktree,
+and never the hand-written text of a `MEMORY.md`. The farthest zone loses facts first
+(global, then organization, then project); within a file the oldest facts go first.
+In their place a line states how many facts were hidden, from which file, and the
+`memory_show` call (with the CLI command after it) that reads them in full. If the parts that are never cut
+already exceed the limit, every fact is hidden, a note says so, and the output is
+printed in full above the limit.
 
 ## 6. Persistence and partial outcomes
 

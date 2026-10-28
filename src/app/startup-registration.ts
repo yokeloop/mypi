@@ -2,7 +2,6 @@ import { existsSync, realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { startupSections, type StartupWarmup } from '../shared/startup-context.js';
 
 interface ExtensionContext {
   cwd: string;
@@ -115,12 +114,7 @@ export default function registerStartupExtension(pi: ExtensionAPI) {
         else throw new Error('Ambiguous cwd: choose --mypi-scope explicitly; no context loaded');
       }
       if (!active()) return;
-      if (!snapshot) {
-        // An explicit global selection is not an organization named "global".
-        const response = await cliRead(['warmup', ...(scope === undefined || scope === 'global' ? [] : ['-s', scope])], ctx);
-        if (!active()) return;
-        snapshot = startupSections(response as StartupWarmup);
-      }
+      if (!snapshot) throw new Error('scoped context autoload is paused until the Pi integration adopts the text warmup');
       if (!saved) pi.appendEntry<Binding>(ENTRY, { installation, state, ...(scope === undefined ? {} : { scope }) });
       event.systemPromptOptions.sections[MEMORY_SECTION] = `mypi installation: ${installation}; state: ${state}; scope: ${scope ?? 'global'}\n${snapshot.memory || '(empty)'}`;
       event.systemPromptOptions.sections[CONTEXT_SECTION] = snapshot.context;

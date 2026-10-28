@@ -110,9 +110,6 @@ test('local task and journal saves never require a context Git repository', t =>
     assert.deepEqual(app.history({ type: 'task', key: card.key }).map(x => x.event_type),
       ['task_created', 'status_changed', 'note']);
     assert.equal(app.history('all').length, 4);
-    const before = readFileSync(filename);
-    assert.equal(app.warmup('one/project').work.tasks[0]?.key, card.key);
-    assert.equal(readFileSync(filename).equals(before), true);
   } finally { app.close(); }
 });
 

@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { text, scope, contextScope, textInput } from '../schemas.js';
 export const knowledge = {
-  warmup: { schema: z.strictObject({ scope: contextScope }), description: 'Read inherited memory and a scoped context index. Read full artifacts separately; no global inbox in org/project scope.' },
+  warmup: { schema: z.strictObject({ scope: text.optional() }), description: 'Read the scoped startup context as Markdown: personal instructions, role, how to work in mypi, zone memory, and the project list, open tasks or task card with worktree. scope: global, a project code (MP) or a task key (MP-12); default: MYPI_SCOPE of the server, else global.' },
   memory_show: { schema: z.strictObject({ scope: contextScope }), description: 'Read facts at this level (not inherited memory).' },
   memory_add: { schema: z.strictObject({ scope: contextScope, text }), description: 'Add a fact and commit context.' },
   memory_remove: { schema: z.strictObject({ scope: contextScope, number: z.number().int().positive(), expectedRevision: z.string().regex(/^[a-f0-9]{64}$/) }), description: 'Remove fact by current display number. Reread memory_show first; number is not a stable ID.' },

@@ -1,7 +1,7 @@
 export interface Status { id: number; code: string; isTerminal: boolean }
 export interface Card {
   id: number; projectId: number | null; number: number; title: string; statusId: number;
-  status: string; isTerminal: boolean; contextDir: string; createdAt: string; updatedAt: string;
+  status: string; isTerminal: boolean; contextDir: string; worktreePath: string | null; createdAt: string; updatedAt: string;
 }
 export interface TaskStore {
   transaction<T>(fn: () => T): T;
@@ -11,7 +11,7 @@ export interface TaskStore {
   terminalStatus(code: string, terminal: boolean): void;
   removeStatus(code: string): void;
   nextNumber(projectId: number): number;
-  insert(input: Omit<Card, 'id' | 'status' | 'isTerminal'>): Card;
+  insert(input: Omit<Card, 'id' | 'status' | 'isTerminal' | 'worktreePath'>): Card;
   list(): Card[];
   get(id: number): Card;
   update(id: number, title: string, statusId: number, at: string): Card;

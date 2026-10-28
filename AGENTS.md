@@ -6,9 +6,10 @@ mypi provides local memory, projects, task records, CLI and stdio MCP tools.
 Pi starts from this checkout as one workspace for all managed projects. These
 workspace rules apply to user-directed work here; engine-development rules below
 apply only when changing mypi itself, not the code in managed project checkouts.
-The former mandatory memory/task/session workflow has been withdrawn. Optional
-Pi CLI autoload reads scoped context at model start; it does not register tasks,
-log outcomes or authorize work. No MCP warmup, task registration, outcome
+The former mandatory memory/task/session workflow has been withdrawn. `mypi warmup`
+prints scoped context on request; Pi CLI autoload of it is paused until the Pi
+integration adopts the text warmup. Neither registers tasks, logs outcomes or
+authorizes work. No MCP warmup, task registration, outcome
 logging or Herdr tab is a prerequisite. Follow the user's requested scope and session.
 
 ## Instruction ownership

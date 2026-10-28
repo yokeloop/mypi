@@ -27,7 +27,7 @@ capture --file /path/to/utf8-source
 note "title" "text" [-s org/project]
 note "title" --file /path/to/text [-s org/project]
 error org/project "error or dead end"
-warmup [-s org | org/project]
+warmup [-s global | CODE | CODE-N]
 ```
 
 Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
@@ -37,13 +37,15 @@ Removal requires the displayed number and that revision; stale/missing revisions
 without modifying files. Reread and retry deliberately, never reuse an old number.
 Capture creates a separate immutable inbox/*.md original, not a SQL copy; no BOM/CRLF
 stripping. It does not replace a task card or authorize execution. Notes never
-silently overwrite another note with the same topic. Scoped warmup excludes global
-inbox/unrelated projects; read full artifacts rather than treating its index as memory.
-`work` includes up to 20 nonterminal tasks (key, bounded title with truncated flag,
-status, updatedAt, source path), `openTaskCount`, 10 newest scoped events in
-chronological order (bounded text with truncated flag and scope/time read reference),
-and `olderEvents`. Global work includes projectless tasks and their events, unlike
-`journal read` global, which remains global-only. Existing `history` is retained.
+silently overwrite another note with the same topic. `warmup` prints
+Markdown, not JSON: personal instructions, role, how to work in mypi, zone memory, then
+the project list (global), open tasks (project) or task card and worktree (task).
+Without -s it uses MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
+and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
+the farthest memory zone are hidden with a marker naming the MCP `memory_show` call and,
+in parentheses, `memory show -s …`. `journal read` global remains global-only.
+Task cards from task show and task list include worktreePath (null until a worktree is
+recorded).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
