@@ -120,7 +120,6 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       remove: (number: number, expectedRevision: string, scope?: string) => memory.remove(contextPath(scope), number, expectedRevision),
     },
     capture: inbox.capture,
-    inbox: inbox.index,
     note: (title: string, text: string, scope?: string) => notes.note(contextPath(scope), title, text),
     error(scope: string, text: string) {
       if (core.projects.resolveScope(scope).type !== 'project') throw new InputError('Error log requires project scope');
