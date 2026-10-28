@@ -13,7 +13,7 @@ documentation. Session ids in the excerpts are stand ids.
 |---|---|---|---|---|
 | 1 | Does the stdio MCP process inherit `CLAUDE_CODE_SESSION_ID`? | how: yes at start; after `/clear` the same MCP process keeps the old id | [Fact 1](#fact-1-mcp-and-claude_code_session_id) | MCP resolves the session through the registry record by `MYPI_SCOPE`, not by its own `CLAUDE_CODE_SESSION_ID` |
 | 2 | Which id and `source` after `/clear` and fork; how does the hook learn the key? | how: Claude `/clear` → new id, `source: clear`; `--resume --fork-session` → new id, `source: fork`; no previous id in the input; `MYPI_SCOPE` and `session_title` reach the hook. Pi `/new` → new id, `reason: new`; `--fork` → `reason: startup` | [Fact 2](#fact-2-ids-and-source-after-clear-and-fork) | — (key comes from `MYPI_SCOPE`) |
-| 3 | Does the Claude inbox socket accept a foreign process's message with `crossSessionInbound: accept` from project settings; is `auth` needed on Linux? | how: yes in `manual` and `auto` with N, P and F alike (the setting changes nothing there); `auth` not needed; `bypassPermissions` not measured (stand launch denied by the agent's policy) | [Fact 3](#fact-3-delivery-into-the-claude-inbox-socket) | for a `bypassPermissions` parent: until measured, no live delivery promised; launcher passes `--settings '{"crossSessionInbound":"accept"}'`; the Event stays in `/queue` |
+| 3 | Does the Claude inbox socket accept a foreign process's message with `crossSessionInbound: accept` from project settings; is `auth` needed on Linux? | how: yes in `manual` and `auto` with N, P and F alike (the setting changes nothing there); `auth` not needed; `bypassPermissions` not measured (launch denied by the permission policy) | [Fact 3](#fact-3-delivery-into-the-claude-inbox-socket) | no `bypassPermissions` parent (Launcher- or hand-started) is promised live delivery until measured; Events wait in `/queue` |
 | 4 | Which Pi extension event fires when Pi waits for the user? | how: `ui_prompt_start` / `ui_prompt_end` (`reason: "ui_prompt"`, `kind`, `title`); no `agent_settled` while waiting | [Fact 4](#fact-4-pi-event-while-waiting-for-input) | — |
 | 5 | `herdr tab create` from outside Herdr: which workspace, is a flag needed? | how: the focused workspace; fails with `no active workspace` when the session has none; `--env` and `--cwd` reach the pane | [Fact 5](#fact-5-herdr-tab-create-outside-herdr) | launcher always passes `--workspace <id>` and creates a workspace when none exists |
 | 6 | Does `claude agents --json` see sessions started in Herdr tabs? | yes | [Fact 6](#fact-6-claude-agents---json-and-herdr-tabs) | — |
@@ -273,8 +273,9 @@ printf '%s\n' "$reply"
 
 ### bin/cell.sh, bin/probecell.sh, bin/endcell.sh (fact 3 helpers)
 
+`bin/cell.sh <mode> <N|P|F>`: new tab, parent Claude, wait for its `SessionStart`.
+
 ```bash
-# bin/cell.sh <mode> <N|P|F>: new tab, parent Claude, wait for its SessionStart
 #!/usr/bin/env bash
 source /home/priney/Projects/mypi-stand-mp31/bin/env.sh
 cd $STAND
@@ -288,8 +289,9 @@ hs pane run $pane "$CLAUDE --setting-sources project,local --strict-mcp-config -
 for i in $(seq 1 20); do jq -e --arg u "$U" 'select(.event=="SessionStart" and .input.session_id==$u)' logs/claude-hooks.jsonl >/dev/null 2>&1 && { echo started; break; }; sleep 1; done
 ```
 
+`bin/probecell.sh <session_id> <cell> <pane>`: inject without `auth`, wait up to 30 s for `Stop`.
+
 ```bash
-# bin/probecell.sh <session_id> <cell> <pane>: inject without auth, wait up to 30 s for Stop
 #!/usr/bin/env bash
 source /home/priney/Projects/mypi-stand-mp31/bin/env.sh
 cd $STAND
@@ -301,8 +303,9 @@ jq -c --arg u $U 'select(.input.session_id==$u and .event!="SessionStart") | {ev
 hs pane read $pane --source recent-unwrapped --lines 200 | grep -v '^\s*$' | sed -n '/Claude Code v/,$p' | tail -n 25
 ```
 
+`bin/endcell.sh <pane>`: exit Claude and close the tab.
+
 ```bash
-# bin/endcell.sh <pane>: exit Claude and close the tab
 #!/usr/bin/env bash
 source /home/priney/Projects/mypi-stand-mp31/bin/env.sh
 pane="$1"
@@ -316,7 +319,7 @@ hs tab close "$(hs pane get $pane | jq -r .result.pane.tab_id)" >/dev/null 2>&1 
 # operator: in a new terminal window outside Herdr
 /home/priney/.local/bin/herdr --session mypi-stand
 source /home/priney/Projects/mypi-stand-mp31/bin/env.sh
-hs workspace create --cwd $STAND --label W1 --no-focus   # w1
+hs workspace create --cwd $STAND --label W1 --no-focus   # w1; skip when reproducing fact 5
 ```
 
 ```bash
@@ -387,7 +390,8 @@ arrives in `SessionStart.source`, and how does the hook learn the previous key?
 Answer: how —
 
 - Claude `/clear`: a new session id, `source: "clear"`, same Claude process
-  (`hook_ppid`), same messaging socket, a new messaging token.
+  (`hook_ppid`), same messaging socket and the same messaging token
+  (`cmp -s` of the two token files: exit 0).
 - Claude `--resume <id> --fork-session`: a new session id, `source: "fork"`, a
   new process. The hook input has extra fields (`context_tokens`,
   `seconds_since_last_response`, …) but no previous id; in the fork transcript the
@@ -413,7 +417,9 @@ hs tab create --workspace w1 --cwd $STAND --env MYPI_SCOPE=MP-2 --env XDG_STATE_
 hs pane run w1:p6 'printf "scope=%s\n" "$MYPI_SCOPE"'
 hs pane run w1:p6 "$PI -ne -e $STAND/.pi/extensions/probe.ts --session-id pi-2a --name pi-2"
 hs pane send-text w1:p6 "/new"; hs pane send-keys w1:p6 enter
-# give the new session one entry before forking it (here: one turn), then exit with ctrl+d
+# the new session needs one entry before it can be forked: one trivial turn
+# (in this run the entry came from one accidental turn whose probe gate was declined; counted in turns.txt)
+hs pane send-text w1:p6 "Reply with exactly: ok"; hs pane send-keys w1:p6 enter
 hs pane send-keys w1:p6 ctrl+d
 hs pane run w1:p6 "$PI -ne -e $STAND/.pi/extensions/probe.ts --fork <id of the /new session> --session-id pi-2b"
 hs pane send-keys w1:p6 ctrl+d
@@ -466,9 +472,22 @@ Settings: `N` — no `crossSessionInbound` anywhere (user settings are excluded 
 
 "Delivered": `socat` exit 0 with an empty reply, a new `Stop` row for the parent
 with `last_assistant_message: "ok"`, no hold dialog and no `Notification` row.
-The `bypassPermissions` row was not run: the run's own agent was refused, by its
-auto-mode policy, permission to launch a Claude session with
-`--permission-mode bypassPermissions`.
+
+`bypassPermissions` row — not measured: launching a `bypassPermissions` agent
+was denied by the permission policy (auto-mode classifier) of the agent that ran
+the stand. A human can run the three cells with the same helpers (the cell
+order is N, P, F; switch the project key with the `jq` lines in [Stand](#stand)):
+
+```bash
+# operator: run in a shell with the stand's env.sh sourced, from $STAND
+bin/cell.sh bypassPermissions N            # operator: accept the bypass confirmation dialog if shown
+bin/probecell.sh <U> bypassPermissions-N <pane>
+# operator: if held, the parent shows a dialog for the foreign message: record its text and decline it
+# operator: if delivered, a new Stop row with last_assistant_message "ok" appears
+bin/endcell.sh <pane>
+```
+
+MP-43 measures delivery to a `bypassPermissions` parent before it promises it.
 
 Answer: how — in `manual` and `auto` a raw `{"type":"user",…}` line written into
 `CLAUDE_CODE_MESSAGING_SOCKET` by an unrelated process (`socat`, no sender
@@ -479,7 +498,7 @@ is neither needed nor observable. No hold dialog appeared in any of the six
 cells. The `auth` line is not needed on Linux (delivered with and without it);
 the socket replies with nothing in both cases. Whether a `bypassPermissions`
 parent holds such a message, and whether project-level `accept` lifts the hold,
-is not measured.
+is not measured (see above).
 
 Reproduce (one cell; `bin/cell.sh` and `bin/probecell.sh` are in [Stand](#stand)):
 
@@ -510,12 +529,14 @@ Observed (parent screen, `hs pane read <pane> --source recent-unwrapped`):
 Fallback: for `manual` and `auto` none is needed: `mypi event emit` writes the
 `{"type":"user",…}` line without `auth`, and the tracked `.claude/settings.json`
 does not need `crossSessionInbound`. For a `bypassPermissions` parent (not
-measured) the launcher passes `--settings '{"crossSessionInbound":"accept"}'` to
-every Claude chat it starts, which is harmless in the measured modes; a parent
-started by hand in `bypassPermissions` gets no promise of live delivery — the
-Event stays in `/queue` and is drained by the parent's next `Stop` hook
-(`decision: block`) and by warmup. Changes: ADR 0001 Context and Supporting
-rules (`crossSessionInbound`, parent modes), glossary «Queue». Used by MP-43.
+measured) no live delivery is promised, whether the Launcher or a human
+started it: the Event waits in `/queue` until the parent's next `Stop` hook
+(`decision: block`) or warmup. The Launcher still passes
+`--settings '{"crossSessionInbound":"accept"}'` to every Claude chat it starts
+as a precaution (harmless in the measured modes). MP-43 measures delivery to a
+`bypassPermissions` parent before promising it. Changes: ADR 0001 Context,
+transport table and Supporting rules (`crossSessionInbound`, parent modes),
+glossary «Queue». Used by MP-43.
 
 ### Fact 4: Pi event while waiting for input
 
@@ -531,8 +552,9 @@ stayed open 19.5 minutes: `ui_prompt_start` 11:39:39, `ui_prompt_end` 11:59:09,
 `agent_settled` 11:59:12). Pi 1.0.4 does not ask for approval before tool calls
 (`docs/security.md` of the Pi package); a wait for permission or an answer is an
 extension's `ctx.ui` call, so these two events cover it. Herdr does not help here: with the
-prompt open, `hs agent get` reported the Pi pane as `idle`
-(`fallback_reason: default_known_agent_idle_fallback`) for a Pi started with `-ne`.
+prompt open, `hs agent explain` reported the Pi pane as `idle`
+(`fallback_reason: default_known_agent_idle_fallback`) and `hs agent list`
+reported it as `done`, for a Pi started with `-ne`.
 
 Reproduce:
 
