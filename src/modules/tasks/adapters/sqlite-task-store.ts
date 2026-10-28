@@ -2,7 +2,7 @@ import type { Database } from 'better-sqlite3';
 import { InputError } from '../../../shared/errors.js';
 import type { Card, TaskStore, Status } from '../ports.js';
 const select = `SELECT r.id, r.project_id AS projectId, r.number, r.title, r.status_id AS statusId,
- s.code AS status, s.is_terminal AS isTerminal, r.context_dir AS contextDir,
+ s.code AS status, s.is_terminal AS isTerminal, r.context_dir AS contextDir, r.worktree_path AS worktreePath,
  r.created_at AS createdAt, r.updated_at AS updatedAt FROM tasks r JOIN task_statuses s ON s.id=r.status_id`;
 function card(row: unknown): Card {
   if (!row) throw new InputError('Unknown task');
