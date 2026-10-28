@@ -8,6 +8,9 @@ match the GitHub releases.
 
 ### Added
 
+- docs/v2/facts.md: stage-0 facts for mypi v2 (Claude Code 2.1.283, Pi 1.0.4,
+  Herdr 0.9.5) with reproduction commands and fallbacks; the v2 glossary and
+  ADRs 0001-0002 in .yoke/.
 - `mypi home migrate-tasks [--dry-run]`: moves task folders from `requests/`
   to `tasks/` in home with one Git commit and rewrites the stored paths; shows
   a preview, refuses a dirty home, and is a no-op when nothing is left to move.
