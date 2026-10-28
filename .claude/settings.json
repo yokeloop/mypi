@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "allow": [
+      "mcp__mypi__task_list",
+      "mcp__mypi__task_show",
+      "mcp__mypi__task_create",
+      "mcp__mypi__task_update",
+      "mcp__mypi__memory",
+      "mcp__mypi__note",
+      "mcp__mypi__journal",
+      "mcp__mypi__context_read",
+      "mcp__mypi__context_write",
+      "mcp__mypi__projects",
+      "mcp__mypi__warmup"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume|clear|compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" warmup --max-chars 9500",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}
