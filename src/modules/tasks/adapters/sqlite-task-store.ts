@@ -37,5 +37,9 @@ export function sqliteTaskStore(db: Database): TaskStore {
       db.prepare('UPDATE tasks SET context_dir=? WHERE id=?').run(contextDir, id);
       return get(id);
     },
+    setWorktree(id, worktreePath) {
+      db.prepare('UPDATE tasks SET worktree_path=? WHERE id=?').run(worktreePath, id);
+      return get(id);
+    },
   };
 }
