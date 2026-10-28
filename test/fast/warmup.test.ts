@@ -19,7 +19,7 @@ function fixture(t: TestContext, personal?: string) {
   if (personal !== undefined) write('USER-INSTRUCTIONS.md', personal);
   write('MEMORY.md', '# Memory\n\nGlobal notes written by hand.\n\n- "global fact one"\n- "global fact two"\n');
   write('projects/one/MEMORY.md', '# Memory\n\n- "org fact"\n');
-  write('projects/one/project/MEMORY.md', '# Memory\n\nProject conventions by hand.\n\n- "project fact"\n');
+  write('projects/one/project/MEMORY.md', '# Memory\n\nProject conventions by hand.\n\n```\n# not a heading\n```\n\n- "project fact"\n');
   write('projects/two/other/MEMORY.md', '# Memory\n\n- "foreign fact"\n');
   const app = createApp(filename, false);
   try {
@@ -45,7 +45,9 @@ function fixture(t: TestContext, personal?: string) {
       db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
         VALUES ((SELECT id FROM projects WHERE code = ?), ?, ?, (SELECT id FROM task_statuses WHERE code = ?), ?, ?,
         '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`).run(code, number, title, status, contextDir, worktree);
-      write(contextDir + '/source.md', code === 'MP' && number === 12 ? 'Task card text.\n\nDone when the goldens match.\n' : title + '\n');
+      write(contextDir + '/source.md', code === 'MP' && number === 12
+        ? '# T4 Scoped warmup\n\n## Goal\n\nTask card text.\n\nDone when the goldens match.\n\n~~~\n## not a heading\n~~~\n\n##### Deep\n'
+        : title + '\n');
     }
   } finally { db.close(); }
   return { dir, filename, root, clone, write };
@@ -57,7 +59,7 @@ const facts = (zone: string, title: string, count: number) => '# Memory\n\n' + t
 const fact = (zone: string, i: number) => zone + ' fact ' + String(i).padStart(3, '0') + ' ';
 
 test('global, MP and MP-12 warmups match the golden files and read nothing but files and the DB', t => {
-  const { dir, filename, root } = fixture(t, 'Personal rule: answer in English.\n');
+  const { dir, filename, root } = fixture(t, '# Personal instructions\n\n## Developer preferences\n\nPersonal rule: answer in English.\n');
   const before = readFileSync(filename);
   for (const key of ['global', 'MP', 'MP-12']) {
     assert.equal(normal(dir, readWarmup(filename, root, key)),

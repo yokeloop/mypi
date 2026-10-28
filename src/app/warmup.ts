@@ -28,6 +28,19 @@ function noClone(project: Project): InputError {
     + ' --expected-unset --path <checkout>)');
 }
 
+function demote(text: string, by: number): string {
+  let fence: string | undefined;
+  return text.split('\n').map(line => {
+    const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+    if (fence !== undefined) {
+      if (open && open[1]![0] === fence[0] && open[1]!.length >= fence.length && line.slice(open[0].length).trim() === '') fence = undefined;
+      return line;
+    }
+    if (open) { fence = open[1]; return line; }
+    return line.replace(/^( {0,3})(#{1,6})(?=[ \t\r]|$)/, (_, indent: string, marks: string) => indent + '#'.repeat(Math.min(6, marks.length + by)));
+  }).join('\n');
+}
+
 function marker(zone: Zone, hidden: number): string {
   return '> ' + hidden + ' older facts hidden from ' + zone.path + ' to fit the 64 KiB warmup limit. Read in full: memory_show '
     + zone.scope + ' (CLI: mypi memory show' + zone.cli + ')';
@@ -53,7 +66,8 @@ export function readWarmup(filename: string, root: string, key: string): string 
       const taskKey = (card: Card) => (card.projectId === null ? 'REQ' : owner(card)!.code) + '-' + card.number;
       const zone = (path: string, scope: object, cli: string): Zone => {
         const text = files.read(path);
-        return { path, scope: JSON.stringify({ scope }), cli, text, facts: text === undefined ? [] : factLines(text) };
+        return { path, scope: JSON.stringify({ scope }), cli, text: text === undefined ? undefined : demote(text, 3),
+          facts: text === undefined ? [] : factLines(text) };
       };
       const projectZone = (project: Project) => zone('projects/' + project.org + '/' + project.slug + '/MEMORY.md',
         { type: 'project', key: project.code }, ' -s ' + project.org + '/' + project.slug);
@@ -88,7 +102,7 @@ export function readWarmup(filename: string, root: string, key: string): string 
         const source = files.read(card.contextDir + '/source.md');
         tail = [
           '## Task card\n\nKey: ' + key + '\nTitle: ' + card.title + '\nStatus: ' + card.status + '\nContext: ' + card.contextDir
-            + '\n\n' + (source ?? 'source.md not found: ' + card.contextDir + '/source.md'),
+            + '\n\n' + (source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2)),
           '## Worktree\n\n' + (card.worktreePath === null
             ? 'Not created yet. Expected path: ' + project.checkoutPath + '--' + basename(card.contextDir)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
@@ -97,7 +111,7 @@ export function readWarmup(filename: string, root: string, key: string): string 
         throw new InputError('Invalid scope key: ' + key + '; use global, a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
-      const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + personal]),
+      const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
       const render = (hidden: number[], note: boolean) => [...head,
         '## Memory\n\n' + (note ? '> This warmup exceeds the 64 KiB limit even without memory facts; all facts are hidden.\n\n' : '')

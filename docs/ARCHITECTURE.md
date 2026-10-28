@@ -148,6 +148,9 @@ project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then 
 project list (global), the open tasks (project) or the task card with its worktree
 (task). Scope: `--scope`, else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
 and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
+Embedded files are inserted as written, except that their ATX headings outside fenced code
+blocks are demoted below the enclosing warmup heading (by two levels under a section, by
+three under a memory file's path, at most to level six).
 Reads create no DB rows, files or Git state. Scope is not an ACL.
 
 The output is limited to 64 KiB of UTF-8. Only memory facts are cut: never the

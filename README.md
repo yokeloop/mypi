@@ -276,7 +276,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory_show` call (and CLI command) that reads them in full ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory_show` call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

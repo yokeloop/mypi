@@ -40,6 +40,7 @@ match the GitHub releases.
   else `global`. Unknown keys, tasks without a project and projects without
   a clone are errors. Output is limited to 64 KiB; the oldest memory facts of
   the farthest zone are hidden first, with a marker naming the full read.
+  Headings of embedded files are demoted below the warmup's own sections.
 
 ### Removed
 

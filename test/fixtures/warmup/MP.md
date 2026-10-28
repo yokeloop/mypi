@@ -4,6 +4,10 @@ Base clone: <TMP>/clone
 
 ## Personal instructions
 
+### Personal instructions
+
+#### Developer preferences
+
 Personal rule: answer in English.
 
 ## Role: project
@@ -43,15 +47,19 @@ mypi keeps memory, projects, task records and history for this workspace. Use it
 
 ### projects/one/MEMORY.md
 
-# Memory
+#### Memory
 
 - "org fact"
 
 ### projects/one/project/MEMORY.md
 
-# Memory
+#### Memory
 
 Project conventions by hand.
+
+```
+# not a heading
+```
 
 - "project fact"
 

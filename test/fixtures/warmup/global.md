@@ -2,6 +2,10 @@
 
 ## Personal instructions
 
+### Personal instructions
+
+#### Developer preferences
+
 Personal rule: answer in English.
 
 ## Role: global
@@ -41,7 +45,7 @@ mypi keeps memory, projects, task records and history for this workspace. Use it
 
 ### MEMORY.md
 
-# Memory
+#### Memory
 
 Global notes written by hand.
 
