@@ -6,7 +6,7 @@ A project-centered memory and task system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
 scoped journal, context Git, backup/restore, CLI and 35 stdio MCP tools over one API.
-`mypi warmup` prints a session's scoped context as Markdown; the Pi package's autoload of it is paused until the Pi integration adopts the text format; no task registration, automatic logging or separate Herdr tab is required.
+`mypi warmup` prints a session's scoped context as Markdown; the tracked Pi extension loads it into every Pi session started in the checkout; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
 **Future:** units, project flows, runtime enforcement and agents with different scopes.
@@ -41,16 +41,16 @@ describe older revisions, not the current operating policy.
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.
 
-## First-time setup: the user layer
+## First-time setup
 
-Start Pi from the mypi checkout to work across all your projects. The engine and
-personal data share a workspace, **not a Git repository**. Built-in Pi resources
-are a local package in `integrations/pi/`; your customizations and memory live in
-an independent `home/` Git. `.pi` is an ignored symlink to `home/pi`.
+Start an agent from the mypi checkout to work across all your projects. The engine
+and personal data share a workspace, **not a Git repository**. Agent configuration
+is tracked engine source (`.pi/` for Pi); your instructions, settings and memory
+live in an independent `home/` Git.
 
-Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and Pi supporting
-local packages and `registerMcpServer` (manually checked with Pi 1.0.0). Linux is the
-currently verified platform. No global Pi configuration is installed or changed.
+Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
+version 1.0.4 (manually checked). Linux is the currently verified platform. No
+global agent configuration is installed or changed.
 
 ```bash
 git clone https://github.com/yokeloop/mypi.git
@@ -62,92 +62,80 @@ mise exec -- pi
 ```
 
 `pnpm bootstrap` builds the engine, then runs an **Ink terminal wizard**. Review its
-plan and press `y` to apply; Enter, `n`, Escape or Ctrl+C cancels before user-layer
-writes. Non-interactive input is refused. The wizard:
+plan and press `y` to apply; Enter, `n`, Escape or Ctrl+C cancels before any write.
+Non-interactive input is refused. The wizard:
 
-- Creates missing `home/`, a separate Git on `main` if none exists, user resource
-  directories, instruction and MCP files. Existing home Git configuration is kept.
-- Installs `.pi -> home/pi` and
-  `home/pi/APPEND_SYSTEM.md -> ../USER-INSTRUCTIONS.md`.
-- Adds the absolute local `integrations/pi` package path to `home/pi/settings.json`.
-  It preserves unrelated settings and existing package filters. Before modifying
-  existing settings, it saves their exact bytes as `settings.json.before-bootstrap`;
-  an occupied backup path is a conflict, not permission to overwrite it.
+- Creates a missing `home/` with a separate Git on `main` (existing home Git
+  configuration is kept), `home/USER-INSTRUCTIONS.md`, and `home/settings.json`
+  with `{"defaultAgent": "claude"}`. Existing files are kept byte for byte.
 - Shows the SQLite path and initializes the schema when the database file is absent.
   Uses `$XDG_STATE_HOME/mypi/state.sqlite3`, falling back to
   `~/.local/state/mypi/state.sqlite3`, the same as CLI/MCP. An existing database is
   left unchanged: no reset or implicit migration. A file created after the preview
   causes a refusal rather than an overwrite.
-- Does **not** register projects, create remote repositories, commit/push personal
-  files, migrate existing data or modify global Pi settings.
+- Does **not** touch agent settings (`.pi/`, `~/.pi/agent/`), register projects,
+  create remote repositories, commit/push personal files or migrate existing data.
 
-A configured rerun with an existing database is a no-op. Stop other setup/storage writers;
-changed previews are rejected. Errors report partial progress without claiming a
-rollback. Review and commit new files in `home/`, and configure its private remote
-and synchronization yourself; engine Git must never contain personal data.
+A rerun with an existing home and database is a no-op. Stop other setup/storage
+writers; changed previews are rejected. Errors report partial progress without
+claiming a rollback. Review and commit new files in `home/`, and configure its
+private remote and synchronization yourself; engine Git must never contain
+personal data.
 
 After successful first-time setup the database is initialized; no second bootstrap
 command is needed. The existing CLI/MCP storage `bootstrap` remains available for
-explicit administrative initialization/migration, without the Pi setup wizard.
+explicit administrative initialization/migration, without the setup wizard.
 
 ### Existing installations
 
 Reuse an existing ordinary `home/` directory; the wizard preserves personal
-instructions, memory and MCP configuration. Symlinked home roots are not supported
-by the current storage guards. An empty old `.pi`, or one containing only the former
-`APPEND_SYSTEM.md -> ../home/USER-INSTRUCTIONS.md` link, can be converted after
-confirmation. Any other existing `.pi` directory or conflicting link is refused
-before writes. Review and relocate its custom files into `home/pi/` yourself,
-reconcile relative paths and the instruction link, then rerun. No automatic merge
-or deletion of arbitrary user configuration is attempted.
+instructions and memory and only adds missing files. Symlinked home roots are not
+supported by the current storage guards. Earlier versions kept personal Pi
+configuration in `home/pi/` behind a local `.pi -> home/pi` link; the tracked `.pi/`
+directory replaces that link and `home/pi/` is no longer loaded. Before updating,
+move the Pi settings, MCP servers, packages and resources you still need from
+`home/pi/` to `~/.pi/agent/`, and remove an `integrations/pi` package entry from
+`~/.pi/agent/settings.json` if you added one. Personal instructions need no link
+any more: warmup serves `home/USER-INSTRUCTIONS.md`. Backups keep accepting the old
+`home/pi/APPEND_SYSTEM.md` link.
 
 ### Where to customize
 
 | Change | User-owned location |
 |---|---|
 | Personal agent instructions | `home/USER-INSTRUCTIONS.md` |
-| Pi settings and package resource filters | `home/pi/settings.json` |
-| Additional MCP servers / built-in server overrides | `home/pi/mcp.json` |
-| Skills | `home/pi/skills/<name>/SKILL.md` |
-| Extensions | `home/pi/extensions/` |
-| Prompt templates and themes | `home/pi/prompts/`, `home/pi/themes/` |
+| Personal mypi settings (`defaultAgent`) | `home/settings.json` |
+| Pi settings, MCP servers, packages, skills, extensions, prompts, themes | `~/.pi/agent/` |
 | Project knowledge | `home/projects/<org>/<project>/` |
 | Project source code | `projects/<org>/<project>/`, its own Git |
 | Task worktrees | `projects/<org>/<project>--<KEY>-<slug>/`, created by `mypi task worktree <KEY>` |
 
-For baseline versus personal instruction ownership, see
+`defaultAgent` names the agent (`claude` or `pi`) for new sessions that mypi opens;
+later releases read it. For baseline versus personal instruction ownership, see
 [AGENTS.md](AGENTS.md#instruction-ownership).
 
-All of `.pi`, `home/` and `projects/` are permanently reserved user paths, ignored by
-engine Git. Do not customize files under `integrations/pi/` unless contributing to
-the engine. Package resources load directly from there without being copied into
-home. Use distinct names for personal resources; to replace a built-in resource,
-exclude it via Pi package filters and load your own implementation explicitly.
+`home/` and `projects/` are permanently reserved user paths, ignored by engine Git.
+`.pi/` and `integrations/` are engine source: do not customize them unless
+contributing to the engine. Use distinct names for personal resources.
 
-**Why does Pi discover `integrations/pi`?** The directory name has no special meaning.
-Bootstrap explicitly adds a local package entry to `.pi/settings.json`, for example:
+### Pi
 
-```json
-{ "packages": ["/absolute/path/to/mypi/integrations/pi"] }
-```
+After project trust, Pi started in the checkout loads the tracked
+`.pi/extensions/mypi.ts` and the built-in skills through `.pi/skills`, which points
+to `integrations/skills/`. The extension needs a built engine. At each session start
+(startup, `/new`, resume, fork, reload) it registers the `mypi` MCP server —
+`node dist/src/mcp/main.js` from the checkout, with the session id in
+`PI_SESSION_ID` — and runs `mypi warmup`. The output becomes the `mypi_context`
+system-prompt section of every turn of that session. The scope is `MYPI_SCOPE` of the
+Pi process, else `global`. If warmup fails, the section states the error, Pi shows
+a warning and the MCP tools stay available. Tool schemas use the configured exposure
+(mostly codemode; project resolution and warmup are direct).
 
-Pi reads that directory's `package.json`, whose `pi` manifest declares
-`extensions: ["./extensions/mypi.ts"]` and `skills: ["./skills"]`. After project trust,
-Pi automatically loads the extension and lists the skills' names/descriptions for
-the agent; full skill instructions are read when needed. Without the package entry,
-Pi does not discover this arbitrary directory. MCP tools arrive via the registered
-server, not by scanning a folder of tool files. Their schemas use the configured
-exposure (mostly codemode; project resolution and warmup are direct).
-
-The shipped extension registers the built-in `mypi` MCP server using Node on PATH.
-Its CLI autoload of scoped context is paused: warmup now prints Markdown, and until the
-Pi integration adopts it every Pi session shows "mypi context unavailable (scoped context
-autoload is paused …)" in place of memory and loads no mypi context; call the `warmup`
-tool or run `mypi warmup` explicitly. `--mypi-no-autoload` suppresses that notice, not
-MCP. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable rather
-than Node. A file-configured server with the same name overrides the MCP registration.
-Use isolated state environment when selecting a test installation.
-For example, this user configuration disables the built-in server:
+Start Pi through `mise exec -- pi` so `node` on PATH is Node 24; Pi itself may be a
+standalone executable rather than Node. `pi -ne` starts without extensions. A
+file-configured server with the same name overrides the registration. Use isolated
+state environment when selecting a test installation. For example, this user
+configuration in `~/.pi/agent/mcp.json` disables the built-in server:
 
 ```json
 {
@@ -161,21 +149,20 @@ Pi's `/mcp` manages session connections. Shell `pi mcp list` sees file-configure
 servers only; it does not load the extension that registers mypi. Session changes
 to an extension-registered server are not persistent; store overrides in `mcp.json`.
 Keep credentials in environment variables or credential storage, not committed
-settings. Approve project trust to load the package and personal resources, and
-use `/reload` or restart after changing them. A project `APPEND_SYSTEM.md` takes
-precedence over the global file of that name; they are not concatenated.
+settings. Use `/reload` or restart after changing the extension or rebuilding.
 
 ### Updating without overwriting customizations
 
 The installed engine is not a development checkout; contribute through the
 [common project workflow](AGENTS.md#common-project-workflow). Once changes have
 been merged, update a clean installation on its release branch with
-`git pull --ff-only`, install the locked dependencies, build, then reload/restart Pi. Updates replace
-built-in resources only; they never regenerate user settings or rerun bootstrap.
-Data-format migrations require a separate explicit operation. If the checkout
-moves, review the absolute package path in user settings: bootstrap adds the current
-path but does not silently remove other entries. Compatibility with future Pi APIs
-still needs verification; separating paths prevents Git conflicts, not API changes.
+`git pull --ff-only`, install the locked dependencies, build, then reload/restart Pi.
+Updates replace built-in resources only; they never regenerate personal settings or
+rerun bootstrap. Data-format migrations require a separate explicit operation. The
+first update to a version with the tracked `.pi/` directory needs the move described
+in [Existing installations](#existing-installations) first. Compatibility with
+future Pi APIs still needs verification; separating paths prevents Git conflicts,
+not API changes.
 
 Back up both separate home Git and SQLite. Local `backup <directory>` requires clean
 committed context. Manual `backup --publish [--dry-run] [--file exact-path ...]`
@@ -246,12 +233,14 @@ mypi/
 ├── src/                         # cli, mcp, app, modules, infrastructure, shared
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
-├── integrations/pi/             # tracked built-in Pi package: extensions + skills
-├── .pi -> home/pi               # ignored local link, installed by bootstrap
+├── integrations/prompts/        # warmup role and how-to texts
+├── integrations/skills/         # built-in skills
+├── .pi/                         # tracked Pi configuration
+│   ├── extensions/mypi.ts       # MCP registration and warmup per session
+│   └── skills -> ../integrations/skills
 ├── home/                        # separate ignored user/context Git
 │   ├── USER-INSTRUCTIONS.md
-│   ├── pi/                      # settings, MCP, personal resources
-│   │   └── APPEND_SYSTEM.md -> ../USER-INSTRUCTIONS.md
+│   ├── settings.json            # personal mypi settings (defaultAgent)
 │   ├── MEMORY.md
 │   ├── inbox/*.md
 │   ├── notes/*.md

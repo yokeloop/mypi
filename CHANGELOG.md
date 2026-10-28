@@ -26,6 +26,13 @@ match the GitHub releases.
   Refuses tasks without a project, projects without a clone, a main branch that
   cannot be updated, a branch checked out in another worktree and a foreign
   directory at the path. CLI only, no MCP tool.
+- Tracked Pi configuration: `.pi/extensions/mypi.ts` registers the `mypi` MCP
+  server with the session id in `PI_SESSION_ID` at every Pi session start and
+  loads `mypi warmup` (scope `MYPI_SCOPE`, else `global`) into the `mypi_context`
+  system-prompt section of every turn; `.pi/skills` points to the built-in skills.
+  Checked manually with Pi 1.0.4.
+- `home/settings.json` with `defaultAgent` (`claude`), created by bootstrap when
+  absent and otherwise kept byte for byte.
 
 ### Changed
 
@@ -53,6 +60,15 @@ match the GitHub releases.
   Headings of embedded files are demoted below the warmup's own sections.
 - Task cards' `worktreePath` (`tasks.worktree_path`) is now recorded by
   `mypi task worktree`.
+- `pnpm bootstrap` creates only a missing `home/` (Git, `USER-INSTRUCTIONS.md`,
+  `settings.json`) and an absent database. It no longer creates `home/pi/`, the
+  `.pi -> home/pi` link, the instruction link or Pi package settings.
+- Built-in skills moved from `integrations/pi/skills/` to `integrations/skills/`.
+- Upgrading: `git pull` replaces the local `.pi -> home/pi` link with the tracked
+  `.pi/` directory, and Pi no longer loads `home/pi/` (settings, MCP servers,
+  packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
+  before updating and remove a stale `integrations/pi` entry from
+  `~/.pi/agent/settings.json`.
 
 ### Removed
 
@@ -64,5 +80,7 @@ match the GitHub releases.
   `home/pi/work-chats.json` are left untouched.
 - The JSON warmup (`memory`, `projects`, `inbox`, `history`, `work`,
   `glossary`) and organization scopes for warmup.
-- Pi autoload of scoped context is paused until the Pi integration adopts
-  the text warmup; sessions report "mypi context unavailable".
+- The `integrations/pi` package (manifest, extension, `mcp.example.json`, the
+  retired instruction template), the `--mypi-scope` and `--mypi-no-autoload`
+  flags (use `MYPI_SCOPE`; `pi -ne` disables extensions) and the
+  `mypi-startup-binding` session entry.
