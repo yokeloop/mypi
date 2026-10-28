@@ -113,7 +113,7 @@ or deletion of arbitrary user configuration is attempted.
 | Prompt templates and themes | `home/pi/prompts/`, `home/pi/themes/` |
 | Project knowledge | `home/projects/<org>/<project>/` |
 | Project source code | `projects/<org>/<project>/`, its own Git |
-| Task worktrees | `projects/<org>/<project>--<task-slug>/` |
+| Task worktrees | `projects/<org>/<project>--<KEY>-<slug>/`, created by `mypi task worktree <KEY>` |
 
 For baseline versus personal instruction ownership, see
 [AGENTS.md](AGENTS.md#instruction-ownership).
@@ -266,12 +266,12 @@ mypi/
 └── projects/                    # ignored project code, not project knowledge
     └── <org>/
         ├── <project>/           # independent base clone
-        └── <project>--<task>/    # task worktree of that clone
+        └── <project>--<KEY>-<slug>/ # task worktree: mypi task worktree <KEY>
 
 $XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
 ```
 
-A card's context_dir locates source.md and artifacts. Its current status is in DB;
+A card's context_dir locates source.md and artifacts. `mypi task worktree <KEY>` creates the task branch `task/<KEY>-<slug>` and its worktree beside the base clone from the fast-forwarded main branch and records the path in the card. Its current status is in DB;
 history is in the SQLite journal. Existing monthly UTC JSONL files remain unchanged;
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created

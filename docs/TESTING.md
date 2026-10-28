@@ -116,6 +116,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | DB authority/constraints | Real engine, transactions and resulting state, not mocked INSERT | Reopen/restart and competing writers; in-memory is not durability proof |
 | Retry/mixed-operation recovery | Bounded failure scenarios at durable protocol boundaries | Abrupt termination/restart when exceptions/finally behave differently |
 | Backup/restore | Real backup, restore to new storage, validate data/references | Real filesystem mode and required recovery, not file existence alone |
+| Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
 
 Cover useful commands without replicating the complete error matrix at every level.

@@ -13,7 +13,7 @@ record evidence. Historical contracts describe their time, not extra current com
 ## 1. Product and operating boundaries
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
-scoped warmup/history, task cards/statuses/progress, local context commits,
+scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
 SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
 
 The memory/task APIs are optional data operations. They do not impose agent
@@ -39,7 +39,7 @@ src/
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   └── knowledge/       # journal, notes and errors
-├── infrastructure/      # SQLite, files and Git
+├── infrastructure/      # SQLite, files, home Git and project clone Git
 └── shared/              # scope types, errors and partial
 ```
 

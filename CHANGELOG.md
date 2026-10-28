@@ -16,6 +16,13 @@ match the GitHub releases.
   `howto.md`, served by warmup.
 - Task cards (`task show`, `task list`, MCP) include `worktreePath`
   (read-only; null until a later release records worktrees).
+- `mypi task worktree <KEY>`: fetches `origin` in the project's registered base
+  clone, fast-forwards its main branch without switching the clone's branch,
+  creates `task/<KEY>-<slug>` with its worktree `<clone>--<KEY>-<slug>` and
+  records the path in the card; a repeated call returns the recorded worktree.
+  Refuses tasks without a project, projects without a clone, a main branch that
+  cannot be updated, a branch checked out in another worktree and a foreign
+  directory at the path. CLI only, no MCP tool.
 
 ### Changed
 
@@ -41,6 +48,8 @@ match the GitHub releases.
   a clone are errors. Output is limited to 64 KiB; the oldest memory facts of
   the farthest zone are hidden first, with a marker naming the full read.
   Headings of embedded files are demoted below the warmup's own sections.
+- Task cards' `worktreePath` (`tasks.worktree_path`) is now recorded by
+  `mypi task worktree`.
 
 ### Removed
 

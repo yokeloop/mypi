@@ -56,6 +56,7 @@ worktrees are not inferred.
 task create --project org/project --title "Title" --status research --slug short-slug --file /path/to/source
 task list [--project org/project] [--status code]
 task show MP-1
+task worktree MP-1
 task status MP-1 review --reason "ready for review"
 task title MP-1 "Better title" --reason "clarification"
 task progress MP-1 "actual outcome" [--artifacts /path/to/artifacts.json]
@@ -72,6 +73,17 @@ journal read --all --type status_changed
 
 These are independent syntax examples, not a mandatory sequence. Tasks belong to a
 registered project; existing standalone REQ records remain readable.
+
+`task worktree MP-1` works in the project's registered base clone: it fetches
+`origin`, fast-forwards the main branch (`origin/HEAD`, else `main`) without
+switching the clone's branch, creates `task/MP-1-<slug>` from it in
+`<clone>--MP-1-<slug>` and records the path as the card's `worktreePath`. It prints
+`{key,branch,worktreePath,created}`. A repeated call returns the recorded worktree
+(`created: false`) without fetching. It refuses tasks without a project, projects
+without a clone, a main branch that cannot be fetched or fast-forwarded, a branch
+checked out in another worktree and a foreign directory at the path. It installs no
+dependencies, writes no journal entry and has no MCP tool; removing worktrees and
+branches stays manual.
 
 Progress artifacts: JSON array `[{"path":"research/result.md","text":"new content"}]`;
 omit text to reference an existing file. Paths are relative to the task directory;
