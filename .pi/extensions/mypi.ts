@@ -35,7 +35,7 @@ export function install(pi: ExtensionAPI, root: string): void {
       pi.registerMcpServer('mypi', {
         command: 'node', args: [server], cwd: root, env: { PI_SESSION_ID: session },
         description: 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.',
-        exposure: 'codemode', toolExposure: { project_resolve: 'direct', warmup: 'direct' },
+        exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct' },
       });
       registered = session;
     }
