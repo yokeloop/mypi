@@ -30,6 +30,9 @@ note "title" "text" [-s org/project]
 note "title" --file /path/to/text [-s org/project]
 error org/project "error or dead end"
 warmup [-s global | CODE | CODE-N] [--max-chars n]
+session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
+session unregister --pid <pid> | forget <key>
+sessions
 ```
 
 Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
@@ -42,7 +45,7 @@ stripping. It does not replace a task card or authorize execution. Notes never
 silently overwrite another note with the same topic. `warmup` prints
 Markdown, not JSON: personal instructions, role, how to work in mypi, zone memory, then
 the project list (global), open tasks (project) or task card and worktree (task).
-Without -s it uses MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
+Without -s it uses the session's registered key, else MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
 and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
 the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
 in parentheses, `memory show -s …`. `--max-chars n` (1–21845) applies the same cut at n characters instead; the Claude Code hook uses 9500. `journal read` global remains global-only.
@@ -51,6 +54,7 @@ recorded).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
+`session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered, displaced}`. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes the row and reports `live`. `sessions` prints the tree. All need `XDG_RUNTIME_DIR`.
 
 ## Tasks and journal
 

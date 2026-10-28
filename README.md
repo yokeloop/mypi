@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 11 stdio MCP agent tools over one API (maintenance is CLI-only).
+scoped journal, context Git, backup/restore, CLI and 12 stdio MCP agent tools over one API (maintenance is CLI-only).
 `mypi warmup` prints a session's scoped context as Markdown; the tracked Pi extension loads it into every Pi session started in the checkout; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -125,9 +125,11 @@ After project trust, Pi started in the checkout loads the tracked
 to `integrations/skills/`. The extension needs a built engine. At each session start
 (startup, `/new`, resume, fork, reload) it registers the `mypi` MCP server —
 `node dist/src/mcp/main.js` from the checkout, with the session id in
-`PI_SESSION_ID` — and runs `mypi warmup`. The output becomes the `mypi_context`
-system-prompt section of every turn of that session. The scope is `MYPI_SCOPE` of the
-Pi process, else `global`. If warmup fails, the section states the error, Pi shows
+`PI_SESSION_ID` — and runs `mypi warmup`; it first registers the session
+(`mypi session register --agent pi`) and passes the registered key to the warmup,
+and unregisters the process when Pi quits. The output becomes the `mypi_context`
+system-prompt section of every turn of that session. The key is the one saved for
+this conversation, else `MYPI_SCOPE` of the Pi process, else `global`. If warmup fails, the section states the error, Pi shows
 a warning and the MCP tools stay available. Tool schemas use the configured exposure
 (mostly codemode; `projects` and `warmup` are direct).
 
@@ -150,6 +152,23 @@ servers only; it does not load the extension that registers mypi. Session change
 to an extension-registered server are not persistent; store overrides in `mcp.json`.
 Keep credentials in environment variables or credential storage, not committed
 settings. Use `/reload` or restart after changing the extension or rebuilding.
+
+### Sessions
+
+Both agents register their sessions: a row in the `sessions` table (key → agent
+and native id, kept for continuation) and a live record in
+`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and process start,
+native id, name, socket, start permission mode). The key is resolved in one
+order: the row for this native id, the live record of the same process,
+`MYPI_SCOPE`, `global`. A newer live session under a key becomes canonical and
+the older record moves to `<key>~<pid>.json`. A fork started by hand without
+`MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
+`mypi session forget <key>` drops a row on the user's request. Without
+`XDG_RUNTIME_DIR` or an initialized schema 8 database registration fails and the
+warmup still runs.
+
+Upgrading to schema 8: run `mypi db init` once after updating; until then every
+command that opens the database, including warmup, asks for it.
 
 ### Updating without overwriting customizations
 
@@ -183,9 +202,12 @@ implement a parallel task runner or protection against concurrent code edits.
 After `mise exec -- pnpm build`, run `claude` in the engine root. The tracked
 `.mcp.json` registers the `mypi` MCP server (`node dist/src/mcp/main.js`, Node from
 PATH); Claude asks once to approve it. `.claude/settings.json` allows the mypi tools
-without prompts and adds a SessionStart hook for startup, resume, clear and compact
-that prints `mypi warmup --max-chars 9500`: the scope of `MYPI_SCOPE`, else `global`.
-A forked session gets no new warmup. A failing warmup (for example an unknown
+without prompts and adds one SessionStart command for every source (startup, resume,
+clear, compact, fork): `mypi session register --agent claude --hook` (its output is
+discarded, its failure does not stop the warmup), then `mypi warmup --max-chars 9500`:
+the key saved for this conversation, else `MYPI_SCOPE`, else `global`. A forked
+session gets the warmup of `MYPI_SCOPE`, else `global`, and is registered only with
+`MYPI_SCOPE`. A failing warmup (for example an unknown
 `MYPI_SCOPE`) shows its error to the user and the session starts without it. Shared
 skills are symlinked from `integrations/skills/` into `.claude/skills/`. Keep
 personal settings in `.claude/settings.local.json` (ignored) or user settings.
@@ -277,7 +299,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, project or task session; over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, project or task session (without -s it uses the session's registered key, else MYPI_SCOPE, else global); over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

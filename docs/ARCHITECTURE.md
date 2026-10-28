@@ -38,6 +38,7 @@ src/
 │   ├── tasks/           # cards, numbering, status dictionary
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
+│   ├── sessions/        # session rows, live registry records, key resolution
 │   └── knowledge/       # journal, notes and errors
 ├── infrastructure/      # SQLite, files, home Git and project clone Git
 └── shared/              # scope types, errors and partial
@@ -61,9 +62,11 @@ projects(id, org_id, slug, code, checkout_path)
 task_statuses(id, code, is_terminal)
 tasks(id, project_id, number, title, status_id,
       context_dir, worktree_path, created_at, updated_at)
+sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
+events(id, from_key, to_key, kind, message, created_at, delivered_at)
 ```
 
-Four STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
+`events` is filled by MP-41. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
 readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
 schema transaction; ordinary opens do not change journal mode. SQLite may create its
@@ -73,6 +76,8 @@ An unwritable location without required WAL artifacts may return SQLite's error;
 there is no automatic initialization or workaround. Path: $XDG_STATE_HOME/mypi/state.sqlite3,
 fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
 Git, including symlink aliases; created parent directories 0700 and DB 0600.
+
+The live session registry is not state: $XDG_RUNTIME_DIR/mypi/sessions/<key>.json, owner-only, one record per live agent process; a record is live only while its pid and process start match /proc; dead records are deleted on read.
 
 Files own knowledge and original source:
 
@@ -146,7 +151,7 @@ the scope's role (`integrations/prompts/global.md`, `project.md` or `task.md`), 
 work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`;
 project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then the
 project list (global), the open tasks (project) or the task card with its worktree
-(task). Scope: `--scope`, else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
+(task). Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
 and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
 Embedded files are inserted as written, except that their ATX headings outside fenced code
 blocks are demoted below the enclosing warmup heading (by two levels under a section, by

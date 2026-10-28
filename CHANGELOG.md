@@ -41,6 +41,18 @@ match the GitHub releases.
   settings do not set `crossSessionInbound`: project settings can only tighten it.
 - `mypi warmup --max-chars n` (1–21845): caps the warmup at n characters with
   the same memory cut as the 64 KiB limit; the marker names the limit.
+- Session registry: schema 8 adds the `sessions` table (key → agent and native
+  id, kept for continuation) and the `events` table (filled later). Live records
+  in `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and start,
+  native id, name, socket, start permission mode); dead records are removed on
+  read. A newer live session under a key becomes canonical; the older record
+  moves to `<key>~<pid>.json`.
+- CLI `session register|unregister|forget` and `sessions`; MCP tool `sessions`
+  (read-only tree global → project → task with live/closed).
+- Claude Code's SessionStart hook registers the session on every source,
+  including fork, before the warmup; the Pi extension registers at session start,
+  passes the key to the warmup and unregisters on quit. A hand fork without
+  `MYPI_SCOPE` is not registered.
 
 ### Changed
 
@@ -89,6 +101,11 @@ match the GitHub releases.
   `project_*`. Application commands and the CLI are unchanged. Warmup's
   truncation marker and its "no clone" error name the new calls; the Pi
   extension exposes `projects` and `warmup` directly.
+- Warmup without `-s` (CLI, hook, MCP) uses the key registered for the session —
+  the row for its native id, else the live record of its process — before
+  `MYPI_SCOPE`; a task session continued with `--resume` gets its task warmup.
+- Upgrading: schema 8 requires `mypi db init` once after the update; until then
+  commands that open the database ask for it.
 
 ### Removed
 
