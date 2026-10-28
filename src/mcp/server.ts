@@ -6,14 +6,15 @@ import type { ToolName } from './tools.js';
 import { output } from './schemas.js';
 import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
+import { runSequence } from './sequence.js';
 
 export function createServer(filename: string, root?: string, env: Readonly<Record<string, string | undefined>> = {}) {
   const server = new McpServer({ name: 'mypi', version: '0.7.0' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
-      const command = toolCommand(name, args, env);
-      return await calls.run(signal, async () => success(await executeCommand(command, filename, root)));
+      const commands = toolCommand(name, args, env);
+      return await calls.run(signal, async () => success(await runSequence(commands, command => executeCommand(command, filename, root))));
     } catch (error) { return failure(error); }
   }
   for (const name of Object.keys(tools) as ToolName[]) {

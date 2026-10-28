@@ -1,58 +1,101 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { tools, toolCommand } from '../../src/mcp/tools.js';
+import { tools, toolCommand, readOnly } from '../../src/mcp/tools.js';
 import { success, failure } from '../../src/mcp/result.js';
 import { PartialError } from '../../src/shared/context.js';
 import { serialCalls } from '../../src/mcp/serial.js';
+import { runSequence } from '../../src/mcp/sequence.js';
+import { InputError } from '../../src/shared/errors.js';
+import type { AppCommand } from '../../src/app/commands.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 
 const scope = { type: 'project', key: 'MP' };
-const examples: [string, Record<string, unknown>][] = [
-  ['project_list', { org: 'one' }], ['project_add', { identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }],
-  ['project_update', { identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }],
-  ['project_resolve', { path: '/tmp' }], ['warmup', { scope: 'MP' }], ['memory_show', { scope }],
-  ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1, expectedRevision: 'a'.repeat(64) }],
-  ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
-  ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }], ['journal_import', {}],
-  ['journal_read', { scope: 'all', from: '2026-01-01T00:00:00Z', to: '2026-12-31T00:00:00Z', eventType: 'note', limit: 10 }],
-  ['task_list', { project: 'one/project', status: 'custom' }], ['task_show', { key: 'MP-1' }],
-  ['task_create', { project: 'one/project', title: 'T', status: 'custom', slug: 'task', source: { text: 'source' }, adoptSource: true }],
-  ['task_status', { key: 'MP-1', status: 'done', reason: 'verified' }],
-  ['task_title', { key: 'MP-1', title: 'new', reason: 'clarified' }],
-  ['task_progress', { key: 'MP-1', text: 'done', artifacts: [{ path: 'a.md', text: 'proof' }, { path: 'b.png' }] }],
-  ['task_touch', { key: 'MP-1' }], ['status_list', {}], ['status_add', { code: 'custom', terminal: false }],
-  ['status_rename', { code: 'custom', newCode: 'renamed' }], ['status_terminal', { code: 'custom', terminal: true }],
-  ['status_remove', { code: 'custom' }], ['context_read', { path: 'MEMORY.md' }],
-  ['context_commit', { paths: ['MEMORY.md'], message: 'reconciled' }],
-  ['context_restore', { path: 'MEMORY.md', revision: 'a'.repeat(40) }],
-  ['db_init', {}], ['bootstrap', {}], ['backup', { destination: '/tmp/snapshot' }],
-  ['restore', { backupDirectory: '/tmp/snapshot' }],
-  ['backup_publish', { dryRun: true, selectedPaths: ['chosen.md'] }],
-  ['restore_published', { repository: '/tmp/clone', commit: 'a'.repeat(40) }],
-];
-test('35 independent tool examples retain every field; strict schemas reject unknown/nested fields and wrong types', () => {
-  assert.equal(examples.length, 35);
-  assert.deepEqual(Object.keys(tools).sort(), examples.map(([name]) => name).sort());
-  for (const [name, args] of examples) {
-    assert.deepEqual(toolCommand(name, args), { name, ...args });
-    assert.throws(() => toolCommand(name, { ...args, unexpected: true }), /Unrecognized/);
+const g = { type: 'global' }, rev = 'a'.repeat(64);
+const cli = (argv: string[]) => {
+  const parsed = parseCommand(argv);
+  if (parsed.type === 'help') throw new Error('Unexpected help');
+  return appCommand(parsed, {});
+};
+test('MCP lists exactly eleven agent tools; maintenance and replaced names are unknown tools', () => {
+  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'projects',
+    'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
+  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'task_list', 'task_show', 'warmup']);
+  for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
+    'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
+    'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
+    'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
+    'restore_published', 'home_migrate_tasks', 'task_worktree', 'unknown', '__proto__'])
+    assert.throws(() => toolCommand(name, {}), /Unknown tool/);
+});
+test('every MCP call translates to the same AppCommands as its CLI commands', () => {
+  const rows: [string, Record<string, unknown>, string[][], Record<string, unknown>?][] = [
+    ['warmup', { scope: 'MP' }, [['warmup', '-s', 'MP']]],
+    ['projects', { action: 'list', org: 'one' }, [['project', 'list', '--org', 'one']]],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }, [['project', 'add', 'one/project', '--code', 'MP', '--path', '/tmp']]],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }, [['project', 'update', 'one/project', '--expected-unset', '--path', '/tmp/new']]],
+    ['projects', { action: 'resolve', path: '/tmp' }, [['project', 'resolve', '/tmp']]],
+    ['memory', { action: 'show', scope: g }, [['memory', 'show']]],
+    ['memory', { action: 'add', scope: g, text: 'fact' }, [['memory', 'add', 'fact']]],
+    ['memory', { action: 'remove', scope: g, number: 1, expectedRevision: rev }, [['memory', 'remove', '1', '--expected-revision', rev]]],
+    ['memory', { action: 'show', scope: { type: 'project', key: 'MP' } }, [['memory', 'show', '-s', 'one/project']], { scope: { type: 'project', key: 'MP' } }],
+    ['note', { kind: 'note', scope: g, title: 'T', body: { text: 'body' } }, [['note', 'T', 'body']]],
+    ['note', { kind: 'journal', scope: g, text: 'outcome' }, [['journal', 'add', 'outcome']]],
+    ['note', { kind: 'error', project: 'one/project', text: 'dead end' }, [['error', 'one/project', 'dead end']]],
+    ['note', { kind: 'capture', source: { text: '\ufeff x\r\n' } }, [['capture', '\ufeff x\r\n']]],
+    ['journal', { scope: 'all', eventType: 'note', limit: 2 }, [['journal', 'read', '--all', '--type', 'note', '--limit', '2']]],
+    ['task_list', { project: 'one/project', status: 'custom' }, [['task', 'list', '--project', 'one/project', '--status', 'custom']]],
+    ['task_show', { key: 'MP-1' }, [['task', 'show', 'MP-1']]],
+    ['task_create', { project: 'one/project', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, adoptSource: false },
+      [['task', 'create', 's', '--project', 'one/project', '--title', 'T', '--status', 'custom', '--slug', 'task']]],
+    ['task_update', { key: 'MP-1', status: 'done', reason: 'verified' }, [['task', 'status', 'MP-1', 'done', '--reason', 'verified']]],
+    ['task_update', { key: 'MP-1', title: 'new', reason: 'clarified' }, [['task', 'title', 'MP-1', 'new', '--reason', 'clarified']]],
+    ['task_update', { key: 'MP-1', progress: 'done' }, [['task', 'progress', 'MP-1', 'done']]],
+    ['task_update', { key: 'MP-1', touch: true }, [['task', 'touch', 'MP-1']]],
+    ['task_update', { key: 'MP-1', status: 'done', title: 'new', reason: 'verified', progress: 'done' },
+      [['task', 'status', 'MP-1', 'done', '--reason', 'verified'], ['task', 'title', 'MP-1', 'new', '--reason', 'verified'], ['task', 'progress', 'MP-1', 'done']]],
+    ['context_read', { path: 'MEMORY.md' }, [['context', 'read', 'MEMORY.md']]],
+    ['context_write', { paths: ['MEMORY.md'], message: 'reconciled' }, [['context', 'commit', 'MEMORY.md', '--message', 'reconciled']]],
+  ];
+  for (const [tool, args, argvs, patch] of rows) {
+    assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));
+    assert.throws(() => toolCommand(tool, { ...args, unexpected: true }), /Unrecognized/);
   }
-  for (const [name, args] of [
-    ['memory_add', { text: 'no default scope' }], ['warmup', { scope: { type: 'task', key: 'MP-1' } }],
-    ['warmup', { scope: 7 }], ['memory_remove', { scope, number: '1', expectedRevision: 'a'.repeat(64) }], ['memory_remove', { scope, number: 1 }],
-    ['capture', { source: { text: 'x', file: '/tmp/x' } }], ['capture', { source: { file: 'relative' } }],
-    ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
-    ['task_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
-    ['project_resolve', { path: 'relative' }],
-    ['project_update', { identity: 'one/project', checkoutPath: '/tmp/new' }],
-    ['project_update', { identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }],
-    ['project_update', { identity: 'one/project', expectedCheckoutPath: null, checkoutPath: 'relative' }],
-    ['backup', { destination: 'relative' }],
-    ['backup_publish', { selectedPaths: 'not an array' }], ['restore_published', { repository: 'relative', commit: 'a'.repeat(40) }],
-    ['status_add', { code: 'x', terminal: 'false' }], ['journal_read', { scope, limit: 0 }],
-    ['unknown', {}], ['__proto__', {}],
-  ] as const) assert.throws(() => toolCommand(name, args));
+  assert.deepEqual(new Set(rows.map(r => r[0])), new Set(Object.keys(tools)));
+  assert.deepEqual(toolCommand('task_update', { key: 'MP-1', progress: 'done', artifacts: [{ path: 'a.md', text: 'proof' }, { path: 'b.png' }] }),
+    [{ name: 'task_progress', key: 'MP-1', text: 'done', artifacts: [{ path: 'a.md', text: 'proof' }, { path: 'b.png' }] }]);
+});
+test('action tools and task_update reject missing, foreign and malformed fields', () => {
+  for (const [name, args, re] of [
+    ['memory', { action: 'add', text: 'no scope' }, /scope is required for action add/],
+    ['memory', { action: 'show', scope: g, text: 'x' }, /text is not allowed for action show/],
+    ['memory', { action: 'remove', scope: g, number: 1 }, /expectedRevision is required/],
+    ['memory', { action: 'remove', scope: g, number: '1', expectedRevision: rev }, /number/],
+    ['memory', { action: 'add', scope: { type: 'task', key: 'MP-1' }, text: 'x' }, /Context scope cannot be task/],
+    ['memory', { action: 'drop', scope: g }, /action/],
+    ['note', { kind: 'capture', source: { text: 'x', file: '/tmp/x' } }, /source/],
+    ['note', { kind: 'capture', source: { file: 'relative' } }, /Absolute path/],
+    ['note', { kind: 'capture', source: { text: 'x' }, scope: g }, /scope is not allowed for kind capture/],
+    ['note', { kind: 'journal', scope: g, text: 'x', title: 'T' }, /title is not allowed for kind journal/],
+    ['note', { kind: 'error', text: 'x' }, /project is required for kind error/],
+    ['note', { kind: 'note', scope: { type: 'task', key: 'MP-1' }, title: 'T', body: { text: 'b' } }, /Context scope cannot be task/],
+    ['projects', { action: 'resolve', path: 'relative' }, /Absolute path/],
+    ['projects', { action: 'update', identity: 'one/project', checkoutPath: '/tmp/new' }, /expectedCheckoutPath is required for action update/],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }, /Absolute path/],
+    ['projects', { action: 'list', path: '/tmp' }, /path is not allowed for action list/],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedCheckoutPath: null }, /expectedCheckoutPath is not allowed for action add/],
+    ['task_update', { key: 'MP-1' }, /needs status, title, progress or touch/],
+    ['task_update', { key: 'MP-1', status: 'done' }, /reason is required/],
+    ['task_update', { key: 'MP-1', progress: 'x', reason: 'r' }, /reason is allowed only/],
+    ['task_update', { key: 'MP-1', touch: true, status: 'done', reason: 'r' }, /touch is allowed only alone/],
+    ['task_update', { key: 'MP-1', artifacts: [{ path: 'x' }] }, /artifacts require progress/],
+    ['task_update', { key: 'MP-1', touch: false }, /touch/],
+    ['task_update', { key: 'MP-1', progress: 'x', artifacts: [{ path: 'x', other: 1 }] }, /Unrecognized/],
+    ['warmup', { scope: { type: 'task', key: 'MP-1' } }, /scope/],
+    ['warmup', { scope: 7 }, /scope/],
+    ['journal', { scope: g, limit: 0 }, /limit/],
+    ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }, /project/],
+  ] as const) assert.throws(() => toolCommand(name, args), re);
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
   const translate = (args: string[], env: Record<string, string> = {}) => {
@@ -62,8 +105,8 @@ test('CLI translates to the same subject commands without changing text or defau
   };
   assert.deepEqual(translate(['warmup']), { name: 'warmup' });
   assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
-  assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', envScope: 'MP-12' });
-  assert.deepEqual(toolCommand('memory_show', { scope }, { MYPI_SCOPE: 'MP' }), { name: 'memory_show', scope });
+  assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), [{ name: 'warmup', envScope: 'MP-12' }]);
+  assert.deepEqual(toolCommand('memory', { action: 'show', scope }, { MYPI_SCOPE: 'MP' }), [{ name: 'memory_show', scope }]);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
@@ -130,4 +173,41 @@ test('calls serialize async work; cancelled pending calls and calls after stop h
   assert.equal(events.at(-1), 'drained');
   await queue.stop();
   await assert.rejects(queue.run(new AbortController().signal, async () => { events.push('forbidden'); }), /cancelled/);
+});
+test('task_update parts run in order; a failure after a saved part is partial with saved and missing parts', async () => {
+  const commands = [{ name: 'task_status', key: 'MP-1', status: 'done', reason: 'r' },
+    { name: 'task_title', key: 'MP-1', title: 'new', reason: 'r' },
+    { name: 'task_progress', key: 'MP-1', text: 'done', artifacts: [] }] as AppCommand[];
+  const card = { id: 7, contextDir: 'projects/one/project/tasks/MP-1-x' };
+  const sequence = (outcomes: Record<string, () => unknown>, parts = commands) => {
+    const calls: string[] = [];
+    const run = runSequence(parts, async command => { calls.push(command.name); return outcomes[command.name]?.() ?? command.name; });
+    return { calls, run };
+  };
+  const ok = sequence({});
+  assert.equal(await ok.run, 'task_progress');
+  assert.deepEqual(ok.calls, ['task_status', 'task_title', 'task_progress']);
+  const refused = new InputError('Terminal task cannot change status; create a continuation');
+  const first = sequence({ task_status: () => { throw refused; } });
+  await assert.rejects(first.run, error => error === refused);
+  assert.deepEqual(first.calls, ['task_status']);
+  const later = sequence({ task_status: () => card, task_title: () => { throw new Error('busy'); } });
+  await assert.rejects(later.run, (error: unknown) => {
+    assert(error instanceof PartialError);
+    assert.match(error.message, /task_update stopped at title after saving status: busy/);
+    assert.deepEqual([error.saved, error.missing, error.paths, error.taskId],
+      [['status'], ['title', 'progress'], ['projects/one/project/tasks/MP-1-x'], 7]);
+    return true;
+  });
+  assert.deepEqual(later.calls, ['task_status', 'task_title']);
+  const nested = sequence({ task_status: () => card, task_progress: () => {
+    throw new PartialError('commit failed', ['artifacts'], ['inspect artifacts', 'journal', 'activity timestamp'],
+      ['projects/one/project/tasks/MP-1-x/a.md'], 7);
+  } }, [commands[0]!, commands[2]!]);
+  await assert.rejects(nested.run, (error: unknown) => {
+    assert(error instanceof PartialError);
+    assert.deepEqual([error.saved, error.missing, error.paths, error.taskId],
+      [['status', 'artifacts'], ['inspect artifacts', 'journal', 'activity timestamp'], ['projects/one/project/tasks/MP-1-x/a.md'], 7]);
+    return true;
+  });
 });

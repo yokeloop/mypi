@@ -1,8 +1,17 @@
-import { z } from 'zod';
-import { text, externalPath } from '../schemas.js';
+import { text, externalPath, tool, actions } from '../schemas.js';
 export const projects = {
-  project_list: { schema: z.strictObject({ org: text.optional() }), description: 'List registered projects, optionally by organization.' },
-  project_add: { schema: z.strictObject({ identity: text, code: text, checkoutPath: externalPath.optional() }), description: 'Register org/project in DB. Does not clone or create context.' },
-  project_update: { schema: z.strictObject({ identity: text, expectedCheckoutPath: externalPath.nullable(), checkoutPath: externalPath }), description: 'Change only a registered project checkout path; supply the exact previous path or null.' },
-  project_resolve: { schema: z.strictObject({ path: externalPath }), description: 'Resolve an existing directory to the deepest registered checkout. Returns project, none or ambiguous; never registers it.' },
+  projects: tool(actions('action', {
+    list: { required: [], optional: ['org'] }, add: { required: ['identity', 'code'], optional: ['checkoutPath'] },
+    update: { required: ['identity', 'expectedCheckoutPath', 'checkoutPath'] }, resolve: { required: ['path'] },
+  }, { org: text, identity: text, code: text, checkoutPath: externalPath, expectedCheckoutPath: externalPath.nullable(), path: externalPath }),
+  'Call to read or maintain project registrations: action list (optional org), add (identity org/project, code, optional absolute checkoutPath), update (identity, expectedCheckoutPath = the exact previous path or null, new absolute checkoutPath) or resolve (an absolute existing directory to the deepest registered checkout: project, none or ambiguous). Writes the DB only: never clones, creates context files or registers a project implicitly.',
+  a => {
+    switch (a.action) {
+      case 'list': return [{ name: 'project_list', ...(a.org === undefined ? {} : { org: a.org }) }];
+      case 'add': return [{ name: 'project_add', identity: a.identity!, code: a.code!,
+        ...(a.checkoutPath === undefined ? {} : { checkoutPath: a.checkoutPath }) }];
+      case 'update': return [{ name: 'project_update', identity: a.identity!, expectedCheckoutPath: a.expectedCheckoutPath!, checkoutPath: a.checkoutPath! }];
+      case 'resolve': return [{ name: 'project_resolve', path: a.path! }];
+    }
+  }),
 };

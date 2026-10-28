@@ -8,6 +8,8 @@ an LLM or execute flow. Full command syntax is in help.
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
+MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, home migrate-tasks and task worktree exist only in this CLI.
+
 ## Storage and context operations
 
 DB: `$XDG_STATE_HOME/mypi/state.sqlite3` (fallback `~/.local/state/mypi/state.sqlite3`),
@@ -42,7 +44,7 @@ Markdown, not JSON: personal instructions, role, how to work in mypi, zone memor
 the project list (global), open tasks (project) or task card and worktree (task).
 Without -s it uses MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
 and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
-the farthest memory zone are hidden with a marker naming the MCP `memory_show` call and,
+the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
 in parentheses, `memory show -s …`. `journal read` global remains global-only.
 Task cards from task show and task list include worktreePath (null until a worktree is
 recorded).

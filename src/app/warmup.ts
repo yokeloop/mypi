@@ -23,7 +23,7 @@ function prompt(name: string): string {
 
 export function noCloneError(project: { org: string; slug: string; code: string }): InputError {
   const identity = project.org + '/' + project.slug;
-  return new InputError('Project ' + identity + ' (' + project.code + ') has no clone; register one with project_update {"identity":"'
+  return new InputError('Project ' + identity + ' (' + project.code + ') has no clone; register one with projects {"action":"update","identity":"'
     + identity + '","expectedCheckoutPath":null,"checkoutPath":"<checkout>"} (CLI: mypi project update ' + identity
     + ' --expected-unset --path <checkout>)');
 }
@@ -42,7 +42,7 @@ function demote(text: string, by: number): string {
 }
 
 function marker(zone: Zone, hidden: number): string {
-  return '> ' + hidden + ' older facts hidden from ' + zone.path + ' to fit the 64 KiB warmup limit. Read in full: memory_show '
+  return '> ' + hidden + ' older facts hidden from ' + zone.path + ' to fit the 64 KiB warmup limit. Read in full: memory '
     + zone.scope + ' (CLI: mypi memory show' + zone.cli + ')';
 }
 
@@ -66,7 +66,7 @@ export function readWarmup(filename: string, root: string, key: string): string 
       const taskKey = (card: Card) => (card.projectId === null ? 'REQ' : owner(card)!.code) + '-' + card.number;
       const zone = (path: string, scope: object, cli: string): Zone => {
         const text = files.read(path);
-        return { path, scope: JSON.stringify({ scope }), cli, text: text === undefined ? undefined : demote(text, 3),
+        return { path, scope: JSON.stringify({ action: 'show', scope }), cli, text: text === undefined ? undefined : demote(text, 3),
           facts: text === undefined ? [] : factLines(text) };
       };
       const projectZone = (project: Project) => zone('projects/' + project.org + '/' + project.slug + '/MEMORY.md',

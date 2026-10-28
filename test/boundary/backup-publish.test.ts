@@ -11,8 +11,6 @@ import { publishBackup } from '../../src/app/backup.js';
 import { backupGit } from '../../src/infrastructure/git/backup-git.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
-import { executeCommand } from '../../src/app/execute-command.js';
-import { toolCommand } from '../../src/mcp/tools.js';
 
 function git(...args: string[]): string {
   const result = spawnSync('git', args, { encoding: 'utf8', timeout: 5000 });
@@ -84,7 +82,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   assert.ok(preview.excludedPaths.includes('old name.md'));
   assert.ok(preview.excludedPaths.includes('new name.md'));
   assert.ok(preview.selectedPaths.includes(card.contextDir + '/source.md'));
-  const result = await executeCommand(toolCommand('backup_publish', { selectedPaths: ['chosen.md'] }), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
+  const result = await run(parseCommand(['backup', '--publish', '--file', 'chosen.md']), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
   assert.equal(result.status, 'published', result.error);
   assert.equal(result.publicationConfirmed, true);
   assert.equal(git('-C', bare, 'rev-parse', 'refs/heads/main'), result.commit);

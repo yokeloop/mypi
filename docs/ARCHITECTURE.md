@@ -14,7 +14,7 @@ record evidence. Historical contracts describe their time, not extra current com
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
 scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
-SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand.
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes eleven agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
 
 The memory/task APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -158,7 +158,7 @@ personal instructions, role, how-to, project list, task list, task card or workt
 and never the hand-written text of a `MEMORY.md`. The farthest zone loses facts first
 (global, then organization, then project); within a file the oldest facts go first.
 In their place a line states how many facts were hidden, from which file, and the
-`memory_show` call (with the CLI command after it) that reads them in full. If the parts that are never cut
+`memory` show call (with the CLI command after it) that reads them in full. If the parts that are never cut
 already exceed the limit, every fact is hidden, a note says so, and the output is
 printed in full above the limit.
 
@@ -174,6 +174,7 @@ printed in full above the limit.
 
 No global SQLite/FS/Git atomicity. Partial reports saved/missing work, paths and
 taskId when known. CLI exits nonzero; MCP returns an error/partial envelope.
+An MCP task_update runs status, title and progress as separate commands in one serial slot; a failure after an earlier part saved is a partial envelope naming the saved and missing parts.
 Do not automatically repeat append/create, roll back a saved card or delete source.
 Inspect first, then complete checked files' commit, strict source adoption, factual
 recovery note instead of invented transition, or explicit touch as appropriate.

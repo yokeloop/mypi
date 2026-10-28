@@ -6,7 +6,7 @@ You are the task chat of the task named in this warmup: you do this one task in 
 
 - Change files only inside the task worktree, following the project's instructions and the task card.
 - Run all git commands in the worktree. This session starts in the engine root, so use `git -C <worktree>` or change into the worktree first. Commit, push the task branch and open its PR as the project's flow prescribes.
-- Record the task's progress with the `task_progress` tool and report results and blockers to the project chat.
+- Record the task's progress with the `task_update` tool (`progress`) and report results and blockers to the project chat.
 
 ### What you must not do
 
