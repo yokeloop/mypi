@@ -9,7 +9,8 @@ const walkFiles = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e 
   e.isDirectory() ? walkFiles(dir + '/' + e.name) : [dir + '/' + e.name]);
 const files = walkFiles('test');
 for (const file of files) {
-  assert(/^test\/(fast|boundary)\/[^/]+\.test\.ts$/.test(file) || /^test\/support\/.+\.ts$/.test(file),
+  assert(/^test\/(fast|boundary)\/[^/]+\.test\.ts$/.test(file) || /^test\/support\/.+\.ts$/.test(file)
+    || /^test\/fixtures\/[a-z0-9-]+\/[^/]+\.md$/.test(file),
     'Unknown test file: ' + file);
 }
 for (const profile of ['fast', 'boundary']) {

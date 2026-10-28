@@ -10,7 +10,8 @@ export type AppCommand =
   | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }
   | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
   | { name: 'project_resolve'; path: string }
-  | { name: 'warmup' | 'memory_show'; scope: ScopeInput }
+  | { name: 'memory_show'; scope: ScopeInput }
+  | { name: 'warmup'; scope?: string; envScope?: string }
   | { name: 'memory_add' | 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'memory_remove'; scope: ScopeInput; number: number; expectedRevision: string }
   | { name: 'capture'; source: TextInput }

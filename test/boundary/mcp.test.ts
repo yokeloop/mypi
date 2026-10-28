@@ -15,6 +15,7 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
     const root = join(dir, name); mkdirSync(root);
     cpSync('/work/dist', join(root, 'dist'), { recursive: true });
     symlinkSync('/work/node_modules', join(root, 'node_modules'));
+    symlinkSync('/work/integrations', join(root, 'integrations'));
     return root;
   }
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
@@ -77,8 +78,9 @@ test('real stdio: discovery without initialization, all tools, exact source, sco
   await call('note_add', { scope, title: 'Note', body: { file: sourcePath } });
   await call('error_add', { project: 'one/project', text: 'real dead end' });
   await call('journal_add', { scope, text: 'project outcome' });
-  const warm = JSON.stringify(await call('warmup', { scope }));
-  assert(warm.includes('parent fact') && warm.includes('project fact'));
+  const warm: string = await call('warmup', { scope: 'MP' });
+  assert(warm.startsWith('# mypi warmup: MP (one/project)\n'));
+  assert(warm.includes('project fact') && !warm.includes('parent fact'), 'project warmup carries project memory, not global memory');
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
   const task = await call('task_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
   assert.equal(task.key, 'MP-1');

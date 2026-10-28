@@ -11,7 +11,7 @@ const scope = { type: 'project', key: 'MP' };
 const examples: [string, Record<string, unknown>][] = [
   ['project_list', { org: 'one' }], ['project_add', { identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }],
   ['project_update', { identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }],
-  ['project_resolve', { path: '/tmp' }], ['warmup', { scope }], ['memory_show', { scope }],
+  ['project_resolve', { path: '/tmp' }], ['warmup', { scope: 'MP' }], ['memory_show', { scope }],
   ['memory_add', { scope, text: 'fact' }], ['memory_remove', { scope, number: 1, expectedRevision: 'a'.repeat(64) }],
   ['capture', { source: { text: '\ufeff x\r\n' } }], ['note_add', { scope, title: 'T', body: { file: '/tmp/input' } }],
   ['error_add', { project: 'one/project', text: 'error' }], ['journal_add', { scope, text: 'outcome' }], ['journal_import', {}],
@@ -40,7 +40,7 @@ test('35 independent tool examples retain every field; strict schemas reject unk
   }
   for (const [name, args] of [
     ['memory_add', { text: 'no default scope' }], ['warmup', { scope: { type: 'task', key: 'MP-1' } }],
-    ['warmup', { scope: { type: 'global', key: 'MP' } }], ['memory_remove', { scope, number: '1', expectedRevision: 'a'.repeat(64) }], ['memory_remove', { scope, number: 1 }],
+    ['warmup', { scope: 7 }], ['memory_remove', { scope, number: '1', expectedRevision: 'a'.repeat(64) }], ['memory_remove', { scope, number: 1 }],
     ['capture', { source: { text: 'x', file: '/tmp/x' } }], ['capture', { source: { file: 'relative' } }],
     ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }],
     ['task_progress', { key: 'MP-1', text: 'x', artifacts: [{ path: 'x', other: 1 }] }],
@@ -55,11 +55,15 @@ test('35 independent tool examples retain every field; strict schemas reject unk
   ] as const) assert.throws(() => toolCommand(name, args));
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
-  const translate = (args: string[]) => {
+  const translate = (args: string[], env: Record<string, string> = {}) => {
     const parsed = parseCommand(args);
     if (parsed.type === 'help') throw new Error('Unexpected help');
-    return appCommand(parsed);
+    return appCommand(parsed, env);
   };
+  assert.deepEqual(translate(['warmup']), { name: 'warmup' });
+  assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
+  assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', envScope: 'MP-12' });
+  assert.deepEqual(toolCommand('memory_show', { scope }, { MYPI_SCOPE: 'MP' }), { name: 'memory_show', scope });
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),

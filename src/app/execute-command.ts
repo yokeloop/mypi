@@ -6,8 +6,9 @@ import { defaultContextRoot } from './create-workspace.js';
 import { inputText } from './input-text.js';
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
+import { readWarmup, warmupScope } from './warmup.js';
 
-const reads = new Set(['warmup', 'memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
+const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
@@ -18,6 +19,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
+  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(), warmupScope(c.scope, c.envScope));
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));
@@ -43,7 +45,6 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       case 'capture': return { path: app.capture(inputText(c.source)) };
       case 'note_add': return { path: app.note(c.title, inputText(c.body), contextScope(c.scope, app.projects)) };
       case 'error_add': return { path: app.error(c.project, c.text) };
-      case 'warmup': return app.warmup(contextScope(c.scope, app.projects));
       case 'memory_show': return app.memory.show(contextScope(c.scope, app.projects));
       case 'memory_add': return { path: app.memory.add(c.text, contextScope(c.scope, app.projects)) };
       case 'memory_remove': return { removed: app.memory.remove(c.number, c.expectedRevision, contextScope(c.scope, app.projects)) };

@@ -5,7 +5,7 @@ import { resolveStatePath } from '../app/create-app.js';
 import { createServer } from './server.js';
 
 try {
-  const { server, stop } = createServer(resolveStatePath(process.env, homedir()));
+  const { server, stop } = createServer(resolveStatePath(process.env, homedir()), undefined, process.env);
   let closing: Promise<void> | undefined;
   const shutdown = () => closing ??= (async () => {
     await stop();

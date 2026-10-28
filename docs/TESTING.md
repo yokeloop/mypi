@@ -99,6 +99,7 @@ not a mislabeled fast profile.
 - Targeted red→green runs do not replace final verify.
 - New test files must belong to a known profile; unknown paths fail discovery rather
   than being silently excluded or added to an expensive glob.
+- Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -110,7 +111,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Risk | Primary cheap check | Necessary real boundary |
 |---|---|---|
 | Scope/identity/traversal | Core input tables; temp FS symlink/escape and no-write checks | Narrow CLI forwarding/error canary, not every ID through subprocess |
-| Scoped warmup | Distinct global/org/project/foreign fixtures, inheritance/inbox exclusion | CLI wiring/output without duplicating the matrix |
+| Scoped warmup | Golden Markdown files in test/fixtures/warmup/ for global/project/task on a temp DB/home; scope priority; errors; 64 KiB memory truncation | CLI text output, MYPI_SCOPE priority and error exit; MCP text |
 | Capture/memory/note/journal | Unicode/multiline, exact source, no-overwrite, read-only API behavior | Real context commit and preservation of unrelated dirty diff |
 | DB authority/constraints | Real engine, transactions and resulting state, not mocked INSERT | Reopen/restart and competing writers; in-memory is not durability proof |
 | Retry/mixed-operation recovery | Bounded failure scenarios at durable protocol boundaries | Abrupt termination/restart when exceptions/finally behave differently |

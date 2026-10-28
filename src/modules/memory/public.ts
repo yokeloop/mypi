@@ -13,6 +13,7 @@ function items(text: string): { line: number; text: string }[] {
     return [];
   });
 }
+export function factLines(text: string): number[] { return items(text).map(item => item.line); }
 export function createMemory(files: Files, revision: (text: string) => string) {
   function path(base: string): string { return (base ? base + '/' : '') + 'MEMORY.md'; }
   return {
