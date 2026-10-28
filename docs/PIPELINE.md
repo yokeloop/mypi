@@ -25,9 +25,20 @@ batch branch the engineer checks as a whole.
 - Task folder in mypi home (its own Git repository, direct `main`):
   `home/projects/yokeloop/mypi/tasks/<KEY>-<slug>/`
   (`requests/` until `mypi home migrate-tasks` has run on this home — T14 (MP-45);
-  `scripts/pipeline/mp-task dir <KEY>` prints the actual folder). Files: `source.md`
-  (registration, immutable), `plan.md`, `derive.json`, `progress.md`,
-  `do-report.json`, `review-report.json`, `pr.md`. After every write:
+  `scripts/pipeline/mp-task dir <KEY>` prints the actual folder). Files by kind:
+  - write-once: `source.md` (task registration), `addendum.md` and other card
+    addenda beside it, `do-report.json`, `review-report.json` (rewritten only in
+    the `/do` fix loop, before they are registered);
+  - snapshot (version in the name, never edited after registration):
+    `plan-v<N>.md` (N is the derive version from `derive.json`, taken by `/plan`),
+    `pr-final.md`, `progress-final.md` (taken by `/ship`);
+  - live (rewritten and appended to, never registered): `plan.md` (the working
+    copy that `/do`, the executor and the reviewer read), `derive.json`,
+    `progress.md`, `pr.md`.
+
+  A registered file is immutable (`mypi backup` checks every fingerprint). Never
+  register a file that will still be written; register a snapshot whose name
+  carries its version. After every write:
   `scripts/pipeline/mp-home-commit "<message>"`.
 - Derive: the general plan is `b7wieok9`
   (https://draft.yokeloop.com/artifacts/mypi-v2-b7wieok9); every task plan is
@@ -89,8 +100,8 @@ Every status reason carries the relevant link: derive URL or PR URL.
 - An approved plan is the engineer typing `/do <KEY>` or `/batch …`. No
   other signal counts; a published plan queues nothing.
 - Open comment threads on the plan artifact (`catch_up` with `comments: open`) are
-  remarks. `/plan` reworks the plan and republishes, resolving the threads with
-  `addresses`. `/do` refuses to start while a thread is open, unless typed with
+  remarks. `/plan` reworks the plan and republishes, resolving each thread with
+  `comment` and `set_state: resolved` and a reply saying what changed. `/do` refuses to start while a thread is open, unless typed with
   `--force`.
 
 ## Checks
@@ -123,7 +134,10 @@ Every status reason carries the relevant link: derive URL or PR URL.
   migrations, bootstrap, release, restore or the engine update: those are the
   engineer's separate authorizations (task T14 of the plan).
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
-  folder; commit home after each change.
+  folder; commit home after each change. Artifacts are only the write-once files
+  and snapshots from «Places», never a live file. A repeated `status` with the
+  same value writes nothing to the journal, so a rework reason goes into
+  `progress`.
 - A stage is passed by its named condition with the command output as evidence,
   never by "looks done". A check still red after three fix attempts is an open
   point, not a fourth attempt. Never a weakened check.
