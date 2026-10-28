@@ -13,47 +13,33 @@ import type { TestContext } from 'node:test';
 function fixture(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-user-layer-')), root = join(dir, 'engine');
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  mkdirSync(join(root, 'integrations/pi'), { recursive: true });
-  writeFileSync(join(root, 'integrations/pi/package.json'), '{"name":"mypi-pi"}\n');
+  mkdirSync(root, { recursive: true });
   return { dir, root, home: join(root, 'home'), db: join(dir, 'state.sqlite3') };
 }
 
 // Real Git is needed to prove independence of home and backup of the instruction link.
-test('user setup is opt-in, repeatable, preserves settings, and instruction links survive backup/restore', async t => {
+test('bootstrap creates only home and the database, is repeatable, keeps settings byte for byte, and the instruction link survives backup/restore', async t => {
   const { dir, root, home, db } = fixture(t);
   const plan = planUserLayer(root, db);
   assert.equal(existsSync(db), false);
   assert.equal(plan.database.create, true);
   assert.equal(existsSync(home), false); // Preview/cancel cannot create data.
-  assert.equal(existsSync(join(root, '.pi')), false);
   applyUserLayer(plan);
-  assert.equal(readlinkSync(join(root, '.pi')), 'home/pi');
-  assert.equal(readlinkSync(join(home, 'pi/APPEND_SYSTEM.md')), '../USER-INSTRUCTIONS.md');
-  assert.equal(readFileSync(join(home, 'pi/.gitignore'), 'utf8'), '/auth.json\n');
-  const ignoredAuth = spawnSync('git', ['-C', home, 'check-ignore', '-v', 'pi/auth.json'], { encoding: 'utf8', timeout: 3000 });
-  assert.equal(ignoredAuth.status, 0, ignoredAuth.stderr);
-  assert.match(ignoredAuth.stdout, /pi\/\.gitignore:1:\/auth\.json/);
+  assert.deepEqual(readdirSync(home).sort(), ['.git', 'USER-INSTRUCTIONS.md', 'settings.json']);
+  assert.equal(readFileSync(join(home, 'settings.json'), 'utf8'), '{\n  "defaultAgent": "claude"\n}\n');
+  assert.equal(existsSync(join(root, '.pi')), false);
+  assert.equal(existsSync(join(home, 'pi')), false);
   assert.match(readFileSync(join(home, '.git/HEAD'), 'utf8'), /refs\/heads\/main/);
   const app = createApp(db, true);
   try { assert.deepEqual(app.projects.list(), []); } finally { app.close(); }
   const databaseBytes = readFileSync(db);
   assert.deepEqual(applyUserLayer(planUserLayer(root, db)), []);
   assert.deepEqual(readFileSync(db), databaseBytes);
-  const settings = join(home, 'pi/settings.json');
-  const userConfig = '{"theme":"personal","packages":[{"source":"' + join(root, 'integrations/pi') + '","skills":[]}] }\n';
-  writeFileSync(settings, userConfig);
+  writeFileSync(join(home, 'settings.json'), '{"defaultAgent":"pi","extra":1}');
   assert.deepEqual(applyUserLayer(planUserLayer(root, db)), []);
-  assert.equal(readFileSync(settings, 'utf8'), userConfig); // Explicit package filters are not undone.
-  writeFileSync(settings, '{"theme":"personal","packages":["./other-package"]}\n');
-  const before = readFileSync(settings, 'utf8');
-  applyUserLayer(planUserLayer(root, db));
-  assert.equal(readFileSync(settings + '.before-bootstrap', 'utf8'), before);
-  assert.deepEqual(JSON.parse(readFileSync(settings, 'utf8')), { theme: 'personal', packages: ['./other-package', join(root, 'integrations/pi')] });
-  const ignore = join(home, 'pi/.gitignore');
-  writeFileSync(ignore, '# personal rules\n/*.tmp');
-  applyUserLayer(planUserLayer(root, db));
-  assert.equal(readFileSync(ignore, 'utf8'), '# personal rules\n/*.tmp\n/auth.json\n');
-  assert.deepEqual(applyUserLayer(planUserLayer(root, db)), []);
+  assert.equal(readFileSync(join(home, 'settings.json'), 'utf8'), '{"defaultAgent":"pi","extra":1}');
+  mkdirSync(join(home, 'pi'));
+  symlinkSync('../USER-INSTRUCTIONS.md', join(home, 'pi/APPEND_SYSTEM.md'));
   const commit = spawnSync('git', ['-C', home, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test',
     '-c', 'core.hooksPath=/dev/null', '-c', 'commit.gpgsign=false', 'add', '.'], { encoding: 'utf8', timeout: 3000 });
   assert.equal(commit.status, 0, commit.stderr);
@@ -65,39 +51,38 @@ test('user setup is opt-in, repeatable, preserves settings, and instruction link
   await backupState(db, join(dir, 'backup'), home);
   restoreState(join(dir, 'backup'), join(dir, 'restored.sqlite3'), join(dir, 'restored'));
   assert.equal(readlinkSync(join(dir, 'restored/pi/APPEND_SYSTEM.md')), '../USER-INSTRUCTIONS.md');
-  assert.equal(readFileSync(join(dir, 'restored/pi/settings.json'), 'utf8'), readFileSync(settings, 'utf8'));
-  assert.equal(readFileSync(join(dir, 'restored/pi/.gitignore'), 'utf8'), readFileSync(ignore, 'utf8'));
+  assert.equal(readFileSync(join(dir, 'restored/settings.json'), 'utf8'), '{"defaultAgent":"pi","extra":1}');
   rmSync(join(home, 'pi/APPEND_SYSTEM.md'));
   symlinkSync('../../outside', join(home, 'pi/APPEND_SYSTEM.md'));
   assert.throws(() => contextGit(home).cleanAll(), /Symlink/); // Exception cannot admit arbitrary links.
 });
 
-test('setup refuses conflicts and stale previews without overwrites; legacy instruction-only .pi can migrate', t => {
+test('setup refuses conflicts and stale previews without overwrites and leaves a tracked .pi alone', t => {
   const { root, home, db } = fixture(t);
-  mkdirSync(join(root, '.pi'));
-  writeFileSync(join(root, '.pi/settings.json'), '{"personal":true}\n');
+  mkdirSync(join(root, '.pi/extensions'), { recursive: true });
+  writeFileSync(join(root, '.pi/extensions/mypi.ts'), 'tracked\n');
+  mkdirSync(join(home, 'settings.json'), { recursive: true });
   assert.throws(() => planUserLayer(root, db), /Conflicting user path/);
   assert.equal(existsSync(db), false);
-  assert.equal(existsSync(home), false);
-  assert.equal(readFileSync(join(root, '.pi/settings.json'), 'utf8'), '{"personal":true}\n');
-  rmSync(join(root, '.pi/settings.json'));
-  symlinkSync('../home/USER-INSTRUCTIONS.md', join(root, '.pi/APPEND_SYSTEM.md'));
+  assert.equal(existsSync(join(home, 'USER-INSTRUCTIONS.md')), false);
+  rmSync(home, { recursive: true });
   const plan = planUserLayer(root, db);
   mkdirSync(home); writeFileSync(join(home, 'USER-INSTRUCTIONS.md'), 'Personal text\r\n');
   assert.throws(() => applyUserLayer(plan), /changed after preview/);
   assert.deepEqual(readdirSync(home), ['USER-INSTRUCTIONS.md']);
   mkdirSync(join(home, '.git'));
   assert.throws(() => planUserLayer(root, db), /Git repository|git repository/);
-  assert.equal(existsSync(join(home, 'pi')), false);
+  assert.equal(existsSync(join(home, 'settings.json')), false);
   rmSync(join(home, '.git'), { recursive: true });
   const reviewed = planUserLayer(root, db);
   writeFileSync(db, 'Created by another writer');
   assert.throws(() => applyUserLayer(reviewed), /changed after preview/);
   assert.equal(readFileSync(db, 'utf8'), 'Created by another writer');
-  assert.equal(existsSync(join(home, 'pi')), false);
+  assert.equal(existsSync(join(home, 'settings.json')), false);
   rmSync(db);
   applyUserLayer(planUserLayer(root, db));
-  assert.equal(readFileSync(join(root, '.pi/APPEND_SYSTEM.md'), 'utf8'), 'Personal text\r\n');
+  assert.equal(readFileSync(join(home, 'USER-INSTRUCTIONS.md'), 'utf8'), 'Personal text\r\n');
+  assert.equal(readFileSync(join(root, '.pi/extensions/mypi.ts'), 'utf8'), 'tracked\n');
   const cli = spawnSync(process.execPath, ['/work/dist/src/cli/bootstrap.js'], { encoding: 'utf8', timeout: 5000 });
   assert.equal(cli.status, 1);
   assert.match(cli.stderr, /interactive terminal/);
