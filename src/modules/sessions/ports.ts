@@ -17,7 +17,7 @@ export interface RegistryRecord {
 export interface Registry {
   start(pid: number): string | undefined;
   permissionMode(pid: number): string | null;
-  live(): RegistryRecord[];
+  live(prune?: boolean): RegistryRecord[];
   write(record: RegistryRecord): void;
   displace(record: RegistryRecord, at: string): RegistryRecord;
   remove(record: RegistryRecord): void;

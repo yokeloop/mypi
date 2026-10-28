@@ -44,8 +44,8 @@ match the GitHub releases.
 - Session registry: schema 8 adds the `sessions` table (key → agent and native
   id, kept for continuation) and the `events` table (filled later). Live records
   in `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and start,
-  native id, name, socket, start permission mode); dead records are removed on
-  read. A newer live session under a key becomes canonical; the older record
+  native id, name, socket, start permission mode); reads skip dead records and
+  the next registration, unregistration or forget removes them. A newer live session under a key becomes canonical; the older record
   moves to `<key>~<pid>.json`.
 - CLI `session register|unregister|forget` and `sessions`; MCP tool `sessions`
   (read-only tree global → project → task with live/closed).

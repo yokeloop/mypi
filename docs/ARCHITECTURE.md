@@ -77,7 +77,7 @@ there is no automatic initialization or workaround. Path: $XDG_STATE_HOME/mypi/s
 fallback ~/.local/state/mypi/state.sqlite3. DB/snapshots must be outside engine/context
 Git, including symlink aliases; created parent directories 0700 and DB 0600.
 
-The live session registry is not state: $XDG_RUNTIME_DIR/mypi/sessions/<key>.json, owner-only, one record per live agent process; a record is live only while its pid and process start match /proc; dead records are deleted on read.
+The live session registry is not state: $XDG_RUNTIME_DIR/mypi/sessions/<key>.json, owner-only, one record per live agent process; a record is live only while its pid and process start match /proc; reads skip dead records and the next registration, unregistration or forget deletes them.
 
 Files own knowledge and original source:
 

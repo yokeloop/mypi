@@ -16,7 +16,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
       if (start === undefined) throw new InputError('Process ' + input.pid + ' is not running');
       const self = { pid: input.pid, start };
       return store.transaction(() => {
-        const records = reg.live();
+        const records = reg.live(true);
         let key = store.byNative(input.agent, input.nativeId)?.key ?? records.find(r => same(r, self))?.key;
         if (key === undefined) {
           if (input.fork && !input.envScope) return { key: 'global', registered: false, displaced: null };
@@ -37,7 +37,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const reg = registry();
         const start = reg.start(pid);
         if (start === undefined) return { removed: [] };
-        const mine = reg.live().filter(r => same(r, { pid, start }));
+        const mine = reg.live(true).filter(r => same(r, { pid, start }));
         for (const r of mine) reg.remove(r);
         return { removed: mine.map(r => r.key) };
       });
@@ -45,7 +45,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     forget(key: string): { forgotten: string; live: boolean } {
       return store.transaction(() => {
         if (!store.get(key)) throw new InputError('Unknown session: ' + key);
-        const live = canonical(registry().live(), key) !== undefined;
+        const live = canonical(registry().live(true), key) !== undefined;
         store.remove(key);
         return { forgotten: key, live };
       });

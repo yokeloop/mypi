@@ -63,7 +63,7 @@ export function fsRegistry(dir: string, proc = '/proc'): Registry {
       }
       return null;
     },
-    live() {
+    live(prune = false) {
       if (!exists(parent) || !exists(dir)) return [];
       safe(parent); safe(dir);
       const records: RegistryRecord[] = [];
@@ -79,8 +79,8 @@ export function fsRegistry(dir: string, proc = '/proc'): Registry {
           if (missing(error)) continue;
           record = undefined;
         }
-        if (!shaped(record, match[1]!, match[2] === undefined ? undefined : Number(match[2].slice(1)))) { unlink(path); continue; }
-        if (start(record.pid) !== record.start) { unlink(path); continue; }
+        if (!shaped(record, match[1]!, match[2] === undefined ? undefined : Number(match[2].slice(1)))) { if (prune) unlink(path); continue; }
+        if (start(record.pid) !== record.start) { if (prune) unlink(path); continue; }
         records.push(record);
       }
       return records;

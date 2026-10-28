@@ -58,8 +58,8 @@ function fixture(t: TestContext) {
   return { dir, filename, run, proc, sessionsDir, alive, die, s, rows, files, record, claude };
 }
 
-test('registry files are owner-only, liveness needs pid and start, dead and malformed records are removed', t => {
-  const { run, sessionsDir, alive, s, files, record } = fixture(t);
+test('registry files are owner-only, liveness needs pid and start, dead and malformed records are removed only by writers', t => {
+  const { run, sessionsDir, alive, s, files, record, claude } = fixture(t);
   alive(101, '500');
   assert.deepEqual(s(x => x.register({ agent: 'claude', nativeId: 'c1', pid: 101, name: 'mp-12', socket: '/run/s.sock', fork: false, envScope: 'MP-12' })),
     { key: 'MP-12', registered: true, displaced: null });
@@ -73,7 +73,11 @@ test('registry files are owner-only, liveness needs pid and start, dead and malf
   writeFileSync(join(sessionsDir, 'notes.txt'), 'keep');
   const tree = s(x => x.tree());
   assert.deepEqual(tree.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' }, children: [] });
-  assert.deepEqual(files(), ['notes.txt']);
+  assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), undefined);
+  assert.deepEqual(files(), ['MP-12.json', 'OT.json', 'notes.txt']);
+  alive(102);
+  s(x => x.register(claude('g1', 102)));
+  assert.deepEqual(files(), ['global.json', 'notes.txt']);
 });
 
 test("permission mode is read only from the agent's own command line", t => {
@@ -161,7 +165,10 @@ test('forget deletes the row and reports a live session without touching its rec
   assert.deepEqual(files(), ['MP-12.json', 'global.json']);
   assert.throws(() => s(x => x.forget('MP-12')), /Unknown session: MP-12/);
   die(201);
+  s(x => x.tree());
+  assert.deepEqual(files(), ['MP-12.json', 'global.json']);
   assert.deepEqual(s(x => x.forget('global')), { forgotten: 'global', live: false });
+  assert.deepEqual(files(), ['MP-12.json']);
 });
 
 test('sessions tree is global → project → task with live and closed', t => {
