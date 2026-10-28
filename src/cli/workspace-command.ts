@@ -38,6 +38,10 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   backup: [0, 1, ['file'], ['publish', 'dry-run']],
   restore: [0, 1, ['repository', 'commit'], []],
   'home migrate-tasks': [0, 0, [], ['dry-run']],
+  sessions: [0, 0, [], []],
+  'session register': [0, 0, ['agent', 'pid', 'native-id', 'name', 'socket'], ['hook', 'fork']],
+  'session unregister': [0, 0, ['pid'], []],
+  'session forget': [1, 1, [], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');

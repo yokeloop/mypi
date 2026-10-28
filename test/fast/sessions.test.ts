@@ -6,6 +6,9 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { warmupScope } from '../../src/app/warmup.js';
+import { sessionKey } from '../../src/app/sessions.js';
+import { hookInput, sessionHint } from '../../src/app/session-input.js';
 
 const at = '2026-10-28T00:00:00.000Z';
 
@@ -176,4 +179,129 @@ test('sessions tree is global → project → task with live and closed', t => {
     { key: 'OT', session: { agent: 'pi', nativeId: 'pot', state: 'live' }, children: [] }] });
   const empty = fixture(t);
   assert.deepEqual(empty.s(x => x.tree()), { key: 'global', session: null, children: [] });
+});
+
+test('session key resolution scenarios', async t => {
+  const setup = (t: TestContext) => {
+    const f = fixture(t);
+    const register = (agent: 'claude' | 'pi', nativeId: string, pid: number, extra: { envScope?: string; fork?: boolean } = {}) =>
+      f.s(x => x.register({ agent, nativeId, pid, name: null, socket: null, fork: false, ...extra }));
+    const warm = (agent: 'claude' | 'pi', nativeId: string, pid: number, envScope?: string) =>
+      warmupScope(undefined, envScope, sessionKey(f.filename, { agent, nativeId, pid, runtime: f.run }, f.proc));
+    const row = (key: string) => f.rows().find(r => r.key === key);
+    return { ...f, register, warm, row };
+  };
+  const opened = (t: TestContext) => {
+    const x = setup(t);
+    x.alive(101);
+    const result = x.register('claude', 'c1', 101, { envScope: 'MP-12' });
+    return { ...x, result };
+  };
+  const cleared = (t: TestContext) => {
+    const x = opened(t);
+    return { ...x, result: x.register('claude', 'c2', 101, { envScope: 'MP-12' }) };
+  };
+  const resumed = (t: TestContext) => {
+    const x = cleared(t);
+    x.die(101); x.alive(102);
+    return { ...x, result: x.register('claude', 'c2', 102) };
+  };
+  const resumedCleared = (t: TestContext) => {
+    const x = resumed(t);
+    return { ...x, result: x.register('claude', 'c3', 102) };
+  };
+  await t.test('1: /open MP-12, a new session', t => {
+    const x = opened(t);
+    assert.deepEqual(x.result, { key: 'MP-12', registered: true, displaced: null });
+    assert.equal(x.warm('claude', 'c1', 900, 'MP-12'), 'MP-12');
+    assert.equal(x.row('MP-12')!.nativeId, 'c1');
+  });
+  await t.test('2: the /open session, then /clear', t => {
+    const x = cleared(t);
+    assert.deepEqual(x.result, { key: 'MP-12', registered: true, displaced: null });
+    assert.equal(x.warm('claude', 'c2', 900, 'MP-12'), 'MP-12');
+    assert.equal(x.row('MP-12')!.nativeId, 'c2');
+    assert.ok(!x.files().includes('MP-12~101.json'));
+  });
+  await t.test('3: claude --resume of the task id by hand in the root', t => {
+    const x = resumed(t);
+    assert.equal(x.result.key, 'MP-12');
+    assert.equal(x.warm('claude', 'c2', 900), 'MP-12');
+    assert.equal(x.record('MP-12.json')['pid'], 102);
+  });
+  await t.test('4: case 3, then /clear', t => {
+    const x = resumedCleared(t);
+    assert.equal(x.result.key, 'MP-12');
+    assert.equal(x.warm('claude', 'c3', 900), 'MP-12');
+    assert.equal(x.row('MP-12')!.nativeId, 'c3');
+  });
+  await t.test('5: MCP after /clear with a stale id', t => {
+    const x = resumedCleared(t);
+    assert.equal(x.warm('claude', 'c2', 102), 'MP-12');
+  });
+  await t.test('6: a second hand claude in the root', t => {
+    const x = setup(t);
+    x.alive(201); x.alive(202);
+    assert.equal(x.register('claude', 'g1', 201).key, 'global');
+    const second = x.register('claude', 'g2', 202);
+    assert.equal(second.key, 'global');
+    assert.equal(second.displaced!.pid, 201);
+    assert.equal(typeof second.displaced!.displacedAt, 'string');
+    assert.equal(x.record('global.json')['pid'], 202);
+    assert.ok(x.files().includes('global~201.json'));
+    assert.equal(x.row('global')!.nativeId, 'g2');
+    assert.equal(x.warm('claude', 'g2', 900), 'global');
+  });
+  await t.test('7: Pi /new in a task session', t => {
+    const x = setup(t);
+    x.alive(300);
+    x.register('pi', 'p0', 300, { envScope: 'MP-12' });
+    x.die(300); x.alive(301);
+    assert.deepEqual(x.register('pi', 'p0', 301), { key: 'MP-12', registered: true, displaced: null });
+    assert.deepEqual(x.register('pi', 'p1', 301), { key: 'MP-12', registered: true, displaced: null });
+    assert.equal(x.row('MP-12')!.nativeId, 'p1');
+    assert.equal(x.warm('pi', 'p1', 301), 'MP-12');
+  });
+  await t.test('8: a hand fork without MYPI_SCOPE', t => {
+    const x = setup(t);
+    x.alive(201);
+    x.register('claude', 'g1', 201);
+    x.alive(401);
+    assert.deepEqual(x.register('claude', 'f1', 401, { fork: true }), { key: 'global', registered: false, displaced: null });
+    assert.equal(x.record('global.json')['pid'], 201);
+    assert.equal(x.rows().some(r => r.nativeId === 'f1'), false);
+    assert.equal(x.warm('claude', 'f1', 401), 'global');
+    x.alive(101);
+    x.register('claude', 'c1', 101, { envScope: 'MP-12' });
+    x.alive(402);
+    const fork = x.register('claude', 'f2', 402, { fork: true, envScope: 'MP-12' });
+    assert.equal(fork.registered, true);
+    assert.equal(fork.displaced!.pid, 101);
+  });
+  await t.test('9: claude --resume of the MP-7 id in an MP-12 tab', t => {
+    const x = setup(t);
+    x.alive(501);
+    x.register('claude', 'c7', 501, { envScope: 'MP-7' });
+    x.die(501); x.alive(101);
+    x.register('claude', 'c1', 101, { envScope: 'MP-12' });
+    x.alive(502);
+    assert.deepEqual(x.register('claude', 'c7', 502, { envScope: 'MP-12' }), { key: 'MP-7', registered: true, displaced: null });
+    assert.equal(x.warm('claude', 'c7', 502, 'MP-12'), 'MP-7');
+    assert.equal(x.record('MP-12.json')['pid'], 101);
+  });
+  assert.equal(warmupScope('MP', 'MP-12', 'MP-7'), 'MP');
+  const x = opened(t);
+  assert.equal(sessionKey(x.filename, { agent: 'claude', nativeId: 'c1', pid: 101 }, x.proc), 'MP-12');
+  assert.equal(sessionKey(x.filename, { agent: 'claude', nativeId: 'nobody', pid: 101 }, x.proc), undefined);
+});
+
+test('SessionStart hook input and the environment hint', () => {
+  assert.deepEqual(hookInput('{"session_id":"c1","source":"fork","session_title":"mp-12","cwd":"/x"}'), { nativeId: 'c1', name: 'mp-12', fork: true });
+  assert.deepEqual(hookInput('{"session_id":"c1","source":"clear"}'), { nativeId: 'c1', fork: false });
+  for (const text of ['{}', '[]', '{"session_id":"c1","source":"other"}', '{"session_id":"","source":"startup"}'])
+    assert.throws(() => hookInput(text), /Invalid SessionStart hook input/);
+  assert.deepEqual(sessionHint({ CLAUDE_CODE_SESSION_ID: 'c1', PI_SESSION_ID: 'p1', XDG_RUNTIME_DIR: '/run/user/1' }, 42),
+    { agent: 'claude', nativeId: 'c1', pid: 42, runtime: '/run/user/1' });
+  assert.deepEqual(sessionHint({ PI_SESSION_ID: 'p1' }, 42), { agent: 'pi', nativeId: 'p1', pid: 42 });
+  assert.equal(sessionHint({ CLAUDE_CODE_SESSION_ID: '', PI_SESSION_ID: '', XDG_RUNTIME_DIR: '' }, 42), undefined);
 });

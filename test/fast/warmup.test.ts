@@ -75,6 +75,8 @@ test('global, MP and MP-12 warmups match the golden files and read nothing but f
 test('scope priority: explicit over MYPI_SCOPE over global, and missing personal instructions omit the section', t => {
   assert.equal(warmupScope('MP', 'MP-12'), 'MP');
   assert.equal(warmupScope(undefined, 'MP-12'), 'MP-12');
+  assert.equal(warmupScope(undefined, 'MP-12', 'MP-7'), 'MP-7');
+  assert.equal(warmupScope(undefined, undefined, 'MP'), 'MP');
   assert.equal(warmupScope(undefined, ''), 'global');
   assert.equal(warmupScope(undefined, undefined), 'global');
   assert.equal(warmupScope('', 'MP'), '');

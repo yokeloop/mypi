@@ -16,6 +16,9 @@ mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project update <org/project> (--expected-path <previous> | --expected-unset) --path <new-absolute-directory>
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
+mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
+mypi session unregister --pid <pid> | forget <key>
+mypi sessions
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]
@@ -33,7 +36,7 @@ mypi home migrate-tasks [--dry-run]
 Task and journal saves are local SQLite operations, not Git commits or remote backups.
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
-Results and errors are JSON; warmup prints Markdown (scope: -s, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
+Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
 Set XDG_STATE_HOME to isolated state for development.
 `;
 

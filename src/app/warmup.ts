@@ -11,8 +11,9 @@ import { InputError } from '../shared/errors.js';
 export const WARMUP_LIMIT = 64 * 1024;
 export const WARMUP_MAX_CHARS = Math.floor(WARMUP_LIMIT / 3);
 
-export function warmupScope(explicit: string | undefined, env: string | undefined): string {
+export function warmupScope(explicit: string | undefined, env: string | undefined, session?: string): string {
   if (explicit !== undefined) return explicit;
+  if (session !== undefined) return session;
   return env === undefined || env === '' ? 'global' : env;
 }
 

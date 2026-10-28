@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import type { TextInput } from './commands.js';
 import { InputError } from '../shared/errors.js';
 
-export function readInputFile(path: string): string {
+export function readInputFile(path: string | number): string {
   return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(readFileSync(path));
 }
 export function inputText(input: TextInput): string {
