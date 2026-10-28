@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 35 stdio MCP tools over one API.
+scoped journal, context Git, backup/restore, CLI and 11 stdio MCP agent tools over one API (maintenance is CLI-only).
 `mypi warmup` prints a session's scoped context as Markdown; the tracked Pi extension loads it into every Pi session started in the checkout; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -83,7 +83,7 @@ private remote and synchronization yourself; engine Git must never contain
 personal data.
 
 After successful first-time setup the database is initialized; no second bootstrap
-command is needed. The existing CLI/MCP storage `bootstrap` remains available for
+command is needed. The existing CLI storage `bootstrap` remains available for
 explicit administrative initialization/migration, without the setup wizard.
 
 ### Existing installations
@@ -129,7 +129,7 @@ to `integrations/skills/`. The extension needs a built engine. At each session s
 system-prompt section of every turn of that session. The scope is `MYPI_SCOPE` of the
 Pi process, else `global`. If warmup fails, the section states the error, Pi shows
 a warning and the MCP tools stay available. Tool schemas use the configured exposure
-(mostly codemode; project resolution and warmup are direct).
+(mostly codemode; `projects` and `warmup` are direct).
 
 Start Pi through `mise exec -- pi` so `node` on PATH is Node 24; Pi itself may be a
 standalone executable rather than Node. `pi -ne` starts without extensions. A
@@ -265,7 +265,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory_show` call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

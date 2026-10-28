@@ -37,7 +37,7 @@ match the GitHub releases.
 ### Changed
 
 - Tasks replace requests everywhere: CLI `mypi task …` (was `mypi request …`),
-  MCP tools `task_*` (was `request_*`; 35 tools), journal scope `task:KEY` and
+  MCP tools `task_*` (was `request_*`), journal scope `task:KEY` and
   event `task_created` (`journal_read` filter `eventType`), partial result
   field `taskId` (was `requestId`). Legacy JSONL import maps the old literals.
 - SQLite schema 6 → 7 renames `requests` → `tasks` and `request_statuses` →
@@ -69,6 +69,18 @@ match the GitHub releases.
   packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
   before updating and remove a stale `integrations/pi` entry from
   `~/.pi/agent/settings.json`.
+- MCP exposes 11 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
+  `task_create`, `task_update`, `memory`, `note`, `journal`, `context_read`,
+  `context_write`, `projects`. `task_update` replaces `task_status`,
+  `task_title`, `task_progress` and `task_touch` (one call with a reason; parts
+  run status → title → progress, a later failure returns `partial`); `memory`
+  (action show|add|remove) replaces `memory_*`; `note` (kind
+  note|journal|error|capture) replaces `note_add`, `journal_add`, `error_add`
+  and `capture`; `journal` replaces `journal_read`; `context_write` replaces
+  `context_commit`; `projects` (action list|add|update|resolve) replaces
+  `project_*`. Application commands and the CLI are unchanged. Warmup's
+  truncation marker and its "no clone" error name the new calls; the Pi
+  extension exposes `projects` and `warmup` directly.
 
 ### Removed
 
@@ -84,3 +96,8 @@ match the GitHub releases.
   retired instruction template), the `--mypi-scope` and `--mypi-no-autoload`
   flags (use `MYPI_SCOPE`; `pi -ne` disables extensions) and the
   `mypi-startup-binding` session entry.
+- MCP tools `db_init`, `bootstrap`, `backup`, `backup_publish`, `restore`,
+  `restore_published`, `journal_import`, `status_list`, `status_add`,
+  `status_rename`, `status_terminal`, `status_remove` and `context_restore`:
+  these operations are CLI-only (`mypi db init`, `bootstrap`, `backup`,
+  `restore`, `journal import`, `status …`, `context restore`).

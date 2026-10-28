@@ -18,14 +18,14 @@ The last command waits for JSON-RPC on stdin, not interactive input. Bin: `mypi-
 Node 24; exact dependency versions are in package.json and pnpm-lock.yaml.
 DB uses the server's XDG_STATE_HOME (fallback ~/.local/state); home is inside the
 engine clone. Neither location depends on the client cwd. Connect/tools/list do not
-initialize storage. Bootstrap/restore require explicit intent and no other writers.
+initialize storage. Bootstrap and restore are CLI-only, require explicit intent and no other writers.
 
 ## Pi connection
 
 Pi sessions started in the engine checkout get the server from the tracked
 extension `.pi/extensions/mypi.ts` after project trust ([README](../README.md#pi)).
 It registers `node dist/src/mcp/main.js` with the engine root as cwd and the Pi
-session id in `PI_SESSION_ID`, with codemode exposure and project_resolve and warmup
+session id in `PI_SESSION_ID`, with codemode exposure and projects and warmup
 direct. It installs no agent workflow, task-registration requirement, automatic
 logging, delegation or Herdr-tab rule. A same-name entry in a Pi `mcp.json`
 replaces the registration. Exposure makes tools available, not mandatory.
@@ -39,7 +39,8 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-35 tools are available through standard tools/list. Inspect live schemas for fields.
+11 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write and projects. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+`memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
 explicit `"all"`. A project scope key is its code; task_create.project is org/project
@@ -50,25 +51,17 @@ Context paths are home-relative; progress artifact paths are task-directory-rela
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
 taskId when known. structuredContent equals parsed JSON in text content. The data
-payload retains CLI JSON shapes. `memory_show` includes SHA-256 `revision`;
-`memory_remove` requires `number` and `expectedRevision` for that exact file.
+payload retains CLI JSON shapes. `memory` show includes SHA-256 `revision`; `memory` remove requires `number` and `expectedRevision` for that exact file.
 `warmup` takes optional `scope`: `global`, a project code or a task key; without it the
 server's `MYPI_SCOPE`, else `global`. Its data is the Markdown text the CLI prints
 (sections, order and the 64 KiB memory rule: ARCHITECTURE §5).
-`journal_read` global remains global-only. CLI `project resolve /absolute/path`
-exposes the existing project_resolve operation independently of MCP. Invalid JSON-RPC remains an SDK protocol error;
+`journal` global remains global-only. CLI `project resolve /absolute/path`
+exposes the same operation as projects action resolve. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
-`backup_publish` accepts optional `dryRun:boolean` and `selectedPaths:string[]` of
-exact home-relative files; `restore_published` accepts an absolute local `repository`
-clone path and full `commit` SHA. Both share the CLI application operation. A publish
-result with data.status `partial` has `isError:true` and envelope status `partial`,
-with full stage details in `data`; dry-run returns `preview` without writes. Both
-tools carry destructive hints, including dry-run because the same tool can write.
-Publication may include unpushed ancestor commits; inspect remote on uncertain push.
-Restore only into absent targets of this installation. See [M1-CLI](M1-CLI.md).
+Backup, its publication and restore are CLI operations; see [M1-CLI](M1-CLI.md).
 Always check isError and structuredContent.status, not promise resolution alone.
 
-Calls within one server are serial, including async backup. A queued cancellation
+Calls within one server are serial; the parts of one task_update share one slot. A queued cancellation
 does not write; an active synchronous call does not promise rollback. EOF/SIGTERM
 stop new work, cancel queued work and drain active work. Forced termination requires
 reconciliation. CLI/MCP share interprocess transaction guards; a JSON-RPC ID is not
