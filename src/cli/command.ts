@@ -15,7 +15,7 @@ export const usage = `mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project update <org/project> (--expected-path <previous> | --expected-unset) --path <new-absolute-directory>
 mypi project list [--org <org>] | resolve <absolute-path>
-mypi bootstrap | warmup [-s org/project]
+mypi bootstrap | warmup [-s global|CODE|CODE-N]
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]
@@ -33,7 +33,8 @@ mypi home migrate-tasks [--dry-run]
 Task and journal saves are local SQLite operations, not Git commits or remote backups.
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
-All results and errors are JSON. Set XDG_STATE_HOME to isolated state for development.
+Results and errors are JSON; warmup prints Markdown (scope: -s, else MYPI_SCOPE, else global).
+Set XDG_STATE_HOME to isolated state for development.
 `;
 
 export function parseCommand(args: string[]): Command {

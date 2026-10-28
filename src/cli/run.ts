@@ -3,7 +3,8 @@ import type { Command } from './command.js';
 import { usage } from './command.js';
 import { appCommand } from './app-command.js';
 
-export async function run(command: Command, filename: string, root?: string): Promise<unknown> {
+export async function run(command: Command, filename: string, root?: string,
+  env: Readonly<Record<string, string | undefined>> = {}): Promise<unknown> {
   if (command.type === 'help') return { usage };
-  return executeCommand(appCommand(command), filename, root);
+  return executeCommand(appCommand(command, env), filename, root);
 }

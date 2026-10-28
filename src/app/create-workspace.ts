@@ -1,7 +1,6 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { createMemory } from '../modules/memory/public.js';
 import { createInbox } from '../modules/inbox/public.js';
-import { warmup } from './warmup.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp, initializeState } from './create-app.js';
@@ -126,18 +125,6 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     error(scope: string, text: string) {
       if (core.projects.resolveScope(scope).type !== 'project') throw new InputError('Error log requires project scope');
       return notes.error(contextPath(scope), text);
-    },
-    warmup(scope?: string) {
-      const resolved = core.projects.resolveScope(scope);
-      return database.readSnapshot(() => {
-        const projects = core.projects.list();
-        return warmup(resolved, memory, inbox, files.read,
-          resolved.type === 'org' ? projects.filter(p => p.org === resolved.slug) : projects,
-          core.tasks.list(), new Map(projects.map(p => [p.id, { org: p.org, code: p.code }])),
-          (selected, limit) => database.journalStore.recentWork(selected.type === 'global' ? { type: 'global' }
-            : selected.type === 'org' ? { type: 'org', slug: selected.slug }
-              : { type: 'project', code: selected.project.code }, limit));
-      });
     },
   };
 }
