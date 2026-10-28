@@ -25,16 +25,19 @@ order typed.
 1. **Read the task.** `$BIN/mp-task show <KEY>`, `$BIN/mp-task source <KEY>`
    (the registration card: goal, scope, dependencies, done criteria, link to the
    general plan). Save the task folder path from `$BIN/mp-task dir <KEY>`.
-   Read the matching card of the general plan on derive: `read` of `b7wieok9`
-   with `section` set to the task's anchor (`t3` for T3) — the card's numbers are
-   in `source.md`. When the task depends on others (its «Связи» section), run
+   Read the matching card of the general plan on derive. The card number `T<N>`
+   is in `source.md`. `read` of `b7wieok9` with `section: "t<N>"` (`t3` for T3):
+   derive answers with an error that lists the valid section slugs; take the slug
+   that starts with `t<N>-` (like `t1-снос-work-chats-mp-32-этап-1`) and repeat
+   the `read` with `section` set to that slug. `section` accepts only a heading
+   slug; the HTML id `t3` is not a heading slug. When the task depends on others (its «Связи» section), run
    `$BIN/mp-task v2` and note which dependencies are not yet `merged`/`review`:
    the plan must state what it waits for; it does not block planning.
 
 2. **Rework or fresh?** If `derive.json` exists in the task folder, this is a
    rework: `catch_up` with that `short_id` and `comments: open`. Every open thread
    is a remark; quote it verbatim into the brief for the scout and the writer, and
-   collect the thread ids for `addresses` at publication. No open threads and a
+   collect the thread ids to resolve them with `comment` in step 6. No open threads and a
    plan already published → say the plan stands and stop, unless the engineer
    typed a remark after the key — then that remark is the brief.
 
@@ -67,17 +70,39 @@ order typed.
    with the decisions it missed. The plan's first lines must name the key, the
    title and the general plan's URL.
 
-6. **Publish.** Derive `publish`: fresh plan → new artifact, `title`
-   `"<KEY> — план: <task title>"`, `content` = the plan markdown, tags
-   `["mypi", "v2", "plan"]`, `derived_from: "b7wieok9"`; rework → `short_id` from
-   `derive.json`, `content` = the new markdown, `message` naming what changed,
-   `addresses` = the resolved thread ids. Write `derive.json`
-   `{"short_id","url","version","published_at"}` in the task folder.
+6. **Publish.** One path for a fresh plan and a rework:
+   1. Derive `stage` with `target: "doc"`; on rework pass `short_id` from
+      `derive.json` (a new version of the same artifact), for a fresh plan pass
+      no `short_id`.
+   2. Upload to the `upload_url` from the `stage` answer:
+      `curl -sS -F file=@<task folder>/plan.md -F title="<KEY> — план: <task title>" -F message="<what changed>" <upload_url>`.
+      `message` only on rework; it names what changed for each remark. Take
+      `short_id`, `url` and the version number from the upload answer.
+   3. Fresh plan: `organize` with `short_ids: [<short_id>]`,
+      `set: ["mypi", "v2", "plan"]`.
+   4. Rework: resolve every open thread from step 2 with `comment`: `short_id`,
+      `reply_to: <thread id>`, `set_state: "resolved"` and a one-line `body`
+      saying what changed in the plan in answer to that remark.
+   5. Write `derive.json` `{"short_id","url","version","published_at"}` in the
+      task folder; `version` is the version number from the upload answer.
+   6. `derived_from` is not used: the link to the general plan is the URL in the
+      plan's first lines (step 5). An inline `publish` with `content` is not used
+      for the plan.
 
-7. **Record.** `$BIN/mp-task progress <KEY> "План опубликован: <url>" plan.md`,
-   then `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`
-   (on rework the status stays `planning`; the reason names the new version).
-   `$BIN/mp-home-commit "<KEY>: plan v<version>"`.
+7. **Record.**
+   1. `cp <task folder>/plan.md <task folder>/plan-v<version>.md`, `<version>`
+      from `derive.json`. Nobody edits the snapshot afterwards; `plan.md` stays
+      the live working copy that `/do`, the executor and the reviewer read, and
+      it is never registered.
+   2. Fresh plan:
+      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan-v<version>.md`.
+      Rework:
+      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>; переработка: <что изменилось>" plan-v<version>.md`.
+   3. `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`.
+      On rework the status is already `planning`: this call writes nothing to the
+      journal (`changed: false`) and its reason is lost, so the rework reason
+      lives in the `progress` entry of item 2.
+   4. `$BIN/mp-home-commit "<KEY>: plan v<version>"`.
 
 8. **Report** one line per key: the key, the derive URL, «ждёт согласования —
    /do <KEY> запускает». A published plan starts nothing.
