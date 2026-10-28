@@ -93,14 +93,14 @@ test('unknown keys, tasks without a project and projects without a clone fail wi
   assert.throws(() => readWarmup(filename, root, 'REQ-1'), /Task REQ-1 has no project/);
   for (const key of ['NC', 'NC-1']) {
     assert.throws(() => readWarmup(filename, root, key),
-      /Project one\/noclone \(NC\) has no clone; register one with project_update \{"identity":"one\/noclone","expectedCheckoutPath":null,"checkoutPath":"<checkout>"\} \(CLI: mypi project update one\/noclone --expected-unset --path <checkout>\)/);
+      /Project one\/noclone \(NC\) has no clone; register one with projects \{"action":"update","identity":"one\/noclone","expectedCheckoutPath":null,"checkoutPath":"<checkout>"\} \(CLI: mypi project update one\/noclone --expected-unset --path <checkout>\)/);
   }
   for (const key of ['one/project', '', 'mp']) assert.throws(() => readWarmup(filename, root, key), /Invalid scope key/);
 });
 
 test('memory over 64 KiB hides the oldest facts of the farthest zone first, keeps hand-written text and says what it hid', t => {
-  const orgMarker = /^> (\d+) older facts hidden from projects\/one\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory_show \{"scope":\{"type":"org","key":"one"\}\} \(CLI: mypi memory show -s one\)$/m;
-  const projectMarker = /^> (\d+) older facts hidden from projects\/one\/project\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory_show \{"scope":\{"type":"project","key":"MP"\}\} \(CLI: mypi memory show -s one\/project\)$/m;
+  const orgMarker = /^> (\d+) older facts hidden from projects\/one\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"org","key":"one"\}\} \(CLI: mypi memory show -s one\)$/m;
+  const projectMarker = /^> (\d+) older facts hidden from projects\/one\/project\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"project","key":"MP"\}\} \(CLI: mypi memory show -s one\/project\)$/m;
   {
     const { filename, root, write } = fixture(t);
     write('projects/one/MEMORY.md', facts('org', 'Org', 400));
