@@ -20,7 +20,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
-  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(), warmupScope(c.scope, c.envScope));
+  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(), warmupScope(c.scope, c.envScope), c.maxChars);
   if (c.name === 'task_worktree') return openTaskWorktree(filename, c.key);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {

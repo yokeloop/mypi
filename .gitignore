@@ -16,3 +16,6 @@ dist/
 *.sqlite3-*
 *.db
 *.db-*
+
+# Claude Code: personal project settings stay local; the rest of .claude/ is tracked
+/.claude/settings.local.json

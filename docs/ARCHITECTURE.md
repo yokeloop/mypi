@@ -153,14 +153,22 @@ blocks are demoted below the enclosing warmup heading (by two levels under a sec
 three under a memory file's path, at most to level six).
 Reads create no DB rows, files or Git state. Scope is not an ACL.
 
-The output is limited to 64 KiB of UTF-8. Only memory facts are cut: never the
-personal instructions, role, how-to, project list, task list, task card or worktree,
-and never the hand-written text of a `MEMORY.md`. The farthest zone loses facts first
-(global, then organization, then project); within a file the oldest facts go first.
-In their place a line states how many facts were hidden, from which file, and the
-`memory` show call (with the CLI command after it) that reads them in full. If the parts that are never cut
-already exceed the limit, every fact is hidden, a note says so, and the output is
-printed in full above the limit.
+The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
+to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
+characters always fit 64 KiB. Both limits cut the same way. Only memory facts are
+cut: never the personal instructions, role, how-to, project list, task list, task
+card or worktree, and never the hand-written text of a `MEMORY.md`. The farthest zone
+loses facts first (global, then organization, then project); within a file the
+oldest facts go first. In their place a line states how many facts were hidden, from
+which file, under which limit, and the `memory` show call (with the CLI command after
+it) that reads them in full. If the parts that are never cut already exceed the
+limit, every fact is hidden, a note says so, and the output is printed in full above
+the limit.
+
+The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
+10,000-character limit for hook output. Hook output above that limit (only possible
+when the parts that are never cut exceed the budget) Claude Code saves to a file and
+puts a 2,000-character preview with the file path into the context.
 
 ## 6. Persistence and partial outcomes
 

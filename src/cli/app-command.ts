@@ -28,7 +28,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'error': return { name: 'error_add', project: a[0]!, text: a[1]! };
     case 'project resolve': return { name: 'project_resolve', path: a[0]! };
     case 'warmup': return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
-      ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
+      ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
+      ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }) };
     case 'memory show': return { name: 'memory_show', scope };
     case 'memory add': return { name: 'memory_add', text: a[0]!, scope };
     case 'memory remove': return { name: 'memory_remove', number: Number(a[0]), expectedRevision: required('expected-revision'), scope };

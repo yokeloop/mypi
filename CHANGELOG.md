@@ -33,6 +33,14 @@ match the GitHub releases.
   Checked manually with Pi 1.0.4.
 - `home/settings.json` with `defaultAgent` (`claude`), created by bootstrap when
   absent and otherwise kept byte for byte.
+- Claude Code adapter: tracked `.mcp.json` (the `mypi` MCP server via `node
+  dist/src/mcp/main.js`) and `.claude/settings.json` (allow list of exactly the
+  mypi MCP tools; SessionStart hook on startup, resume, clear and compact that
+  prints `mypi warmup --max-chars 9500`); shared skills symlinked into
+  `.claude/skills/`; `.claude/settings.local.json` is ignored. The tracked
+  settings do not set `crossSessionInbound`: project settings can only tighten it.
+- `mypi warmup --max-chars n` (1–21845): caps the warmup at n characters with
+  the same memory cut as the 64 KiB limit; the marker names the limit.
 
 ### Changed
 

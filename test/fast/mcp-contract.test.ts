@@ -93,6 +93,7 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['task_update', { key: 'MP-1', progress: 'x', artifacts: [{ path: 'x', other: 1 }] }, /Unrecognized/],
     ['warmup', { scope: { type: 'task', key: 'MP-1' } }, /scope/],
     ['warmup', { scope: 7 }, /scope/],
+    ['warmup', { maxChars: 9500 }, /Unrecognized/],
     ['journal', { scope: g, limit: 0 }, /limit/],
     ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }, /project/],
   ] as const) assert.throws(() => toolCommand(name, args), re);
@@ -105,6 +106,7 @@ test('CLI translates to the same subject commands without changing text or defau
   };
   assert.deepEqual(translate(['warmup']), { name: 'warmup' });
   assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
+  assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500 });
   assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), [{ name: 'warmup', envScope: 'MP-12' }]);
   assert.deepEqual(toolCommand('memory', { action: 'show', scope }, { MYPI_SCOPE: 'MP' }), [{ name: 'memory_show', scope }]);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });

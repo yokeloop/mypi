@@ -178,6 +178,18 @@ arbitrary symlinks are rejected. See [M1-CLI](docs/M1-CLI.md).
 This organization supports one Pi workspace for multiple projects; it does not yet
 implement a parallel task runner or protection against concurrent code edits.
 
+## Claude Code
+
+After `mise exec -- pnpm build`, run `claude` in the engine root. The tracked
+`.mcp.json` registers the `mypi` MCP server (`node dist/src/mcp/main.js`, Node from
+PATH); Claude asks once to approve it. `.claude/settings.json` allows the mypi tools
+without prompts and adds a SessionStart hook for startup, resume, clear and compact
+that prints `mypi warmup --max-chars 9500`: the scope of `MYPI_SCOPE`, else `global`.
+A forked session gets no new warmup. A failing warmup (for example an unknown
+`MYPI_SCOPE`) shows its error to the user and the session starts without it. Shared
+skills are symlinked from `integrations/skills/` into `.claude/skills/`. Keep
+personal settings in `.claude/settings.local.json` (ignored) or user settings.
+
 ## Develop and verify
 
 For an explicitly requested clean test stand, acceptance checklist and real Pi/MCP
@@ -265,7 +277,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, project or task session; over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

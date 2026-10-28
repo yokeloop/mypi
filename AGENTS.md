@@ -120,6 +120,25 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   rejected, except the one instruction link that homes created by earlier versions
   may contain. Managed context writes never follow links.
 
+## Starting Claude Code
+
+- Start `claude` in the engine root after `mise exec -- pnpm build`. The tracked
+  `.mcp.json` starts the `mypi` MCP server with `node dist/src/mcp/main.js`; Claude
+  asks once to approve this project server. The tracked `.claude/settings.json`
+  allows exactly the mypi MCP tools and runs `mypi warmup --max-chars 9500` as a
+  SessionStart hook on startup, resume, clear and compact, so each session starts
+  with its scoped context (`MYPI_SCOPE`, else `global`). The budget keeps the hook
+  under Claude Code's 10,000-character limit for hook output.
+- When the MCP tool list changes, update the allow list in the same change; a fast
+  test compares them. Do not add `enableAllProjectMcpServers`,
+  `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project
+  settings can only tighten cross-session delivery, so `accept` there changes nothing.
+- Personal Claude settings belong in the ignored `.claude/settings.local.json` or in
+  user settings. There is no `CLAUDE.md`; Claude Code loads this file instead.
+- Shared skills live in `integrations/skills/`; each gets a relative symlink
+  `.claude/skills/<name>`. The development pipeline's skills and agents in
+  `.claude/` are real directories and files, used only with Claude Code.
+
 ## Project setup and maintenance
 
 - For explicitly requested creation, initialization, registration or maintenance of

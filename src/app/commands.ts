@@ -11,7 +11,7 @@ export type AppCommand =
   | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'memory_show'; scope: ScopeInput }
-  | { name: 'warmup'; scope?: string; envScope?: string }
+  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number }
   | { name: 'memory_add' | 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'memory_remove'; scope: ScopeInput; number: number; expectedRevision: string }
   | { name: 'capture'; source: TextInput }

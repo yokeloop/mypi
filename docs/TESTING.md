@@ -111,7 +111,8 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Risk | Primary cheap check | Necessary real boundary |
 |---|---|---|
 | Scope/identity/traversal | Core input tables; temp FS symlink/escape and no-write checks | Narrow CLI forwarding/error canary, not every ID through subprocess |
-| Scoped warmup | Golden Markdown files in test/fixtures/warmup/ for global/project/task on a temp DB/home; scope priority; errors; 64 KiB memory truncation | CLI text output, MYPI_SCOPE priority and error exit; MCP text |
+| Scoped warmup | Golden Markdown files in test/fixtures/warmup/ for global/project/task on a temp DB/home; scope priority; errors; 64 KiB memory truncation; character budget (multi-byte, overflow, range) | CLI text output, MYPI_SCOPE priority and error exit; MCP text |
+| Claude Code adapter | Shape of .mcp.json and .claude/settings.json; allow list equals the MCP tool list | Manual stand checklist with the Claude Code version (approval, warmup on start/clear/resume/compact, no prompts) |
 | Pi extension | Fast test of .pi/extensions/mypi.ts against a stub ExtensionAPI: MCP registration with the session id, re-registration on a new session, warmup section on every turn, failure section | Manual stand checklist with a real Pi; its version is recorded in the PR |
 | Capture/memory/note/journal | Unicode/multiline, exact source, no-overwrite, read-only API behavior | Real context commit and preservation of unrelated dirty diff |
 | DB authority/constraints | Real engine, transactions and resulting state, not mocked INSERT | Reopen/restart and competing writers; in-memory is not durability proof |

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "mypi": {
+      "command": "node",
+      "args": ["dist/src/mcp/main.js"]
+    }
+  }
+}
