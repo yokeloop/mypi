@@ -52,9 +52,10 @@ Two of the three scripts stand in for mypi features the v2 plan adds later; each
 is removed by the task that makes it redundant, and that task's done criteria say
 so:
 
-- `scripts/pipeline/mp-task` — until MP-36 (T5, Claude adapter) gives the main
-  chat on Claude Code the mypi MCP (`task_show`, `task_update`, `inbox`); then
-  the skills call the MCP tools and the script goes.
+- `scripts/pipeline/mp-task` — stays after MP-36 (T5): the Claude adapter gives
+  the main chat the mypi MCP (`task_show`, `task_update`), but the skills also
+  read `inbox`, which arrives with MP-41 (T10); the script goes once the skills
+  call the MCP tools.
 - `scripts/pipeline/mp-worktree` — until MP-39 (T8) ships `mypi task worktree`;
   then the skills call that command and the script goes.
 - `scripts/pipeline/mp-home-commit` has no planned replacement: `context commit`

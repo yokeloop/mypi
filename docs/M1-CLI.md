@@ -29,7 +29,7 @@ capture --file /path/to/utf8-source
 note "title" "text" [-s org/project]
 note "title" --file /path/to/text [-s org/project]
 error org/project "error or dead end"
-warmup [-s global | CODE | CODE-N]
+warmup [-s global | CODE | CODE-N] [--max-chars n]
 ```
 
 Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
@@ -45,7 +45,7 @@ the project list (global), open tasks (project) or task card and worktree (task)
 Without -s it uses MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
 and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
 the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
-in parentheses, `memory show -s …`. `journal read` global remains global-only.
+in parentheses, `memory show -s …`. `--max-chars n` (1–21845) applies the same cut at n characters instead; the Claude Code hook uses 9500. `journal read` global remains global-only.
 Task cards from task show and task list include worktreePath (null until a worktree is
 recorded).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`

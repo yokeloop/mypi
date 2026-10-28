@@ -20,6 +20,13 @@ DB uses the server's XDG_STATE_HOME (fallback ~/.local/state); home is inside th
 engine clone. Neither location depends on the client cwd. Connect/tools/list do not
 initialize storage. Bootstrap and restore are CLI-only, require explicit intent and no other writers.
 
+## Claude Code connection
+
+The tracked `.mcp.json` registers this server as `mypi` for Claude Code started in
+the engine root; its tools appear as `mcp__mypi__<tool>`, and `.claude/settings.json`
+allows exactly them (a fast test compares the list). Claude asks once to approve the
+project server. The `warmup` tool takes no character budget; only the CLI hook does.
+
 ## Pi connection
 
 Pi sessions started in the engine checkout get the server from the tracked
