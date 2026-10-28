@@ -1,7 +1,7 @@
 # ADR 0001: One event contract, one transport — the parent session's socket
 
 Date: 2026-10-24, revised 2026-10-26 after the author's review and an
-independent review
+independent review, revised 2026-10-28 by the stage-0 facts (MP-31)
 Status: accepted
 
 ## Context
@@ -25,10 +25,15 @@ Parent Session without going through a model step, a terminal, or Herdr.
   session: the text arrived mid-turn as a peer message. An idle session starts a
   new turn with the message; a busy one reads it between tool calls. Claude Code
   frames it as "from another session, not the user" and lets it approve nothing.
-  Inbound control: a session in bypassPermissions holds foreign messages for
-  approval unless `crossSessionInbound: accept` applies (allowed in project
-  settings). `claude agents --json` lists live sessions with pid, sessionId,
-  name and busy/waiting/idle status (~0.2 s).
+  Inbound control, measured on 2026-10-28 with Claude Code 2.1.283, Pi 1.0.4
+  and Herdr 0.9.5 (MP-31, `docs/v2/facts.md`, fact 3): a parent in `manual`
+  (the interactive default; there is no `default` mode) or `auto` accepts a
+  line from an unrelated process at once, with no hold dialog, whether
+  `crossSessionInbound: accept` comes from project settings, from `--settings`,
+  or from nowhere; the `auth` line is not needed on Linux. A parent in
+  `bypassPermissions` was not measured. `claude agents --json` lists live
+  sessions, including those started in Herdr tabs, with pid, sessionId, name,
+  kind, startedAt and status (~0.13 s; fact 6).
 - An earlier revision of this ADR claimed an idle Claude could not be woken from
   outside; that was wrong (the cross-session-messaging page had not been read)
   and the narrowing of MVP delivery to Pi parents built on it is withdrawn.
@@ -50,7 +55,7 @@ session's socket recorded in the registry.
 | Parent | Socket | When the Agent shows it |
 |---|---|---|
 | Pi, live | `$XDG_RUNTIME_DIR/mypi/<key>.sock`, opened by the mypi extension; the extension injects with `sendUserMessage(followUp)` and acks | at once if idle, end of current turn if busy |
-| Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook); Claude Code delivers it itself | new turn if idle, between tool calls if busy |
+| Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook), one `{"type":"user",…}` line without `auth`; Claude Code delivers it itself in `manual` and `auto`; a `bypassPermissions` parent is started by the Launcher with `--settings '{"crossSessionInbound":"accept"}'` and gets no live-delivery promise when started by hand | new turn if idle, between tool calls if busy |
 | closed, or socket refused | the Event waits in `/queue`, enters the next warmup; a live Claude parent's next `Stop` hook also drains it with `decision: block` | on open or next turn boundary |
 
 mypi never interrupts a turn; the Agent decides when to show a message. Herdr
@@ -64,20 +69,37 @@ Supporting rules:
 - A child's `Stop` hook calls `mypi turn end`; with `stop_hook_active` in the
   input it creates no second Event and never blocks again.
 - `waiting` Events come from Claude's `Notification` hook (`permission_prompt`,
-  `idle_prompt`, `elicitation_dialog`); the Pi equivalent is settled in stage 0.
+  `idle_prompt`, `elicitation_dialog`); for Pi from the extension events
+  `ui_prompt_start` / `ui_prompt_end` (`reason: "ui_prompt"`, `kind`, `title`),
+  during which no `agent_settled` arrives (fact 4).
 - Scope resolution is the same for both Agents: `sessions` row by native
-  session id, then `MYPI_SCOPE`, then `global`. `SessionStart` on clear/fork
-  re-registers the new native id under the same key. The MCP process learns its
-  session from the environment (`CLAUDE_CODE_SESSION_ID`; Pi passes the id in
-  `env` on `registerMcpServer`).
+  session id, then `MYPI_SCOPE`, then `global`. Claude `/clear` and
+  `--fork-session` give a new native id with `SessionStart.source` `clear` /
+  `fork` and no previous id in the input; Pi `/new` gives `reason: "new"`, Pi
+  `--fork` gives `reason: "startup"` with `parentSession` in the session header.
+  The hook and the extension take the key from the process's `MYPI_SCOPE`
+  (`session_title` = `--name <key>` as a check) and re-register the new native
+  id under it (facts 2). The MCP process sees `CLAUDE_CODE_SESSION_ID` at start
+  but keeps the old id after `/clear` (the process is not restarted), so it
+  resolves the current session through the registry record for its
+  `MYPI_SCOPE`; its own id is only the initial binding (fact 1). Pi passes the
+  id in `env` on `registerMcpServer`.
 - The registry (`$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`) stores what does
   not change: key, Agent, pid and start, native id, name, socket path. Busy
   state is asked from the source (`claude agents --json`; the Pi record).
   A hand-started session registers itself; with two live sessions for one key
   the newest is canonical and the older one is told through its socket.
 - The tracked `.claude/settings.json` carries an allow-list for mypi tools and
-  `crossSessionInbound: accept`; `/open` passes the parent's permission mode to
-  the child. Herdr agent names are the key in lower case (`mp-12`).
+  no `crossSessionInbound` (not needed in `manual` and `auto`; fact 3); the
+  Launcher passes `--settings '{"crossSessionInbound":"accept"}'` to every
+  Claude chat it starts. `/open` passes the parent's permission mode to the
+  child; Claude Code 2.1.283 modes are `manual` (the interactive default),
+  `acceptEdits`, `auto`, `bypassPermissions`, `dontAsk`, `plan`. Herdr launch:
+  `herdr tab create --workspace <id> --cwd … --env MYPI_SCOPE=<key>` (without
+  `--workspace` the tab goes to the focused workspace, and the call fails when
+  the session has none; fact 5), then
+  `herdr agent start <name> --kind <agent> --pane <root_pane> -- <args>`.
+  Herdr agent names are the key in lower case (`mp-12`).
 
 ## Alternatives rejected
 
@@ -103,9 +125,12 @@ Supporting rules:
 - A `SessionAdapter` per Agent implements: registry record, scope resolution,
   launch arguments, turn-end and waiting detection, final-message capture, and
   the socket it hands to `event emit`.
-- Stage 0 confirms on a disposable stand: `CLAUDE_CODE_SESSION_ID` inheritance
-  by the stdio MCP process; new ids on `/clear` and `--fork-session` and how
-  `SessionStart` learns the key; socket delivery from a foreign process with the
-  parent in default, auto and bypass modes under project-level
-  `crossSessionInbound: accept`; the Pi event for waiting-for-input;
-  `herdr tab create` from a main chat outside Herdr.
+- Stage 0 results: `docs/v2/facts.md` (MP-31) — (1) the stdio MCP process
+  inherits `CLAUDE_CODE_SESSION_ID` but keeps it stale after `/clear`; (2) new
+  ids with `source` `clear` / `fork` (Pi: `new` / `startup` + `parentSession`),
+  key from `MYPI_SCOPE`; (3) socket delivery from a foreign process in `manual`
+  and `auto` regardless of `crossSessionInbound`, no `auth` needed,
+  `bypassPermissions` not measured; (4) Pi waiting is
+  `ui_prompt_start` / `ui_prompt_end`; (5) `herdr tab create` outside Herdr goes
+  to the focused workspace, so the Launcher passes `--workspace`; (6)
+  `claude agents --json` lists sessions started in Herdr tabs.

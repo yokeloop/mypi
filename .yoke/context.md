@@ -36,7 +36,7 @@ The structural owner of a Session: Task chat → Project chat → Main chat. Par
 A record created every time a child Session's turn stops, carrying the final message of that turn (`turn_end`), or every time it stops mid-turn waiting for a human (`waiting`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
 
 ## Queue
-The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket); a closed Parent sees it in warmup. Delivery is at-least-once.
+The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a hand-started `bypassPermissions` Claude Parent gets the Event from `/queue` at its next `Stop` or warmup); a closed Parent sees it in warmup. Delivery is at-least-once.
 
 ## Launcher
 The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root.
@@ -45,7 +45,7 @@ The mypi operation behind `/open` that starts or continues a child Session for a
 The small tracked per-Agent configuration and code in the engine (`.claude/`, `.pi/`, `.mcp.json`) that connects that Agent to mypi: registry record, context at start, turn-end and waiting detection, the socket Events are delivered to. Adapters implement one shared contract; their transport differs.
 
 ## Session registry
-One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, status (busy/idle), and the socket path (Pi: the extension's socket; Claude: `CLAUDE_CODE_MESSAGING_SOCKET`). Written by the `SessionStart` hook for Claude and by the extension for Pi; busy state is asked from the source (`claude agents --json`, the Pi record); the only source of liveness for `/open`, `sessions` and Event delivery. A Session started by hand registers itself under its key; with two live Sessions for one key the newest is canonical.
+One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, name, and the socket path (Pi: the extension's socket; Claude: `CLAUDE_CODE_MESSAGING_SOCKET`). Written by the `SessionStart` hook for Claude and by the extension for Pi; busy state is asked from the source (`claude agents --json`, which also lists Sessions started in Herdr tabs; the Pi record); the only source of liveness for `/open`, `sessions` and Event delivery. A Session started by hand registers itself under its key; with two live Sessions for one key the newest is canonical.
 
 ## Warmup
 The context loaded at every start or continuation of a Session: the Scope's memory, the role of the Scope, the "how to work in mypi" instruction and undelivered Events.
