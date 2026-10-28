@@ -52,7 +52,8 @@ match the GitHub releases.
 - Claude Code's SessionStart hook registers the session on every source,
   including fork, before the warmup; the Pi extension registers at session start,
   passes the key to the warmup and unregisters on quit. A hand fork without
-  `MYPI_SCOPE` is not registered.
+  `MYPI_SCOPE` is not registered. Checked manually with Claude Code 2.1.283 and
+  Pi 1.0.4.
 
 ### Changed
 
