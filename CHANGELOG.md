@@ -90,9 +90,9 @@ match the GitHub releases.
   packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
   before updating and remove a stale `integrations/pi` entry from
   `~/.pi/agent/settings.json`.
-- MCP exposes 11 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
+- MCP exposes 12 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
   `task_create`, `task_update`, `memory`, `note`, `journal`, `context_read`,
-  `context_write`, `projects`. `task_update` replaces `task_status`,
+  `context_write`, `projects`, `sessions`. `task_update` replaces `task_status`,
   `task_title`, `task_progress` and `task_touch` (one call with a reason; parts
   run status → title → progress, a later failure returns `partial`); `memory`
   (action show|add|remove) replaces `memory_*`; `note` (kind
