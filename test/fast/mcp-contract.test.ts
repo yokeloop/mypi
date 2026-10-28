@@ -4,6 +4,9 @@ import { tools, toolCommand } from '../../src/mcp/tools.js';
 import { success, failure } from '../../src/mcp/result.js';
 import { PartialError } from '../../src/shared/context.js';
 import { serialCalls } from '../../src/mcp/serial.js';
+import { runSequence } from '../../src/mcp/sequence.js';
+import { InputError } from '../../src/shared/errors.js';
+import type { AppCommand } from '../../src/app/commands.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 
@@ -130,4 +133,41 @@ test('calls serialize async work; cancelled pending calls and calls after stop h
   assert.equal(events.at(-1), 'drained');
   await queue.stop();
   await assert.rejects(queue.run(new AbortController().signal, async () => { events.push('forbidden'); }), /cancelled/);
+});
+test('task_update parts run in order; a failure after a saved part is partial with saved and missing parts', async () => {
+  const commands = [{ name: 'task_status', key: 'MP-1', status: 'done', reason: 'r' },
+    { name: 'task_title', key: 'MP-1', title: 'new', reason: 'r' },
+    { name: 'task_progress', key: 'MP-1', text: 'done', artifacts: [] }] as AppCommand[];
+  const card = { id: 7, contextDir: 'projects/one/project/tasks/MP-1-x' };
+  const sequence = (outcomes: Record<string, () => unknown>, parts = commands) => {
+    const calls: string[] = [];
+    const run = runSequence(parts, async command => { calls.push(command.name); return outcomes[command.name]?.() ?? command.name; });
+    return { calls, run };
+  };
+  const ok = sequence({});
+  assert.equal(await ok.run, 'task_progress');
+  assert.deepEqual(ok.calls, ['task_status', 'task_title', 'task_progress']);
+  const refused = new InputError('Terminal task cannot change status; create a continuation');
+  const first = sequence({ task_status: () => { throw refused; } });
+  await assert.rejects(first.run, error => error === refused);
+  assert.deepEqual(first.calls, ['task_status']);
+  const later = sequence({ task_status: () => card, task_title: () => { throw new Error('busy'); } });
+  await assert.rejects(later.run, (error: unknown) => {
+    assert(error instanceof PartialError);
+    assert.match(error.message, /task_update stopped at title after saving status: busy/);
+    assert.deepEqual([error.saved, error.missing, error.paths, error.taskId],
+      [['status'], ['title', 'progress'], ['projects/one/project/tasks/MP-1-x'], 7]);
+    return true;
+  });
+  assert.deepEqual(later.calls, ['task_status', 'task_title']);
+  const nested = sequence({ task_status: () => card, task_progress: () => {
+    throw new PartialError('commit failed', ['artifacts'], ['inspect artifacts', 'journal', 'activity timestamp'],
+      ['projects/one/project/tasks/MP-1-x/a.md'], 7);
+  } }, [commands[0]!, commands[2]!]);
+  await assert.rejects(nested.run, (error: unknown) => {
+    assert(error instanceof PartialError);
+    assert.deepEqual([error.saved, error.missing, error.paths, error.taskId],
+      [['status', 'artifacts'], ['inspect artifacts', 'journal', 'activity timestamp'], ['projects/one/project/tasks/MP-1-x/a.md'], 7]);
+    return true;
+  });
 });
