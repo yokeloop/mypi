@@ -47,7 +47,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 35 tools are available through standard tools/list. Inspect live schemas for fields.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
-task scope is supported for journal, not warmup or MEMORY. Journal read also accepts
+task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
 explicit `"all"`. A project scope key is its code; task_create.project is org/project
 (required; standalone REQ records are legacy). Do not invent an org/task reassignment command.
 TextInput is exactly `{text}` or `{file:absolutePath}`; BOM/CRLF are preserved.
@@ -58,8 +58,9 @@ Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 taskId when known. structuredContent equals parsed JSON in text content. The data
 payload retains CLI JSON shapes. `memory_show` includes SHA-256 `revision`;
 `memory_remove` requires `number` and `expectedRevision` for that exact file.
-`warmup` retains its fields and adds scoped `work` (20 open tasks, count, 10 recent
-events, olderEvents). The global work index includes projectless task events;
+`warmup` takes optional `scope`: `global`, a project code or a task key; without it the
+server's `MYPI_SCOPE`, else `global`. Its data is the Markdown text the CLI prints
+(sections, order and the 64 KiB memory rule: ARCHITECTURE §5).
 `journal_read` global remains global-only. CLI `project resolve /absolute/path`
 exposes the existing project_resolve operation independently of MCP. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.

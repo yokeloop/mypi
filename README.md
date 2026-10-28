@@ -6,8 +6,7 @@ A project-centered memory and task system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
 scoped journal, context Git, backup/restore, CLI and 35 stdio MCP tools over one API.
-The Pi package optionally autoloads the ordinary scoped CLI warmup into the system
-prompt; no task registration, automatic logging or separate Herdr tab is required.
+`mypi warmup` prints a session's scoped context as Markdown; the Pi package's autoload of it is paused until the Pi integration adopts the text format; no task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
 **Future:** units, project flows, runtime enforcement and agents with different scopes.
@@ -141,18 +140,13 @@ server, not by scanning a folder of tool files. Their schemas use the configured
 exposure (mostly codemode; project resolution and warmup are direct).
 
 The shipped extension registers the built-in `mypi` MCP server using Node on PATH.
-It independently launches this package's built CLI with Node for read-only scoped
-warmup at session start and after applicable memory reads/writes (5-second deadline),
-then reuses the session snapshot on ordinary turns and compaction, even when MCP is disabled
-or overridden. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable
-rather than Node. `--mypi-scope global`, `--mypi-scope org` or `--mypi-scope org/project`
-selects an explicit scope at startup; otherwise a registered cwd resolves to its project, the installation
-root selects global, and unresolved/ambiguous cwd fails visibly. Session metadata
-binds installation, state directory and scope. `--mypi-no-autoload` disables only
-CLI autoload, not MCP. A file-configured server with the same name overrides the MCP
-registration but does not retarget the CLI. Use isolated state environment when
-selecting a test installation; the session reports its chosen installation/state.
-Memory over 32 KiB is not truncated into the prompt; use scoped CLI full reads.
+Its CLI autoload of scoped context is paused: warmup now prints Markdown, and until the
+Pi integration adopts it every Pi session shows "mypi context unavailable (scoped context
+autoload is paused …)" in place of memory and loads no mypi context; call the `warmup`
+tool or run `mypi warmup` explicitly. `--mypi-no-autoload` suppresses that notice, not
+MCP. Start Pi through `mise exec -- pi`; Pi itself may be a standalone executable rather
+than Node. A file-configured server with the same name overrides the MCP registration.
+Use isolated state environment when selecting a test installation.
 For example, this user configuration disables the built-in server:
 
 ```json
@@ -282,7 +276,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-Scoped warmup inherits parent MEMORY, not global inbox or sibling context. Global
+`mypi warmup [-s global|CODE|CODE-N]` prints the starting context of a global, project or task session; over 64 KiB it hides the oldest memory facts of the farthest zone first and names the `memory_show` call (and CLI command) that reads them in full ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.
