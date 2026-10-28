@@ -83,6 +83,7 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['task', 'create', 's', '--project', 'one/project', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'task_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: 'one/project', adoptSource: false });
   assert.throws(() => translate(['task', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']), /--project required/);
+  assert.deepEqual(translate(['task', 'worktree', 'MP-1']), { name: 'task_worktree', key: 'MP-1' });
   assert.deepEqual(translate(['backup', '--publish', '--dry-run', '--file', 'a.md', '--file', 'b.md']),
     { name: 'backup_publish', dryRun: true, selectedPaths: ['a.md', 'b.md'] });
   assert.deepEqual(translate(['restore', '--repository', '/tmp/clone', '--commit', 'a'.repeat(40)]),

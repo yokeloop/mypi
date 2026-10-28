@@ -49,7 +49,7 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['journal', 'add', 'outcome'], ['journal', 'read', '--all'],
     ['task', 'create', 'source'], ['task', 'list'], ['task', 'show', 'REQ-1'],
     ['task', 'title', 'REQ-1', 'title'], ['task', 'status', 'REQ-1', 'new'],
-    ['task', 'progress', 'REQ-1', 'progress'], ['task', 'touch', 'REQ-1'],
+    ['task', 'progress', 'REQ-1', 'progress'], ['task', 'touch', 'REQ-1'], ['task', 'worktree', 'MP-1'],
     ['status', 'list'], ['status', 'add', 'custom'], ['status', 'rename', 'a', 'b'],
     ['status', 'terminal', 'a', 'true'], ['status', 'remove', 'a'],
     ['context', 'read', 'MEMORY.md'], ['context', 'commit', 'MEMORY.md'],
