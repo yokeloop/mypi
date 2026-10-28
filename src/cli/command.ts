@@ -24,7 +24,7 @@ mypi journal add <text> [-s scope] | read [-s scope | --all] [--from UTC --to UT
 mypi task create [source | --file source] --title title --status code --slug slug --project org/project [--adopt-source]
 mypi task list [--project org/project --status code] | show <key>
 mypi task status <key> <code> --reason text | title <key> <title> --reason text
-mypi task progress <key> <text> [--artifacts JSON-file] | touch <key>
+mypi task progress <key> <text> [--artifacts JSON-file] | touch <key> | worktree <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
 mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | backup --publish [--dry-run] [--file exact-relative-path ...]

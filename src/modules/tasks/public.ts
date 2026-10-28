@@ -56,6 +56,10 @@ export function createTasks(store: TaskStore, clock: () => string,
       nonempty(contextDir);
       return store.transaction(() => { store.get(id); return store.relocate(id, contextDir); });
     },
+    recordWorktree(id: number, worktreePath: string) {
+      nonempty(worktreePath);
+      return store.transaction(() => { store.get(id); return store.setWorktree(id, worktreePath); });
+    },
     touch(id: number) { return store.transaction(() => { const card = store.get(id); return store.update(id, card.title, card.statusId, clock()); }); },
   };
 }
