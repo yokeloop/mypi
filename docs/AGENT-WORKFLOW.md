@@ -5,9 +5,9 @@ request during the emergency correction on 2026-10-06.
 
 The old mandatory project resolution, MCP warmup, request registration, outcome
 logging and separate Herdr tabs are not prerequisites for agent work. `mypi warmup`
-prints scoped context on request; Pi CLI autoload of it is paused until the Pi
-integration adopts the text warmup. Neither registers tasks, logs outcomes or
-authorizes work. Approved mypi engine features follow the
+prints scoped context; the tracked Pi extension loads it at every Pi session start.
+Neither registers tasks, logs outcomes or authorizes work. Approved mypi engine
+features follow the
 [engine feature-development workflow](../AGENTS.md#engine-feature-development-workflow),
 not the withdrawn universal task/session automation.
 

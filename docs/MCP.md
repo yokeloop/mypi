@@ -20,22 +20,16 @@ DB uses the server's XDG_STATE_HOME (fallback ~/.local/state); home is inside th
 engine clone. Neither location depends on the client cwd. Connect/tools/list do not
 initialize storage. Bootstrap/restore require explicit intent and no other writers.
 
-## Optional Pi connection
+## Pi connection
 
-The [example](../integrations/pi/mcp.example.json) describes the mypi server only.
-It does not install an agent workflow, memory warmup, task-registration requirement,
-automatic logging, delegation or Herdr-tab rule. The former
-[instruction template](../integrations/pi/mypi-instructions.md) is retired.
-
-For an explicitly requested connection, the mypi entry can be merged into the
-chosen Pi MCP configuration using absolute Node 24 and built entrypoint paths.
-Unrelated servers/settings and existing credentials are not part of that change.
-Project settings load after trust; a project entry replaces a global entry of the
-same name. A second server is not needed to change metadata.
-
-The example exposes project_resolve and warmup directly; other tools are available
-through codemode. Exposure makes tools available, not mandatory. Connecting the
-server neither creates storage nor launches work.
+Pi sessions started in the engine checkout get the server from the tracked
+extension `.pi/extensions/mypi.ts` after project trust ([README](../README.md#pi)).
+It registers `node dist/src/mcp/main.js` with the engine root as cwd and the Pi
+session id in `PI_SESSION_ID`, with codemode exposure and project_resolve and warmup
+direct. It installs no agent workflow, task-registration requirement, automatic
+logging, delegation or Herdr-tab rule. A same-name entry in a Pi `mcp.json`
+replaces the registration. Exposure makes tools available, not mandatory.
+Connecting the server neither creates storage nor launches work.
 
 After an authorized configuration change, `/reload` reloads Pi context/settings;
 `/mcp reconnect mypi` reconnects the server after rebuilding it. An existing

@@ -20,15 +20,15 @@ function Bootstrap({ plan, onComplete }: { plan: UserLayerPlan; onComplete: (mes
       setBusy(true);
       try {
         const saved = applyUserLayer(plan);
-        finish(saved.length ? 'User layer ready. Review and commit the changes in home/ yourself; no commit or push was made.\nStart Pi from this checkout and approve project trust. In a running session use /reload.\nDatabase created if absent; an existing file was left unchanged.'
-          : 'User layer already configured; nothing changed.');
+        finish(saved.length ? 'Home and database ready. Review and commit the changes in home/ yourself; no commit or push was made.\nStart an agent from this checkout; for Pi run mise exec -- pi and approve project trust.\nDatabase created if absent; an existing file was left unchanged.'
+          : 'Home and database already set up; nothing changed.');
       } catch (error) { exit(error instanceof Error ? error : new Error(String(error))); }
     }
   });
   return h(Box, { flexDirection: 'column' },
-    h(Text, { bold: true }, 'mypi — user layer bootstrap'),
+    h(Text, { bold: true }, 'mypi — home and database bootstrap'),
     h(Text, null, `Workspace: ${plan.root}`),
-    h(Text, null, 'Set up Pi resources and create an absent database. No global settings, network or Git commits.'),
+    h(Text, null, 'Create missing home files and an absent database. No agent settings, network or Git commits.'),
     ...plan.changes.map(change => h(Text, { key: change.path }, `  ${change.kind}: ${relative(plan.root, change.path)}`)),
     h(Text, null, plan.initializeGit ? '  Initialize home/ as a separate Git repository on main (no remote).' : '  Preserve existing home Git.'),
     h(Text, null, `  ${plan.database.create ? 'Create database' : 'Keep existing database'}: ${plan.database.path}`),
