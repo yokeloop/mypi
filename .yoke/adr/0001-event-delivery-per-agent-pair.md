@@ -55,7 +55,7 @@ session's socket recorded in the registry.
 | Parent | Socket | When the Agent shows it |
 |---|---|---|
 | Pi, live | `$XDG_RUNTIME_DIR/mypi/<key>.sock`, opened by the mypi extension; the extension injects with `sendUserMessage(followUp)` and acks | at once if idle, end of current turn if busy |
-| Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook), one `{"type":"user",…}` line without `auth`; Claude Code delivers it itself in `manual` and `auto`; a `bypassPermissions` parent is started by the Launcher with `--settings '{"crossSessionInbound":"accept"}'` and gets no live-delivery promise when started by hand | new turn if idle, between tool calls if busy |
+| Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook), one `{"type":"user",…}` line without `auth`; Claude Code delivers it itself in `manual` and `auto`; a `bypassPermissions` parent (not measured), Launcher- or hand-started, is promised no live delivery — its Events wait in `/queue`; the Launcher still passes `--settings '{"crossSessionInbound":"accept"}'` as a precaution | new turn if idle, between tool calls if busy |
 | closed, or socket refused | the Event waits in `/queue`, enters the next warmup; a live Claude parent's next `Stop` hook also drains it with `decision: block` | on open or next turn boundary |
 
 mypi never interrupts a turn; the Agent decides when to show a message. Herdr
