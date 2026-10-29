@@ -96,6 +96,16 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     }
     case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
     case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };
+    case 'open': {
+      const agent = opt('agent');
+      if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      const hint = sessionHint(env, parentPid);
+      return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
+        ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
+        ...(hint === undefined ? {} : { session: hint }),
+        ...(env['HERDR_WORKSPACE_ID'] ? { workspace: env['HERDR_WORKSPACE_ID'] } : {}),
+        ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
+    }
     default: throw new InputError('Unknown workspace command');
   }
 }

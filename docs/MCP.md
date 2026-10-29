@@ -46,7 +46,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-12 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects and sessions. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+13 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions and open_session. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
 `memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
@@ -65,6 +65,7 @@ else the live record of the server's parent process), else the server's `MYPI_SC
 else `global`. Its data is the Markdown text the CLI prints
 (sections, order and the 64 KiB memory rule: ARCHITECTURE §5).
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.
+`open_session` takes keys (project code, CODE-N, org/project, org/project#N), optional agent and permissionMode; it returns `{ opened: [{ key, agent, action: focused|resumed|started, workspaceId, tabId, worktreePath, notes }] }` or a partial result naming opened and unopened keys. It needs a running Herdr server.
 `journal` global remains global-only. CLI `project resolve /absolute/path`
 exposes the same operation as projects action resolve. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.

@@ -8,6 +8,7 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
+import { openSession } from './launcher.js';
 import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
@@ -24,6 +25,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(),
     warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined), c.maxChars);
   if (c.name === 'task_worktree') return openTaskWorktree(filename, c.key);
+  if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c);
   if (c.name === 'session_register') return registerSession(filename, c);
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);

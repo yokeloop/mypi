@@ -33,6 +33,7 @@ warmup [-s global | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
 sessions
+open MP MP-12
 ```
 
 Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
@@ -55,6 +56,7 @@ recorded).
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
 `session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered, displaced}`. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes the row and reports `live`. `sessions` prints the tree. All need `XDG_RUNTIME_DIR`.
+`open <key...>` takes a project code (MP), CODE-N, org/project or org/project#N. For each key it focuses a live session's Herdr agent (`herdr agent focus <key in lower case>`), or opens a new `--no-focus` tab in the caller's `HERDR_WORKSPACE_ID` workspace, else the workspace labelled `mypi` (created when missing), with the engine root as cwd and `MYPI_SCOPE=<key>`, and starts the agent there: the saved session resumed with its own agent, or a new one. A task key creates its worktree first (as `task worktree`). `--agent` applies only to new sessions (default `defaultAgent` in home/settings.json, else claude); `--permission-mode` is passed to Claude only (default the calling session's mode). Result: `{opened: [{key, agent, action, workspaceId, tabId, worktreePath, notes}]}`; a failure after an opened key is partial. Without a running Herdr server, for projects without a clone, for global, REQ and unknown keys it exits 1 with no tab, worktree or session rows; it never writes session rows itself.
 
 ## Tasks and journal
 

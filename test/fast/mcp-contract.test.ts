@@ -17,8 +17,8 @@ const cli = (argv: string[]) => {
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
-test('MCP lists exactly twelve agent tools; maintenance and replaced names are unknown tools', () => {
-  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'projects',
+test('MCP lists exactly thirteen agent tools; maintenance and replaced names are unknown tools', () => {
+  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'open_session', 'projects',
     'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show', 'warmup']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
@@ -57,6 +57,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['context_read', { path: 'MEMORY.md' }, [['context', 'read', 'MEMORY.md']]],
     ['context_write', { paths: ['MEMORY.md'], message: 'reconciled' }, [['context', 'commit', 'MEMORY.md', '--message', 'reconciled']]],
     ['sessions', {}, [['sessions']]],
+    ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
+    ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
   ];
   for (const [tool, args, argvs, patch] of rows) {
     assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));
@@ -156,6 +158,18 @@ test('CLI translates to the same subject commands without changing text or defau
     [{ name: 'warmup', session: { agent: 'pi', nativeId: 'p1', pid: 7, runtime: '/run/user/1' } }]);
   assert.deepEqual(toolCommand('sessions', {}, { XDG_RUNTIME_DIR: '/run/user/1' }), [{ name: 'sessions', runtime: '/run/user/1' }]);
   assert.throws(() => toolCommand('sessions', { key: 'x' }), /Unrecognized/);
+});
+test('open_session takes the caller, Herdr workspace, state and runtime from the environment', () => {
+  const env = { CLAUDE_CODE_SESSION_ID: 'c1', HERDR_WORKSPACE_ID: 'w1', XDG_STATE_HOME: '/s', XDG_RUNTIME_DIR: '/r' };
+  const parsed = parseCommand(['open', 'MP']);
+  if (parsed.type === 'help') throw new Error('Unexpected help');
+  const expected = [{ name: 'open_session', keys: ['MP'], session: { agent: 'claude', nativeId: 'c1', pid: 7, runtime: '/r' },
+    workspace: 'w1', stateHome: '/s', runtime: '/r' }];
+  assert.deepEqual(toolCommand('open_session', { keys: ['MP'] }, env, 7), expected);
+  assert.deepEqual([appCommand(parsed, env, 7)], expected);
+  for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }]) {
+    assert.throws(() => toolCommand('open_session', args));
+  }
 });
 test('partial is never success; structured and text results agree with every recovery field', () => {
   const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], taskId: 17 };

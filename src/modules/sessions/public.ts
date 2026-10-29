@@ -1,5 +1,5 @@
 import { InputError } from '../../shared/errors.js';
-import type { Agent, Registry, RegistryRecord, SessionScope, SessionStore } from './ports.js';
+import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, SessionStore } from './ports.js';
 export type { Agent, RegistryRecord, SessionRow } from './ports.js';
 export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null; children: SessionNode[] };
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope, clock: () => string) {
@@ -49,6 +49,9 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         store.remove(key);
         return { forgotten: key, live };
       });
+    },
+    lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined } {
+      return { row: store.get(key), live: canonical(registry().live(), key) };
     },
     tree(): SessionNode {
       const rows = store.list(), records = registry().live();

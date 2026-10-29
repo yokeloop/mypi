@@ -8,6 +8,14 @@ match the GitHub releases.
 
 ### Added
 
+- `/open`: MCP tool `open_session`, CLI `mypi open <key...> [--agent claude|pi]
+  [--permission-mode mode]`, the Claude skill `/open` and the Pi command `/open`.
+  For each key (project code, CODE-N, org/project, org/project#N) it focuses the
+  live session (`herdr agent focus`) or opens a no-focus Herdr tab in the engine
+  root with `MYPI_SCOPE` and starts the agent: a new session, or the saved one
+  resumed with its own agent. A task key creates its worktree first. Refuses
+  without Herdr, for projects without a clone and for global and REQ keys, with
+  no tab and no rows; writes no session rows itself.
 - docs/v2/facts.md: stage-0 facts for mypi v2 (Claude Code 2.1.283, Pi 1.0.4,
   Herdr 0.9.5) with reproduction commands and fallbacks; the v2 glossary and
   ADRs 0001-0002 in .yoke/.
@@ -90,9 +98,9 @@ match the GitHub releases.
   packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
   before updating and remove a stale `integrations/pi` entry from
   `~/.pi/agent/settings.json`.
-- MCP exposes 12 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
+- MCP exposes 13 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
   `task_create`, `task_update`, `memory`, `note`, `journal`, `context_read`,
-  `context_write`, `projects`, `sessions`. `task_update` replaces `task_status`,
+  `context_write`, `projects`, `sessions`, `open_session`. `task_update` replaces `task_status`,
   `task_title`, `task_progress` and `task_touch` (one call with a reason; parts
   run status → title → progress, a later failure returns `partial`); `memory`
   (action show|add|remove) replaces `memory_*`; `note` (kind
