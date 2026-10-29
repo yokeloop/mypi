@@ -1,9 +1,9 @@
 ---
-name: queue
-description: Show where the mypi v2 tasks stand — status, plan URL, PR, worktree, open derive threads — in one table, with the next sensible command per task. Read-only. Triggered by "/queue".
+name: board
+description: Show where the mypi v2 tasks stand — status, plan URL, PR, worktree, open derive threads — in one table, with the next sensible command per task. Read-only. Triggered by "/board".
 ---
 
-# /queue — the board
+# /board — the board
 
 Read-only. `BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory).
 
