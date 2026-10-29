@@ -171,6 +171,25 @@ test('forget deletes the row and reports a live session without touching its rec
   assert.deepEqual(files(), ['MP-12.json']);
 });
 
+test('lookup returns the saved row and only the canonical live record', t => {
+  const { alive, die, s, claude } = fixture(t);
+  assert.deepEqual(s(x => x.lookup('MP-12')), { row: undefined, live: undefined });
+  alive(101, '1', ['claude', '--permission-mode', 'plan']);
+  s(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
+  const first = s(x => x.lookup('MP-12'));
+  assert.equal(first.row!.agent, 'claude');
+  assert.equal(first.row!.nativeId, 'c1');
+  assert.equal(first.live!.pid, 101);
+  assert.equal(first.live!.permissionMode, 'plan');
+  alive(102);
+  s(x => x.register(claude('c2', 102, { envScope: 'MP-12' })));
+  assert.equal(s(x => x.lookup('MP-12')).live!.pid, 102);
+  die(102);
+  const closed = s(x => x.lookup('MP-12'));
+  assert.equal(closed.live, undefined);
+  assert.equal(closed.row!.nativeId, 'c2');
+});
+
 test('sessions tree is global → project → task with live and closed', t => {
   const { alive, die, s, claude } = fixture(t);
   alive(201); alive(301); alive(101); alive(401);
