@@ -173,6 +173,19 @@ org/project or org/project#N — it focuses the live session's Herdr tab or open
 new tab in the engine root with `MYPI_SCOPE` and starts the agent there; an
 existing session continues with its own agent.
 
+Each turn end and each wait for input of a task chat (`MP-12`) becomes one row in
+the `events` table, addressed to its parent key (`MP`). Claude's Stop hook runs
+`mypi turn end` and its Notification hook (`permission_prompt`, `idle_prompt`,
+`elicitation_dialog`) runs `mypi event emit --waiting --hook`; the Pi extension runs
+`mypi event emit` on `agent_settled` with the last reply and on `ui_prompt_start`.
+Project and global chats emit nothing. The project chat receives the undelivered
+events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
+runs the `inbox` skill as `/skill:inbox`; MCP `inbox`, CLI `mypi inbox`) and in its warmup under
+«Новые события», even if it was closed when they arose; shown events are marked
+delivered. The project warmup also lists «Последние доклады»: the last delivered
+event of each open task, as history. Delivery is at-least-once; the event number in
+the frame tells a repeat.
+
 Upgrading to schema 8: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
 
@@ -211,7 +224,10 @@ PATH); Claude asks once to approve it. `.claude/settings.json` allows the mypi t
 without prompts and adds one SessionStart command for every source (startup, resume,
 clear, compact, fork): `mypi session register --agent claude --hook` (its output is
 discarded, its failure does not stop the warmup), then `mypi warmup --max-chars 9500`:
-the key saved for this conversation, else `MYPI_SCOPE`, else `global`. A forked
+the key saved for this conversation, else `MYPI_SCOPE`, else `global`. The Stop hook
+runs `mypi turn end` and the Notification hook, for `permission_prompt`, `idle_prompt`
+and `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both discard their
+output and never block the session. A forked
 session gets the warmup of `MYPI_SCOPE`, else `global`, and is registered only with
 `MYPI_SCOPE`. A failing warmup (for example an unknown
 `MYPI_SCOPE`) shows its error to the user and the session starts without it. Shared
@@ -274,7 +290,7 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/prompts/        # warmup role and how-to texts
-├── integrations/skills/         # built-in skills
+├── integrations/skills/         # built-in skills: open, inbox, project-management
 ├── .pi/                         # tracked Pi configuration
 │   ├── extensions/mypi.ts       # MCP registration and warmup per session
 │   └── skills -> ../integrations/skills

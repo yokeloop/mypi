@@ -12,7 +12,7 @@ const warm = (key: string) => ['node', [cli, 'warmup', '-s', key], { cwd: root, 
 
 function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
-  const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [];
+  const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
@@ -24,6 +24,7 @@ function stub() {
     unregisterMcpServer(name: string) { removed.push(name); },
     registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
+    sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
   };
   const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); } },
     sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getHeader: () => state.header } };
@@ -34,7 +35,7 @@ function stub() {
     await handlers.get('before_agent_start')?.(event, ctx);
     return event.systemPromptOptions.sections;
   };
-  return { api: api as never, handlers, commands, ctx, servers, removed, calls, notes, state, start, stop, turn, registration };
+  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, state, start, stop, turn, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -42,8 +43,8 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   install(pi.api, root);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
-  assert.deepEqual([...pi.handlers.keys()].sort(), ['before_agent_start', 'session_shutdown', 'session_start']);
-  assert.deepEqual([...pi.commands.keys()], ['open']);
+  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -118,6 +119,58 @@ test('pi extension warns on a failed registration and still loads warmup without
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: global\n');
 });
 
+test('pi extension emits the last reply when the agent settles and a waiting event on a UI prompt', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  pi.state.key = 'MP-12';
+  await pi.start('startup');
+  const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
+  const end = (...messages: { role: string; content?: unknown }[]) => pi.handlers.get('agent_end')!({ messages }, pi.ctx);
+  const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  const before = pi.calls.length;
+  end({ role: 'user', content: [{ type: 'text', text: 'go' }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'first' }, { type: 'toolCall', name: 'x' }, { type: 'text', text: 'part' }] }, { role: 'toolResult' });
+  await settle();
+  assert.deepEqual(pi.calls.slice(before), [emit('--message=first\npart')]);
+  end({ role: 'assistant', content: [{ type: 'text', text: 'one' }] });
+  end({ role: 'assistant', content: [{ type: 'text', text: 'two' }] }, { role: 'user', content: 'later' });
+  end({ role: 'user', content: [{ type: 'text', text: 'no reply' }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message=two'));
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message='));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'a'.repeat(31999) + '\u{1F600}' + 'b'.repeat(10) }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message=' + 'a'.repeat(31999)));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'c'.repeat(40000) }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message=' + 'c'.repeat(32000)));
+  end({ role: 'assistant', content: [{ type: 'text', text: '- Done\n- --help' }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message=- Done\n- --help'));
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: '-1 file?' }, pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), emit('--waiting', '--message=-1 file?'));
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: 'Allow rm?' }, pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), emit('--waiting', '--message=Allow rm?'));
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'input' }, pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), emit('--waiting'));
+  pi.state.result = () => { throw new Error('spawn node ENOENT'); };
+  await settle();
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm' }, pi.ctx);
+});
+
+test('pi extension emits no events without a registered key', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
+    : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
+  await pi.start('startup');
+  pi.handlers.get('agent_end')!({ messages: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }] }, pi.ctx);
+  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: 'Allow?' }, pi.ctx);
+  assert(pi.calls.every(call => (call[1] as string[])[1] !== 'event'));
+});
+
 test('pi extension /open runs mypi open and notifies its result', async () => {
   const pi = stub();
   install(pi.api, root);
@@ -130,6 +183,15 @@ test('pi extension /open runs mypi open and notifies its result', async () => {
   pi.state.result = () => ({ code: 1, killed: false, stdout: '', stderr: error });
   await pi.commands.get('open')!.handler('MP', pi.ctx);
   assert.deepEqual(pi.notes.at(-1), ['mypi open failed: ' + error, 'warning']);
+});
+
+test('pi extension /inbox runs the inbox skill', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  await pi.commands.get('inbox')!.handler('MP', pi.ctx);
+  await pi.commands.get('inbox')!.handler('', pi.ctx);
+  assert.deepEqual(pi.sent, [['/skill:inbox MP', { expandPromptTemplates: true }], ['/skill:inbox', { expandPromptTemplates: true }]]);
+  assert.deepEqual(pi.calls, []);
 });
 
 test('pi extension refuses an unbuilt engine', () => {

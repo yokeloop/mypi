@@ -109,7 +109,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   warmup, and unregisters the process when Pi quits; the output is the
   `mypi_context` system-prompt section of every turn. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
-  It also registers the /open command, which runs mypi open.
+  It also registers the /open command, which runs mypi open, and the /inbox
+  command, which runs the inbox skill as /skill:inbox. On `agent_settled`
+  (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
+  `mypi event emit` with the registered key.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
@@ -135,7 +138,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   then `mypi warmup --max-chars 9500`, so each session starts with its scoped
   context: the key saved for this conversation, else `MYPI_SCOPE`, else `global`.
   The budget keeps the hook
-  under Claude Code's 10,000-character limit for hook output.
+  under Claude Code's 10,000-character limit for hook output. The Stop hook runs
+  `mypi turn end` and the Notification hook, for `permission_prompt`, `idle_prompt`
+  and `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both discard
+  their output.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project

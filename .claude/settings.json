@@ -14,7 +14,8 @@
       "mcp__mypi__projects",
       "mcp__mypi__warmup",
       "mcp__mypi__sessions",
-      "mcp__mypi__open_session"
+      "mcp__mypi__open_session",
+      "mcp__mypi__inbox"
     ]
   },
   "hooks": {
@@ -26,6 +27,29 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" session register --agent claude --hook --pid \"$PPID\" >/dev/null 2>&1; node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" warmup --max-chars 9500",
             "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" turn end --pid \"$PPID\" >/dev/null 2>&1",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "matcher": "permission_prompt|idle_prompt|elicitation_dialog",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" event emit --waiting --hook --pid \"$PPID\" >/dev/null 2>&1",
+            "timeout": 10
           }
         ]
       }

@@ -1,6 +1,6 @@
 import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
-import { hookInput, sessionHint } from '../app/session-input.js';
+import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
@@ -96,6 +96,29 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     }
     case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
     case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };
+    case 'event emit': {
+      const envScope = env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] };
+      if (o['hook']) {
+        if (opt('from') !== undefined || opt('message') !== undefined) throw new InputError('Use --hook or --from, not both');
+        if (!o['waiting']) throw new InputError('--hook requires --waiting');
+        const pid = Number(required('pid'));
+        const input = notificationInput(readInputFile(0));
+        return { name: 'event_emit', kind: 'waiting', message: input.message, notification: input.type,
+          session: { agent: 'claude', nativeId: input.nativeId, pid, ...runtime }, ...envScope };
+      }
+      return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from') };
+    }
+    case 'turn end': {
+      const pid = Number(required('pid'));
+      const input = stopInput(readInputFile(0));
+      return { name: 'turn_end', nativeId: input.nativeId, active: input.active, message: input.message, pid,
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+    }
+    case 'inbox': {
+      const hint = sessionHint(env, parentPid);
+      return { name: 'inbox', ...(a[0] === undefined ? {} : { key: a[0] }), ...(hint === undefined ? {} : { session: hint }),
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
+    }
     case 'open': {
       const agent = opt('agent');
       if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');

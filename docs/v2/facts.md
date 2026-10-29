@@ -13,7 +13,7 @@ documentation. Session ids in the excerpts are stand ids.
 |---|---|---|---|---|
 | 1 | Does the stdio MCP process inherit `CLAUDE_CODE_SESSION_ID`? | how: yes at start; after `/clear` the same MCP process keeps the old id | [Fact 1](#fact-1-mcp-and-claude_code_session_id) | MCP resolves the session through the registry record by `MYPI_SCOPE`, not by its own `CLAUDE_CODE_SESSION_ID` |
 | 2 | Which id and `source` after `/clear` and fork; how does the hook learn the key? | how: Claude `/clear` → new id, `source: clear`; `--resume --fork-session` → new id, `source: fork`; no previous id in the input; `MYPI_SCOPE` and `session_title` reach the hook. Pi `/new` → new id, `reason: new`; `--fork` → `reason: startup` | [Fact 2](#fact-2-ids-and-source-after-clear-and-fork) | — (key comes from `MYPI_SCOPE`) |
-| 3 | Does the Claude inbox socket accept a foreign process's message with `crossSessionInbound: accept` from project settings; is `auth` needed on Linux? | how: yes in `manual` and `auto` with N, P and F alike (the setting changes nothing there); `auth` not needed; `bypassPermissions` not measured (launch denied by the permission policy) | [Fact 3](#fact-3-delivery-into-the-claude-inbox-socket) | no `bypassPermissions` parent (Launcher- or hand-started) is promised live delivery until measured; Events wait in `/queue` |
+| 3 | Does the Claude inbox socket accept a foreign process's message with `crossSessionInbound: accept` from project settings; is `auth` needed on Linux? | how: yes in `manual` and `auto` with N, P and F alike (the setting changes nothing there); `auth` not needed; `bypassPermissions` not measured (launch denied by the permission policy) | [Fact 3](#fact-3-delivery-into-the-claude-inbox-socket) | no `bypassPermissions` parent (Launcher- or hand-started) is promised live delivery until measured; Events wait in `/inbox` |
 | 4 | Which Pi extension event fires when Pi waits for the user? | how: `ui_prompt_start` / `ui_prompt_end` (`reason: "ui_prompt"`, `kind`, `title`); no `agent_settled` while waiting | [Fact 4](#fact-4-pi-event-while-waiting-for-input) | — |
 | 5 | `herdr tab create` from outside Herdr: which workspace, is a flag needed? | how: the focused workspace; fails with `no active workspace` when the session has none; `--env` and `--cwd` reach the pane | [Fact 5](#fact-5-herdr-tab-create-outside-herdr) | launcher always passes `--workspace <id>` and creates a workspace when none exists |
 | 6 | Does `claude agents --json` see sessions started in Herdr tabs? | yes | [Fact 6](#fact-6-claude-agents---json-and-herdr-tabs) | — |
@@ -530,7 +530,7 @@ Fallback: for `manual` and `auto` none is needed: `mypi event emit` writes the
 `{"type":"user",…}` line without `auth`, and the tracked `.claude/settings.json`
 does not need `crossSessionInbound`. For a `bypassPermissions` parent (not
 measured) no live delivery is promised, whether the Launcher or a human
-started it: the Event waits in `/queue` until the parent's next `Stop` hook
+started it: the Event waits in `/inbox` until the parent's next `Stop` hook
 (`decision: block`) or warmup. The Launcher still passes
 `--settings '{"crossSessionInbound":"accept"}'` to every Claude chat it starts
 as a precaution (harmless in the measured modes). MP-43 measures delivery to a

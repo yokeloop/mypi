@@ -10,6 +10,7 @@ import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { openSession } from './launcher.js';
 import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { emitEvent, readInbox, turnEnd } from './events.js';
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
@@ -30,6 +31,9 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
   if (c.name === 'sessions') return listSessions(filename, c);
+  if (c.name === 'event_emit') return emitEvent(filename, c);
+  if (c.name === 'turn_end') return turnEnd(filename, c);
+  if (c.name === 'inbox') return readInbox(filename, c);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));

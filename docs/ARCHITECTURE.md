@@ -14,7 +14,7 @@ record evidence. Historical contracts describe their time, not extra current com
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
 scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
-SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes thirteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes fourteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
 
 The memory/task APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -39,6 +39,7 @@ src/
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   ├── sessions/        # session rows, live registry records, key resolution
+│   ├── events/          # turn-end and waiting events from task chats to their project
 │   └── knowledge/       # journal, notes and errors
 ├── infrastructure/      # SQLite, files, home Git and project clone Git, Herdr CLI
 └── shared/              # scope types, errors and partial
@@ -66,7 +67,7 @@ sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
 events(id, from_key, to_key, kind, message, created_at, delivered_at)
 ```
 
-`events` is filled by MP-41. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
+`events` is filled by the Claude Stop and Notification hooks (`mypi turn end`, `mypi event emit --waiting --hook`) and the Pi extension (`mypi event emit`): one row per turn end or wait of a task chat, addressed to its project key. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
 readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
 schema transaction; ordinary opens do not change journal mode. SQLite may create its
@@ -151,12 +152,14 @@ the scope's role (`integrations/prompts/global.md`, `project.md` or `task.md`), 
 work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`;
 project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then the
 project list (global), the open tasks (project) or the task card with its worktree
-(task). Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
+(task). A project warmup then adds «Новые события» — the undelivered events of the
+project's tasks, each in its frame — and «Последние доклады» — the last event of each
+open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
 and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
 Embedded files are inserted as written, except that their ATX headings outside fenced code
 blocks are demoted below the enclosing warmup heading (by two levels under a section, by
 three under a memory file's path, at most to level six).
-Reads create no DB rows, files or Git state. Scope is not an ACL.
+Warmup creates no rows, files or Git state; a project warmup sets `delivered_at` of the events it shows in full. Scope is not an ACL.
 
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
@@ -168,7 +171,10 @@ oldest facts go first. In their place a line states how many facts were hidden, 
 which file, under which limit, and the `memory` show call (with the CLI command after
 it) that reads them in full. If the parts that are never cut already exceed the
 limit, every fact is hidden, a note says so, and the output is printed in full above
-the limit.
+the limit. A project warmup over the limit cuts in this order: the texts of the last
+reports to 280 characters, then the last reports one by one from the oldest, then
+memory facts as above, then new events from the newest, which stay undelivered and
+are counted in a line pointing to `/inbox`; only then the note above.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible

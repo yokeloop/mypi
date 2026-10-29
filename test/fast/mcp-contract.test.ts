@@ -17,15 +17,15 @@ const cli = (argv: string[]) => {
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
-test('MCP lists exactly thirteen agent tools; maintenance and replaced names are unknown tools', () => {
-  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'open_session', 'projects',
+test('MCP lists exactly fourteen agent tools; maintenance and replaced names are unknown tools', () => {
+  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
     'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
-  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show', 'warmup']);
+  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
-    'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'unknown', '__proto__'])
+    'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {
@@ -59,6 +59,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['sessions', {}, [['sessions']]],
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
+    ['inbox', { key: 'MP' }, [['inbox', 'MP']]],
+    ['inbox', {}, [['inbox']]],
   ];
   for (const [tool, args, argvs, patch] of rows) {
     assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));

@@ -46,7 +46,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-13 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions and open_session. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+14 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions, open_session and inbox. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
 `memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
@@ -63,7 +63,13 @@ payload retains CLI JSON shapes. `memory` show includes SHA-256 `revision`; `mem
 key registered for this session (the row for the session id in the server's environment,
 else the live record of the server's parent process), else the server's `MYPI_SCOPE`,
 else `global`. Its data is the Markdown text the CLI prints
-(sections, order and the 64 KiB memory rule: ARCHITECTURE §5).
+(sections, order and the 64 KiB memory rule: ARCHITECTURE §5). In a project scope it includes
+the undelivered events of the project's tasks and marks the ones shown in full delivered, plus
+the last reports as history; so `warmup` is not read-only.
+`inbox` takes optional `key`: a project code or `"all"`, default as for `warmup`; it returns
+`{ events: [{ id, from, to, kind, createdAt, text }] }` with the undelivered events, each `text`
+in its frame with the event number, and marks them delivered. Global and task keys return an
+empty list; an unknown project is an error. There is no read-only preview.
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.
 `open_session` takes keys (project code, CODE-N, org/project, org/project#N), optional agent and permissionMode; it returns `{ opened: [{ key, agent, action: focused|resumed|started, workspaceId, tabId, worktreePath, notes }] }` or a partial result naming opened and unopened keys. It needs a running Herdr server.
 `journal` global remains global-only. CLI `project resolve /absolute/path`
@@ -80,8 +86,8 @@ an idempotency key. Never blindly repeat create/append after an unknown outcome.
 
 Scope is not an ACL. The server runs with local user permissions; file/checkout/backup
 arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
-Read-only hints are not authorization; writes are not declared idempotent, and backup
-is not read-only. Responses are not truncated by the server.
+Read-only hints are not authorization; writes are not declared idempotent, and backup,
+warmup and inbox are not read-only. Responses are not truncated by the server.
 
 ## Rollback
 

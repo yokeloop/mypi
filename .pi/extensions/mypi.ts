@@ -16,12 +16,22 @@ export interface ExtensionAPI {
   unregisterMcpServer(name: string): void;
   registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
+  sendUserMessage(content: string, options?: { expandPromptTemplates?: boolean }): void;
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'session_shutdown', handler: (event: { reason: string }) => Promise<void>): void;
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string> } }) => void): void;
+  on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
+  on(name: 'agent_settled', handler: () => Promise<void>): void;
+  on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
 }
 
 const SECTION = 'mypi_context';
+const MESSAGE_LIMIT = 32000;
+
+function clip(text: string): string {
+  const cut = text.slice(0, MESSAGE_LIMIT);
+  return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
+}
 
 export function install(pi: ExtensionAPI, root: string): void {
   const server = join(root, 'dist/src/mcp/main.js');
@@ -42,6 +52,8 @@ export function install(pi: ExtensionAPI, root: string): void {
   let registered: string | undefined;
   let loaded: string | undefined;
   let context = '';
+  let key: string | undefined;
+  let last = '';
   pi.on('session_start', async (event, ctx) => {
     const session = ctx.sessionManager.getSessionId();
     if (registered !== session) {
@@ -53,7 +65,7 @@ export function install(pi: ExtensionAPI, root: string): void {
       });
       registered = session;
     }
-    const key = await register(ctx, session, event.reason === 'startup' && Boolean(ctx.sessionManager.getHeader()?.parentSession));
+    key = await register(ctx, session, event.reason === 'startup' && Boolean(ctx.sessionManager.getHeader()?.parentSession));
     if (loaded === session) return;
     context = '';
     let text: string;
@@ -72,6 +84,22 @@ export function install(pi: ExtensionAPI, root: string): void {
   pi.on('before_agent_start', event => {
     if (context) event.systemPromptOptions.sections[SECTION] = context;
   });
+  pi.on('agent_end', event => {
+    const reply = event.messages.filter(message => message.role === 'assistant').at(-1);
+    if (reply === undefined) return;
+    last = (Array.isArray(reply.content) ? reply.content : [])
+      .filter((part): part is { type: 'text'; text: string } => part?.type === 'text' && typeof part.text === 'string')
+      .map(part => part.text).join('\n');
+  });
+  pi.on('agent_settled', async () => {
+    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message=' + clip(last)], { cwd: root, timeout: 5000 })
+      .catch(() => undefined);
+    last = '';
+  });
+  pi.on('ui_prompt_start', async event => {
+    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
+      { cwd: root, timeout: 5000 }).catch(() => undefined);
+  });
   pi.on('session_shutdown', async event => {
     if (event.reason !== 'quit') return;
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
@@ -83,6 +111,12 @@ export function install(pi: ExtensionAPI, root: string): void {
         .catch((error: unknown) => ({ code: 1, killed: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
       if (result.code === 0 && !result.killed) ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
       else ctx.ui.notify('mypi open failed: ' + (result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit'), 'warning');
+    },
+  });
+  pi.registerCommand('inbox', {
+    description: 'Show incoming events from task chats: /inbox [CODE|all]',
+    handler: async args => {
+      pi.sendUserMessage(('/skill:inbox ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
 }

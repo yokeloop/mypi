@@ -40,5 +40,9 @@ export type AppCommand =
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }
+  | { name: 'event_emit'; kind: 'turn_end' | 'waiting'; message: string; from?: string; notification?: string;
+      session?: SessionHint; envScope?: string }
+  | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string }
+  | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
       session?: SessionHint; workspace?: string; stateHome?: string; runtime?: string };
