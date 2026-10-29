@@ -19,6 +19,9 @@ mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
+mypi event emit --from <key> [--waiting] [--message text] | --waiting --hook --pid <pid>
+mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
+mypi inbox [CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi open <key...> [--agent claude|pi] [--permission-mode mode]
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]

@@ -9,6 +9,8 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { frame } from '../../src/modules/events/public.js';
 import { notificationInput, stopInput } from '../../src/app/session-input.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
+import { appCommand } from '../../src/cli/app-command.js';
+import { parseCommand } from '../../src/cli/command.js';
 
 const at = '2026-10-28T14:02:00.000Z';
 
@@ -164,4 +166,28 @@ test('inbox returns the undelivered events in order, framed, and marks them deli
   assert.deepEqual(readInbox(filename, { name: 'inbox' }), { events: [] });
   assert.deepEqual(readInbox(filename, { name: 'inbox', envScope: 'MP' }).events.map(x => x.id), [5]);
   assert.throws(() => readInbox(filename, { name: 'inbox', key: 'XX' }), /Unknown project: XX/);
+});
+
+test('CLI event emit, turn end and inbox parse into their commands and refuse wrong combinations', () => {
+  const cli = (argv: string[], env: Record<string, string> = {}) => {
+    const parsed = parseCommand(argv);
+    if (parsed.type === 'help') throw new Error('Unexpected help');
+    return appCommand(parsed, env, 77);
+  };
+  assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--message', 'готово']),
+    { name: 'event_emit', kind: 'turn_end', message: 'готово', from: 'MP-12' });
+  assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--waiting'], { MYPI_SCOPE: 'MP' }),
+    { name: 'event_emit', kind: 'waiting', message: '', from: 'MP-12' });
+  assert.throws(() => cli(['event', 'emit', '--message', 'x']), /--from required/);
+  assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--from', 'MP-12']), /Use --hook or --from, not both/);
+  assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--message', 'x']), /Use --hook or --from, not both/);
+  assert.throws(() => cli(['event', 'emit', '--hook', '--pid', '1']), /--hook requires --waiting/);
+  assert.throws(() => cli(['event', 'emit', '--waiting', '--hook']), /--pid required/);
+  assert.throws(() => cli(['event', 'emit', '--from', 'MP-12', 'extra']), /Wrong argument count for event emit/);
+  assert.throws(() => cli(['turn', 'end']), /--pid required/);
+  assert.throws(() => cli(['turn', 'end', '--pid', '1', '--from', 'MP-12']), /Unknown option/);
+  assert.deepEqual(cli(['inbox', 'MP']), { name: 'inbox', key: 'MP' });
+  assert.deepEqual(cli(['inbox'], { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/run/user/1' }),
+    { name: 'inbox', session: { agent: 'claude', nativeId: 'c1', pid: 77, runtime: '/run/user/1' }, envScope: 'MP' });
+  assert.throws(() => cli(['inbox', 'MP', 'OT']), /Wrong argument count for inbox/);
 });
