@@ -11,9 +11,11 @@ import { openTaskWorktree } from './task-worktree.js';
 import { openSession } from './launcher.js';
 import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { emitEvent, readInbox, turnEnd } from './events.js';
+import type { EventTransports } from './delivery.js';
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
-export async function executeCommand(c: AppCommand, filename: string, root?: string): Promise<unknown> {
+export async function executeCommand(c: AppCommand, filename: string, root?: string,
+  transports: EventTransports = {}): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
@@ -31,8 +33,8 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
   if (c.name === 'sessions') return listSessions(filename, c);
-  if (c.name === 'event_emit') return emitEvent(filename, c);
-  if (c.name === 'turn_end') return turnEnd(filename, c);
+  if (c.name === 'event_emit') return emitEvent(filename, c, transports);
+  if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_')) {

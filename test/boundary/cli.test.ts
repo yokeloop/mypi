@@ -110,15 +110,15 @@ test('real CLI turns Stop and Notification hook input into one event each and in
     '{"session_id":"c1","source":"startup"}'), '{"key":"MP-12","registered":true,"displaced":null}\n');
   const stop = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Stop', stop_hook_active: false,
     last_assistant_message: 'готово' };
-  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify(stop)), '{"event":1}\n');
-  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, stop_hook_active: true })), '{"event":null}\n');
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify(stop)), '{"event":1,"delivered":[]}\n');
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, stop_hook_active: true })), '{"event":null,"delivered":[]}\n');
   const notification = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Notification',
     message: 'Claude is waiting for your input', notification_type: 'idle_prompt' };
-  assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {}, JSON.stringify(notification)), '{"event":2}\n');
+  assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {}, JSON.stringify(notification)), '{"event":2,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},
-    JSON.stringify({ ...notification, notification_type: 'auth_success' })), '{"event":null}\n');
-  assert.equal(ok(['event', 'emit', '--from', 'MP', '--message', 'x']), '{"event":null}\n');
-  assert.equal(ok(['event', 'emit', '--from', 'global']), '{"event":null}\n');
+    JSON.stringify({ ...notification, notification_type: 'auth_success' })), '{"event":null,"delivered":[]}\n');
+  assert.equal(ok(['event', 'emit', '--from', 'MP', '--message', 'x']), '{"event":null,"delivered":[]}\n');
+  assert.equal(ok(['event', 'emit', '--from', 'global']), '{"event":null,"delivered":[]}\n');
   const events = JSON.parse(ok(['inbox', 'MP'])).events as { id: number; from: string; to: string; kind: string; createdAt: string; text: string }[];
   assert.deepEqual(events.map(e => [e.id, e.from, e.to, e.kind]), [[1, 'MP-12', 'MP', 'turn_end'], [2, 'MP-12', 'MP', 'waiting']]);
   assert.equal(events[0]!.text, '[mypi: MP-12 завершил ход в ' + events[0]!.createdAt.slice(11, 16)

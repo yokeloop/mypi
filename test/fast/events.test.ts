@@ -118,7 +118,7 @@ test('Stop and Notification hook input give the native id, the flag or type and 
   }
 });
 
-test('turn end and hook events find the key like register and warmup, and only task chats emit', t => {
+test('turn end and hook events find the key like register and warmup, and only task chats emit', async t => {
   const { dir, filename, rows } = fixture(t);
   const db = openDatabase(filename);
   try {
@@ -128,19 +128,19 @@ test('turn end and hook events find the key like register and warmup, and only t
   } finally { db.close(); }
   const runtime = join(dir, 'run'), pid = 2 ** 22 + 7;
   const stop = { name: 'turn_end' as const, nativeId: 'c1', active: false, message: 'готово', pid, runtime };
-  assert.deepEqual(turnEnd(filename, { ...stop, active: true }), { event: null });
+  assert.deepEqual(await turnEnd(filename, { ...stop, active: true }), { event: null, delivered: [] });
   assert.equal(rows().length, 0);
-  assert.deepEqual(turnEnd(filename, stop), { event: 1 });
-  assert.deepEqual(turnEnd(filename, { ...stop, nativeId: 'c2', envScope: 'MP-7' }), { event: 2 });
-  assert.deepEqual(turnEnd(filename, { ...stop, nativeId: 'c2', envScope: 'MP' }), { event: null });
-  assert.deepEqual(turnEnd(filename, { ...stop, nativeId: 'c2' }), { event: null });
+  assert.deepEqual(await turnEnd(filename, stop), { event: 1, delivered: [] });
+  assert.deepEqual(await turnEnd(filename, { ...stop, nativeId: 'c2', envScope: 'MP-7' }), { event: 2, delivered: [] });
+  assert.deepEqual(await turnEnd(filename, { ...stop, nativeId: 'c2', envScope: 'MP' }), { event: null, delivered: [] });
+  assert.deepEqual(await turnEnd(filename, { ...stop, nativeId: 'c2' }), { event: null, delivered: [] });
   assert.deepEqual((rows() as { fromKey: string; kind: string; message: string }[]).map(r => [r.fromKey, r.kind, r.message]),
     [['MP-12', 'turn_end', 'готово'], ['MP-7', 'turn_end', 'готово']]);
   const hook = { name: 'event_emit' as const, kind: 'waiting' as const, message: 'Claude needs your permission',
     session: { agent: 'claude' as const, nativeId: 'c1', pid, runtime } };
-  assert.deepEqual(emitEvent(filename, { ...hook, notification: 'auth_success' }), { event: null });
+  assert.deepEqual(await emitEvent(filename, { ...hook, notification: 'auth_success' }), { event: null, delivered: [] });
   assert.equal(rows().length, 2);
-  for (const notification of ['permission_prompt', 'idle_prompt', 'elicitation_dialog']) emitEvent(filename, { ...hook, notification });
+  for (const notification of ['permission_prompt', 'idle_prompt', 'elicitation_dialog']) await emitEvent(filename, { ...hook, notification });
   assert.deepEqual((rows() as { fromKey: string; kind: string }[]).slice(2).map(r => [r.fromKey, r.kind]),
     [['MP-12', 'waiting'], ['MP-12', 'waiting'], ['MP-12', 'waiting']]);
 });
@@ -176,6 +176,8 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
   };
   assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--message', 'готово']),
     { name: 'event_emit', kind: 'turn_end', message: 'готово', from: 'MP-12' });
+  assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12'], { XDG_RUNTIME_DIR: '/run/user/1' }),
+    { name: 'event_emit', kind: 'turn_end', message: '', from: 'MP-12', runtime: '/run/user/1' });
   assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--waiting'], { MYPI_SCOPE: 'MP' }),
     { name: 'event_emit', kind: 'waiting', message: '', from: 'MP-12' });
   for (const message of ['- Done', '--help', '-1']) {

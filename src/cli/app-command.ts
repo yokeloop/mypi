@@ -106,7 +106,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         return { name: 'event_emit', kind: 'waiting', message: input.message, notification: input.type,
           session: { agent: 'claude', nativeId: input.nativeId, pid, ...runtime }, ...envScope };
       }
-      return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from') };
+      return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from'), ...runtime };
     }
     case 'turn end': {
       const pid = Number(required('pid'));
