@@ -1,9 +1,10 @@
-import { existsSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 
 interface ExtensionContext {
   hasUI: boolean;
   ui: { notify(message: string, level: 'info' | 'warning'): void };
+  isIdle(): boolean;
   sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getHeader(): { parentSession?: string } | null };
 }
 interface McpServer {
@@ -15,9 +16,10 @@ export interface ExtensionAPI {
   unregisterMcpServer(name: string): void;
   registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
-  sendUserMessage(content: string, options?: { expandPromptTemplates?: boolean }): void;
+  sendUserMessage(content: string, options?: { expandPromptTemplates?: boolean; deliverAs?: 'steer' | 'followUp' }): void;
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'session_shutdown', handler: (event: { reason: string }) => Promise<void>): void;
+  on(name: 'agent_start', handler: () => void): void;
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: () => Promise<void>): void;
@@ -34,15 +36,16 @@ function clip(text: string): string {
   return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
-export function install(pi: ExtensionAPI, root: string, _serve: ServeEvents, _runtime: string | undefined): void {
+export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
-  const register = async (ctx: ExtensionContext, session: string, fork: boolean): Promise<string | undefined> => {
+  const register = async (ctx: ExtensionContext, session: string, fork: boolean, socket?: string): Promise<string | undefined> => {
     const name = ctx.sessionManager.getSessionName();
     try {
       const result = await pi.exec('node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', session,
-        ...(name ? ['--name', name] : []), ...(fork ? ['--fork'] : [])], { cwd: root, timeout: 5000 });
+        ...(name ? ['--name', name] : []), ...(fork ? ['--fork'] : []), ...(socket === undefined ? [] : ['--socket', socket])],
+        { cwd: root, timeout: 5000 });
       if (result.code !== 0 || result.killed) throw new Error(result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit');
       return (JSON.parse(result.stdout) as { key: string }).key;
     } catch (error) {
@@ -55,6 +58,27 @@ export function install(pi: ExtensionAPI, root: string, _serve: ServeEvents, _ru
   let context = '';
   let key: string | undefined;
   let last = '';
+  let current: ExtensionContext | undefined;
+  let socket: { path: string; server: { close(): Promise<void> }; dev?: number; ino?: number } | undefined;
+  let starting: Promise<void> | undefined;
+  let started: (() => void) | undefined;
+  const injected = new Set<number>();
+  const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
+    const ids = events.map(e => e.id);
+    const fresh = events.filter(e => !injected.has(e.id));
+    if (fresh.length === 0) return ids;
+    const text = fresh.map(e => e.text).join('\n\n');
+    if (starting !== undefined) {
+      await starting;
+      pi.sendUserMessage(text, { deliverAs: 'followUp' });
+    } else if (current?.isIdle()) {
+      const turn = starting = new Promise<void>(resolve => { started = resolve; });
+      pi.sendUserMessage(text, { deliverAs: 'followUp' });
+      await turn;
+    } else pi.sendUserMessage(text, { deliverAs: 'followUp' });
+    for (const e of fresh) injected.add(e.id);
+    return ids;
+  };
   pi.on('session_start', async (event, ctx) => {
     const session = ctx.sessionManager.getSessionId();
     if (registered !== session) {
@@ -66,21 +90,44 @@ export function install(pi: ExtensionAPI, root: string, _serve: ServeEvents, _ru
       });
       registered = session;
     }
-    key = await register(ctx, session, event.reason === 'startup' && Boolean(ctx.sessionManager.getHeader()?.parentSession));
-    if (loaded === session) return;
-    context = '';
-    let text: string;
-    try {
-      const result = await pi.exec('node', [cli, 'warmup', ...(key === undefined ? [] : ['-s', key])], { cwd: root, timeout: 5000 });
-      if (result.code !== 0 || result.killed) throw new Error(result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit');
-      text = result.stdout;
-    } catch (error) {
-      text = `mypi warmup failed: ${error instanceof Error ? error.message : String(error)}. No mypi context was loaded; call the mypi warmup tool to read it.`;
-      if (ctx.hasUI) ctx.ui.notify(text, 'warning');
+    const fork = event.reason === 'startup' && Boolean(ctx.sessionManager.getHeader()?.parentSession);
+    key = await register(ctx, session, fork);
+    if (loaded !== session) {
+      context = '';
+      let text: string;
+      try {
+        const result = await pi.exec('node', [cli, 'warmup', ...(key === undefined ? [] : ['-s', key])], { cwd: root, timeout: 5000 });
+        if (result.code !== 0 || result.killed) throw new Error(result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit');
+        text = result.stdout;
+      } catch (error) {
+        text = `mypi warmup failed: ${error instanceof Error ? error.message : String(error)}. No mypi context was loaded; call the mypi warmup tool to read it.`;
+        if (ctx.hasUI) ctx.ui.notify(text, 'warning');
+      }
+      if (ctx.sessionManager.getSessionId() !== session) return;
+      loaded = session;
+      context = text;
     }
-    if (ctx.sessionManager.getSessionId() !== session) return;
-    loaded = session;
-    context = text;
+    if (key === undefined || runtime === undefined) return;
+    current = ctx;
+    const path = join(runtime, 'mypi', key + '.sock');
+    try {
+      mkdirSync(join(runtime, 'mypi'), { recursive: true, mode: 0o700 });
+      rmSync(path, { force: true });
+      socket = { path, server: await serve(path, onBatch) };
+      chmodSync(path, 0o600);
+      const { dev, ino } = statSync(path);
+      socket.dev = dev;
+      socket.ino = ino;
+      await register(ctx, session, fork, path);
+    } catch (error) {
+      if (ctx.hasUI) ctx.ui.notify(`mypi event socket failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
+    }
+  });
+  pi.on('agent_start', () => {
+    const done = started;
+    starting = undefined;
+    started = undefined;
+    done?.();
   });
   pi.on('before_agent_start', event => {
     if (context) event.systemPromptOptions.sections[SECTION] = context;
@@ -102,6 +149,16 @@ export function install(pi: ExtensionAPI, root: string, _serve: ServeEvents, _ru
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
+    const open = socket;
+    socket = undefined;
+    current = undefined;
+    if (open !== undefined) {
+      await open.server.close();
+      try {
+        const stat = statSync(open.path);
+        if (stat.dev === open.dev && stat.ino === open.ino) unlinkSync(open.path);
+      } catch {}
+    }
     if (event.reason !== 'quit') return;
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
