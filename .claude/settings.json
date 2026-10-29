@@ -14,7 +14,8 @@
       "mcp__mypi__projects",
       "mcp__mypi__warmup",
       "mcp__mypi__sessions",
-      "mcp__mypi__open_session"
+      "mcp__mypi__open_session",
+      "mcp__mypi__inbox"
     ]
   },
   "hooks": {
