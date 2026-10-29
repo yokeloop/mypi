@@ -118,8 +118,15 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   registers its path; `mypi event emit` then sends all undelivered events of the
   parent to its live Pi session and marks the acknowledged ones delivered. Without a
   socket or an answer they wait for /inbox and the warmup; a displaced session
-  silently stops receiving them; a Claude parent gets them only through /inbox and
-  its warmup.
+  silently stops receiving them. A live Claude parent gets them at once through
+  its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
+  SessionStart hook), one `{"type":"user",…}` line per event; they count as
+  delivered once the socket took the write (the server closed its side). A
+  bypass parent gets them live only when started with `accept`, as /open does;
+  this is not promised before a test-installation measurement. At-least-once: a
+  missed server close repeats events, an event over 1 MiB is resent with every
+  send and stays in /inbox and the warmup, and a message held in bypass and then
+  rejected, or one the parent never handled, is lost after it was marked delivered.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.

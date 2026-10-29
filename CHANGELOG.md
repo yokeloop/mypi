@@ -15,6 +15,14 @@ match the GitHub releases.
   follow-up message; acknowledged events are marked delivered. Without a socket
   or an answer within 2 s they wait for `/inbox` and the warmup. A displaced
   session silently stops receiving events.
+- Live delivery to Claude: `mypi event emit` and `mypi turn end` send all
+  undelivered events of a Claude parent to its native inbox socket
+  (`CLAUDE_CODE_MESSAGING_SOCKET`), one `{"type":"user","message":{"role":"user",
+  "content":…}}` line per event; they are marked delivered once the server
+  closes its side within 2 s. Events the socket did not take go out with the
+  next send. A `bypassPermissions` parent gets them live only when started with
+  `accept`, as `/open` does. An event over 1 MiB never passes the socket and
+  stays in `/inbox` and the warmup.
 - Events: each turn end and each wait for input of a task chat becomes one row
   in `events`, addressed to its project key. CLI `mypi event emit --from <key>
   [--waiting] [--message text]` (and `--waiting --hook --pid` for Claude's
