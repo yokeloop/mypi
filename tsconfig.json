@@ -21,6 +21,7 @@
   "include": [
     "src/**/*.ts",
     "test/**/*.ts",
-    ".pi/extensions/*.ts"
+    ".pi/extensions/*.ts",
+    ".pi/extensions/mypi-lib/*.ts"
   ]
 }

@@ -54,7 +54,7 @@ session's socket recorded in the registry.
 
 | Parent | Socket | When the Agent shows it |
 |---|---|---|
-| Pi, live | `$XDG_RUNTIME_DIR/mypi/<key>.sock`, opened by the mypi extension; the extension injects with `sendUserMessage(followUp)` and acks | at once if idle, end of current turn if busy |
+| Pi, live | `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`, one per Pi process so a displaced session never removes the new one's, opened by the mypi extension; the extension injects with `sendUserMessage(followUp)` and acks | at once if idle, end of current turn if busy |
 | Claude, live | the session's native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the `SessionStart` hook), one `{"type":"user",…}` line without `auth`; Claude Code delivers it itself in `manual` and `auto`; a `bypassPermissions` parent (not measured), Launcher- or hand-started, is promised no live delivery — its Events wait in `/inbox`; the Launcher still passes `--settings '{"crossSessionInbound":"accept"}'` as a precaution | new turn if idle, between tool calls if busy |
 | closed, or socket refused | the Event waits in `/inbox`; the next send to the parent key re-sends all its undelivered Events (T11/T12), else it enters the next warmup | on open or next turn boundary |
 
@@ -91,8 +91,8 @@ Supporting rules:
   is no busy state: both Agents hold an incoming message until their turn
   ends, and waiting arrives as an Event (MP-38 decision).
   A hand-started session registers itself; with two live sessions for one key
-  the newest is canonical and the older one is told through its socket. A hand
-  fork without `MYPI_SCOPE` is not registered.
+  the newest is canonical and the older one silently stops receiving Events
+  (decision 27). A hand fork without `MYPI_SCOPE` is not registered.
 - The tracked `.claude/settings.json` carries an allow-list for mypi tools and
   no `crossSessionInbound` (not needed in `manual` and `auto`; fact 3); the
   Launcher passes `--settings '{"crossSessionInbound":"accept"}'` to every

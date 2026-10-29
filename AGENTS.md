@@ -101,7 +101,8 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   require explicit reconciliation; do not delete user files to make bootstrap
   pass. Run it only when asked.
 - After project trust, Pi started in this checkout loads `.pi/extensions/mypi.ts`
-  and the skills in `.pi/skills`. Start with `mise exec -- pi` so `node` on PATH is
+  (the entry point; its logic lives in `.pi/extensions/mypi-lib/`, which Pi does not
+  load as a separate extension) and the skills in `.pi/skills`. Start with `mise exec -- pi` so `node` on PATH is
   Node 24; the extension needs a built engine (`mise exec -- pnpm build`). At each
   session start it registers the `mypi` MCP server with the session id in
   `PI_SESSION_ID` and runs `mypi warmup`; it first registers the session
@@ -112,7 +113,21 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   It also registers the /open command, which runs mypi open, and the /inbox
   command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
-  `mypi event emit` with the registered key.
+  `mypi event emit` with the registered key. From `session_start` to
+  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
+  one socket per Pi process so a displaced session never removes the new one's,
+  and registers its path; `mypi event emit` then sends all undelivered events of the
+  parent to its live Pi session and marks the acknowledged ones delivered. Without a
+  socket or an answer they wait for /inbox and the warmup; a displaced session
+  silently stops receiving them. A live Claude parent gets them at once through
+  its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
+  SessionStart hook), one `{"type":"user",…}` line per event; they count as
+  delivered once the socket took the write (the server closed its side). A
+  bypass parent gets them live only when started with `accept`, as /open does;
+  this is not promised before a test-installation measurement. At-least-once: a
+  missed server close repeats events, an event over 1 MiB is resent with every
+  send and stays in /inbox and the warmup, and a message held in bypass and then
+  rejected, or one the parent never handled, is lost after it was marked delivered.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.

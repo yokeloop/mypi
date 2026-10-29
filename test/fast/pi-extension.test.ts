@@ -1,13 +1,17 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import type { TestContext } from 'node:test';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { install } from '../../.pi/extensions/mypi.js';
+import { install } from '../../.pi/extensions/mypi-lib/install.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const description = 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.';
 const cli = join(root, 'dist/src/cli/main.js');
 const reg = (id: string, ...extra: string[]) => ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', id, ...extra], { cwd: root, timeout: 5000 }];
+const serve = async () => ({ close: async () => {} });
 const warm = (key: string) => ['node', [cli, 'warmup', '-s', key], { cwd: root, timeout: 5000 }];
 
 function stub() {
@@ -16,7 +20,7 @@ function stub() {
   const notes: [string, string][] = [];
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
-  const state = { id: 's1', key: 'global', name: undefined as string | undefined, header: null as { parentSession?: string } | null,
+  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
   const api = {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
@@ -27,6 +31,7 @@ function stub() {
     sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
   };
   const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); } },
+    isIdle: () => state.idle,
     sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getHeader: () => state.header } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
@@ -40,10 +45,10 @@ function stub() {
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
-  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
+  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
@@ -71,7 +76,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
 
 test('pi extension reports a failed warmup in the section and keeps MCP', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration()
     : { code: 1, killed: false, stdout: '', stderr: '{"status":"error","message":"Unknown project: XX"}\n' };
   await pi.start('startup');
@@ -89,7 +94,7 @@ test('pi extension reports a failed warmup in the section and keeps MCP', async 
 
 test('pi extension registers a hand fork with --fork and the session name, and unregisters only on quit', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.header = { parentSession: '/p.jsonl' };
   pi.state.name = 'mp-12';
   await pi.start('startup');
@@ -109,7 +114,7 @@ test('pi extension registers a hand fork with --fork and the session name, and u
 
 test('pi extension warns on a failed registration and still loads warmup without a key', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   const message = '{"status":"error","message":"XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there"}';
   pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: message + '\n' }
     : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
@@ -121,7 +126,7 @@ test('pi extension warns on a failed registration and still loads warmup without
 
 test('pi extension emits the last reply when the agent settles and a waiting event on a UI prompt', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.key = 'MP-12';
   await pi.start('startup');
   const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
@@ -161,7 +166,7 @@ test('pi extension emits the last reply when the agent settles and a waiting eve
 
 test('pi extension emits no events without a registered key', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
     : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -173,7 +178,7 @@ test('pi extension emits no events without a registered key', async () => {
 
 test('pi extension /open runs mypi open and notifies its result', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   const stdout = '{"opened":[{"key":"MP-12","agent":"pi","action":"started"}]}';
   pi.state.result = () => ({ code: 0, killed: false, stdout: stdout + '\n', stderr: '' });
   await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
@@ -187,16 +192,140 @@ test('pi extension /open runs mypi open and notifies its result', async () => {
 
 test('pi extension /inbox runs the inbox skill', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   await pi.commands.get('inbox')!.handler('MP', pi.ctx);
   await pi.commands.get('inbox')!.handler('', pi.ctx);
   assert.deepEqual(pi.sent, [['/skill:inbox MP', { expandPromptTemplates: true }], ['/skill:inbox', { expandPromptTemplates: true }]]);
   assert.deepEqual(pi.calls, []);
 });
 
+function sockets(t: TestContext) {
+  const run = mkdtempSync(join(tmpdir(), 'mypi-pi-'));
+  t.after(() => rmSync(run, { recursive: true, force: true }));
+  const served: { path: string; stale: boolean }[] = [];
+  const batches: ((events: { id: number; text: string }[]) => Promise<number[]>)[] = [];
+  const counts = { close: 0 };
+  const fake = { refuse: false };
+  const serve = async (path: string, onBatch: (events: { id: number; text: string }[]) => Promise<number[]>) => {
+    served.push({ path, stale: existsSync(path) });
+    if (fake.refuse) throw new Error('EACCES');
+    writeFileSync(path, '');
+    batches.push(onBatch);
+    return { close: async () => { counts.close++; } };
+  };
+  return { run, served, batches, counts, fake, serve };
+}
+
+const settled = async () => { for (let i = 0; i < 10; i++) await Promise.resolve(); };
+
+test('pi extension opens its event socket for the key, re-registers with it and closes it on every shutdown', async t => {
+  const pi = stub();
+  const { run, served, counts, serve } = sockets(t);
+  install(pi.api, root, serve, run);
+  pi.state.key = 'MP';
+  const path = join(run, 'mypi', `MP-${process.pid}.sock`);
+  mkdirSync(join(run, 'mypi'), { mode: 0o700 });
+  writeFileSync(path, 'stale');
+  await pi.start('startup');
+  assert.deepEqual(pi.calls, [reg('s1'), warm('MP'), reg('s1', '--socket', path)]);
+  assert.deepEqual(served, [{ path, stale: false }]);
+  assert.equal(statSync(join(run, 'mypi')).mode & 0o777, 0o700);
+  assert.equal(statSync(path).mode & 0o777, 0o600);
+  await pi.stop('reload');
+  assert.equal(counts.close, 1);
+  assert.equal(existsSync(path), false);
+  assert.equal(pi.calls.length, 3);
+  await pi.start('reload');
+  assert.deepEqual(pi.calls.slice(3), [reg('s1'), reg('s1', '--socket', path)]);
+  assert.equal(served.length, 2);
+  writeFileSync(path + '.new', 'other');
+  renameSync(path + '.new', path);
+  await pi.stop('new');
+  assert.equal(counts.close, 2);
+  assert.equal(existsSync(path), true);
+  rmSync(path);
+  pi.state.header = { parentSession: '/p.jsonl' };
+  await pi.start('startup');
+  assert.deepEqual(pi.calls.slice(5), [reg('s1', '--fork'), reg('s1', '--fork', '--socket', path)]);
+  await pi.stop('quit');
+  assert.equal(counts.close, 3);
+  assert.equal(existsSync(path), false);
+  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }]);
+});
+
+test('pi extension gives each process its own socket so a displaced session never removes the new one', async t => {
+  const { run } = sockets(t);
+  const served: string[] = [];
+  const serve = async (path: string) => {
+    served.push(path);
+    writeFileSync(path, '');
+    return { close: async () => { rmSync(path, { force: true }); } };
+  };
+  const a = stub(), b = stub();
+  install(a.api, root, serve, run, 101);
+  install(b.api, root, serve, run, 102);
+  a.state.key = b.state.key = 'MP';
+  b.state.id = 's2';
+  await a.start('startup');
+  await b.start('startup');
+  assert.deepEqual(served, [join(run, 'mypi', 'MP-101.sock'), join(run, 'mypi', 'MP-102.sock')]);
+  assert.deepEqual(b.calls.at(-1), ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', '102', '--native-id', 's2', '--socket', served[1]],
+    { cwd: root, timeout: 5000 }]);
+  await a.stop('quit');
+  assert.equal(existsSync(served[0]!), false);
+  assert.equal(existsSync(served[1]!), true);
+  assert.deepEqual(a.calls.at(-1), ['node', [cli, 'session', 'unregister', '--pid', '101'], { cwd: root, timeout: 5000 }]);
+});
+
+test('pi extension warns when its event socket cannot open and does not register a socket', async t => {
+  const pi = stub();
+  const { run, fake, serve } = sockets(t);
+  install(pi.api, root, serve, run);
+  pi.state.key = 'MP';
+  fake.refuse = true;
+  await pi.start('startup');
+  assert.deepEqual(pi.calls, [reg('s1'), warm('MP')]);
+  assert.deepEqual(pi.notes, [['mypi event socket failed: EACCES', 'warning']]);
+});
+
+test('pi extension injects a batch as one follow-up, waits for the turn to start when idle and acknowledges repeats once', async t => {
+  const pi = stub();
+  const { run, batches, serve } = sockets(t);
+  install(pi.api, root, serve, run);
+  pi.state.key = 'MP';
+  await pi.start('startup');
+  assert.equal(statSync(join(run, 'mypi')).mode & 0o777, 0o700);
+  const batch = batches[0]!;
+  const agentStart = () => pi.handlers.get('agent_start')!(undefined, pi.ctx);
+  const follow = { deliverAs: 'followUp' };
+  let first: number[] | undefined;
+  void batch([{ id: 1, text: 'a' }, { id: 2, text: 'b' }]).then(ids => { first = ids; });
+  await settled();
+  assert.deepEqual(pi.sent, [['a\n\nb', follow]]);
+  assert.equal(first, undefined);
+  await agentStart();
+  await settled();
+  assert.deepEqual(first, [1, 2]);
+  assert.deepEqual(await batch([{ id: 1, text: 'a' }, { id: 2, text: 'b' }]), [1, 2]);
+  assert.equal(pi.sent.length, 1);
+  pi.state.idle = false;
+  assert.deepEqual(await batch([{ id: 2, text: 'b' }, { id: 3, text: 'c' }]), [2, 3]);
+  assert.deepEqual(pi.sent.at(-1), ['c', follow]);
+  pi.state.idle = true;
+  const acked: number[][] = [];
+  void batch([{ id: 4, text: 'd' }]).then(ids => { acked.push(ids); });
+  void batch([{ id: 5, text: 'e' }]).then(ids => { acked.push(ids); });
+  await settled();
+  assert.deepEqual(pi.sent.slice(2), [['d', follow]]);
+  await agentStart();
+  await settled();
+  assert.deepEqual(pi.sent.slice(2), [['d', follow], ['e', follow]]);
+  assert.deepEqual(acked, [[4], [5]]);
+});
+
 test('pi extension refuses an unbuilt engine', () => {
   const pi = stub();
-  assert.throws(() => install(pi.api, join(root, 'missing')), /mypi is not built/);
+  assert.throws(() => install(pi.api, join(root, 'missing'), serve, undefined), /mypi is not built/);
   assert.deepEqual(pi.servers, []);
   assert.equal(pi.handlers.size, 0);
 });
