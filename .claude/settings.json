@@ -13,7 +13,8 @@
       "mcp__mypi__context_write",
       "mcp__mypi__projects",
       "mcp__mypi__warmup",
-      "mcp__mypi__sessions"
+      "mcp__mypi__sessions",
+      "mcp__mypi__open_session"
     ]
   },
   "hooks": {

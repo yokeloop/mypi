@@ -48,7 +48,7 @@ test('real stdio: twelve tools, maintenance absent, exact source, scope, task_up
     return JSON.parse(result.stdout);
   }
   const listed = (await client.listTools()).tools;
-  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'projects',
+  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'open_session', 'projects',
     'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   const readOnlyTools = ['warmup', 'task_list', 'task_show', 'journal', 'context_read', 'sessions'];

@@ -13,10 +13,17 @@ export function toolCommand(name: string, args: unknown, env: Readonly<Record<st
   parentPid = process.ppid): AppCommand[] {
   if (!Object.hasOwn(tools, name)) throw new InputError('Unknown tool: ' + name);
   const commands = tools[name as ToolName].command(args);
-  // Both adapters target AppCommand; the process environment supplies warmup's default scope and session, and the registry location.
+  // Both adapters target AppCommand; the process environment supplies warmup's default scope and session, and the registry location, and open_session's caller, Herdr workspace and state.
   if (name === 'warmup') {
     const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
     commands[0] = { ...commands[0], ...(envScope === undefined ? {} : { envScope }), ...(session === undefined ? {} : { session }) } as AppCommand;
+  }
+  if (name === 'open_session') {
+    const session = sessionHint(env, parentPid);
+    commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }),
+      ...(env['HERDR_WORKSPACE_ID'] ? { workspace: env['HERDR_WORKSPACE_ID'] } : {}),
+      ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}),
+      ...(env['XDG_RUNTIME_DIR'] ? { runtime: env['XDG_RUNTIME_DIR'] } : {}) } as AppCommand;
   }
   if (name === 'sessions' && env['XDG_RUNTIME_DIR']) commands[0] = { ...commands[0], runtime: env['XDG_RUNTIME_DIR'] } as AppCommand;
   return commands;
