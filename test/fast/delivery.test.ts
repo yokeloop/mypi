@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { emitEvent } from '../../src/app/events.js';
+import { emitEvent, turnEnd } from '../../src/app/events.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
 
 function fixture(t: TestContext) {
@@ -53,7 +53,7 @@ function fixture(t: TestContext) {
   const emit = (transports: { pi?: EventTransport; claude?: EventTransport }, from = 'MP-12', runtime: string | null = run) =>
     emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
       transports, proc);
-  return { run, die, register, delivered, calls, transport, emit };
+  return { filename, run, proc, die, register, delivered, calls, transport, emit };
 }
 
 test('an acknowledged event is marked delivered and the transport gets the socket and the framed text', async t => {
@@ -144,4 +144,13 @@ test('emit from a project or global scope never calls the transport', async t =>
   assert.deepEqual(await emit({ pi }, 'MP'), { event: null, delivered: [] });
   assert.deepEqual(await emit({ pi }, 'global'), { event: null, delivered: [] });
   assert.equal(calls.length, 0);
+});
+
+test('turn end in a project scope sends nothing to a live Claude parent', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  register(101, '/s/claude.sock', 'claude', 'c1');
+  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
+    { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(delivered(), []);
 });
