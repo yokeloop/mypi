@@ -19,6 +19,7 @@ mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
+mypi open <key...> [--agent claude|pi] [--permission-mode mode]
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]
@@ -37,6 +38,7 @@ Task and journal saves are local SQLite operations, not Git commits or remote ba
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
 Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
+open keys: a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
 Set XDG_STATE_HOME to isolated state for development.
 `;
 
