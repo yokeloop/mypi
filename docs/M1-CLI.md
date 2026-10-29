@@ -33,6 +33,9 @@ warmup [-s global | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
 sessions
+event emit --from <key> [--waiting] [--message text] | --waiting --hook --pid <pid>
+turn end --pid <pid>
+inbox [CODE | CODE-N | global | all]
 open MP MP-12
 ```
 
@@ -56,6 +59,7 @@ recorded).
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
 `session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered, displaced}`. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes the row and reports `live`. `sessions` prints the tree. All need `XDG_RUNTIME_DIR`.
+`event emit --from <key>` writes one event from a task key to its project key (`turn_end`, or `waiting` with `--waiting`; `--message` is its text); `--waiting --hook --pid` reads Claude's Notification input from stdin instead and writes only for `permission_prompt`, `idle_prompt` and `elicitation_dialog`. `turn end --pid` reads Claude's Stop input from stdin and writes a `turn_end` event with `last_assistant_message`, none when `stop_hook_active` is set. Both hook forms resolve the key like `session register`. A project or global key writes nothing. Result: `{"event":<number>}` or `{"event":null}`; errors exit 1, never 2. `inbox` prints the undelivered events of a project key (or of all projects with `all`; empty for global and task keys) as `{events: [{id, from, to, kind, createdAt, text}]}` with `text` in its frame, and marks them delivered; without a key it resolves the key like `warmup`. A project `warmup` also shows and marks the undelivered events and lists the last reports.
 `open <key...>` takes a project code (MP), CODE-N, org/project or org/project#N. For each key it focuses a live session's Herdr agent (`herdr agent focus <key in lower case>`), or opens a new `--no-focus` tab in the caller's `HERDR_WORKSPACE_ID` workspace, else the workspace labelled `mypi` (created when missing), with the engine root as cwd and `MYPI_SCOPE=<key>`, and starts the agent there: the saved session resumed with its own agent, or a new one. A task key creates its worktree first (as `task worktree`). `--agent` applies only to new sessions (default `defaultAgent` in home/settings.json, else claude); `--permission-mode` is passed to Claude only (default the calling session's mode). Result: `{opened: [{key, agent, action, workspaceId, tabId, worktreePath, notes}]}`; a failure after an opened key is partial. Without a running Herdr server, for projects without a clone, for global, REQ and unknown keys it exits 1 with no tab, worktree or session rows; it never writes session rows itself.
 
 ## Tasks and journal

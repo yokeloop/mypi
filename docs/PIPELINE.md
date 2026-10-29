@@ -2,7 +2,7 @@
 
 Tooling for developing mypi from the main chat started in the engine root. It is
 tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
-`scripts/pipeline/`, the skills `/plan`, `/do`, `/batch`, `/ship`, `/queue` in
+`scripts/pipeline/`, the skills `/plan`, `/do`, `/batch`, `/ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
 the installation they are run from and refuse any other working directory.

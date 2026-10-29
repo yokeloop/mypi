@@ -8,6 +8,17 @@ match the GitHub releases.
 
 ### Added
 
+- Events: each turn end and each wait for input of a task chat becomes one row
+  in `events`, addressed to its project key. CLI `mypi event emit --from <key>
+  [--waiting] [--message text]` (and `--waiting --hook --pid` for Claude's
+  Notification input) and `mypi turn end --pid` (Claude's Stop input); project
+  and global keys emit nothing. `inbox` (MCP tool, CLI `mypi inbox
+  [CODE|all]`, skill `/inbox`) returns the undelivered events in their frame
+  with the event number and marks them delivered. Claude hooks Stop and
+  Notification (`permission_prompt`, `idle_prompt`, `elicitation_dialog`);
+  the Pi extension emits on `agent_settled` and `ui_prompt_start`. A project
+  warmup shows «Новые события» and «Последние доклады» (the last delivered
+  event of each open task), cut first when over budget.
 - `/open`: MCP tool `open_session`, CLI `mypi open <key...> [--agent claude|pi]
   [--permission-mode mode]`, the Claude skill `/open` and the Pi command `/open`.
   For each key (project code, CODE-N, org/project, org/project#N) it focuses the
@@ -65,6 +76,9 @@ match the GitHub releases.
 
 ### Changed
 
+- A project warmup marks the events it shows in full delivered; MCP `warmup`
+  is no longer read-only.
+- The pipeline board skill `/queue` is renamed `/board`.
 - Tasks replace requests everywhere: CLI `mypi task …` (was `mypi request …`),
   MCP tools `task_*` (was `request_*`), journal scope `task:KEY` and
   event `task_created` (`journal` filter `eventType`), partial result

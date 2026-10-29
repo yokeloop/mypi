@@ -9,7 +9,7 @@ A coding agent program that mypi can run: currently Claude Code or Pi. mypi does
 One conversation of an Agent, bound to exactly one Scope. A Session has a Session key and a native identifier owned by the Agent. There is exactly one canonical Session per Scope; "opening" a Scope continues its Session or creates the first one.
 
 ## Session key
-The human-readable name of a Session, equal to its Scope: `global`, the Project code (`MP`), or the Project code with the Task number (`MP-12`). It names the Herdr tab, addresses the Session in `/open`, `/queue` and Events, and prefixes task branches and worktrees. The Agent's native session identifier is an internal detail mapped to the key.
+The human-readable name of a Session, equal to its Scope: `global`, the Project code (`MP`), or the Project code with the Task number (`MP-12`). It names the Herdr tab, addresses the Session in `/open`, `/inbox` and Events, and prefixes task branches and worktrees. The Agent's native session identifier is an internal detail mapped to the key.
 
 ## Scope
 The zone a Session works in: `global`, `project` or `task`. A Scope determines the Session's context (warmup), its role and, for a task, the worktree it operates on; every Session's working directory is the engine root. Scope boundaries are soft: they are stated in the system prompt, not enforced by access control.
@@ -36,7 +36,7 @@ The structural owner of a Session: Task chat → Project chat → Main chat. Par
 A record created every time a child Session's turn stops, carrying the final message of that turn (`turn_end`), or every time it stops mid-turn waiting for a human (`waiting`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
 
 ## Queue
-The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, gets the Event from `/queue` at its next `Stop` or warmup); a closed Parent sees it in warmup. Delivery is at-least-once.
+The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, is promised no live delivery). Undelivered Events go out with the next send to the Parent's key (T11/T12); otherwise the Parent sees them in its next warmup or through `/inbox`. Delivery is at-least-once.
 
 ## Launcher
 The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root. Implemented as open_session / mypi open.
