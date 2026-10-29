@@ -48,10 +48,10 @@ test('real stdio: twelve tools, maintenance absent, exact source, scope, task_up
     return JSON.parse(result.stdout);
   }
   const listed = (await client.listTools()).tools;
-  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'journal', 'memory', 'note', 'open_session', 'projects',
+  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
     'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
-  const readOnlyTools = ['warmup', 'task_list', 'task_show', 'journal', 'context_read', 'sessions'];
+  const readOnlyTools = ['task_list', 'task_show', 'journal', 'context_read', 'sessions'];
   for (const tool of listed) {
     const readonly = readOnlyTools.includes(tool.name);
     assert.equal(tool.annotations!.readOnlyHint, readonly, tool.name);
@@ -98,6 +98,7 @@ test('real stdio: twelve tools, maintenance absent, exact source, scope, task_up
   assert(warm.startsWith('# mypi warmup: MP (one/project)\n'));
   assert(warm.includes('project fact') && !warm.includes('parent fact'), 'project warmup carries project memory, not global memory');
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
+  assert.deepEqual(await call('inbox', { key: 'MP' }), { events: [] });
   const task = await call('task_create', { project: 'one/project', title: 'Task', slug: 'task', status: 'new', source: { file: sourcePath } });
   assert.equal(task.key, 'MP-1');
   assert.equal(readFileSync(join(home, task.contextDir, 'source.md'), 'utf8'), source);
