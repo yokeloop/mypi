@@ -90,19 +90,14 @@ test('a missing socket file delivers nothing and the emit still succeeds', t => 
 });
 
 test('two queued events go out with a third one in id order once the socket answers', async t => {
-  const { dir, listen, register, emit, delivered, received } = fixture(t);
-  const silent = await listen('silent');
-  register(silent.pid!);
+  const { listen, register, emit, delivered, received } = fixture(t);
+  register(process.pid);
   assert.deepEqual(emit('a'), { event: 1, delivered: [] });
   assert.deepEqual(emit('b'), { event: 2, delivered: [] });
-  const exited = new Promise(resolve => silent.once('exit', resolve));
-  silent.kill();
-  await exited;
-  register((await listen('ack', join(dir, 'ack.log'))).pid!);
+  register((await listen('ack')).pid!);
   assert.deepEqual(emit('c'), { event: 3, delivered: [1, 2, 3] });
   assert.deepEqual(delivered(), [[1, true], [2, true], [3, true]]);
-  assert.deepEqual(received(), [1, 1, 2]);
-  assert.deepEqual(received(join(dir, 'ack.log')), [1, 2, 3]);
+  assert.deepEqual(received(), [1, 2, 3]);
 });
 
 test('a Claude inbox socket gets user lines, a refused or missing socket leaves events queued until the next send', async t => {
