@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 interface ExtensionContext {
   hasUI: boolean;
-  ui: { notify(message: string, level: 'warning'): void };
+  ui: { notify(message: string, level: 'info' | 'warning'): void };
   sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getHeader(): { parentSession?: string } | null };
 }
 interface McpServer {
@@ -14,6 +14,7 @@ interface McpServer {
 export interface ExtensionAPI {
   registerMcpServer(name: string, server: McpServer): void;
   unregisterMcpServer(name: string): void;
+  registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'session_shutdown', handler: (event: { reason: string }) => Promise<void>): void;
@@ -74,6 +75,15 @@ export function install(pi: ExtensionAPI, root: string): void {
   pi.on('session_shutdown', async event => {
     if (event.reason !== 'quit') return;
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
+  });
+  pi.registerCommand('open', {
+    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode]',
+    handler: async (args, ctx) => {
+      const result = await pi.exec('node', [cli, 'open', ...args.trim().split(/\s+/).filter(Boolean)], { cwd: root, timeout: 120000 })
+        .catch((error: unknown) => ({ code: 1, killed: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
+      if (result.code === 0 && !result.killed) ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
+      else ctx.ui.notify('mypi open failed: ' + (result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit'), 'warning');
+    },
   });
 }
 

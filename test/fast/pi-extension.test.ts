@@ -14,6 +14,7 @@ function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [];
   const notes: [string, string][] = [];
+  const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
   const state = { id: 's1', key: 'global', name: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
@@ -21,6 +22,7 @@ function stub() {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     registerMcpServer(name: string, config: unknown) { servers.push({ name, config }); },
     unregisterMcpServer(name: string) { removed.push(name); },
+    registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
   };
   const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); } },
@@ -32,7 +34,7 @@ function stub() {
     await handlers.get('before_agent_start')?.(event, ctx);
     return event.systemPromptOptions.sections;
   };
-  return { api: api as never, handlers, servers, removed, calls, notes, state, start, stop, turn, registration };
+  return { api: api as never, handlers, commands, ctx, servers, removed, calls, notes, state, start, stop, turn, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -41,6 +43,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['before_agent_start', 'session_shutdown', 'session_start']);
+  assert.deepEqual([...pi.commands.keys()], ['open']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -113,6 +116,20 @@ test('pi extension warns on a failed registration and still loads warmup without
   assert.deepEqual(pi.notes[0], ['mypi session registration failed: ' + message + '. This session is not in the mypi registry.', 'warning']);
   assert.deepEqual(pi.calls[1], ['node', [cli, 'warmup'], { cwd: root, timeout: 5000 }]);
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: global\n');
+});
+
+test('pi extension /open runs mypi open and notifies its result', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  const stdout = '{"opened":[{"key":"MP-12","agent":"pi","action":"started"}]}';
+  pi.state.result = () => ({ code: 0, killed: false, stdout: stdout + '\n', stderr: '' });
+  await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'open', 'MP-12', '--agent', 'pi'], { cwd: root, timeout: 120000 }]);
+  assert.deepEqual(pi.notes.at(-1), ['mypi open: ' + stdout, 'info']);
+  const error = '{"status":"error","message":"Herdr is not available"}';
+  pi.state.result = () => ({ code: 1, killed: false, stdout: '', stderr: error });
+  await pi.commands.get('open')!.handler('MP', pi.ctx);
+  assert.deepEqual(pi.notes.at(-1), ['mypi open failed: ' + error, 'warning']);
 });
 
 test('pi extension refuses an unbuilt engine', () => {
