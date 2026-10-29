@@ -14,7 +14,10 @@ match the GitHub releases.
   parent, in id order, to its live Pi session, which injects them as one
   follow-up message; acknowledged events are marked delivered. Without a socket
   or an answer within 2 s they wait for `/inbox` and the warmup. A displaced
-  session silently stops receiving events.
+  session silently stops receiving events. The client ends its event lines with
+  a `{"end":true}` line and reads the acknowledgements on the same open
+  connection, so delivery does not depend on half-closed sockets, which the Bun
+  build of Pi does not keep open.
 - Live delivery to Claude: `mypi event emit` and `mypi turn end` send all
   undelivered events of a Claude parent to its native inbox socket
   (`CLAUDE_CODE_MESSAGING_SOCKET`), one `{"type":"user","message":{"role":"user",
