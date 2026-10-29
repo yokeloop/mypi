@@ -1,6 +1,6 @@
 import { InputError } from '../../shared/errors.js';
 import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, SessionStore } from './ports.js';
-export type { Agent, RegistryRecord, SessionRow } from './ports.js';
+export type { Agent, RegistryRecord, SessionRow, SessionScope } from './ports.js';
 export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null; children: SessionNode[] };
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope, clock: () => string) {
   const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;

@@ -39,6 +39,7 @@ src/
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   ├── sessions/        # session rows, live registry records, key resolution
+│   ├── events/          # turn-end and waiting events from task chats to their project
 │   └── knowledge/       # journal, notes and errors
 ├── infrastructure/      # SQLite, files, home Git and project clone Git, Herdr CLI
 └── shared/              # scope types, errors and partial

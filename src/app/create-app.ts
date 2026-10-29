@@ -10,6 +10,8 @@ import { createSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
 import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-store.js';
 import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
+import { createEvents } from '../modules/events/public.js';
+import { sqliteEventStore } from '../modules/events/adapters/sqlite-event-store.js';
 import { InputError } from '../shared/errors.js';
 
 export function engineRoot(): string {
@@ -54,6 +56,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     projects,
     journalStore: sqliteJournalStore(db),
     sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, clock),
+    events: createEvents(sqliteEventStore(db), sessionScope, clock),
     close: () => db.close(),
   };
 }
