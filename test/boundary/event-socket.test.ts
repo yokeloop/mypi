@@ -34,9 +34,9 @@ function fixture(t: TestContext) {
   ok(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
   ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
-  for (let i = 1; i <= 12; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
+  ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task 1', '--slug', 'task-1', '--status', 'new']);
   const sock = join(dir, 'MP.sock');
-  const listen = async (mode: 'ack' | 'silent', log = join(dir, 'server.log')) => {
+  const listen = async (mode: 'ack' | 'silent' | 'claude', log = join(dir, 'server.log')) => {
     const child = spawn(process.execPath, [server, sock, mode, log], { stdio: ['ignore', 'pipe', 'inherit'] });
     t.after(() => { child.kill(); });
     await new Promise<void>((resolve, reject) => {
@@ -48,9 +48,10 @@ function fixture(t: TestContext) {
     });
     return child;
   };
-  const register = (pid: number) => ok(['session', 'register', '--agent', 'pi', '--pid', String(pid), '--native-id', 'p1', '--socket', sock],
-    { MYPI_SCOPE: 'MP' });
-  const emit = (message: string) => JSON.parse(ok(['event', 'emit', '--from', 'MP-12', '--message', message])) as { event: number | null; delivered: number[] };
+  const register = (pid: number, agent: 'pi' | 'claude' = 'pi') => ok(agent === 'claude'
+    ? ['session', 'register', '--agent', 'claude', '--pid', String(pid), '--native-id', 'c1', '--socket', sock]
+    : ['session', 'register', '--agent', 'pi', '--pid', String(pid), '--native-id', 'p1', '--socket', sock], { MYPI_SCOPE: 'MP' });
+  const emit = (message: string) => JSON.parse(ok(['event', 'emit', '--from', 'MP-1', '--message', message])) as { event: number | null; delivered: number[] };
   const delivered = () => {
     const db = openDatabase(filename, true);
     try {
@@ -60,7 +61,8 @@ function fixture(t: TestContext) {
   };
   const received = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '')
     .map(line => (JSON.parse(line) as { id: number }).id);
-  return { dir, listen, register, emit, delivered, received };
+  const lines = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '');
+  return { dir, sock, listen, register, emit, delivered, received, lines };
 }
 
 test('a real Pi socket that acknowledges gets the event and it is marked delivered', async t => {
@@ -100,4 +102,35 @@ test('two queued events go out with a third one in id order once the socket answ
   assert.deepEqual(delivered(), [[1, true], [2, true], [3, true]]);
   assert.deepEqual(received(), [1, 1, 2]);
   assert.deepEqual(received(join(dir, 'ack.log')), [1, 2, 3]);
+});
+
+test('a Claude inbox socket gets user lines, a refused or missing socket leaves events queued until the next send', async t => {
+  const { dir, sock, listen, register, emit, delivered, lines } = fixture(t);
+  const claude = await listen('claude');
+  register(claude.pid!, 'claude');
+  assert.deepEqual(emit('готово'), { event: 1, delivered: [1] });
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.equal(lines().length, 1);
+  const line = JSON.parse(lines()[0]!) as { type: string; message: { role: string; content: string } };
+  assert.deepEqual(Object.keys(line).sort(), ['message', 'type']);
+  assert.equal(line.type, 'user');
+  assert.equal(line.message.role, 'user');
+  assert.match(line.message.content, /^\[mypi: MP-1 завершил ход в \d\d:\d\d, событие 1\./);
+  assert.ok(line.message.content.endsWith('готово'));
+  const exited = new Promise(resolve => claude.once('exit', resolve));
+  claude.kill();
+  await exited;
+  register(process.pid, 'claude');
+  assert.deepEqual(emit('a'), { event: 2, delivered: [] });
+  assert.deepEqual(delivered(), [[1, true], [2, false]]);
+  rmSync(sock);
+  assert.deepEqual(emit('b'), { event: 3, delivered: [] });
+  assert.deepEqual(delivered(), [[1, true], [2, false], [3, false]]);
+  const again = await listen('claude', join(dir, 'again.log'));
+  register(again.pid!, 'claude');
+  assert.deepEqual(emit('c'), { event: 4, delivered: [2, 3, 4] });
+  const content = lines(join(dir, 'again.log')).map(l => (JSON.parse(l) as { message: { content: string } }).message.content);
+  assert.equal(content.length, 3);
+  assert.deepEqual(content.map(c => Number(/событие (\d+)\./.exec(c)![1])), [2, 3, 4]);
+  assert.deepEqual(delivered(), [[1, true], [2, true], [3, true], [4, true]]);
 });
