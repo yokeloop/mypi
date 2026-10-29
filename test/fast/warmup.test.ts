@@ -230,7 +230,10 @@ test('warmup MP shows MP-12 events in the frame and marks them delivered', t => 
   assert(!second.includes('MP-5,') && !second.includes('MP-3,') && !second.includes('MP-7,'));
   assert.deepEqual(delivered(filename), marked);
   emit(filename, 'MP-12', 'turn_end', 'ещё');
-  for (const key of ['MP-12', 'global']) assert(!readWarmup(filename, root, key).includes('событие'), key);
+  for (const key of ['MP-12', 'global']) {
+    const out = readWarmup(filename, root, key);
+    assert(!out.includes('## Новые события') && !out.includes('## Последние доклады') && !out.includes('событие 4.'), key);
+  }
   assert.equal(delivered(filename)[3]!.at, null);
 });
 
@@ -264,7 +267,7 @@ test('over budget the last reports shrink first, then memory facts, then new eve
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md') && out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md'));
-    const shown = [...out.matchAll(/, событие (\d+)\. /g)].map(m => Number(m[1]));
+    const shown = [...out.matchAll(/^\[mypi: MP-12 завершил ход в 14:02, событие (\d+)\. /gm)].map(m => Number(m[1]));
     assert(shown.length > 0 && shown.length < 40);
     assert.deepEqual(shown, Array.from({ length: shown.length }, (_, i) => i + 1));
     assert(out.includes('> Ещё ' + (40 - shown.length) + ' событий не поместились и остались недоставленными: /inbox (MCP inbox, CLI mypi inbox MP).\n'));
