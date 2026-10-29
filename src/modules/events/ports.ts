@@ -7,3 +7,4 @@ export interface EventStore {
   lastDelivered(toKey: string): EventRow[];
   deliver(ids: number[], at: string): void;
 }
+export type EventTransport = (socket: string, events: { id: number; text: string }[]) => Promise<number[]>;

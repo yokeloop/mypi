@@ -1,6 +1,6 @@
 import type { SessionScope } from '../sessions/public.js';
 import type { EventKind, EventRow, EventStore } from './ports.js';
-export type { EventKind, EventRow, EventStore } from './ports.js';
+export type { EventKind, EventRow, EventStore, EventTransport } from './ports.js';
 export function parentKey(key: string): string | undefined {
   return /^([A-Z]+)-[1-9][0-9]*$/.exec(key)?.[1];
 }
