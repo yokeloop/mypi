@@ -178,6 +178,9 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
     { name: 'event_emit', kind: 'turn_end', message: 'готово', from: 'MP-12' });
   assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--waiting'], { MYPI_SCOPE: 'MP' }),
     { name: 'event_emit', kind: 'waiting', message: '', from: 'MP-12' });
+  for (const message of ['- Done', '--help', '-1']) {
+    assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--message=' + message]), { name: 'event_emit', kind: 'turn_end', message, from: 'MP-12' });
+  }
   assert.throws(() => cli(['event', 'emit', '--message', 'x']), /--from required/);
   assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--from', 'MP-12']), /Use --hook or --from, not both/);
   assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--message', 'x']), /Use --hook or --from, not both/);

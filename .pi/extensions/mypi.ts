@@ -91,12 +91,12 @@ export function install(pi: ExtensionAPI, root: string): void {
       .map(part => part.text).join('\n');
   });
   pi.on('agent_settled', async () => {
-    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message', clip(last)], { cwd: root, timeout: 5000 })
+    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message=' + clip(last)], { cwd: root, timeout: 5000 })
       .catch(() => undefined);
     last = '';
   });
   pi.on('ui_prompt_start', async event => {
-    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--waiting', ...(event.title ? ['--message', event.title] : [])],
+    if (key !== undefined) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
