@@ -100,6 +100,8 @@ not a mislabeled fast profile.
 - New test files must belong to a known profile; unknown paths fail discovery rather
   than being silently excluded or added to an expensive glob.
 - Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
+- test/support holds shared helpers and the unix socket server fixture that boundary tests start as
+  dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
