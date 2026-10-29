@@ -179,7 +179,8 @@ the `events` table, addressed to its parent key (`MP`). Claude's Stop hook runs
 `elicitation_dialog`) runs `mypi event emit --waiting --hook`; the Pi extension runs
 `mypi event emit` on `agent_settled` with the last reply and on `ui_prompt_start`.
 Project and global chats emit nothing. The project chat receives the undelivered
-events through `/inbox` (MCP `inbox`, CLI `mypi inbox`) and in its warmup under
+events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
+runs the `inbox` skill as `/skill:inbox`; MCP `inbox`, CLI `mypi inbox`) and in its warmup under
 «Новые события», even if it was closed when they arose; shown events are marked
 delivered. The project warmup also lists «Последние доклады»: the last delivered
 event of each open task, as history. Delivery is at-least-once; the event number in

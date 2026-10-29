@@ -16,6 +16,7 @@ export interface ExtensionAPI {
   unregisterMcpServer(name: string): void;
   registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
+  sendUserMessage(content: string, options?: { expandPromptTemplates?: boolean }): void;
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'session_shutdown', handler: (event: { reason: string }) => Promise<void>): void;
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string> } }) => void): void;
@@ -110,6 +111,12 @@ export function install(pi: ExtensionAPI, root: string): void {
         .catch((error: unknown) => ({ code: 1, killed: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
       if (result.code === 0 && !result.killed) ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
       else ctx.ui.notify('mypi open failed: ' + (result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit'), 'warning');
+    },
+  });
+  pi.registerCommand('inbox', {
+    description: 'Show incoming events from task chats: /inbox [CODE|all]',
+    handler: async args => {
+      pi.sendUserMessage(('/skill:inbox ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
 }

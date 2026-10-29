@@ -13,7 +13,8 @@ match the GitHub releases.
   [--waiting] [--message text]` (and `--waiting --hook --pid` for Claude's
   Notification input) and `mypi turn end --pid` (Claude's Stop input); project
   and global keys emit nothing. `inbox` (MCP tool, CLI `mypi inbox
-  [CODE|all]`, skill `/inbox`) returns the undelivered events in their frame
+  [CODE|all]`, the Claude skill `/inbox` and the Pi command `/inbox`, which runs
+  the `inbox` skill as `/skill:inbox`) returns the undelivered events in their frame
   with the event number and marks them delivered. Claude hooks Stop and
   Notification (`permission_prompt`, `idle_prompt`, `elicitation_dialog`);
   the Pi extension emits on `agent_settled` and `ui_prompt_start`. A project
