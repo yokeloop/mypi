@@ -8,6 +8,13 @@ match the GitHub releases.
 
 ### Added
 
+- Live delivery to Pi: the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>.sock`
+  (0600) from `session_start` to `session_shutdown` and registers its path.
+  `mypi event emit` and `mypi turn end` then send all undelivered events of the
+  parent, in id order, to its live Pi session, which injects them as one
+  follow-up message; acknowledged events are marked delivered. Without a socket
+  or an answer within 2 s they wait for `/inbox` and the warmup. A displaced
+  session silently stops receiving events.
 - Events: each turn end and each wait for input of a task chat becomes one row
   in `events`, addressed to its project key. CLI `mypi event emit --from <key>
   [--waiting] [--message text]` (and `--waiting --hook --pid` for Claude's
@@ -77,6 +84,8 @@ match the GitHub releases.
 
 ### Changed
 
+- `mypi event emit` and `mypi turn end` print `{"event":N,"delivered":[ids]}`
+  instead of `{"event":N}`.
 - A project warmup marks the events it shows in full delivered; MCP `warmup`
   is no longer read-only.
 - The pipeline board skill `/queue` is renamed `/board`.
