@@ -42,7 +42,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   install(pi.api, root);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
-  assert.deepEqual([...pi.handlers.keys()].sort(), ['before_agent_start', 'session_shutdown', 'session_start']);
+  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
@@ -116,6 +116,53 @@ test('pi extension warns on a failed registration and still loads warmup without
   assert.deepEqual(pi.notes[0], ['mypi session registration failed: ' + message + '. This session is not in the mypi registry.', 'warning']);
   assert.deepEqual(pi.calls[1], ['node', [cli, 'warmup'], { cwd: root, timeout: 5000 }]);
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: global\n');
+});
+
+test('pi extension emits the last reply when the agent settles and a waiting event on a UI prompt', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  pi.state.key = 'MP-12';
+  await pi.start('startup');
+  const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
+  const end = (...messages: { role: string; content?: unknown }[]) => pi.handlers.get('agent_end')!({ messages }, pi.ctx);
+  const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  const before = pi.calls.length;
+  end({ role: 'user', content: [{ type: 'text', text: 'go' }] },
+    { role: 'assistant', content: [{ type: 'text', text: 'first' }, { type: 'toolCall', name: 'x' }, { type: 'text', text: 'part' }] }, { role: 'toolResult' });
+  await settle();
+  assert.deepEqual(pi.calls.slice(before), [emit('--message', 'first\npart')]);
+  end({ role: 'assistant', content: [{ type: 'text', text: 'one' }] });
+  end({ role: 'assistant', content: [{ type: 'text', text: 'two' }] }, { role: 'user', content: 'later' });
+  end({ role: 'user', content: [{ type: 'text', text: 'no reply' }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message', 'two'));
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message', ''));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'a'.repeat(31999) + '\u{1F600}' + 'b'.repeat(10) }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message', 'a'.repeat(31999)));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'c'.repeat(40000) }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emit('--message', 'c'.repeat(32000)));
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: 'Allow rm?' }, pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), emit('--waiting', '--message', 'Allow rm?'));
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'input' }, pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), emit('--waiting'));
+  pi.state.result = () => { throw new Error('spawn node ENOENT'); };
+  await settle();
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm' }, pi.ctx);
+});
+
+test('pi extension emits no events without a registered key', async () => {
+  const pi = stub();
+  install(pi.api, root);
+  pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
+    : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
+  await pi.start('startup');
+  pi.handlers.get('agent_end')!({ messages: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }] }, pi.ctx);
+  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: 'Allow?' }, pi.ctx);
+  assert(pi.calls.every(call => (call[1] as string[])[1] !== 'event'));
 });
 
 test('pi extension /open runs mypi open and notifies its result', async () => {
