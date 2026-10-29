@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { install } from '../../.pi/extensions/mypi.js';
+import { install } from '../../.pi/extensions/mypi-lib/install.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const description = 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.';
 const cli = join(root, 'dist/src/cli/main.js');
 const reg = (id: string, ...extra: string[]) => ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', id, ...extra], { cwd: root, timeout: 5000 }];
+const serve = async () => ({ close: async () => {} });
 const warm = (key: string) => ['node', [cli, 'warmup', '-s', key], { cwd: root, timeout: 5000 }];
 
 function stub() {
@@ -40,7 +41,7 @@ function stub() {
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
@@ -71,7 +72,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
 
 test('pi extension reports a failed warmup in the section and keeps MCP', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration()
     : { code: 1, killed: false, stdout: '', stderr: '{"status":"error","message":"Unknown project: XX"}\n' };
   await pi.start('startup');
@@ -89,7 +90,7 @@ test('pi extension reports a failed warmup in the section and keeps MCP', async 
 
 test('pi extension registers a hand fork with --fork and the session name, and unregisters only on quit', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.header = { parentSession: '/p.jsonl' };
   pi.state.name = 'mp-12';
   await pi.start('startup');
@@ -109,7 +110,7 @@ test('pi extension registers a hand fork with --fork and the session name, and u
 
 test('pi extension warns on a failed registration and still loads warmup without a key', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   const message = '{"status":"error","message":"XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there"}';
   pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: message + '\n' }
     : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
@@ -121,7 +122,7 @@ test('pi extension warns on a failed registration and still loads warmup without
 
 test('pi extension emits the last reply when the agent settles and a waiting event on a UI prompt', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.key = 'MP-12';
   await pi.start('startup');
   const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
@@ -161,7 +162,7 @@ test('pi extension emits the last reply when the agent settles and a waiting eve
 
 test('pi extension emits no events without a registered key', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   pi.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
     : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -173,7 +174,7 @@ test('pi extension emits no events without a registered key', async () => {
 
 test('pi extension /open runs mypi open and notifies its result', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   const stdout = '{"opened":[{"key":"MP-12","agent":"pi","action":"started"}]}';
   pi.state.result = () => ({ code: 0, killed: false, stdout: stdout + '\n', stderr: '' });
   await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
@@ -187,7 +188,7 @@ test('pi extension /open runs mypi open and notifies its result', async () => {
 
 test('pi extension /inbox runs the inbox skill', async () => {
   const pi = stub();
-  install(pi.api, root);
+  install(pi.api, root, serve, undefined);
   await pi.commands.get('inbox')!.handler('MP', pi.ctx);
   await pi.commands.get('inbox')!.handler('', pi.ctx);
   assert.deepEqual(pi.sent, [['/skill:inbox MP', { expandPromptTemplates: true }], ['/skill:inbox', { expandPromptTemplates: true }]]);
@@ -196,7 +197,7 @@ test('pi extension /inbox runs the inbox skill', async () => {
 
 test('pi extension refuses an unbuilt engine', () => {
   const pi = stub();
-  assert.throws(() => install(pi.api, join(root, 'missing')), /mypi is not built/);
+  assert.throws(() => install(pi.api, join(root, 'missing'), serve, undefined), /mypi is not built/);
   assert.deepEqual(pi.servers, []);
   assert.equal(pi.handlers.size, 0);
 });
