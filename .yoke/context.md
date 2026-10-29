@@ -39,7 +39,7 @@ A record created every time a child Session's turn stops, carrying the final mes
 The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, gets the Event from `/queue` at its next `Stop` or warmup); a closed Parent sees it in warmup. Delivery is at-least-once.
 
 ## Launcher
-The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root.
+The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root. Implemented as open_session / mypi open.
 
 ## Adapter
 The small tracked per-Agent configuration and code in the engine (`.claude/`, `.pi/`, `.mcp.json`) that connects that Agent to mypi: registry record, context at start, turn-end and waiting detection, the socket Events are delivered to. Adapters implement one shared contract; their transport differs.

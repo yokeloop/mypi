@@ -79,8 +79,8 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   or `projects/` in the engine repository, including in future updates.
 - `home/` is its own Git repository. Personal instructions belong in
   `home/USER-INSTRUCTIONS.md`; personal mypi settings in `home/settings.json`
-  (`defaultAgent`: `claude` or `pi`, the agent for new sessions that mypi opens;
-  read by later releases). Use normal file tools for these and other ordinary
+  (`defaultAgent`: `claude` or `pi`, the agent for new sessions that /open starts;
+  claude when unset). Use normal file tools for these and other ordinary
   documents; use mypi operations for managed memory, DB records and append-only
   history.
 - Home is the direct-main exception to the project workflow: commit intended
@@ -109,6 +109,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   warmup, and unregisters the process when Pi quits; the output is the
   `mypi_context` system-prompt section of every turn. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
+  It also registers the /open command, which runs mypi open.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
@@ -154,7 +155,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
   `XDG_RUNTIME_DIR` or an initialized schema 8 database registration fails and the
-  warmup still runs.
+  warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
+  session's Herdr tab or opens a new tab in the engine root with MYPI_SCOPE and
+  starts or resumes the agent; it writes no session rows.
 
 ## Project setup and maintenance
 

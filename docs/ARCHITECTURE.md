@@ -14,7 +14,7 @@ record evidence. Historical contracts describe their time, not extra current com
 
 Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
 scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
-SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes twelve agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes thirteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
 
 The memory/task APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -40,7 +40,7 @@ src/
 │   ├── inbox/           # immutable capture
 │   ├── sessions/        # session rows, live registry records, key resolution
 │   └── knowledge/       # journal, notes and errors
-├── infrastructure/      # SQLite, files, home Git and project clone Git
+├── infrastructure/      # SQLite, files, home Git and project clone Git, Herdr CLI
 └── shared/              # scope types, errors and partial
 ```
 

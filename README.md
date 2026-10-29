@@ -110,8 +110,8 @@ any more: warmup serves `home/USER-INSTRUCTIONS.md`. Backups keep accepting the 
 | Project source code | `projects/<org>/<project>/`, its own Git |
 | Task worktrees | `projects/<org>/<project>--<KEY>-<slug>/`, created by `mypi task worktree <KEY>` |
 
-`defaultAgent` names the agent (`claude` or `pi`) for new sessions that mypi opens;
-later releases read it. For baseline versus personal instruction ownership, see
+`defaultAgent` names the agent (`claude` or `pi`) for new sessions that `/open`
+starts; without the file or field it is `claude`. For baseline versus personal instruction ownership, see
 [AGENTS.md](AGENTS.md#instruction-ownership).
 
 `home/` and `projects/` are permanently reserved user paths, ignored by engine Git.
@@ -166,6 +166,12 @@ the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `mypi session forget <key>` drops a row on the user's request. Without
 `XDG_RUNTIME_DIR` or an initialized schema 8 database registration fails and the
 warmup still runs.
+
+`/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
+`mypi open`) needs a running Herdr server. For each key — a project code, CODE-N,
+org/project or org/project#N — it focuses the live session's Herdr tab or opens a
+new tab in the engine root with `MYPI_SCOPE` and starts the agent there; an
+existing session continues with its own agent.
 
 Upgrading to schema 8: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
