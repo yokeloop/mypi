@@ -270,6 +270,7 @@ test('pi extension injects a batch as one follow-up, waits for the turn to start
   install(pi.api, root, serve, run);
   pi.state.key = 'MP';
   await pi.start('startup');
+  assert.equal(statSync(join(run, 'mypi')).mode & 0o777, 0o700);
   const batch = batches[0]!;
   const agentStart = () => pi.handlers.get('agent_start')!(undefined, pi.ctx);
   const follow = { deliverAs: 'followUp' };
