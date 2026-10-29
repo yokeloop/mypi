@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { decideOpen, defaultAgent, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { state } from '../support/state.js';
+import { createApp } from '../../src/app/create-app.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
 import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -50,4 +55,39 @@ test('launchArgs builds Claude and Pi arguments', () => {
   assert.deepEqual(launchArgs({ action: 'resume', agent: 'claude', nativeId: 'c1' }, 'MP-12', null, 'u1'), ['--resume', 'c1', ...accept]);
   assert.deepEqual(launchArgs({ action: 'start', agent: 'pi' }, 'MP', 'auto', 'u1'), ['--session-id', 'u1', '--name', 'MP']);
   assert.deepEqual(launchArgs({ action: 'resume', agent: 'pi', nativeId: 'p9' }, 'MP', 'auto', 'u1'), ['--session-id', 'p9']);
+});
+
+test("callerMode reads the caller's live permission mode and is null without a caller or a recorded mode", t => {
+  const { dir, filename } = state(t);
+  const app = createApp(filename, false);
+  try { app.projects.add('one/project', 'MP'); } finally { app.close(); }
+  const db = openDatabase(filename);
+  try {
+    db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
+      VALUES ((SELECT id FROM projects WHERE code = 'MP'), 12, 'open', (SELECT id FROM task_statuses WHERE code = 'new'),
+      'projects/one/project/tasks/MP-12-open', NULL, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`).run();
+  } finally { db.close(); }
+  const run = join(dir, 'run'), proc = join(dir, 'proc');
+  mkdirSync(run, { mode: 0o700 });
+  const alive = (pid: number, argv: string[]) => {
+    mkdirSync(join(proc, String(pid)), { recursive: true });
+    writeFileSync(join(proc, String(pid), 'stat'), `${pid} (claude) S 1 ${'0 '.repeat(17)}1 0 0\n`);
+    writeFileSync(join(proc, String(pid), 'cmdline'), argv.join('\0') + '\0');
+  };
+  const s = <T>(fn: (sessions: ReturnType<ReturnType<typeof createApp>['sessions']>) => T): T => {
+    const app = createApp(filename, false);
+    try { return fn(app.sessions(run, proc)); } finally { app.close(); }
+  };
+  const session = (agent: 'claude' | 'pi', nativeId: string, pid: number, envScope: string) =>
+    s(x => x.register({ agent, nativeId, pid, name: null, socket: null, fork: false, envScope }));
+  alive(101, ['claude', '--permission-mode', 'plan']);
+  alive(102, ['claude']);
+  alive(103, ['pi', '--permission-mode', 'plan']);
+  session('claude', 'c1', 101, 'MP-12');
+  session('claude', 'c2', 102, 'MP');
+  session('pi', 'p1', 103, 'global');
+  assert.equal(s(x => callerMode(x, undefined)), undefined);
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c1', pid: 900 })), 'plan');
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c2', pid: 900 })), null);
+  assert.equal(s(x => callerMode(x, { agent: 'pi', nativeId: 'p1', pid: 900 })), null);
 });

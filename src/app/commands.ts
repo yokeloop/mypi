@@ -39,4 +39,6 @@ export type AppCommand =
   | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; runtime?: string }
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
-  | { name: 'sessions'; runtime?: string };
+  | { name: 'sessions'; runtime?: string }
+  | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
+      session?: SessionHint; workspace?: string; stateHome?: string; runtime?: string };

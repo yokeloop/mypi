@@ -12,7 +12,7 @@ import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-
 import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
 import { InputError } from '../shared/errors.js';
 
-function engineRoot(): string {
+export function engineRoot(): string {
   return fileURLToPath(new URL('../../../', import.meta.url));
 }
 

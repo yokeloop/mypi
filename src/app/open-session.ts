@@ -1,5 +1,9 @@
+import type { createApp } from './create-app.js';
+import type { SessionHint } from './session-input.js';
 import type { Agent, RegistryRecord, SessionRow } from '../modules/sessions/public.js';
 import { InputError } from '../shared/errors.js';
+
+type Sessions = ReturnType<ReturnType<typeof createApp>['sessions']>;
 
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'auto', 'bypassPermissions', 'dontAsk', 'plan'] as const;
 
@@ -49,4 +53,11 @@ export function launchArgs(decision: Exclude<OpenDecision, { action: 'focus' }>,
     : [decision.agent === 'pi' ? '--session-id' : '--resume', decision.nativeId];
   if (decision.agent === 'pi') return session;
   return [...session, ...(mode === null ? [] : ['--permission-mode', mode]), '--settings', '{"crossSessionInbound":"accept"}'];
+}
+
+export function callerMode(sessions: Sessions, hint: SessionHint | undefined): string | null | undefined {
+  if (hint === undefined) return undefined;
+  const key = sessions.resolve(hint);
+  if (key === undefined) return null;
+  try { return sessions.lookup(key).live?.permissionMode ?? null; } catch { return null; }
 }
