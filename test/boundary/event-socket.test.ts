@@ -60,17 +60,18 @@ function fixture(t: TestContext) {
     } finally { db.close(); }
   };
   const received = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '')
-    .map(line => (JSON.parse(line) as { id: number }).id);
+    .map(line => (JSON.parse(line) as { id?: number }).id).filter(id => id !== undefined);
   const lines = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '');
   return { dir, sock, listen, register, emit, delivered, received, lines };
 }
 
 test('a real Pi socket that acknowledges gets the event and it is marked delivered', async t => {
-  const { listen, register, emit, delivered, received } = fixture(t);
+  const { listen, register, emit, delivered, received, lines } = fixture(t);
   register((await listen('ack')).pid!);
   assert.deepEqual(emit('готово'), { event: 1, delivered: [1] });
   assert.deepEqual(delivered(), [[1, true]]);
   assert.deepEqual(received(), [1]);
+  assert.equal(lines().at(-1), '{"end":true}');
 });
 
 test('a silent socket leaves the event undelivered after the deadline', async t => {

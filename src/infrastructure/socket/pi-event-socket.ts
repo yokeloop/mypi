@@ -17,7 +17,7 @@ export function piEventSocket(socket: string, events: { id: number; text: string
     connection.setEncoding('utf8');
     connection.on('connect', () => {
       for (const e of events) connection.write(JSON.stringify({ id: e.id, text: e.text }) + '\n');
-      connection.end();
+      connection.write(JSON.stringify({ end: true }) + '\n');
     });
     connection.on('data', (chunk: string) => {
       if (done) return;

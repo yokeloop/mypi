@@ -223,7 +223,7 @@ test('pi extension opens its event socket for the key, re-registers with it and 
   const { run, served, counts, serve } = sockets(t);
   install(pi.api, root, serve, run);
   pi.state.key = 'MP';
-  const path = join(run, 'mypi', 'MP.sock');
+  const path = join(run, 'mypi', `MP-${process.pid}.sock`);
   mkdirSync(join(run, 'mypi'), { mode: 0o700 });
   writeFileSync(path, 'stale');
   await pi.start('startup');
@@ -251,6 +251,30 @@ test('pi extension opens its event socket for the key, re-registers with it and 
   assert.equal(counts.close, 3);
   assert.equal(existsSync(path), false);
   assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }]);
+});
+
+test('pi extension gives each process its own socket so a displaced session never removes the new one', async t => {
+  const { run } = sockets(t);
+  const served: string[] = [];
+  const serve = async (path: string) => {
+    served.push(path);
+    writeFileSync(path, '');
+    return { close: async () => { rmSync(path, { force: true }); } };
+  };
+  const a = stub(), b = stub();
+  install(a.api, root, serve, run, 101);
+  install(b.api, root, serve, run, 102);
+  a.state.key = b.state.key = 'MP';
+  b.state.id = 's2';
+  await a.start('startup');
+  await b.start('startup');
+  assert.deepEqual(served, [join(run, 'mypi', 'MP-101.sock'), join(run, 'mypi', 'MP-102.sock')]);
+  assert.deepEqual(b.calls.at(-1), ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', '102', '--native-id', 's2', '--socket', served[1]],
+    { cwd: root, timeout: 5000 }]);
+  await a.stop('quit');
+  assert.equal(existsSync(served[0]!), false);
+  assert.equal(existsSync(served[1]!), true);
+  assert.deepEqual(a.calls.at(-1), ['node', [cli, 'session', 'unregister', '--pid', '101'], { cwd: root, timeout: 5000 }]);
 });
 
 test('pi extension warns when its event socket cannot open and does not register a socket', async t => {
