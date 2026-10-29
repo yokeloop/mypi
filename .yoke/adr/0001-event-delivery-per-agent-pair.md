@@ -91,8 +91,8 @@ Supporting rules:
   is no busy state: both Agents hold an incoming message until their turn
   ends, and waiting arrives as an Event (MP-38 decision).
   A hand-started session registers itself; with two live sessions for one key
-  the newest is canonical and the older one is told through its socket. A hand
-  fork without `MYPI_SCOPE` is not registered.
+  the newest is canonical and the older one silently stops receiving Events
+  (decision 27). A hand fork without `MYPI_SCOPE` is not registered.
 - The tracked `.claude/settings.json` carries an allow-list for mypi tools and
   no `crossSessionInbound` (not needed in `manual` and `auto`; fact 3); the
   Launcher passes `--settings '{"crossSessionInbound":"accept"}'` to every

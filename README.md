@@ -186,6 +186,17 @@ delivered. The project warmup also lists «Последние доклады»: 
 event of each open task, as history. Delivery is at-least-once; the event number in
 the frame tells a repeat.
 
+A live Pi project chat receives events at once. From `session_start` to
+`session_shutdown` the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>.sock`
+(0600) and records its path in the session's registration. After `mypi event emit`
+records an event it sends all undelivered events of the parent, in id order, to the
+parent's live Pi session and marks those the session acknowledges delivered: an idle
+chat gets them as a new turn, a busy one after its current turn ends. Without a
+socket or an answer the events wait for `/inbox` and the warmup. A displaced session
+silently stops receiving events. A Claude parent still receives them only through
+`/inbox` and its warmup. An event injected while Pi is compacting or has no model
+can be lost after it was acknowledged.
+
 Upgrading to schema 8: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
 
