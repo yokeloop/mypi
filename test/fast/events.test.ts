@@ -6,6 +6,7 @@ import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { frame } from '../../src/modules/events/public.js';
+import { notificationInput, stopInput } from '../../src/app/session-input.js';
 
 const at = '2026-10-28T14:02:00.000Z';
 
@@ -88,4 +89,27 @@ test('pending, lastDelivered and deliver follow delivered_at per addressee', t =
   assert.throws(() => e(x => x.pending('XX')), /Unknown project: XX/);
   assert.throws(() => e(x => x.pending('MP-99')), /Unknown task: MP-99/);
   assert.deepEqual(e(x => x.pending('global')), []);
+});
+
+test('Stop and Notification hook input give the native id, the flag or type and the text', () => {
+  const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', permission_mode: 'default', hook_event_name: 'Stop',
+    stop_hook_active: false };
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, last_assistant_message: 'готово' })), { nativeId: 'c1', active: false, message: 'готово' });
+  assert.deepEqual(stopInput(JSON.stringify(stop)), { nativeId: 'c1', active: false, message: '' });
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, stop_hook_active: true, last_assistant_message: 'x' })), { nativeId: 'c1', active: true, message: 'x' });
+  const note = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', hook_event_name: 'Notification' };
+  for (const type of ['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'auth_success']) {
+    assert.deepEqual(notificationInput(JSON.stringify({ ...note, message: 'Claude needs your permission', title: 'Claude Code', notification_type: type })),
+      { nativeId: 'c1', type, message: 'Claude needs your permission' });
+  }
+  assert.deepEqual(notificationInput(JSON.stringify({ ...note, message: 'm', notification_type: 'idle_prompt' })), { nativeId: 'c1', type: 'idle_prompt', message: 'm' });
+  for (const bad of ['not json', '[]', JSON.stringify({ ...stop, hook_event_name: 'Notification' }), JSON.stringify({ ...stop, session_id: '' }),
+    JSON.stringify({ ...stop, stop_hook_active: 'no' }), JSON.stringify({ ...stop, last_assistant_message: 1 })]) {
+    assert.throws(() => stopInput(bad), /Invalid Stop hook input/, bad);
+  }
+  for (const bad of ['not json', 'null', JSON.stringify({ ...note, hook_event_name: 'Stop', message: 'm', notification_type: 'idle_prompt' }),
+    JSON.stringify({ ...note, session_id: '', message: 'm', notification_type: 'idle_prompt' }), JSON.stringify({ ...note, notification_type: 'idle_prompt' }),
+    JSON.stringify({ ...note, message: 'm' })]) {
+    assert.throws(() => notificationInput(bad), /Invalid Notification hook input/, bad);
+  }
 });
