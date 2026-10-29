@@ -8,8 +8,9 @@ match the GitHub releases.
 
 ### Added
 
-- Live delivery to Pi: the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>.sock`
-  (0600) from `session_start` to `session_shutdown` and registers its path.
+- Live delivery to Pi: the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
+  (0600) from `session_start` to `session_shutdown` and registers its path; one
+  socket per Pi process, so a displaced session never removes the new one's.
   `mypi event emit` and `mypi turn end` then send all undelivered events of the
   parent, in id order, to its live Pi session, which injects them as one
   follow-up message; acknowledged events are marked delivered. Without a socket

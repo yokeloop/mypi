@@ -187,8 +187,10 @@ event of each open task, as history. Delivery is at-least-once; the event number
 the frame tells a repeat.
 
 A live Pi project chat receives events at once. From `session_start` to
-`session_shutdown` the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>.sock`
-(0600) and records its path in the session's registration. After `mypi event emit`
+`session_shutdown` the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
+(0600) and records its path in the session's registration. Each Pi process has its
+own socket, so a displaced session that quits never removes the socket of the
+session that replaced it. After `mypi event emit`
 records an event it sends all undelivered events of the parent, in id order, to the
 parent's live Pi session and marks those the session acknowledges delivered: an idle
 chat gets them as a new turn, a busy one after its current turn ends. Without a

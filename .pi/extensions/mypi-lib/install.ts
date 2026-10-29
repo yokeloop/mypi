@@ -36,14 +36,14 @@ function clip(text: string): string {
   return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
-export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined): void {
+export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
   const register = async (ctx: ExtensionContext, session: string, fork: boolean, socket?: string): Promise<string | undefined> => {
     const name = ctx.sessionManager.getSessionName();
     try {
-      const result = await pi.exec('node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', session,
+      const result = await pi.exec('node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(pid), '--native-id', session,
         ...(name ? ['--name', name] : []), ...(fork ? ['--fork'] : []), ...(socket === undefined ? [] : ['--socket', socket])],
         { cwd: root, timeout: 5000 });
       if (result.code !== 0 || result.killed) throw new Error(result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit');
@@ -109,7 +109,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     }
     if (key === undefined || runtime === undefined) return;
     current = ctx;
-    const path = join(runtime, 'mypi', key + '.sock');
+    const path = join(runtime, 'mypi', `${key}-${pid}.sock`);
     try {
       mkdirSync(join(runtime, 'mypi'), { recursive: true, mode: 0o700 });
       rmSync(path, { force: true });
@@ -160,7 +160,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       } catch {}
     }
     if (event.reason !== 'quit') return;
-    await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
+    await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.registerCommand('open', {
     description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode]',

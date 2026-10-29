@@ -114,8 +114,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
   `mypi event emit` with the registered key. From `session_start` to
-  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>.sock` (0600) and
-  registers its path; `mypi event emit` then sends all undelivered events of the
+  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
+  one socket per Pi process so a displaced session never removes the new one's,
+  and registers its path; `mypi event emit` then sends all undelivered events of the
   parent to its live Pi session and marks the acknowledged ones delivered. Without a
   socket or an answer they wait for /inbox and the warmup; a displaced session
   silently stops receiving them. A live Claude parent gets them at once through
