@@ -109,6 +109,17 @@ test('a Claude record is skipped while only the Pi transport exists', async t =>
   assert.deepEqual(delivered(), [[1, false]]);
 });
 
+test('a Claude record with a socket gets the events through the claude transport', async t => {
+  const { register, delivered, calls, transport, emit } = fixture(t);
+  register(101, '/s/claude.sock', 'claude');
+  assert.deepEqual(await emit({ claude: transport(() => []) }), { event: 1, delivered: [] });
+  assert.deepEqual(await emit({ claude: transport(ids => ids) }, 'MP-7'), { event: 2, delivered: [1, 2] });
+  assert.deepEqual(calls.map(c => c.socket), ['/s/claude.sock', '/s/claude.sock']);
+  assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[1], [1, 2]]);
+  assert.match(calls[1]!.events[0]!.text, /^\[mypi: MP-12 завершил ход в \d\d:\d\d, событие 1\./);
+  assert.deepEqual(delivered(), [[1, true], [2, true]]);
+});
+
 test('only the canonical session gets events after a newer one displaces it', async t => {
   const { register, calls, transport, emit } = fixture(t);
   register(101, '/s/a.sock');
