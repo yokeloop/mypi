@@ -109,7 +109,8 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   warmup, and unregisters the process when Pi quits; the output is the
   `mypi_context` system-prompt section of every turn. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
-  It also registers the /open command, which runs mypi open. On `agent_settled`
+  It also registers the /open command, which runs mypi open, and the /inbox
+  command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
   `mypi event emit` with the registered key.
   A same-name server in a Pi `mcp.json` overrides the registration, including
