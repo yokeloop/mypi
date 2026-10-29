@@ -2,6 +2,7 @@
 import { PartialError } from '../shared/context.js';
 import { homedir } from 'node:os';
 import { resolveStatePath } from '../app/create-app.js';
+import { eventTransports } from '../app/event-transports.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
@@ -9,7 +10,7 @@ try {
   const command = parseCommand(process.argv.slice(2));
   // Help must work without a configured home, initialized DB or any filesystem changes.
   const output = command.type === 'help' ? { usage } : await run(command,
-    resolveStatePath(process.env, homedir()), undefined, process.env);
+    resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports);
   if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
     process.stderr.write(JSON.stringify(output) + '\n');
     process.exitCode = 1;
