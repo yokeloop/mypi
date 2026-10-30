@@ -12,6 +12,7 @@ self="$0"
 usage() {
   cat >&2 <<EOF
 usage: mp-task scope                           session scope as JSON
+       mp-task project <CODE>                  project record as JSON
        mp-task show <KEY>                      task card as JSON
        mp-task dir <KEY>                       absolute task folder in home
        mp-task slug <KEY>                      slug (folder name without "<KEY>-")
@@ -52,6 +53,15 @@ else:
     key,source="global","default"
 m=re.fullmatch(r"([A-Z]+)(-[0-9]+)?",key)
 print(json.dumps({"key":key,"project":m.group(1) if m else None,"source":source}))' ;;
+  project) [[ $# -eq 1 ]] || usage; cli project list | python3 -c '
+import sys,json
+code,home=sys.argv[1],sys.argv[2]
+for p in json.load(sys.stdin)["projects"]:
+    if p["code"]==code:
+        print(json.dumps({"code":code,"project":p["org"]+"/"+p["slug"],"checkoutPath":p["checkoutPath"],"home":home+"/projects/"+p["org"]+"/"+p["slug"]}))
+        sys.exit(0)
+print(json.dumps({"error":"unknown project code "+code}),file=sys.stderr)
+sys.exit(1)' "$1" "$HOME_DIR" ;;
   show) [[ $# -eq 1 ]] || usage; cli task show "$1" ;;
   dir) [[ $# -eq 1 ]] || usage
     rel=$(cli task show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
