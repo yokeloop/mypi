@@ -5,13 +5,23 @@ description: Take one or more registered mypi tasks (MP-NN) to a plan ready for 
 
 # /plan — from a registered task to an approved-ready plan
 
-Read ``docs/PIPELINE.md` in the engine root` first; it holds the places, statuses and
+Read `docs/PIPELINE.md` in the engine root first; it holds the places, statuses and
 approval rules this skill relies on. Work inline in this chat: questions to the
 engineer land here, reconnaissance and plan-writing run in subagents. A plan with
 an open question in it is not done.
 
-`BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory). Keys are processed one after another, in the
+`BIN=scripts/pipeline` (relative to the engine root, every session's working directory). Keys are processed one after another, in the
 order typed.
+
+## Step 0 — session scope
+
+`$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
+`/plan` and every typed key: `global` or `MP` — continue; `MP-N` — continue only
+when every typed key equals `MP-N`; any other key, or a non-zero exit — print the
+refusal text from `docs/PIPELINE.md` and stop. This step runs before the status
+check in «Input», before `$BIN/mp-task show` and before any derive call or
+subagent, so `/plan MP-41` (status `done`) in an HO chat stops on the scope, not
+on the status.
 
 ## Input
 
