@@ -11,7 +11,8 @@ cli() { (cd "$ENGINE" && mise exec -- node dist/src/cli/main.js "$@"); }
 self="$0"
 usage() {
   cat >&2 <<EOF
-usage: mp-task show <KEY>                      task card as JSON
+usage: mp-task scope                           session scope as JSON
+       mp-task show <KEY>                      task card as JSON
        mp-task dir <KEY>                       absolute task folder in home
        mp-task slug <KEY>                      slug (folder name without "<KEY>-")
        mp-task source <KEY>                    print source.md
@@ -25,6 +26,32 @@ EOF
 }
 cmd=${1:-}; [[ -n "$cmd" ]] || usage; shift
 case "$cmd" in
+  scope) [[ $# -eq 0 ]] || usage; cli sessions | python3 -c '
+import os,re,sys,json
+nid=os.environ.get("CLAUDE_CODE_SESSION_ID","")
+agent="claude" if nid else None
+if not nid:
+    nid=os.environ.get("PI_SESSION_ID","")
+    agent="pi" if nid else None
+def find(node):
+    s=node["session"]
+    if s is not None and s["agent"]==agent and s["nativeId"]==nid:
+        return node["key"]
+    for c in node["children"]:
+        k=find(c)
+        if k is not None:
+            return k
+    return None
+tree=json.load(sys.stdin)["tree"]
+key=find(tree) if nid else None
+if key is not None:
+    source="session"
+elif os.environ.get("MYPI_SCOPE",""):
+    key,source=os.environ["MYPI_SCOPE"],"env"
+else:
+    key,source="global","default"
+m=re.fullmatch(r"([A-Z]+)(-[0-9]+)?",key)
+print(json.dumps({"key":key,"project":m.group(1) if m else None,"source":source}))' ;;
   show) [[ $# -eq 1 ]] || usage; cli task show "$1" ;;
   dir) [[ $# -eq 1 ]] || usage
     rel=$(cli task show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
