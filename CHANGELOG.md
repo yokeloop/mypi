@@ -6,6 +6,15 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-30
+
+Upgrading from v0.7.0: move personal Pi settings from `home/pi/` to `~/.pi/agent/`
+before the update (README, [Existing installations](README.md#existing-installations)),
+then `git pull --ff-only`, install the locked dependencies and build; run
+`mypi db init` once (schema 5 → 8, migrations 006-008; back up the database
+first) and `mypi home migrate-tasks`; reload or restart Claude Code and Pi
+sessions. Details are in the Upgrading entries under Changed.
+
 ### Added
 
 - Live delivery to Pi: the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
@@ -138,9 +147,9 @@ match the GitHub releases.
   packages, `APPEND_SYSTEM.md`). Move personal Pi settings to `~/.pi/agent/`
   before updating and remove a stale `integrations/pi` entry from
   `~/.pi/agent/settings.json`.
-- MCP exposes 13 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
+- MCP exposes 14 agent tools instead of 35: `warmup`, `task_list`, `task_show`,
   `task_create`, `task_update`, `memory`, `note`, `journal`, `context_read`,
-  `context_write`, `projects`, `sessions`, `open_session`. `task_update` replaces `task_status`,
+  `context_write`, `projects`, `sessions`, `open_session`, `inbox`. `task_update` replaces `task_status`,
   `task_title`, `task_progress` and `task_touch` (one call with a reason; parts
   run status → title → progress, a later failure returns `partial`); `memory`
   (action show|add|remove) replaces `memory_*`; `note` (kind
