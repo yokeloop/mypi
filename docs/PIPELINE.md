@@ -1,7 +1,8 @@
 # mypi task pipeline
 
-Tooling for developing mypi from the main chat started in the engine root. It is
-tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
+Tooling for developing mypi from the main chat (session scope `global` or `MP`)
+started in the engine root; every session starts there, so each pipeline skill checks
+the session scope first (see «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
 `scripts/pipeline/`, the skills `/plan`, `/do`, `/batch`, `/ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
@@ -15,7 +16,7 @@ batch branch the engineer checks as a whole.
 ## Places
 
 - Installation root: the installed engine checkout, never edited, with `home/` and
-  `projects/` beside it. The main chat's cwd; every path below is relative to it. The `mypi` CLI is `mise exec -- node dist/src/cli/main.js` there;
+  `projects/` beside it. Every session's cwd; every path below is relative to it. The `mypi` CLI is `mise exec -- node dist/src/cli/main.js` there;
   `scripts/pipeline/mp-task` wraps it.
 - Base clone: `projects/yokeloop/mypi`, branch `main`.
   The pipeline only fetches and fast-forwards it; never commit or switch there.
@@ -43,8 +44,45 @@ batch branch the engineer checks as a whole.
 - Derive: the general plan is `b7wieok9`
   (https://draft.yokeloop.com/artifacts/mypi-v2-b7wieok9); every task plan is
   its own artifact, `short_id` and `url` in the task folder's `derive.json`.
-- `scripts/pipeline/mp-task` subcommands: `show`, `dir`, `slug`, `source`, `status`,
-  `progress`, `v2` (table of the v2 tasks). Run it without arguments for usage.
+- `scripts/pipeline/mp-task` subcommands: `scope` (session scope as JSON), `show`, `dir`,
+  `slug`, `source`, `status`, `progress`, `v2` (table of the v2 tasks). Run it without arguments for usage.
+
+## Session scope
+
+Every session (the main chat, a project chat, a task chat) starts in the engine root
+and sees the pipeline skills, but the skills belong to the project MP. Each of the
+five skills therefore checks the session scope as its Step 0.
+
+The key: `scripts/pipeline/mp-task scope` prints `{"key", "project", "source"}`. It
+takes the `sessions` row with this conversation's agent and native id
+(`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`; it is set inside subagents too and
+is the parent chat's id), else `MYPI_SCOPE` (set by `/open`), else `global`. This is
+the order of `warmup` without an argument, except the live record by pid: through
+`mise exec` the pid does not match, and `MYPI_SCOPE`, which `/open` sets to the same
+key, takes its place. The subcommand only reads (`mypi sessions`); neither `warmup`
+nor `inbox` is used for the check, because both mark events delivered.
+
+The rule:
+
+- `global` and `MP`: all five skills, without restriction.
+- `MP-N`: `/plan` and `/do` only when every typed key equals `MP-N`; `/ship` only
+  when every typed argument equals `MP-N` (`/ship batch/<name>` is refused);
+  `/batch` and `/board` are refused.
+- Any other key (another project, its task, a malformed `MYPI_SCOPE`): all five are
+  refused.
+- A non-zero exit of `mp-task scope`: refused, with its output.
+
+A refusal prints its text and stops. Nothing runs before it except `mp-task scope`:
+no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
+`mp-home-commit`, no derive calls, no subagents. The texts (`<cmd>`, the typed
+arguments and `<key>` substituted):
+
+- `/board`: `The board belongs to MP; this session's scope is <key>. Open the main chat with /open global or /open MP.`
+- the changing skills: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. Run it from the main chat (/open global or /open MP).`
+  In an `MP-N` chat append: ` This chat may run /plan MP-N, /do MP-N and /ship MP-N only.`
+
+This is an instruction for the agent, not access control: the scripts still work
+from any session.
 
 ## Temporary scripts
 
