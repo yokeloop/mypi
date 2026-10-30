@@ -11,7 +11,9 @@ cli() { (cd "$ENGINE" && mise exec -- node dist/src/cli/main.js "$@"); }
 self="$0"
 usage() {
   cat >&2 <<EOF
-usage: mp-task show <KEY>                      task card as JSON
+usage: mp-task scope                           session scope as JSON
+       mp-task project <CODE>                  project record as JSON
+       mp-task show <KEY>                      task card as JSON
        mp-task dir <KEY>                       absolute task folder in home
        mp-task slug <KEY>                      slug (folder name without "<KEY>-")
        mp-task source <KEY>                    print source.md
@@ -20,11 +22,48 @@ usage: mp-task show <KEY>                      task card as JSON
                                                relative to the task folder
        mp-task list                            all tasks of $PROJECT
        mp-task v2                              table of the v2 tasks
+       mp-task board <CODE> [all]              board rows of a project as JSON lines;
+                                               terminal statuses only with "all"
 EOF
   exit 2
 }
 cmd=${1:-}; [[ -n "$cmd" ]] || usage; shift
 case "$cmd" in
+  scope) [[ $# -eq 0 ]] || usage; cli sessions | python3 -c '
+import os,re,sys,json
+nid=os.environ.get("CLAUDE_CODE_SESSION_ID","")
+agent="claude" if nid else None
+if not nid:
+    nid=os.environ.get("PI_SESSION_ID","")
+    agent="pi" if nid else None
+def find(node):
+    s=node["session"]
+    if s is not None and s["agent"]==agent and s["nativeId"]==nid:
+        return node["key"]
+    for c in node["children"]:
+        k=find(c)
+        if k is not None:
+            return k
+    return None
+tree=json.load(sys.stdin)["tree"]
+key=find(tree) if nid else None
+if key is not None:
+    source="session"
+elif os.environ.get("MYPI_SCOPE",""):
+    key,source=os.environ["MYPI_SCOPE"],"env"
+else:
+    key,source="global","default"
+m=re.fullmatch(r"([A-Z]+)(-[0-9]+)?",key)
+print(json.dumps({"key":key,"project":m.group(1) if m else None,"source":source}))' ;;
+  project) [[ $# -eq 1 ]] || usage; cli project list | python3 -c '
+import sys,json
+code,home=sys.argv[1],sys.argv[2]
+for p in json.load(sys.stdin)["projects"]:
+    if p["code"]==code:
+        print(json.dumps({"code":code,"project":p["org"]+"/"+p["slug"],"checkoutPath":p["checkoutPath"],"home":home+"/projects/"+p["org"]+"/"+p["slug"]}))
+        sys.exit(0)
+print(json.dumps({"error":"unknown project code "+code}),file=sys.stderr)
+sys.exit(1)' "$1" "$HOME_DIR" ;;
   show) [[ $# -eq 1 ]] || usage; cli task show "$1" ;;
   dir) [[ $# -eq 1 ]] || usage
     rel=$(cli task show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
@@ -48,5 +87,14 @@ import sys,json
 rows=[r for r in json.load(sys.stdin) if r["title"].startswith("v2 ")]
 for r in sorted(rows,key=lambda r:r["number"]):
     print("MP-%-3d %-12s %s" % (r["number"], r["status"], r["title"][3:]))' ;;
+  board) [[ $# -eq 1 || ( $# -eq 2 && $2 == all ) ]] || usage
+    proj=$("$self" project "$1")
+    name=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["project"])' <<<"$proj")
+    cli task list --project "$name" | python3 -c '
+import sys,json
+mode,home=sys.argv[1],sys.argv[2]
+rows=[r for r in json.load(sys.stdin) if mode=="all" or not r["isTerminal"]]
+for r in sorted(rows,key=lambda r:r["number"]):
+    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"]},ensure_ascii=False))' "${2:-}" "$HOME_DIR" ;;
   *) usage ;;
 esac

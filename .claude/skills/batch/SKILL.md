@@ -5,11 +5,21 @@ description: Run several mypi tasks in a row without per-task approval — plan 
 
 # /batch — a pack of tasks into one branch
 
-Read ``docs/PIPELINE.md` in the engine root` first. The typed command approves every
+Read `docs/PIPELINE.md` in the engine root first. The typed command approves every
 key in it: plans are still written and published (the record matters), but nobody
 waits for them. Tasks run strictly one after another in the order typed: `pnpm
 verify` cannot run twice at once, and each next task builds on the previous one's
-merge. `BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory).
+merge. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory).
+
+## Step 0 — session scope
+
+`$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
+`/batch`: `global` or `MP` — continue; any other key, `MP-N` included, or a
+non-zero exit — print the refusal text from `docs/PIPELINE.md` and stop. This step
+runs before the status checks in «Preconditions», before `git fetch`, before the
+batch branch is created or pushed («Batch branch») and before the batch score is
+written. The nested plan and do runs of the batch go in this same session and pass
+their own Step 0 with the same key.
 
 ## Preconditions
 
