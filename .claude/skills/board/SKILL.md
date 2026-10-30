@@ -41,16 +41,10 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
    whose path equals `<checkoutPath>--<basename dir>`; otherwise —. Run
    `git worktree list` once per project.
 4. Print one table: key, title, status, plan (URL or —), open threads, PR,
-   worktree, next. The next column:
-   - `P = MP`: `/plan` for `new`; `/do` for `planning` with no open threads;
-     `/plan` again when threads are open; «ручная проверка → /ship» for
-     `review`; — for `merged`/`done`; the reason for `blocked`; the status
-     itself for any other status;
-   - `P ≠ MP`: `new` → `plan the task (/open <KEY>)`; `planning` →
-     `review the plan; implement in /open <KEY>`; `in_progress` →
-     `continue in /open <KEY>`; `review` → `manual check, merge`;
-     `merged`/`done` → —; `blocked` → the reason; the status itself for any
-     other status.
+   worktree, next. The next column, for any project: `/plan` for `new`; `/do` for
+   `planning` with no open threads; `/plan` again when threads are open;
+   «ручная проверка → /ship» for `review`; — for `merged`/`done`; the reason for
+   `blocked`; the status itself for any other status.
 
    The `blocked` reason comes from `$BIN/mp-task show <KEY>` (the card's last
    status reason). Batches: a line for each `<home>/batches/*.md`, only when
