@@ -68,7 +68,8 @@ nor `inbox` is used for the check, because both mark events delivered.
 
 The rule:
 
-- `global` and `MP`: all five skills, without restriction.
+- `global` and `MP`: the four changing skills without restriction; `/board` by its
+  own rule below.
 - `MP-N`: `/plan` and `/do` only when every typed key equals `MP-N`; `/ship` only
   when every typed argument equals `MP-N` (`/ship batch/<name>` is refused);
   `/batch` is refused.
