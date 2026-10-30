@@ -101,6 +101,10 @@ match the GitHub releases.
 - A project warmup marks the events it shows in full delivered; MCP `warmup`
   is no longer read-only.
 - The pipeline board skill `/queue` is renamed `/board`.
+- The pipeline skills /plan, /do, /batch and /ship run the tasks of any registered
+  project: the project, its clone, home folder and repository come from the task
+  key; checks come from the project's instructions or the approved plan. The
+  pipeline scripts mp-task list and mp-task v2 are removed.
 - Tasks replace requests everywhere: CLI `mypi task …` (was `mypi request …`),
   MCP tools `task_*` (was `request_*`), journal scope `task:KEY` and
   event `task_created` (`journal` filter `eventType`), partial result
