@@ -1,6 +1,6 @@
 ---
 name: do
-description: Execute one approved mypi task by its plan — worktree, task-executor teammate implementing step by step, fresh task-reviewer, fix loop, build and verify, push and PR (or merge into a batch branch), status review for the engineer's manual check. Typing it is the plan's approval. Triggered by "/do <KEY> [--base batch/<name>] [--force]".
+description: Execute one approved task of a registered project by its plan — worktree, task-executor teammate implementing step by step, fresh task-reviewer, fix loop, the project's checks, push and PR (or merge into a batch branch), status review for the engineer's manual check. Typing it is the plan's approval. Triggered by "/do <KEY> [--base batch/<name>] [--force]".
 ---
 
 # /do — execute an approved plan
