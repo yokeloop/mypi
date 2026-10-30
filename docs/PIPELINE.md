@@ -2,7 +2,9 @@
 
 Tooling for developing mypi from the main chat (session scope `global` or `MP`)
 started in the engine root; every session starts there, so each pipeline skill checks
-the session scope first (see «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
+the session scope first (see «Session scope»). The board (/board) is the exception: it
+shows the tasks of any registered project — the project of the session scope, or the
+typed code in the main chat. It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
 `scripts/pipeline/`, the skills `/plan`, `/do`, `/batch`, `/ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
@@ -44,8 +46,10 @@ batch branch the engineer checks as a whole.
 - Derive: the general plan is `b7wieok9`
   (https://draft.yokeloop.com/artifacts/mypi-v2-b7wieok9); every task plan is
   its own artifact, `short_id` and `url` in the task folder's `derive.json`.
-- `scripts/pipeline/mp-task` subcommands: `scope` (session scope as JSON), `show`, `dir`,
-  `slug`, `source`, `status`, `progress`, `v2` (table of the v2 tasks). Run it without arguments for usage.
+- `scripts/pipeline/mp-task` subcommands: `scope` (session scope as JSON), `project`
+  (project record as JSON), `show`, `dir`, `slug`, `source`, `status`, `progress`, `v2`
+  (table of the v2 tasks), `board` (board rows of a project as JSON lines; terminal
+  statuses with `all`). Run it without arguments for usage.
 
 ## Session scope
 
@@ -67,17 +71,25 @@ The rule:
 - `global` and `MP`: all five skills, without restriction.
 - `MP-N`: `/plan` and `/do` only when every typed key equals `MP-N`; `/ship` only
   when every typed argument equals `MP-N` (`/ship batch/<name>` is refused);
-  `/batch` and `/board` are refused.
-- Any other key (another project, its task, a malformed `MYPI_SCOPE`): all five are
-  refused.
+  `/batch` is refused.
+- Any other key (another project, its task, a malformed `MYPI_SCOPE`): all four
+  changing skills are refused.
+- `/board`: in a session of project P or its task P-N — the board of P; a typed CODE
+  must equal P. In global — the typed CODE, MP by default. A malformed key, an unknown
+  code or a non-zero exit of mp-task scope — refused.
 - A non-zero exit of `mp-task scope`: refused, with its output.
+
+`/plan`, `/do`, `/batch` and `/ship` remain for MP only.
 
 A refusal prints its text and stops. Nothing runs before it except `mp-task scope`:
 no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
-`mp-home-commit`, no derive calls, no subagents. The texts (`<cmd>`, the typed
+`mp-home-commit`, no derive calls, no subagents (`/board` also runs `mp-task project`
+and `project list`). The texts (`<cmd>`, the typed
 arguments and `<key>` substituted):
 
-- `/board`: `The board belongs to MP; this session's scope is <key>. Open the main chat with /open global or /open MP.`
+- `/board` with another project's code: `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
+- `/board` with a malformed key: `The board cannot tell this session's project (scope <key>). Open the main chat with /open global.`
+- `/board` with an unknown code: `Unknown project code <P>; registered codes: <codes>.`
 - the changing skills: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. Run it from the main chat (/open global or /open MP).`
   In an `MP-N` chat append: ` This chat may run /plan MP-N, /do MP-N and /ship MP-N only.`
 
