@@ -262,8 +262,9 @@ personal settings in `.claude/settings.local.json` (ignored) or user settings.
 
 ## Develop and verify
 
-For an explicitly requested clean test stand, acceptance checklist and real Pi/MCP
-checks through Herdr, follow the [manual acceptance guide](docs/MANUAL-ACCEPTANCE.md).
+For an explicitly requested clean test stand, acceptance checklist and real Claude
+Code, Pi and MCP checks through Herdr, follow the
+[manual acceptance guide](docs/MANUAL-ACCEPTANCE.md).
 
 TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
