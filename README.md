@@ -5,16 +5,16 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 12 stdio MCP agent tools over one API (maintenance is CLI-only).
-`mypi warmup` prints a session's scoped context as Markdown; the tracked Pi extension loads it into every Pi session started in the checkout; no task registration, automatic logging or separate Herdr tab is required.
+scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API (maintenance is CLI-only).
+`mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
-**Future:** units, project flows, runtime enforcement and agents with different scopes.
+**Future:** units, project flows and runtime enforcement.
 Flow is part of the product direction; automated execution/visibility isolation are
 not implemented. See [PLAN](PLAN.md) for milestones without speculative infrastructure.
 
-**Readiness:** the stdio MCP server and withdrawal of the mandatory agent workflow
-are included since v0.1.1. This project is not production-ready: final M1 acceptance
+**Readiness:** v0.8.0 is a prerelease of the v2 session model (scoped Claude Code
+and Pi sessions, `/open`, events); it is not production-ready, and final M1 acceptance
 remains open. CI now runs ordinary bounded PR verification, not the historical
 trusted-base/App-issuer scheme. The earlier
 [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) was a
@@ -219,8 +219,8 @@ command that opens the database, including warmup, asks for it.
 
 The installed engine is not a development checkout; contribute through the
 [common project workflow](AGENTS.md#common-project-workflow). Once changes have
-been merged, update a clean installation on its release branch with
-`git pull --ff-only`, install the locked dependencies, build, then reload/restart Pi.
+been merged, update a clean installation on `main` with `git pull --ff-only`
+(to stop at a release, `git pull --ff-only origin v<version>`), install the locked dependencies, build, then reload/restart Pi.
 Updates replace built-in resources only; they never regenerate personal settings or
 rerun bootstrap. Data-format migrations require a separate explicit operation. The
 first update to a version with the tracked `.pi/` directory needs the move described
@@ -269,17 +269,22 @@ TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL m
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
 Versions are pinned in mise.toml, package.json and the lockfile.
 
-To publish a new version from a clean `main` with GitHub CLI authenticated:
+Releases go through a release PR like any other change. In a task worktree the
+release's task branch moves `## [Unreleased]` of `CHANGELOG.md` to
+`## [<version>] - <date>` and sets the version in `package.json` and
+`src/mcp/server.ts`; after review and green CI the PR is merged with a merge commit.
+Then, from the updated clone:
 
 ```bash
-mise exec -- pnpm release 0.1.2 # replace with the next version
+git tag -a v<version> -m "mypi v<version>" <merge-commit>
+git push origin v<version>
+# wait for the main CI run on that commit to succeed
+gh release create v<version> --verify-tag --prerelease --title "mypi v<version>" --notes-file <notes>
 ```
 
-The command updates package/MCP versions, builds and verifies, commits and tags that
-same commit, pushes both refs atomically, waits for hosted CI on that SHA and creates
-a GitHub prerelease (no npm publish). Tags are never moved. After a partial remote
-write, inspect the reported state and rerun the same command to continue; it does not
-roll back published refs. This is release automation, not an independent trusted gate.
+The notes are the CHANGELOG section of the version plus an Upgrade note. Tags are
+never moved; there is no npm publish. `scripts/release.mjs` (`pnpm release`) commits
+and tags directly on `main`; it predates the PR workflow and is not used.
 
 From the engine project's task worktree (not the installed workspace):
 
@@ -320,6 +325,13 @@ mypi/
 ├── .pi/                         # tracked Pi configuration
 │   ├── extensions/mypi.ts       # MCP registration and warmup per session
 │   └── skills -> ../integrations/skills
+├── .claude/                     # tracked Claude Code configuration
+│   ├── settings.json            # mypi MCP allow list, SessionStart/Stop/Notification hooks
+│   ├── skills/                  # links to integrations/skills/ and the pipeline skills
+│   └── agents/                  # pipeline agents
+├── .mcp.json                    # mypi MCP server for Claude Code
+├── .yoke/                       # v2 glossary (context.md) and ADRs (adr/)
+├── CHANGELOG.md
 ├── home/                        # separate ignored user/context Git
 │   ├── USER-INSTRUCTIONS.md
 │   ├── settings.json            # personal mypi settings (defaultAgent)
@@ -362,6 +374,10 @@ permission to restore the old model.
 - [M1-REQUESTS](docs/M1-REQUESTS.md), [M1-START](docs/M1-START.md): accepted storage contracts of the request era;
   historical accounting guidance does not impose an agent workflow.
 - [TESTING](docs/TESTING.md): sole test-policy source, budgets, review and isolation.
+- [CHANGELOG](CHANGELOG.md): released versions and unreleased changes.
+- [MANUAL-ACCEPTANCE](docs/MANUAL-ACCEPTANCE.md): live acceptance with Claude Code, Pi and Herdr on a disposable stand.
+- [PIPELINE](docs/PIPELINE.md), [PLAN-FORMAT](docs/PLAN-FORMAT.md): the /plan, /do, /batch, /ship and /board pipeline and the shape of its plans.
+- [v2 facts](docs/v2/facts.md), [ADRs](.yoke/adr/): stage-0 measurements and decisions of the v2 session model.
 - [M1-CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): active operation guides.
 - [M0-CONTRACT](docs/M0-CONTRACT.md): historical agreements, not perpetual permissions.
 - [M1-CYCLE](docs/M1-CYCLE.md), [MCP-CYCLE](docs/MCP-CYCLE.md): versioned verification evidence.
