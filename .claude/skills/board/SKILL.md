@@ -6,6 +6,8 @@ description: Show where a project's tasks stand — status, plan URL, PR, worktr
 # /board — the board
 
 `/board [CODE] [all]` — `CODE` is a project code, `all` also shows terminal tasks.
+The word `all` is always the flag, never a `CODE`: `/board all` is the board of the
+session's project (or MP in global) with terminal tasks.
 
 Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory).
 
