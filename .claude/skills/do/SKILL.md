@@ -5,11 +5,19 @@ description: Execute one approved mypi task by its plan — worktree, task-execu
 
 # /do — execute an approved plan
 
-Read ``docs/PIPELINE.md` in the engine root` first. The typed command is the
+Read `docs/PIPELINE.md` in the engine root first. The typed command is the
 engineer's approval of the published plan; the plan is the whole scope — never
-widen it, never improve adjacent code. `BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory). You are
+widen it, never improve adjacent code. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory). You are
 the lead: you run the stages below and keep score; the code is written by the
 teammate.
+
+## Step 0 — session scope
+
+`$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
+`/do <KEY>`: `global` or `MP` — continue; `MP-N` — continue only for `/do MP-N`;
+any other key, or a non-zero exit — print the refusal text from
+`docs/PIPELINE.md` and stop. This step runs before «Preconditions»: no
+`$BIN/mp-task show`, no `catch_up`, no `mp-worktree` before it.
 
 ## Preconditions
 
