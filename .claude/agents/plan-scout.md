@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash
 model: inherit
 ---
 
-You take a ticket someone else wrote — or a problem the engineer brought — and find out whether it can be solved with what is given, and by what path. Your prompt carries the ticket's text and comments (you have no tracker access) and names the project: its clone is at `projects/<org>/<project>/` under the mypi root, its glossary and ADRs at `.yoke/` inside the clone, its mypi context (memory, task cards with `source.md`) at `home/projects/<org>/<project>/`. Read all three before answering.
+You take a ticket someone else wrote — or a problem the engineer brought — and find out whether it can be solved with what is given, and by what path. Your prompt carries the ticket's text and comments (you have no tracker access) and names the project: its clone is at the path the prompt names (the project's registered checkout), its glossary and ADRs at `.yoke/` in that clone when it has them, its mypi context (memory, task cards with `source.md`) in the project's folder in home that the prompt names. Read all three before answering.
 
 Answer, in this order:
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Create or reuse the task worktree of a mypi task. Prints one JSON object.
+# Create or reuse the task worktree of a task of any registered project. Prints one JSON object.
 #   mp-worktree <KEY> [--base <ref>]     default base: origin/main
 # Never touches the base clone's checked-out branch; never cleans a dirty worktree.
 set -euo pipefail
@@ -7,7 +7,6 @@ ENGINE=${MYPI_ENGINE_ROOT:-$PWD}
 # The installation root: the engine checkout with home/ and projects/ beside it.
 [[ -f "$ENGINE/package.json" && -d "$ENGINE/home" && -d "$ENGINE/projects" ]] \
   || { echo "{\"error\":\"run from the installation root (engine checkout with home/ and projects/), got $ENGINE\"}" >&2; exit 2; }
-BASE_CLONE=$ENGINE/projects/yokeloop/mypi
 BIN=$(cd "$(dirname "$0")" && pwd)
 key=${1:-}; [[ -n "$key" ]] || { echo "usage: mp-worktree <KEY> [--base <ref>]" >&2; exit 2; }
 shift
@@ -18,9 +17,12 @@ while [[ $# -gt 0 ]]; do
     *) echo "unknown option $1" >&2; exit 2 ;;
   esac
 done
+proj=$("$BIN/mp-task" project "$key")
+BASE_CLONE=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["checkoutPath"] or "")' <<<"$proj")
+[[ -n "$BASE_CLONE" && -d "$BASE_CLONE" ]] || { echo "{\"error\":\"no registered clone (checkoutPath) for $key\"}"; exit 1; }
 slug=$("$BIN/mp-task" slug "$key")
 branch="task/$key-$slug"
-wt="$ENGINE/projects/yokeloop/mypi--$key-$slug"
+wt="$BASE_CLONE--$key-$slug"
 
 git -C "$BASE_CLONE" fetch -q origin
 # A batch base lives on origin; take it from there when it is not a local ref.
@@ -51,7 +53,7 @@ current=$(git -C "$wt" branch --show-current)
 dirty=false; [[ -z "$(git -C "$wt" status --porcelain)" ]] || dirty=true
 
 installed=false
-if [[ ! -d "$wt/node_modules" ]]; then
+if [[ -f "$wt/pnpm-lock.yaml" && ! -d "$wt/node_modules" ]]; then
   (cd "$wt" && mise exec -- pnpm install --frozen-lockfile --prefer-offline >&2); installed=true
 fi
 head_sha=$(git -C "$wt" rev-parse HEAD)
