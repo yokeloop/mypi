@@ -109,6 +109,7 @@ Fixture home, from `$STAND/engine` with `env.sh` sourced:
 ```bash
 mise exec -- pnpm bootstrap   # the database path in the preview must be inside $STAND/state
 git init --bare $STAND/remote/home.git
+git -C home add -A && git -C home commit -m "Initialize the fixture home"   # bootstrap leaves home without commits; needs a Git identity
 git -C home remote add origin $STAND/remote/home.git
 git -C home push -u origin main
 ```
