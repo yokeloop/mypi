@@ -5,10 +5,19 @@ description: After the engineer's manual check — bring each task PR (or a batc
 
 # /ship — merge what the engineer accepted
 
-Read ``docs/PIPELINE.md` in the engine root` first. The typed command is the
+Read `docs/PIPELINE.md` in the engine root first. The typed command is the
 engineer's word that the manual check passed; nothing new is planned or coded.
 Keys ship strictly in the order typed, each next one onto the base the previous
-one entered. `BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory).
+one entered. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory).
+
+## Step 0 — session scope
+
+`$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
+`/ship` and every typed argument: `global` or `MP` — continue; `MP-N` — continue
+only when every typed argument equals `MP-N` (`batch/<name>` in a task chat is
+refused); any other key, or a non-zero exit — print the refusal text from
+`docs/PIPELINE.md` and stop. This step runs before `pr.md` is read, before
+`git fetch`, merge, push, `gh`, any status change and any worktree removal.
 
 ## Per key (or batch)
 
