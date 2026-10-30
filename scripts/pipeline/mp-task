@@ -22,6 +22,8 @@ usage: mp-task scope                           session scope as JSON
                                                relative to the task folder
        mp-task list                            all tasks of $PROJECT
        mp-task v2                              table of the v2 tasks
+       mp-task board <CODE> [all]              board rows of a project as JSON lines;
+                                               terminal statuses only with "all"
 EOF
   exit 2
 }
@@ -85,5 +87,14 @@ import sys,json
 rows=[r for r in json.load(sys.stdin) if r["title"].startswith("v2 ")]
 for r in sorted(rows,key=lambda r:r["number"]):
     print("MP-%-3d %-12s %s" % (r["number"], r["status"], r["title"][3:]))' ;;
+  board) [[ $# -eq 1 || ( $# -eq 2 && $2 == all ) ]] || usage
+    proj=$("$self" project "$1")
+    name=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["project"])' <<<"$proj")
+    cli task list --project "$name" | python3 -c '
+import sys,json
+mode,home=sys.argv[1],sys.argv[2]
+rows=[r for r in json.load(sys.stdin) if mode=="all" or not r["isTerminal"]]
+for r in sorted(rows,key=lambda r:r["number"]):
+    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"]},ensure_ascii=False))' "${2:-}" "$HOME_DIR" ;;
   *) usage ;;
 esac
