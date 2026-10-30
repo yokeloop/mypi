@@ -5,8 +5,12 @@ description: Show where the mypi v2 tasks stand — status, plan URL, PR, worktr
 
 # /board — the board
 
-Read-only. `BIN=scripts/pipeline` (relative to the engine root, the main chat's working directory).
+Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory).
 
+0. **Session scope.** `$BIN/mp-task scope`, then apply the «Session scope» rule of
+   `docs/PIPELINE.md`: `global` or `MP` — continue; any other key, `MP-N`
+   included, or a non-zero exit — print `The board belongs to MP; this session's scope is <key>. Open the main chat with /open global or /open MP.`
+   and stop, without `$BIN/mp-task v2`, `catch_up` or `git worktree list`.
 1. `$BIN/mp-task v2` — the v2 tasks with statuses.
 2. For each task not `new`: the task folder (`$BIN/mp-task dir`) gives
    `derive.json` (plan URL), `pr.md` (PR), `progress.md` (stage). For `planning`
