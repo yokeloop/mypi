@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Take one or more registered mypi tasks (MP-NN) to a plan ready for /do — reconnaissance in plan-scout, forks closed with the engineer (or by assumptions with --auto), plan written by plan-writer into the task folder, published to derive, task status set to planning. Also reworks a published plan from open derive comments. Triggered by "/plan <KEY> [<KEY>…] [--auto]".
+description: Take one or more registered tasks of any registered project (CODE-N) to a plan ready for /do — reconnaissance in plan-scout, forks closed with the engineer (or by assumptions with --auto), plan written by plan-writer into the task folder, published to derive, task status set to planning. Also reworks a published plan from open derive comments. Triggered by "/plan <KEY> [<KEY>…] [--auto]".
 ---
 
 # /plan — from a registered task to an approved-ready plan
@@ -16,12 +16,13 @@ order typed.
 ## Step 0 — session scope
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
-`/plan` and every typed key: `global` or `MP` — continue; `MP-N` — continue only
-when every typed key equals `MP-N`; any other key, or a non-zero exit — print the
-refusal text from `docs/PIPELINE.md` and stop. This step runs before the status
-check in «Input», before `$BIN/mp-task show` and before any derive call or
-subagent, so `/plan MP-41` (status `done`) in an HO chat stops on the scope, not
-on the status.
+`/plan` and every typed key: `global` — any key; `P` — continue only when every
+typed key has the code `P`; `P-N` — continue only when every typed key equals
+`P-N`; anything else (an argument that is not a key, a malformed session key, a
+non-zero exit) — print the refusal text from `docs/PIPELINE.md` and stop. This step
+runs before the status check in «Input», before `$BIN/mp-task show` and before any
+derive call or subagent, so `/plan MP-41` in a TBA chat stops on the scope, not on
+the status.
 
 ## Input
 
@@ -34,14 +35,16 @@ on the status.
 
 1. **Read the task.** `$BIN/mp-task show <KEY>`, `$BIN/mp-task source <KEY>`
    (the registration card: goal, scope, dependencies, done criteria, link to the
-   general plan). Save the task folder path from `$BIN/mp-task dir <KEY>`.
-   Read the matching card of the general plan on derive. The card number `T<N>`
-   is in `source.md`. `read` of `b7wieok9` with `section: "t<N>"` (`t3` for T3):
+   general plan, if any). Save the task folder path from `$BIN/mp-task dir <KEY>`.
+   Read the general plan only when `source.md` links a derive artifact as the
+   general plan and names the card `T<N>`; without such a link there is no general
+   plan and this part is skipped. Then `read` of that artifact's `short_id` (for the
+   v2 cards of MP `b7wieok9`) with `section: "t<N>"` (`t3` for T3):
    derive answers with an error that lists the valid section slugs; take the slug
    that starts with `t<N>-` (like `t1-снос-work-chats-mp-32-этап-1`) and repeat
    the `read` with `section` set to that slug. `section` accepts only a heading
    slug; the HTML id `t3` is not a heading slug. When the task depends on others (its «Связи» section), run
-   `$BIN/mp-task v2` and note which dependencies are not yet `merged`/`review`:
+   `$BIN/mp-task board <CODE> all` and note which dependencies are not yet `merged`/`review`:
    the plan must state what it waits for; it does not block planning.
 
 2. **Rework or fresh?** If `derive.json` exists in the task folder, this is a
@@ -51,14 +54,18 @@ on the status.
    plan already published → say the plan stands and stop, unless the engineer
    typed a remark after the key — then that remark is the brief.
 
-3. **Reconnaissance.** Update the base clone first:
-   `git -C projects/yokeloop/mypi fetch -q origin &&
-   git -C … merge -q --ff-only origin/main` (only when it is on `main` and clean;
+3. **Reconnaissance.** `$BIN/mp-task project <KEY>` gives `project`, `checkoutPath`
+   and `home`; when `checkoutPath` is `null`, say the project has no registered
+   clone and stop. Update the base clone first:
+   `git -C <checkoutPath> fetch -q origin &&
+   git -C <checkoutPath> merge -q --ff-only origin/main` (only when it is on `main` and clean;
    otherwise read `origin/main` and say so). Spawn the `plan-scout` subagent with:
-   the full `source.md`, the general-plan card text, the remarks if any, the
-   project `yokeloop/mypi`, the clone path, the glossary and ADRs at `.yoke/` in
-   the clone, the engine rules at `AGENTS.md` of the clone, and the note that the
-   engine's checks are `pnpm build` and `pnpm verify`. It returns facts with
+   the full `source.md`, the general-plan card text if there is one, the remarks if
+   any, the project `<org>/<slug>`, the clone path `<checkoutPath>`, the project's
+   folder in home, `.yoke/` and `AGENTS.md` (else `CLAUDE.md`) of the clone when they
+   exist, and the project's checks by «Checks» of `docs/PIPELINE.md` (MP: `pnpm build`
+   and `pnpm verify`); when the project's instructions name no checks, the scout
+   reports that as a fact. It returns facts with
    sources, assumptions and forks with recommendations. «Not solvable with what
    is given» → set status `blocked` with the reason, report what is missing, stop.
 
@@ -74,11 +81,14 @@ on the status.
 5. **Plan.** Spawn the `plan-writer` subagent with: the key, the project, the
    task folder path, the scout's facts, every decision made above, the remarks
    addressed (rework), and the done criteria from `source.md` which must land in
-   the plan's Acceptance section as executable checks. It writes
+   the plan's Acceptance section as executable checks; when the project's
+   instructions name no checks, the Acceptance section names concrete check commands
+   that run in the worktree. It writes
    `<task folder>/plan.md` by `docs/PLAN-FORMAT.md` and returns the path.
    Read the plan: an open question left in it is a defect — send it back once
    with the decisions it missed. The plan's first lines must name the key, the
-   title and the general plan's URL.
+   title and the general plan's URL when the card links one; otherwise a line saying
+   there is no general plan.
 
 6. **Publish.** One path for a fresh plan and a rework:
    1. Derive `stage` with `target: "doc"`; on rework pass `short_id` from
@@ -89,7 +99,8 @@ on the status.
       `message` only on rework; it names what changed for each remark. Take
       `short_id`, `url` and the version number from the upload answer.
    3. Fresh plan: `organize` with `short_ids: [<short_id>]`,
-      `set: ["mypi", "v2", "plan"]`.
+      `set: ["<slug>", "<CODE>", "plan"]` (`<slug>` is the project slug from
+      `project`, `mypi` for MP), plus `"v2"` only when the card links `b7wieok9`.
    4. Rework: resolve every open thread from step 2 with `comment`: `short_id`,
       `reply_to: <thread id>`, `set_state: "resolved"` and a one-line `body`
       saying what changed in the plan in answer to that remark.
@@ -112,7 +123,7 @@ on the status.
       On rework the status is already `planning`: this call writes nothing to the
       journal (`changed: false`) and its reason is lost, so the rework reason
       lives in the `progress` entry of item 2.
-   4. `$BIN/mp-home-commit "<KEY>: plan v<version>"`.
+   4. `$BIN/mp-home-commit <KEY> "<KEY>: plan v<version>"`.
 
 8. **Report** one line per key: the key, the derive URL, «ждёт согласования —
    /do <KEY> запускает». A published plan starts nothing.
