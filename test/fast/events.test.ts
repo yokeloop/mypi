@@ -2,6 +2,7 @@ process.env.TZ = 'UTC';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
@@ -10,6 +11,7 @@ import { frame, isMilestone, isParentMessage, parentFrame, startedByParent } fro
 import { notificationInput, stopInput } from '../../src/app/session-input.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
 import { appCommand } from '../../src/cli/app-command.js';
+import { claudeTurnPrompt } from '../../src/infrastructure/transcript/claude-transcript.js';
 import { parseCommand } from '../../src/cli/command.js';
 
 const at = '2026-10-28T14:02:00.000Z';
@@ -121,6 +123,35 @@ test('pending, lastDelivered and deliver follow delivered_at per addressee', t =
   const milestone = e(x => x.milestone({ from: 'MP-12', message: 'new → review: ready' }));
   e(x => x.deliver([milestone]), () => '2026-10-28T17:00:00.000Z');
   assert.deepEqual(e(x => x.lastDelivered('MP')).map(r => [r.id, r.fromKey, r.kind]), [[2, 'MP-7', 'turn_end'], [3, 'MP-12', 'turn_end']]);
+});
+
+test('claude transcript gives the last turn-opening prompt read from the end', t => {
+  const { dir } = state(t);
+  const transcript = (name: string, entries: unknown[]) => {
+    const path = join(dir, name);
+    writeFileSync(path, entries.map(entry => JSON.stringify(entry) + '\n').join(''));
+    return path;
+  };
+  const human = (content: unknown) => ({ type: 'user', turnOrigin: 'human', message: { role: 'user', content } });
+  const assistant = (text: string) => ({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text }] } });
+  const toolResult = { type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 't1', content: 'ok' }] } };
+  const queued = { type: 'attachment', attachment: { type: 'queued_command', prompt: parentFrame('MP', 'MP-12', 'later') } };
+  assert.deepEqual(claudeTurnPrompt(transcript('human.jsonl', [human('сделай'), assistant('ok'), toolResult, queued, assistant('готово')])),
+    { origin: 'human', text: 'сделай' });
+  const message = 'Another Claude session sent a message:\n' + parentFrame('MP', 'MP-12', 'go');
+  const long = [human('раньше'), assistant('a'), { type: 'user', turnOrigin: 'peer', isMeta: true, message: { role: 'user', content: message } }];
+  for (let i = 0; i < 200; i++) long.push(assistant('б'.repeat(512)));
+  const path = transcript('peer.jsonl', long);
+  const peer = claudeTurnPrompt(path);
+  assert.deepEqual(peer, { origin: 'peer', text: message });
+  assert.equal(startedByParent(peer), true);
+  writeFileSync(path, '{"broken\n', { flag: 'a' });
+  assert.deepEqual(claudeTurnPrompt(path), { origin: 'peer', text: message });
+  assert.deepEqual(claudeTurnPrompt(transcript('parts.jsonl', [human([{ type: 'text', text: 'one' }, { type: 'image', source: {} }, { type: 'text', text: 'two' }])])),
+    { origin: 'human', text: 'one\ntwo' });
+  assert.equal(claudeTurnPrompt(join(dir, 'missing.jsonl')), undefined);
+  assert.equal(claudeTurnPrompt(transcript('empty.jsonl', [])), undefined);
+  assert.equal(claudeTurnPrompt(transcript('none.jsonl', [assistant('x'), toolResult, queued])), undefined);
 });
 
 test('Stop and Notification hook input give the native id, the flag or type and the text', () => {
