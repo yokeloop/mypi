@@ -33,7 +33,13 @@ A registered Project belongs to one Organization. Organization is a grouping and
 The structural owner of a Session: Task chat → Project chat → Main chat. Parenthood never changes and does not depend on who opened the Session.
 
 ## Event
-A record created every time a child Session's turn stops, carrying the final message of that turn (`turn_end`), or every time it stops mid-turn waiting for a human (`waiting`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
+A record created when a child Session's turn that a Parent message started stops, carrying the final message of that turn (`turn_end`), or stops mid-turn waiting for a human (`waiting`), and when a Task reaches a Milestone (`milestone`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
+
+## Milestone
+A Task's status change to `review`, `blocked`, `merged` or a terminal status, made by anyone but the Project chat itself. It becomes a `milestone` Event that waits in the Queue for `/inbox` and the warmup; it is never delivered live and never starts a turn.
+
+## Parent message
+A message from a Parent to its child Session in the mypi parent-message frame (`parentFrame`: `[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]`). A turn it opens is a parent-started turn; only such turns create `turn_end` and `waiting` Events.
 
 ## Queue
 The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, is promised no live delivery). Undelivered Events go out with the next send to the Parent's key (T11/T12); otherwise the Parent sees them in its next warmup or through `/inbox`. Delivery is at-least-once.

@@ -173,6 +173,18 @@ test('open_session takes the caller, Herdr workspace, state and runtime from the
     assert.throws(() => toolCommand('open_session', args));
   }
 });
+test('task_update and CLI task status carry the caller session and MYPI_SCOPE', () => {
+  const env = { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/r' };
+  const parsed = parseCommand(['task', 'status', 'MP-12', 'review', '--reason', 'ready']);
+  if (parsed.type === 'help') throw new Error('Unexpected help');
+  const status = { name: 'task_status', key: 'MP-12', status: 'review', reason: 'ready',
+    session: { agent: 'claude', nativeId: 'c1', pid: 7, runtime: '/r' }, envScope: 'MP' };
+  assert.deepEqual(toolCommand('task_update', { key: 'MP-12', status: 'review', reason: 'ready', title: 'New', progress: 'p' }, env, 7),
+    [status, { name: 'task_title', key: 'MP-12', title: 'New', reason: 'ready' }, { name: 'task_progress', key: 'MP-12', text: 'p', artifacts: [] }]);
+  assert.deepEqual(appCommand(parsed, env, 7), status);
+  assert.deepEqual(toolCommand('task_update', { key: 'MP-12', status: 'review', reason: 'ready' }, {}, 7),
+    [{ name: 'task_status', key: 'MP-12', status: 'review', reason: 'ready' }]);
+});
 test('partial is never success; structured and text results agree with every recovery field', () => {
   const expected = { status: 'partial', message: 'commit failed', saved: ['database'], missing: ['git'], paths: ['x'], taskId: 17 };
   const result = failure(new PartialError('commit failed', ['database'], ['git'], ['x'], 17));

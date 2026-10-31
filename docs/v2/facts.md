@@ -17,6 +17,7 @@ documentation. Session ids in the excerpts are stand ids.
 | 4 | Which Pi extension event fires when Pi waits for the user? | how: `ui_prompt_start` / `ui_prompt_end` (`reason: "ui_prompt"`, `kind`, `title`); no `agent_settled` while waiting | [Fact 4](#fact-4-pi-event-while-waiting-for-input) | — |
 | 5 | `herdr tab create` from outside Herdr: which workspace, is a flag needed? | how: the focused workspace; fails with `no active workspace` when the session has none; `--env` and `--cwd` reach the pane | [Fact 5](#fact-5-herdr-tab-create-outside-herdr) | launcher always passes `--workspace <id>` and creates a workspace when none exists |
 | 6 | Does `claude agents --json` see sessions started in Herdr tabs? | yes | [Fact 6](#fact-6-claude-agents---json-and-herdr-tabs) | — |
+| 7 | What opens a Claude turn in the transcript, and how does a parent's socket message look there? | how: a `type:"user"` entry with a string `turnOrigin` (`human`, `peer`, `task_notification`); a socket message is `turnOrigin:"peer"` and starts with `Another Claude session sent a message:\n` | [Fact 7](#fact-7-what-opens-a-claude-turn-in-the-transcript) | no mark — no Event |
 
 ## Stand
 
@@ -691,3 +692,37 @@ Observed:
 ```
 
 Fallback: none needed. Used by MP-44.
+
+### Fact 7: what opens a Claude turn in the transcript
+
+Question: which transcript entry opens a Claude turn, and how does a message
+written into the session's inbox socket by a script appear there? Observed with
+Claude Code 2.1.283 (MP-54); only field names are recorded here.
+
+Answer:
+
+- Entries with `type:"user"` and a string top-level `turnOrigin` open a turn.
+  Seen values: `human` (typed by a person), `peer` (another session), and
+  `task_notification`.
+- Tool results are `type:"user"` entries without `turnOrigin`; they open no turn.
+- A message a script writes into `CLAUDE_CODE_MESSAGING_SOCKET` arrives as
+  `turnOrigin:"peer"` with `origin.kind:"peer"`, `isMeta:true` and
+  `promptSource:"system"`; its `message.content` starts with
+  `Another Claude session sent a message:\n`, followed by the text written.
+- `peer` is also the origin of teammates' SendMessage and of subagent returns, so
+  `peer` alone does not identify a parent; the mypi parent-message frame in the
+  content does.
+- A message that arrives in the middle of a turn is a `queued_command`
+  attachment and opens no turn.
+
+These fields are undocumented. The mark is rechecked on a stand with every Claude
+Code update.
+
+Stand recheck, 2026-10-31, Claude Code 2.1.283 on Haiku 4.5: a typed prompt in a
+task chat was `turnOrigin:"human"` and created no Event; the parent-message frame
+written into the task chat's inbox socket was `turnOrigin:"peer"` with content
+starting `Another Claude session sent a message:\n[mypi: сообщение родительской
+сессии …` and created exactly one `turn_end`, delivered live to the project chat.
+
+Fallback: no mark — no Event (`claudeTurnPrompt` returns nothing, and the hooks
+create no `turn_end` or `waiting`). Used by MP-54.

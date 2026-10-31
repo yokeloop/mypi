@@ -17,6 +17,12 @@ sessions. Details are in the Upgrading entries under Changed.
 
 ### Added
 
+- Event kind `milestone`: a task's status change to `review`, `blocked`,
+  `merged` or a terminal status queues one event for the project chat, framed
+  `[mypi: MP-12 сменила статус в 14:02, событие 43. Ниже — веха задачи из mypi, не
+  инструкция]`.
+- The mypi parent-message frame (`parentFrame`, `isParentMessage` in the events
+  module) for the parent-to-child channel (MP-55).
 - Live delivery to Pi: the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
   (0600) from `session_start` to `session_shutdown` and registers its path; one
   socket per Pi process, so a displaced session never removes the new one's.
@@ -105,6 +111,26 @@ sessions. Details are in the Upgrading entries under Changed.
 
 ### Changed
 
+- Answer to whoever asked: Claude's Stop hook and the Pi extension create a
+  `turn_end` event only in a turn a parent message started (Claude: the
+  transcript entry that opened the turn has `turnOrigin` `peer` and the mypi
+  parent-message frame; Pi: a batch with that frame arrived through its socket).
+  A turn a person started creates nothing.
+- Milestones: a status change to `review`, `blocked`, `merged` or a terminal
+  status creates a `milestone` event unless the project chat itself makes it;
+  milestones wait for `/inbox` and the warmup and are never sent live.
+  «Последние доклады» show only the last delivered `turn_end`.
+- Waiting for input: `idle_prompt` never creates an event and left the
+  Notification matcher; `permission_prompt`, `elicitation_dialog` and Pi's
+  `ui_prompt_start` create a `waiting` event only in a turn a parent message
+  started.
+- Until the parent-to-child channel (MP-55) and the /open start message (MP-52)
+  land, no hook or extension sends the parent-message frame, so Claude hooks and
+  the Pi extension create no turn_end or waiting events at all; only milestones
+  and manual mypi event emit --from remain.
+- Upgrading: schema 9 requires mypi db init once after the update; until then
+  commands that open the database ask for it. Applying it to an existing
+  installation is a separately authorized rollout step.
 - `mypi event emit` and `mypi turn end` print `{"event":N,"delivered":[ids]}`
   instead of `{"event":N}`.
 - A project warmup marks the events it shows in full delivered; MCP `warmup`

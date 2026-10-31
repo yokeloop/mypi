@@ -2,7 +2,7 @@
 
 Date: 2026-10-24, revised 2026-10-26 after the author's review and an
 independent review, revised 2026-10-28 by the stage-0 facts (MP-31)
-Status: accepted
+Status: accepted; Decision and the waiting rule amended by ADR 0003
 
 ## Context
 
@@ -41,7 +41,8 @@ Parent Session without going through a model step, a terminal, or Herdr.
 ## Decision
 
 The Event contract is identical for all Agents: every stop of a child turn
-creates exactly one `turn_end` Event with the final message; a stop in the
+creates exactly one `turn_end` Event with the final message (narrowed by ADR
+0003: only turns a parent message started, plus task milestones); a stop in the
 middle of a turn waiting for a human (question, permission prompt) creates a
 `waiting` Event. The delivered text has one format: a mypi header naming the
 child, time and Event number and stating that what follows is the child's
