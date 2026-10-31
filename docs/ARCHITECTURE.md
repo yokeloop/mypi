@@ -39,7 +39,7 @@ src/
 │   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   ├── sessions/        # session rows, live registry records, key resolution
-│   ├── events/          # turn-end and waiting events from task chats to their project
+│   ├── events/          # turn-end, waiting and milestone events from task chats to their project
 │   └── knowledge/       # journal, notes and errors
 ├── infrastructure/      # SQLite, files, home Git and project clone Git, Herdr CLI, event socket
 └── shared/              # scope types, errors and partial
@@ -67,7 +67,7 @@ sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
 events(id, from_key, to_key, kind, message, created_at, delivered_at)
 ```
 
-`events` is filled by the Claude Stop and Notification hooks (`mypi turn end`, `mypi event emit --waiting --hook`) and the Pi extension (`mypi event emit`): one row per turn end or wait of a task chat, addressed to its project key. After recording, `deliverPending` (`src/app/delivery.ts`) sends the parent's undelivered events through the `EventTransport` port of the events module chosen by the agent of the parent's canonical live record; two transports, the Pi socket client and the Claude inbox client, both in `src/infrastructure/socket/`, are wired in from `src/cli/main.ts`, and acknowledged events are marked delivered. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
+`events` rows are addressed from a task key to its project key. The Claude Stop and Notification hooks (`mypi turn end`, `mypi event emit --waiting --hook`) and the Pi extension (`mypi event emit`) add `turn_end` and `waiting` rows only in a turn a parent message started (Claude: the transcript entry that opened the turn has `turnOrigin` `peer` and the mypi parent-message frame; Pi: a batch with that frame arrived through its socket); `idle_prompt` adds nothing. A task status change to `review`, `blocked`, `merged` or a terminal status adds a `milestone` row in the same transaction, unless the caller is the project chat. After recording, `deliverPending` (`src/app/delivery.ts`) sends the parent's undelivered events except milestones, which wait for `/inbox` and the warmup, through the `EventTransport` port of the events module chosen by the agent of the parent's canonical live record; two transports, the Pi socket client and the Claude inbox client, both in `src/infrastructure/socket/`, are wired in from `src/cli/main.ts`, and acknowledged events are marked delivered. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
 readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
 schema transaction; ordinary opens do not change journal mode. SQLite may create its
@@ -153,7 +153,7 @@ work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`
 project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then the
 project list (global), the open tasks (project) or the task card with its worktree
 (task). A project warmup then adds «Новые события» — the undelivered events of the
-project's tasks, each in its frame — and «Последние доклады» — the last event of each
+project's tasks, each in its frame — and «Последние доклады» — the last `turn_end` of each
 open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
 and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
 Embedded files are inserted as written, except that their ATX headings outside fenced code

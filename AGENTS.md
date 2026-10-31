@@ -118,7 +118,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
   one socket per Pi process so a displaced session never removes the new one's,
   and registers its path; `mypi event emit` then sends all undelivered events of the
-  parent to its live Pi session and marks the acknowledged ones delivered. Without a
+  parent except milestones to its live Pi session and marks the acknowledged ones delivered. Without a
   socket or an answer they wait for /inbox and the warmup; a displaced session
   silently stops receiving them. A live Claude parent gets them at once through
   its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
