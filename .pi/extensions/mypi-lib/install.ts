@@ -143,10 +143,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       .map(part => part.text).join('\n');
   });
   pi.on('agent_settled', async () => {
-    if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message=' + clip(last)], { cwd: root, timeout: 5000 })
-      .catch(() => undefined);
+    const report = parentTurn, reply = last;
     parentTurn = false;
     last = '';
+    if (key !== undefined && report) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message=' + clip(reply)], { cwd: root, timeout: 5000 })
+      .catch(() => undefined);
   });
   pi.on('ui_prompt_start', async event => {
     if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
