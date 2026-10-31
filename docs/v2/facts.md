@@ -718,5 +718,11 @@ Answer:
 These fields are undocumented. The mark is rechecked on a stand with every Claude
 Code update.
 
+Stand recheck, 2026-10-31, Claude Code 2.1.283 on Haiku 4.5: a typed prompt in a
+task chat was `turnOrigin:"human"` and created no Event; the parent-message frame
+written into the task chat's inbox socket was `turnOrigin:"peer"` with content
+starting `Another Claude session sent a message:\n[mypi: сообщение родительской
+сессии …` and created exactly one `turn_end`, delivered live to the project chat.
+
 Fallback: no mark — no Event (`claudeTurnPrompt` returns nothing, and the hooks
 create no `turn_end` or `waiting`). Used by MP-54.
