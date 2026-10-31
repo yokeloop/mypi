@@ -47,7 +47,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 ## Tool and transport contract
 
 14 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions, open_session and inbox. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
-`memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error.
+`memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error. A status change to review, blocked, merged or a terminal status queues a milestone event for the project chat (inbox, warmup), unless the caller is the project chat itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones never start a turn.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
 explicit `"all"`. A project scope key is its code; task_create.project is org/project
@@ -67,7 +67,7 @@ else `global`. Its data is the Markdown text the CLI prints
 the undelivered events of the project's tasks and marks the ones shown in full delivered, plus
 the last reports as history; so `warmup` is not read-only.
 `inbox` takes optional `key`: a project code or `"all"`, default as for `warmup`; it returns
-`{ events: [{ id, from, to, kind, createdAt, text }] }` with the undelivered events, each `text`
+`{ events: [{ id, from, to, kind, createdAt, text }] }` (`kind`: `turn_end`, `waiting` or `milestone`) with the undelivered events, each `text`
 in its frame with the event number, and marks them delivered. Global and task keys return an
 empty list; an unknown project is an error. There is no read-only preview.
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.

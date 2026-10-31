@@ -164,7 +164,7 @@ order: the row for this native id, the live record of the same process,
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
 `mypi session forget <key>` drops a row on the user's request. Without
-`XDG_RUNTIME_DIR` or an initialized schema 8 database registration fails and the
+`XDG_RUNTIME_DIR` or an initialized schema 9 database registration fails and the
 warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
@@ -173,18 +173,33 @@ org/project or org/project#N — it focuses the live session's Herdr tab or open
 new tab in the engine root with `MYPI_SCOPE` and starts the agent there; an
 existing session continues with its own agent.
 
-Each turn end and each wait for input of a task chat (`MP-12`) becomes one row in
-the `events` table, addressed to its parent key (`MP`). Claude's Stop hook runs
-`mypi turn end` and its Notification hook (`permission_prompt`, `idle_prompt`,
-`elicitation_dialog`) runs `mypi event emit --waiting --hook`; the Pi extension runs
-`mypi event emit` on `agent_settled` with the last reply and on `ui_prompt_start`.
+A task chat (`MP-12`) reports to its parent key (`MP`) through rows in the `events`
+table, only when the parent needs to act on them:
+
+- `turn_end`: a turn that a parent message started ends. Claude's Stop hook runs
+  `mypi turn end`; it records the event only when the transcript entry that opened
+  the turn has `turnOrigin` `peer` and carries the mypi parent-message frame
+  (`[mypi: сообщение родительской сессии MP для MP-12. …`). The Pi extension runs
+  `mypi event emit` on `agent_settled` with the last reply only when a message with
+  that frame started the turn through its socket. A turn a person started records
+  nothing; an unreadable transcript or a missing mark records nothing.
+- `waiting`: in such a parent-started turn, Claude's Notification hook for
+  `permission_prompt` and `elicitation_dialog` (`mypi event emit --waiting --hook`)
+  or Pi's `ui_prompt_start`. `idle_prompt` never creates an event.
+- `milestone`: a task's status changes to `review`, `blocked`, `merged` or a terminal
+  status, unless the project chat itself makes the change (`task_update`,
+  `mypi task status`).
+
+Until the parent-to-child channel (MP-55) lands, nothing writes the parent-message
+frame into a child's socket, so the Claude hooks and the Pi extension create no
+events at all; only milestones and a manual `mypi event emit --from` remain.
 Project and global chats emit nothing. The project chat receives the undelivered
 events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
 runs the `inbox` skill as `/skill:inbox`; MCP `inbox`, CLI `mypi inbox`) and in its warmup under
 «Новые события», even if it was closed when they arose; shown events are marked
-delivered. The project warmup also lists «Последние доклады»: the last delivered
-event of each open task, as history. Delivery is at-least-once; the event number in
-the frame tells a repeat.
+delivered. Milestones arrive only there, never live. The project warmup also lists
+«Последние доклады»: the last delivered `turn_end` of each open task, as history.
+Delivery is at-least-once; the event number in the frame tells a repeat.
 
 A live Pi project chat receives events at once. From `session_start` to
 `session_shutdown` the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
@@ -212,7 +227,7 @@ with every send, so it stays in `/inbox` and the warmup; a message held in bypas
 and then rejected or expired, or a parent that quits before handling it, is lost
 after it was marked delivered.
 
-Upgrading to schema 8: run `mypi db init` once after updating; until then every
+Upgrading to schema 9: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
 
 ### Updating without overwriting customizations
@@ -251,9 +266,10 @@ without prompts and adds one SessionStart command for every source (startup, res
 clear, compact, fork): `mypi session register --agent claude --hook` (its output is
 discarded, its failure does not stop the warmup), then `mypi warmup --max-chars 9500`:
 the key saved for this conversation, else `MYPI_SCOPE`, else `global`. The Stop hook
-runs `mypi turn end` and the Notification hook, for `permission_prompt`, `idle_prompt`
-and `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both discard their
-output and never block the session. A forked
+runs `mypi turn end` and the Notification hook, for `permission_prompt` and
+`elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an event
+only in a turn a parent message started, discard their output and never block the
+session. A forked
 session gets the warmup of `MYPI_SCOPE`, else `global`, and is registered only with
 `MYPI_SCOPE`. A failing warmup (for example an unknown
 `MYPI_SCOPE`) shows its error to the user and the session starts without it. Shared
