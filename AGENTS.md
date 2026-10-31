@@ -113,11 +113,12 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   It also registers the /open command, which runs mypi open, and the /inbox
   command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
-  `mypi event emit` with the registered key. From `session_start` to
+  `mypi event emit` with the registered key, only in a turn that a message in
+  the mypi parent-message frame started through its socket. From `session_start` to
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
   one socket per Pi process so a displaced session never removes the new one's,
   and registers its path; `mypi event emit` then sends all undelivered events of the
-  parent to its live Pi session and marks the acknowledged ones delivered. Without a
+  parent except milestones to its live Pi session and marks the acknowledged ones delivered. Without a
   socket or an answer they wait for /inbox and the warmup; a displaced session
   silently stops receiving them. A live Claude parent gets them at once through
   its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
@@ -128,6 +129,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   missed server close repeats events, an event over 1 MiB is resent with every
   send and stays in /inbox and the warmup, and a message held in bypass and then
   rejected, or one the parent never handled, is lost after it was marked delivered.
+  A status change to review, blocked, merged or a terminal status queues a
+  milestone event for the project chat unless the project chat makes it;
+  milestones wait for /inbox and the warmup and are never sent live.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
@@ -154,9 +158,11 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   context: the key saved for this conversation, else `MYPI_SCOPE`, else `global`.
   The budget keeps the hook
   under Claude Code's 10,000-character limit for hook output. The Stop hook runs
-  `mypi turn end` and the Notification hook, for `permission_prompt`, `idle_prompt`
-  and `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both discard
-  their output.
+  `mypi turn end` and the Notification hook, for `permission_prompt` and
+  `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
+  event only when the current turn was started by a parent message (`turnOrigin`
+  `peer` with the mypi parent-message frame in the transcript), and discard their
+  output.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project
@@ -175,7 +181,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the older record moves to `<key>~<pid>.json`. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 8 database registration fails and the
+  `XDG_RUNTIME_DIR` or an initialized schema 9 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
   session's Herdr tab or opens a new tab in the engine root with MYPI_SCOPE and
   starts or resumes the agent; it writes no session rows.

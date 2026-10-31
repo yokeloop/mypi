@@ -23,6 +23,6 @@ test('Claude settings allow exactly the mypi MCP tools, run session registration
       + 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" warmup --max-chars 9500', timeout: 30 }] }],
     Stop: [{ hooks: [{ type: 'command',
       command: 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" turn end --pid "$PPID" >/dev/null 2>&1', timeout: 10 }] }],
-    Notification: [{ matcher: 'permission_prompt|idle_prompt|elicitation_dialog', hooks: [{ type: 'command',
+    Notification: [{ matcher: 'permission_prompt|elicitation_dialog', hooks: [{ type: 'command',
       command: 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" event emit --waiting --hook --pid "$PPID" >/dev/null 2>&1', timeout: 10 }] }] });
 });

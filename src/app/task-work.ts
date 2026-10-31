@@ -4,6 +4,7 @@ import { InputError } from '../shared/errors.js';
 import type { createApp } from './create-app.js';
 import type { createJournal, sqliteJournalStore } from '../modules/knowledge/public.js';
 import type { Card } from '../modules/tasks/public.js';
+import { isMilestone, parentKey } from '../modules/events/public.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 
 export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
@@ -54,7 +55,7 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         throw e;
       }
     },
-    change(publicKey: string, input: { status?: string; title?: string }, reason: string) {
+    change(publicKey: string, input: { status?: string; title?: string }, reason: string, caller?: string) {
       const card = find(publicKey);
       return core.serialize(() => {
         const result = core.tasks.change(card.id, input, reason);
@@ -65,6 +66,10 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         if (result.before.title !== result.after.title) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
         journal.append(journal.record({ type: 'task', key: key(result.after) }, parts.join('. ') + '. ' + reason,
           statusChanged ? 'status_changed' : 'note'));
+        if (statusChanged && result.after.projectId !== null && isMilestone(result.after.status, result.after.isTerminal)
+          && caller !== parentKey(key(result.after))) {
+          core.events.milestone({ from: key(result.after), message: result.before.status + ' → ' + result.after.status + ': ' + reason });
+        }
         return result.after;
       });
     },

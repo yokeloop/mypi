@@ -19,7 +19,7 @@ export function hookInput(text: string): { nativeId: string; name?: string; fork
   return { nativeId: value['session_id'], ...(value['session_title'] ? { name: value['session_title'] as string } : {}), fork: value['source'] === 'fork' };
 }
 
-export const WAITING_NOTIFICATIONS = ['permission_prompt', 'idle_prompt', 'elicitation_dialog'] as const;
+export const WAITING_NOTIFICATIONS = ['permission_prompt', 'elicitation_dialog'] as const;
 
 function hookObject(text: string, event: string): Record<string, unknown> {
   let input: unknown;
@@ -30,15 +30,20 @@ function hookObject(text: string, event: string): Record<string, unknown> {
   return value;
 }
 
-export function stopInput(text: string): { nativeId: string; active: boolean; message: string } {
+function transcript(value: Record<string, unknown>): { transcript?: string } {
+  return typeof value['transcript_path'] === 'string' && value['transcript_path'] !== '' ? { transcript: value['transcript_path'] } : {};
+}
+
+export function stopInput(text: string): { nativeId: string; active: boolean; message: string; transcript?: string } {
   const value = hookObject(text, 'Stop');
   if (typeof value['stop_hook_active'] !== 'boolean'
     || (value['last_assistant_message'] !== undefined && typeof value['last_assistant_message'] !== 'string')) throw new InputError('Invalid Stop hook input');
-  return { nativeId: value['session_id'] as string, active: value['stop_hook_active'], message: (value['last_assistant_message'] as string | undefined) ?? '' };
+  return { nativeId: value['session_id'] as string, active: value['stop_hook_active'], message: (value['last_assistant_message'] as string | undefined) ?? '',
+    ...transcript(value) };
 }
 
-export function notificationInput(text: string): { nativeId: string; type: string; message: string } {
+export function notificationInput(text: string): { nativeId: string; type: string; message: string; transcript?: string } {
   const value = hookObject(text, 'Notification');
   if (typeof value['message'] !== 'string' || typeof value['notification_type'] !== 'string') throw new InputError('Invalid Notification hook input');
-  return { nativeId: value['session_id'] as string, type: value['notification_type'], message: value['message'] };
+  return { nativeId: value['session_id'] as string, type: value['notification_type'], message: value['message'], ...transcript(value) };
 }

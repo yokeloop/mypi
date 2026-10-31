@@ -22,7 +22,7 @@ export type AppCommand =
   | { name: 'task_list'; project?: string; status?: string }
   | { name: 'task_show' | 'task_touch' | 'task_worktree'; key: string }
   | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
-  | { name: 'task_status'; key: string; status: string; reason: string }
+  | { name: 'task_status'; key: string; status: string; reason: string; session?: SessionHint; envScope?: string }
   | { name: 'task_title'; key: string; title: string; reason: string }
   | { name: 'task_progress'; key: string; text: string; artifacts?: Artifact[] }
   | { name: 'status_add' | 'status_terminal'; code: string; terminal: boolean }
@@ -41,8 +41,9 @@ export type AppCommand =
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }
   | { name: 'event_emit'; kind: 'turn_end' | 'waiting'; message: string; from?: string; notification?: string;
-      session?: SessionHint; envScope?: string; runtime?: string }
-  | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string }
+      session?: SessionHint; envScope?: string; runtime?: string; transcript?: string }
+  | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;
+      transcript?: string }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
       session?: SessionHint; workspace?: string; stateHome?: string; runtime?: string };
