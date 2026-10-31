@@ -104,7 +104,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         const pid = Number(required('pid'));
         const input = notificationInput(readInputFile(0));
         return { name: 'event_emit', kind: 'waiting', message: input.message, notification: input.type,
-          session: { agent: 'claude', nativeId: input.nativeId, pid, ...runtime }, ...envScope };
+          session: { agent: 'claude', nativeId: input.nativeId, pid, ...runtime }, ...envScope,
+          ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
       }
       return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from'), ...runtime };
     }
@@ -112,7 +113,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       const pid = Number(required('pid'));
       const input = stopInput(readInputFile(0));
       return { name: 'turn_end', nativeId: input.nativeId, active: input.active, message: input.message, pid,
-        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime,
+        ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
     }
     case 'inbox': {
       const hint = sessionHint(env, parentPid);
