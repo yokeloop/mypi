@@ -6,14 +6,14 @@ match the GitHub releases.
 
 ## [Unreleased]
 
-## [0.8.0] - 2026-10-30
+## [0.8.0] - 2026-10-31
 
 Upgrading from v0.7.0: move personal Pi settings from `home/pi/` to `~/.pi/agent/`
 before the update (README, [Existing installations](README.md#existing-installations)),
 then `git pull --ff-only`, install the locked dependencies and build; run
-`mypi db init` once (schema 5 → 8, migrations 006-008; back up the database
-first) and `mypi home migrate-tasks`; reload or restart Claude Code and Pi
-sessions. Details are in the Upgrading entries under Changed.
+`mypi db init` once (schema 5 → 9, migrations 006-009; back up the database
+first; until then commands that open the database ask for it) and
+`mypi home migrate-tasks`; reload or restart Claude Code and Pi sessions. Details are in the Upgrading entries under Changed.
 
 ### Added
 
@@ -128,9 +128,6 @@ sessions. Details are in the Upgrading entries under Changed.
   land, no hook or extension sends the parent-message frame, so Claude hooks and
   the Pi extension create no turn_end or waiting events at all; only milestones
   and manual mypi event emit --from remain.
-- Upgrading: schema 9 requires mypi db init once after the update; until then
-  commands that open the database ask for it. Applying it to an existing
-  installation is a separately authorized rollout step.
 - `mypi event emit` and `mypi turn end` print `{"event":N,"delivered":[ids]}`
   instead of `{"event":N}`.
 - A project warmup marks the events it shows in full delivered; MCP `warmup`

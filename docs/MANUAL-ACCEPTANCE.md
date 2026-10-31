@@ -130,7 +130,7 @@ Check before the first agent starts:
 ```bash
 mp sessions                                                         # empty
 mp project list                                                     # the fixtures only
-sqlite3 -readonly $STAND/state/mypi/state.sqlite3 'pragma user_version'   # 8
+sqlite3 -readonly $STAND/state/mypi/state.sqlite3 'pragma user_version'   # 9
 stat -c %a $STAND/run                                               # 700
 ```
 
