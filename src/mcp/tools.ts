@@ -18,6 +18,14 @@ export function toolCommand(name: string, args: unknown, env: Readonly<Record<st
     const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
     commands[0] = { ...commands[0], ...(envScope === undefined ? {} : { envScope }), ...(session === undefined ? {} : { session }) } as AppCommand;
   }
+  if (name === 'task_update') {
+    const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
+    for (const [index, command] of commands.entries()) {
+      if (command.name === 'task_status') {
+        commands[index] = { ...command, ...(envScope === undefined ? {} : { envScope }), ...(session === undefined ? {} : { session }) };
+      }
+    }
+  }
   if (name === 'open_session') {
     const session = sessionHint(env, parentPid);
     commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }),

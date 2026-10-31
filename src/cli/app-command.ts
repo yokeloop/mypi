@@ -55,7 +55,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'task show': return { name: 'task_show', key: a[0]! };
     case 'task touch': return { name: 'task_touch', key: a[0]! };
     case 'task worktree': return { name: 'task_worktree', key: a[0]! };
-    case 'task status': return { name: 'task_status', key: a[0]!, status: a[1]!, reason: required('reason') };
+    case 'task status': {
+      const hint = sessionHint(env, parentPid);
+      return { name: 'task_status', key: a[0]!, status: a[1]!, reason: required('reason'), ...(hint === undefined ? {} : { session: hint }),
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
+    }
     case 'task title': return { name: 'task_title', key: a[0]!, title: a[1]!, reason: required('reason') };
     case 'task progress': {
       const artifacts: unknown = opt('artifacts') ? JSON.parse(readInputFile(required('artifacts'))) : [];

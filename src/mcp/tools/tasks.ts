@@ -22,7 +22,7 @@ export const tasks = {
       ctx.addIssue({ code: 'custom', path: ['artifacts'], message: 'artifacts require progress' });
     if (value.touch !== undefined && (change || value.progress !== undefined))
       ctx.addIssue({ code: 'custom', path: ['touch'], message: 'touch is allowed only alone' });
-  }), 'Call to change a task in one call: status and/or title with a reason, progress text with optional artifacts (paths relative to the task folder; an artifact without text references an existing file), or touch:true alone to mark activity. Applies status, then title, then progress; if a later part fails after an earlier one saved, the result is partial with the saved and missing parts. Does not reopen terminal tasks, overwrite artifacts, retry, or create branches or worktrees; the same status is a no-op.',
+  }), 'Call to change a task in one call: status and/or title with a reason, progress text with optional artifacts (paths relative to the task folder; an artifact without text references an existing file), or touch:true alone to mark activity. Applies status, then title, then progress; if a later part fails after an earlier one saved, the result is partial with the saved and missing parts. Does not reopen terminal tasks, overwrite artifacts, retry, or create branches or worktrees; the same status is a no-op. A status change to review, blocked, merged or a terminal status queues a milestone event for the project chat (inbox, warmup), unless the project chat itself makes it; milestones never start a turn.',
   ({ key, status, title, reason, progress, artifacts, touch }) => {
     const commands: AppCommand[] = [];
     if (status !== undefined) commands.push({ name: 'task_status', key, status, reason: reason! });

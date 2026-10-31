@@ -13,6 +13,12 @@ import { forgetSession, listSessions, registerSession, sessionKey, unregisterSes
 import { emitEvent, readInbox, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
 
+function callerKey(filename: string, c: Extract<AppCommand, { name: 'task_status' }>): string | undefined {
+  try {
+    return warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
+  } catch { return undefined; }
+}
+
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}): Promise<unknown> {
@@ -77,7 +83,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       });
       case 'task_list': return app.tasks.list(c);
       case 'task_show': return app.tasks.get(c.key);
-      case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason);
+      case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason, callerKey(filename, c));
       case 'task_title': return app.tasks.change(c.key, { title: c.title }, c.reason);
       case 'task_touch': return app.tasks.touch(c.key);
       case 'task_progress': return app.tasks.progress(c.key, c.text, c.artifacts);
