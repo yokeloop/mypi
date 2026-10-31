@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, symlinkSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -78,7 +78,7 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
 });
 
-test('real CLI turns Stop and Notification hook input into one event each and inbox delivers them once', t => {
+test('real CLI turns parent-started Stop and Notification hook input into one event each and inbox delivers them once', t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
@@ -108,12 +108,19 @@ test('real CLI turns Stop and Notification hook input into one event each and in
   for (let i = 2; i <= 12; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP-12' },
     '{"session_id":"c1","source":"startup"}'), '{"key":"MP-12","registered":true,"displaced":null}\n');
+  writeFileSync(join(dir, 't.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
+    content: 'Another Claude session sent a message:\n[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]\ngo' } }) + '\n');
+  writeFileSync(join(dir, 'human.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } }) + '\n');
   const stop = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Stop', stop_hook_active: false,
     last_assistant_message: 'готово' };
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, transcript_path: join(dir, 'human.jsonl') })),
+    '{"event":null,"delivered":[]}\n');
   assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify(stop)), '{"event":1,"delivered":[]}\n');
   assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, stop_hook_active: true })), '{"event":null,"delivered":[]}\n');
   const notification = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Notification',
     message: 'Claude needs your permission', notification_type: 'permission_prompt' };
+  assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},
+    JSON.stringify({ ...notification, message: 'Claude is waiting for your input', notification_type: 'idle_prompt' })), '{"event":null,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {}, JSON.stringify(notification)), '{"event":2,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},
     JSON.stringify({ ...notification, notification_type: 'auth_success' })), '{"event":null,"delivered":[]}\n');

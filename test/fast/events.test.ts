@@ -184,7 +184,7 @@ test('Stop and Notification hook input give the native id, the flag or type and 
   }
 });
 
-test('turn end and hook events find the key like register and warmup, and only task chats emit', async t => {
+test('turn end and hook events emit only in a parent-started turn of a task chat', async t => {
   const { dir, filename, rows } = fixture(t);
   const db = openDatabase(filename);
   try {
@@ -192,9 +192,18 @@ test('turn end and hook events find the key like register and warmup, and only t
       (SELECT id FROM projects WHERE code = 'MP'), (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.code = 'MP' AND t.number = 12),
       'claude', 'c1', ?)`).run(at);
   } finally { db.close(); }
+  const parent = join(dir, 'parent.jsonl'), person = join(dir, 'person.jsonl');
+  writeFileSync(parent, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
+    content: 'Another Claude session sent a message:\n' + parentFrame('MP', 'MP-12', 'go') } }) + '\n');
+  writeFileSync(person, JSON.stringify({ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } }) + '\n');
   const runtime = join(dir, 'run'), pid = 2 ** 22 + 7;
-  const stop = { name: 'turn_end' as const, nativeId: 'c1', active: false, message: 'готово', pid, runtime };
+  const stop = { name: 'turn_end' as const, nativeId: 'c1', active: false, message: 'готово', pid, runtime, transcript: parent };
   assert.deepEqual(await turnEnd(filename, { ...stop, active: true }), { event: null, delivered: [] });
+  assert.equal(rows().length, 0);
+  assert.deepEqual(await turnEnd(filename, { ...stop, transcript: person }), { event: null, delivered: [] });
+  const { transcript: _, ...bare } = stop;
+  assert.deepEqual(await turnEnd(filename, bare), { event: null, delivered: [] });
+  assert.deepEqual(await turnEnd(filename, { ...stop, transcript: join(dir, 'missing.jsonl') }), { event: null, delivered: [] });
   assert.equal(rows().length, 0);
   assert.deepEqual(await turnEnd(filename, stop), { event: 1, delivered: [] });
   assert.deepEqual(await turnEnd(filename, { ...stop, nativeId: 'c2', envScope: 'MP-7' }), { event: 2, delivered: [] });
@@ -203,10 +212,16 @@ test('turn end and hook events find the key like register and warmup, and only t
   assert.deepEqual((rows() as { fromKey: string; kind: string; message: string }[]).map(r => [r.fromKey, r.kind, r.message]),
     [['MP-12', 'turn_end', 'готово'], ['MP-7', 'turn_end', 'готово']]);
   const hook = { name: 'event_emit' as const, kind: 'waiting' as const, message: 'Claude needs your permission',
-    session: { agent: 'claude' as const, nativeId: 'c1', pid, runtime } };
+    session: { agent: 'claude' as const, nativeId: 'c1', pid, runtime }, transcript: parent };
   assert.deepEqual(await emitEvent(filename, { ...hook, notification: 'auth_success' }), { event: null, delivered: [] });
+  for (const transcript of [parent, person]) {
+    assert.deepEqual(await emitEvent(filename, { ...hook, notification: 'idle_prompt', transcript }), { event: null, delivered: [] });
+  }
   assert.equal(rows().length, 2);
-  for (const notification of ['permission_prompt', 'idle_prompt', 'elicitation_dialog']) await emitEvent(filename, { ...hook, notification });
+  for (const notification of ['permission_prompt', 'elicitation_dialog']) {
+    assert.deepEqual(await emitEvent(filename, { ...hook, notification, transcript: person }), { event: null, delivered: [] });
+    await emitEvent(filename, { ...hook, notification });
+  }
   assert.deepEqual((rows() as { fromKey: string; kind: string }[]).slice(2).map(r => [r.fromKey, r.kind]),
     [['MP-12', 'waiting'], ['MP-12', 'waiting']]);
 });
