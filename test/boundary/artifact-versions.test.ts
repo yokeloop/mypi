@@ -6,8 +6,9 @@ import { spawnSync } from 'node:child_process';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { executeCommand } from '../../src/app/execute-command.js';
-import { backupState } from '../../src/app/backup.js';
+import { backupState, verifyReferences } from '../../src/app/backup.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
+import { gitVersions } from '../../src/infrastructure/git/context-git.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { sqliteJournalStore } from '../../src/modules/knowledge/public.js';
 import { fileFingerprint } from '../../src/app/file-fingerprints.js';
@@ -60,7 +61,14 @@ test('journal artifacts point at home commits: files stay editable, versions sta
     assert.equal((await backupState(filename, join(dir, 'old'), root)).status, 'ok');
     writeFileSync(join(root, old), 'rewritten');
     assert.throws(() => app.complete([old], 'Rewrite old artifact'), /Registered file changed/);
+    assert.throws(() => verifyReferences(filename, root, gitVersions(root, git(root, 'rev-parse', 'HEAD'))), /Registered file changed/);
     writeFileSync(join(root, old), 'old proof');
+    rmSync(join(root, old));
+    const headBefore = git(root, 'rev-parse', 'HEAD'), entriesBefore = (await history()).length;
+    assert.throws(() => app.tasks.progress(card.key, 'forged', [{ path: 'old.md', text: 'forged' }]), /Historical artifact/);
+    assert.equal(git(root, 'rev-parse', 'HEAD'), headBefore);
+    assert.equal((await history()).length, entriesBefore);
+    git(root, 'checkout', '--', old);
 
     const orphan = git(root, 'commit-tree', git(root, 'rev-parse', 'HEAD^{tree}'), '-m', 'orphan');
     const write = openDatabase(filename);

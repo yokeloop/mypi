@@ -65,7 +65,10 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
     matchesFingerprint(saved, fileFingerprint(files, path, clock()));
   }
-  const tasks = taskWork(database, files, database.journalStore, journal, git, taskKey, clock);
+  const tasks = taskWork(database, files, database.journalStore, journal, { commit(paths: string[], message: string) {
+    const previous = frozen; frozen = journal.frozen();
+    try { return git.commit(paths, message); } finally { frozen = previous; }
+  } }, taskKey, clock);
   function contextPath(scope?: string): string {
     const resolved = core.projects.resolveScope(scope);
     if (resolved.type === 'global') return '';

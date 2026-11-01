@@ -76,12 +76,12 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         return core.serialize(() => {
           for (const [index, artifact] of artifacts.entries()) {
             const path = paths[index]!;
-            if (artifact.text !== undefined) { files.create(path, artifact.text); created.push(path); }
-            else if (journal.frozen().has(path)) {
+            if (journal.frozen().has(path)) {
               const saved = store.fingerprint(path);
-              if (!saved) throw new InputError('Historical artifact requires explicit reconciliation');
+              if (!saved || artifact.text !== undefined) throw new InputError('Historical artifact requires explicit reconciliation');
               matchesFingerprint(saved, fileFingerprint(files, path, clock()));
-            } else if (!files.isFile(path)) throw new InputError('Missing referenced file');
+            } else if (artifact.text !== undefined) { files.create(path, artifact.text); created.push(path); }
+            else if (!files.isFile(path)) throw new InputError('Missing referenced file');
           }
           if (paths.length) {
             const commit = history.commit(paths, 'Register artifacts of ' + publicKey);
