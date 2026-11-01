@@ -9,6 +9,7 @@ import { InputError } from '../shared/errors.js';
 const specs: Record<string, [number, number, string[], string[]]> = {
   bootstrap: [0, 0, [], []],
   'project resolve': [1, 1, [], []],
+  'project flow': [1, 1, [], []],
   'project remove': [1, 1, ['expected-code'], []],
   'org remove': [1, 1, [], []],
   capture: [0, 1, ['file'], []],

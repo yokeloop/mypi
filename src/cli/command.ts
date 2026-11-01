@@ -15,6 +15,7 @@ export const usage = `mypi db init
 mypi project add <org/project> --code <CODE> [--path <checkout>]
 mypi project update <org/project> (--expected-path <previous> | --expected-unset) --path <new-absolute-directory>
 mypi project list [--org <org>] | resolve <absolute-path>
+mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
 mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]

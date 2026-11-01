@@ -10,6 +10,7 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
+import { projectFlow } from './project-flow.js';
 import { openSession } from './launcher.js';
 import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { emitEvent, readInbox, turnEnd } from './events.js';
@@ -48,6 +49,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'event_emit') return emitEvent(filename, c, transports);
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
+  if (c.name === 'project_flow') return projectFlow(filename, root ?? defaultContextRoot(), c.project);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_') || c.name === 'org_remove') {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));
