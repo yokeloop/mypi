@@ -110,7 +110,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       }
       herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
       if (decision.action === 'start') {
-        if (text !== null) reason = await deliverToStarted(filename, key, [text], transports, c.runtime, proc);
+        if (text !== null) reason = await deliverToStarted(filename, key, [{ id: 0, text }], transports, c.runtime, proc);
         if (reason !== null) notes.push('start message not delivered: ' + reason);
       }
       if (decision.agent === 'pi' && mode !== null) notes.push('Pi has no permission mode; ' + mode + ' was not passed to ' + key);

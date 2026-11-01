@@ -7,7 +7,8 @@ import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
-import { deliverToStarted } from '../../src/app/delivery.js';
+import { deliverOnOpen, deliverToStarted } from '../../src/app/delivery.js';
+import { parentFrame, startFrame } from '../../src/modules/events/public.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
 
 function fixture(t: TestContext) {
@@ -172,10 +173,11 @@ test('turn end in a project scope sends nothing to a live Claude parent', async 
 const wait = { deadlineMs: 100, pollMs: 10 };
 const pause = async () => {};
 
-test('deliverToStarted sends the texts with ids 0, -1 to the live socket and writes nothing', async t => {
+test('deliverToStarted sends the messages with their ids to the live socket and writes nothing', async t => {
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['first', 'second'], { pi: transport(ids => ids), pause }, run, proc, wait), null);
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'first' }, { id: -1, text: 'second' }],
+    { pi: transport(ids => ids), pause }, run, proc, wait), null);
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 0, text: 'first' }, { id: -1, text: 'second' }] }]);
   assert.deepEqual(delivered(), []);
 });
@@ -184,7 +186,7 @@ test('deliverToStarted waits for a record that appears during the wait', async t
   const { filename, run, proc, register, calls, transport } = fixture(t);
   const pauses: number[] = [];
   const appear = async (ms: number) => { pauses.push(ms); if (pauses.length === 2) register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12'); };
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['first'], { pi: transport(ids => ids), pause: appear }, run, proc, wait), null);
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'first' }], { pi: transport(ids => ids), pause: appear }, run, proc, wait), null);
   assert.deepEqual(pauses, [10, 10]);
   assert.equal(calls.length, 1);
 });
@@ -194,22 +196,63 @@ test('deliverToStarted gives a reason when no session appears, when Pi has no so
   const pi = transport(ids => ids);
   let pauses = 0;
   const counted = async () => { pauses++; };
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
   assert.ok(pauses > 0);
   register(101, null, 'claude', 'c101', 'MP-12');
   pauses = 0;
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
   assert.equal(pauses, 0);
   die(101);
   register(102, null, 'pi', 'p102', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
   assert.ok(pauses > 0);
   die(102);
   register(103, '/s/MP-12.sock', 'pi', 'p103', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pause }, run, proc, wait), 'no transport for pi');
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x', 'y'], { pi: transport(ids => ids.slice(0, 1)), pause }, run, proc, wait),
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pause }, run, proc, wait), 'no transport for pi');
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }, { id: -1, text: 'y' }], { pi: transport(ids => ids.slice(0, 1)), pause }, run, proc, wait),
     'the session did not accept it');
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause }, undefined, proc, wait),
+  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause }, undefined, proc, wait),
     'XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
   assert.deepEqual(delivered(), []);
+});
+
+test('deliverOnOpen sends the start text and the queued messages as one message and marks the rows', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  const app = createApp(filename, false);
+  try {
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'first step' });
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'second step' });
+  } finally { app.close(); }
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  const start = startFrame('MP-12', 'state');
+  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', start, { pi: transport(ids => ids), pause }, run, proc, wait), { rows: [1, 2], failure: null });
+  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1,
+    text: start + '\n\n' + parentFrame('MP', 'MP-12', 'first step') + '\n\n' + parentFrame('MP', 'MP-12', 'second step') }] }]);
+  assert.deepEqual(delivered(), [[1, true], [2, true]]);
+});
+
+test('deliverOnOpen after a resume sends only the messages and does not wait without them', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  let pauses = 0;
+  const counted = async () => { pauses++; };
+  const pi = transport(ids => ids);
+  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', null, { pi, pause: counted }, run, proc, wait), { rows: [], failure: null });
+  assert.equal(pauses, 0);
+  assert.equal(calls.length, 0);
+  const app = createApp(filename, false);
+  try { app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' }); } finally { app.close(); }
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', null, { pi, pause: counted }, run, proc, wait), { rows: [1], failure: null });
+  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go on') }] }]);
+  assert.deepEqual(delivered(), [[1, true]]);
+});
+
+test('deliverOnOpen leaves the rows queued when the session does not acknowledge', async t => {
+  const { filename, run, proc, register, delivered, transport } = fixture(t);
+  const app = createApp(filename, false);
+  try { app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' }); } finally { app.close(); }
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', startFrame('MP-12', 'state'), { pi: transport(() => []), pause }, run, proc, wait),
+    { rows: [1], failure: 'the session did not accept it' });
+  assert.deepEqual(delivered(), [[1, false]]);
 });
