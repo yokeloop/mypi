@@ -34,7 +34,8 @@ describe older revisions, not the current operating policy.
   of activity. Task history is an ordered append-only SQLite journal.
 - **Artifacts are references into home history.** A journal artifact is `{path, commit}`:
   its file and a task's `source.md` can be edited, and the entry still reads the version
-  it registered. The inbox and append-only logs cannot change.
+  it registered. Plain-path artifacts recorded before schema 11 stay frozen by their
+  fingerprint. The inbox and append-only logs cannot change.
 - **Saving is not synchronization.** `task progress` with artifacts commits the named
   files to home without pushing; other task and journal saves stay in SQLite without
   Git. Other context writes still commit locally. Commit remaining files before local
