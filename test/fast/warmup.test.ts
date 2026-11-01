@@ -252,6 +252,20 @@ test('warmup MP shows MP-12 events in the frame and marks them delivered', t => 
   assert.equal(delivered(filename)[3]!.at, null);
 });
 
+test('warmup neither shows nor marks parent messages', t => {
+  const { filename, root } = fixture(t);
+  const app = createApp(filename, false, () => '2026-10-28T14:02:00.000Z');
+  try {
+    app.events.send({ from: 'global', to: 'MP', message: 'веди задачи' });
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'сделай шаг' });
+  } finally { app.close(); }
+  for (const key of ['MP', 'MP-12']) {
+    const out = readWarmup(filename, root, key);
+    assert(!out.includes('## Новые события') && !out.includes('веди задачи') && !out.includes('сделай шаг'), key);
+  }
+  assert.deepEqual(delivered(filename), [{ id: 1, at: null }, { id: 2, at: null }]);
+});
+
 test('over budget the last reports shrink first, then memory facts, then new events stay undelivered', t => {
   {
     const { filename, root } = fixture(t);

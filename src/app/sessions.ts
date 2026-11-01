@@ -1,6 +1,7 @@
 import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { SessionHint } from './session-input.js';
+import { warmupScope } from './warmup.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
 
@@ -30,4 +31,10 @@ export function listSessions(filename: string, c: Of<'sessions'>, proc = '/proc'
 export function sessionKey(filename: string, hint: SessionHint, proc = '/proc'): string | undefined {
   const app = createApp(filename, true);
   try { return app.sessions(hint.runtime, proc).resolve(hint); } finally { app.close(); }
+}
+
+export function callerKey(filename: string, c: { envScope?: string; session?: SessionHint }): string | undefined {
+  try {
+    return warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
+  } catch { return undefined; }
 }

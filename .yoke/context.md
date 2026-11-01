@@ -33,19 +33,19 @@ A registered Project belongs to one Organization. Organization is a grouping and
 The structural owner of a Session: Task chat → Project chat → Main chat. Parenthood never changes and does not depend on who opened the Session.
 
 ## Event
-A record created when a child Session's turn that a Parent message started stops, carrying the final message of that turn (`turn_end`), or stops mid-turn waiting for a human (`waiting`), and when a Task reaches a Milestone (`milestone`). Events flow only from a Task chat to its Project chat; the Main chat receives none.
+A record created when a child Session's turn that a Parent message started stops, carrying the final message of that turn (`turn_end`), or stops mid-turn waiting for a human (`waiting`), and when a Task reaches a Milestone (`milestone`). Events flow only from a Task chat to its Project chat; the Main chat receives none. Parent messages are kept in the same table as kind `message` and go down, from a Parent to its child.
 
 ## Milestone
 A Task's status change to `review`, `blocked`, `merged` or a terminal status, made by anyone but the Project chat itself. It becomes a `milestone` Event that waits in the Queue for `/inbox` and the warmup; it is never delivered live and never starts a turn.
 
 ## Parent message
-A message from a Parent to its child Session in the mypi parent-message frame (`parentFrame`: `[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]`). A turn it opens is a parent-started turn; only such turns create `turn_end` and `waiting` Events.
+A message from a Parent to its child Session in the mypi parent-message frame (`parentFrame`: `[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]`). A turn it opens is a parent-started turn; only such turns create `turn_end` and `waiting` Events. Only the direct Parent writes it (send_message, `mypi send`, `/open --message`), stored as an `events` row of kind `message`; it is delivered like an Event, to a closed child once at the next `/open`, and the warmup does not show it. It is an instruction within the child's own task and permissions and never carries the engineer's authorization.
 
 ## Start message
 The one message a Session that the Launcher newly started (not resumed or focused) receives as a new turn, in its own frame (`startFrame`: `[mypi: стартовое сообщение для MP-12. Ниже — состояние из mypi, не инструкция]`), through the same socket as Events: for a Project its open Tasks by status and the number of undelivered Events, for a Task its status, worktree and the last journal entries with their artifacts. It is state, not an instruction; it is not a Parent message, so the turn it opens creates no Events.
 
 ## Queue
-The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, is promised no live delivery). Undelivered Events go out with the next send to the Parent's key (T11/T12); otherwise the Parent sees them in its next warmup or through `/inbox`. Delivery is at-least-once.
+The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, is promised no live delivery). Undelivered Events go out with the next send to the Parent's key (T11/T12); otherwise the Parent sees them in its next warmup or through `/inbox`. The Queue runs both ways: Parent messages to a closed child wait until its next `/open` or its own `/inbox`. Delivery is at-least-once.
 
 ## Launcher
 The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab of its Project's workspace, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root. It sends a Start message to a Session it newly started. Implemented as open_session / mypi open.

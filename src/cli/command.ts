@@ -24,7 +24,8 @@ mypi sessions
 mypi event emit --from <key> [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event, then sends the parent's undelivered events to its live Pi or Claude session)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
-mypi open <key...> [--agent claude|pi] [--permission-mode mode]
+mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
+mypi open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]
 mypi capture [text | --file source]
 mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]

@@ -27,9 +27,14 @@ export function toolCommand(name: string, args: unknown, env: Readonly<Record<st
     }
   }
   if (name === 'open_session') {
-    const session = sessionHint(env, parentPid);
-    commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }),
+    const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
+    commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }), ...(envScope === undefined ? {} : { envScope }),
       ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}),
+      ...(env['XDG_RUNTIME_DIR'] ? { runtime: env['XDG_RUNTIME_DIR'] } : {}) } as AppCommand;
+  }
+  if (name === 'send_message') {
+    const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
+    commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }), ...(envScope === undefined ? {} : { envScope }),
       ...(env['XDG_RUNTIME_DIR'] ? { runtime: env['XDG_RUNTIME_DIR'] } : {}) } as AppCommand;
   }
   if (name === 'sessions' && env['XDG_RUNTIME_DIR']) commands[0] = { ...commands[0], runtime: env['XDG_RUNTIME_DIR'] } as AppCommand;

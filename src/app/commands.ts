@@ -48,5 +48,6 @@ export type AppCommand =
   | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;
       transcript?: string }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
+  | { name: 'message_send'; key: string; body: TextInput; session?: SessionHint; envScope?: string; runtime?: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
-      session?: SessionHint; stateHome?: string; runtime?: string };
+      session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };
