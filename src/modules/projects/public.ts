@@ -1,5 +1,6 @@
 import { InputError } from '../../shared/errors.js';
 import { parseIdentity, validSlug, validateCode } from './model.js';
+import { validateRepository } from './repository.js';
 import type { ProjectScope } from './model.js';
 import type { CheckoutPaths, ProjectStore } from './ports.js';
 
@@ -11,17 +12,25 @@ export { LOCAL_REPOSITORY, validateRepository, checkoutTarget, noRepositoryError
 export type { CheckoutState } from './repository.js';
 
 export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
+  function update(identity: string, change: { checkout?: { expected: string | null; path: string };
+    repository?: { expected: string | null; value: string } }) {
+    const { org, slug } = parseIdentity(identity);
+    if (!change.checkout && !change.repository) throw new InputError('project update needs a checkout path or a repository');
+    const checkout = change.checkout && { expected: change.checkout.expected, path: paths.canonicalAbsoluteDirectory(change.checkout.path) };
+    if (change.repository) validateRepository(change.repository.value);
+    return store.update({ org, slug, ...(checkout ? { checkout } : {}), ...(change.repository ? { repository: change.repository } : {}) });
+  }
   return {
-    add(identity: string, code: string, checkoutPath?: string) {
+    add(identity: string, code: string, checkoutPath?: string, repository?: string) {
       const { org, slug } = parseIdentity(identity);
       validateCode(code);
+      if (repository !== undefined) validateRepository(repository);
       const canonical = checkoutPath === undefined ? null : paths.canonicalDirectory(checkoutPath);
-      return store.add({ org, slug, code, checkoutPath: canonical });
+      return store.add({ org, slug, code, checkoutPath: canonical, repository: repository ?? null });
     },
+    update,
     updateCheckout(identity: string, expectedCheckoutPath: string | null, checkoutPath: string) {
-      const { org, slug } = parseIdentity(identity);
-      const canonical = paths.canonicalAbsoluteDirectory(checkoutPath);
-      return store.updateCheckout({ org, slug, expectedCheckoutPath, checkoutPath: canonical });
+      return update(identity, { checkout: { expected: expectedCheckoutPath, path: checkoutPath } });
     },
     remove(identity: string, expectedCode: string) {
       const { org, slug } = parseIdentity(identity);
@@ -48,7 +57,7 @@ export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
       if (matches.length > 1) return { match: 'ambiguous' as const, projects: matches };
       const project = matches[0]!;
       return { match: 'project' as const, identity: project.org + '/' + project.slug,
-        code: project.code, scope: { type: 'project' as const, key: project.code } };
+        code: project.code, scope: { type: 'project' as const, key: project.code }, repository: project.repository };
     },
     resolveScope(value?: string): ProjectScope {
       if (value === undefined) return { type: 'global' };

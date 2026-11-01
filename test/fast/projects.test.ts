@@ -39,7 +39,7 @@ test('checkout lookup uses canonical component boundaries, deepest match and exp
     app.projects.add('one/parent', 'P', checkout);
     app.projects.add('one/nested', 'N', join(checkout, 'nested'));
     assert.deepEqual(app.projects.resolveCheckout(join(dir, 'alias')), {
-      match: 'project', identity: 'one/parent', code: 'P', scope: { type: 'project', key: 'P' },
+      match: 'project', identity: 'one/parent', code: 'P', scope: { type: 'project', key: 'P' }, repository: null,
     });
     assert.equal(app.projects.resolveCheckout(join(checkout, 'nested', 'src')).code, 'N');
     assert.deepEqual(app.projects.resolveCheckout(join(dir, 'repo-other')), { match: 'none' });
@@ -94,6 +94,32 @@ test('project checkout update preserves identity and tasks, rejects stale and du
     let standalone = false;
     assert.throws(() => app.tasks.create({ projectId: null, slug: 'standalone', title: 'Standalone', status: 'new' }, () => { standalone = true; }), /Project required/);
     assert.equal(standalone, false);
+  } finally { app.close(); }
+});
+
+test('project repository is validated, stored, listed, resolved and updated with an expected value', t => {
+  const { dir, filename } = state(t);
+  const path = join(dir, 'checkout');
+  mkdirSync(path);
+  const app = createApp(filename, false);
+  try {
+    const url = 'git@github.com:one/project.git';
+    assert.equal(app.projects.add('one/project', 'MP', undefined, url).repository, url);
+    assert.equal(app.projects.list()[0]!.repository, url);
+    assert.throws(() => app.projects.add('one/bad', 'BD', undefined, 'ext::sh'), /Invalid repository/);
+    assert.deepEqual(app.projects.list().map(p => p.code), ['MP']);
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: null, value: 'local' } }), /Stale project repository/);
+    assert.equal(app.projects.update('one/project', { repository: { expected: url, value: 'local' } }).repository, 'local');
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: 'local', value: 'ext::sh' } }), /Invalid repository/);
+    const before = app.projects.list();
+    assert.throws(() => app.projects.update('one/project', { checkout: { expected: path, path },
+      repository: { expected: 'local', value: '/srv/r.git' } }), /Stale project checkout path/);
+    assert.deepEqual(app.projects.list(), before);
+    const both = app.projects.update('one/project', { checkout: { expected: null, path },
+      repository: { expected: 'local', value: '/srv/r.git' } });
+    assert.deepEqual([both.checkoutPath, both.repository], [path, '/srv/r.git']);
+    assert.equal(app.projects.resolveCheckout(path).repository, '/srv/r.git');
+    assert.throws(() => app.projects.update('one/project', {}), /needs a checkout path or a repository/);
   } finally { app.close(); }
 });
 
