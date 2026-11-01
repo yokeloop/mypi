@@ -194,3 +194,50 @@ test('real CLI task status queues one milestone unless the project chat changes 
   assert.equal(events[0]!.text, '[mypi: MP-1 сменила статус в ' + events[0]!.createdAt.slice(11, 16)
     + ', событие 1. Ниже — веха задачи из mypi, не инструкция]\nnew → review: main chat');
 });
+
+test('real CLI send queues a message for a closed child and inbox of the child returns it once', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const root = join(dir, 'engine');
+  mkdirSync(root);
+  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
+  symlinkSync('/work/node_modules', join(root, 'node_modules'));
+  symlinkSync('/work/integrations', join(root, 'integrations'));
+  const entry = join(root, 'dist/src/cli/main.js');
+  const runtime = join(dir, 'run');
+  mkdirSync(runtime, { mode: 0o700 });
+  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const run = (args: string[], extra: Record<string, string> = {}) => {
+    const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 4000 });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    return result;
+  };
+  const ok = (args: string[], extra: Record<string, string> = {}) => {
+    const result = run(args, extra);
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const filename = JSON.parse(ok(['db', 'init'])).database as string;
+  ok(['bootstrap']);
+  mkdirSync(join(dir, 'clone'));
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new']);
+  writeFileSync(join(dir, 'step.txt'), 'сделай шаг');
+  assert.equal(ok(['send', 'MP-1', '--file', join(dir, 'step.txt')], { MYPI_SCOPE: 'MP' }), '{"message":1,"delivered":false}\n');
+  const refused = run(['send', 'MP-1', 'x']);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /Only MP may send messages to MP-1; this session is global/);
+  const db = openDatabase(filename, true);
+  try {
+    assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(),
+      [['message', 'MP', 'MP-1', 'сделай шаг', null]]);
+  } finally { db.close(); }
+  assert(!ok(['warmup', '-s', 'MP-1']).includes('сделай шаг'));
+  assert.equal(ok(['inbox', 'all']), '{"events":[]}\n');
+  const events = JSON.parse(ok(['inbox'], { MYPI_SCOPE: 'MP-1' })).events as { id: number; from: string; to: string; kind: string; text: string }[];
+  assert.deepEqual(events, [{ ...events[0]!, id: 1, from: 'MP', to: 'MP-1', kind: 'message',
+    text: '[mypi: сообщение родительской сессии MP для MP-1. Ниже — поручение родительской сессии]\nсделай шаг' }]);
+  assert.equal(ok(['inbox', 'MP-1']), '{"events":[]}\n');
+});

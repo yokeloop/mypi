@@ -127,13 +127,20 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'inbox', ...(a[0] === undefined ? {} : { key: a[0] }), ...(hint === undefined ? {} : { session: hint }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
     }
+    case 'send': {
+      const hint = sessionHint(env, parentPid);
+      return { name: 'message_send', key: a[0]!, body: source(1), ...(hint === undefined ? {} : { session: hint }),
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+    }
     case 'open': {
       const agent = opt('agent');
       if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
       const hint = sessionHint(env, parentPid);
       return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
         ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
+        ...(opt('message') === undefined ? {} : { message: opt('message')! }),
         ...(hint === undefined ? {} : { session: hint }),
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
         ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
     }
     default: throw new InputError('Unknown workspace command');

@@ -320,4 +320,12 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
   assert.deepEqual(cli(['inbox'], { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/run/user/1' }),
     { name: 'inbox', session: { agent: 'claude', nativeId: 'c1', pid: 77, runtime: '/run/user/1' }, envScope: 'MP' });
   assert.throws(() => cli(['inbox', 'MP', 'OT']), /Wrong argument count for inbox/);
+  assert.deepEqual(cli(['send', 'MP-12', 'go']), { name: 'message_send', key: 'MP-12', body: { text: 'go' } });
+  assert.deepEqual(cli(['send', 'MP-12', '--file', 'x'], { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/run/user/1' }),
+    { name: 'message_send', key: 'MP-12', body: { file: 'x' }, session: { agent: 'claude', nativeId: 'c1', pid: 77, runtime: '/run/user/1' },
+      envScope: 'MP', runtime: '/run/user/1' });
+  assert.throws(() => cli(['send', 'MP-12', 'go', '--file', 'x']), /Use text or --file, not both/);
+  assert.throws(() => cli(['send', 'MP-12']), /Text or --file required/);
+  assert.deepEqual(cli(['open', 'MP-12', '--message', 'go'], { MYPI_SCOPE: 'MP' }),
+    { name: 'open_session', keys: ['MP-12'], message: 'go', envScope: 'MP' });
 });

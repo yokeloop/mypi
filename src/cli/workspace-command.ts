@@ -47,7 +47,8 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'event emit': [0, 0, ['from', 'message', 'pid'], ['waiting', 'hook']],
   'turn end': [0, 0, ['pid'], []],
   inbox: [0, 1, [], []],
-  open: [1, Infinity, ['agent', 'permission-mode'], []],
+  send: [1, 2, ['file'], []],
+  open: [1, Infinity, ['agent', 'permission-mode', 'message'], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');
