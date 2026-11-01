@@ -5,7 +5,7 @@ import type { TestContext } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { install } from '../../.pi/extensions/mypi-lib/install.js';
+import { CODEMODE_GUIDELINE, install } from '../../.pi/extensions/mypi-lib/install.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -41,7 +41,12 @@ function stub() {
     await handlers.get('before_agent_start')?.(event, ctx);
     return event.systemPromptOptions.sections;
   };
-  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, state, start, stop, turn, registration };
+  const options = async (toolGuidelines?: Record<string, string[]>) => {
+    const event = { systemPromptOptions: { sections: {} as Record<string, string>, ...(toolGuidelines ? { toolGuidelines } : {}) } };
+    await handlers.get('before_agent_start')?.(event, ctx);
+    return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
+  };
+  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, state, start, stop, turn, options, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -57,6 +62,9 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.deepEqual(pi.servers, [{ name: 'mypi', config: { command: 'node', args: [join(root, 'dist/src/mcp/main.js')], cwd: root,
     env: { PI_SESSION_ID: 's1' }, description, exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct' } } }]);
   assert.deepEqual(pi.calls, [reg('s1'), warm('global')]);
+  const options = await pi.options();
+  assert.deepEqual(options.toolGuidelines, { codemode: [CODEMODE_GUIDELINE] });
+  assert.equal(options.sections.mypi_context, '# mypi warmup: global\n');
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: global\n');
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: global\n');
   assert.equal(pi.calls.length, 2);
@@ -73,6 +81,23 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.deepEqual(pi.servers.map(server => server.config.env), [{ PI_SESSION_ID: 's1' }, { PI_SESSION_ID: 's2' }]);
   assert.deepEqual(pi.calls.slice(3), [reg('s2'), warm('MP-12')]);
   assert.equal((await pi.turn()).mypi_context, '# mypi warmup: MP-1 (one/project)\n');
+});
+
+test('pi extension adds the codemode await guideline to every turn', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const fresh = await pi.options();
+  assert.deepEqual(fresh.toolGuidelines, { codemode: [CODEMODE_GUIDELINE] });
+  assert.deepEqual(fresh.sections, {});
+  assert.deepEqual((await pi.options({ codemode: ['pi rule'], read: ['r'] })).toolGuidelines, { codemode: ['pi rule', CODEMODE_GUIDELINE], read: ['r'] });
+  assert.deepEqual((await pi.options({ read: ['r'] })).toolGuidelines, { read: ['r'], codemode: [CODEMODE_GUIDELINE] });
+  const shared = { codemode: ['pi rule'] };
+  await pi.options(shared);
+  await pi.options(shared);
+  assert.deepEqual(shared.codemode, ['pi rule', CODEMODE_GUIDELINE]);
+  assert.ok(CODEMODE_GUIDELINE.includes('await searchTools('));
+  assert.ok(CODEMODE_GUIDELINE.includes('describeTool()'));
+  assert.ok(CODEMODE_GUIDELINE.includes('describeNamespace()'));
 });
 
 test('pi extension reports a failed warmup in the section and keeps MCP', async () => {
