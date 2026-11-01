@@ -8,7 +8,7 @@ import { executeCommand } from '../../src/app/execute-command.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { backupState, restoreState, verifyReferences } from '../../src/app/backup.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
-import { contextGit } from '../../src/infrastructure/git/context-git.js';
+import { contextGit, gitVersions } from '../../src/infrastructure/git/context-git.js';
 
 test('backup uses real SQLite snapshot and Git bundle; restore validates source/artifact links and refuses overwrite/corruption', async t => {
   const { dir, filename } = state(t), root = join(dir, 'home');
@@ -55,7 +55,7 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   assert.equal(existsSync(join(dir, 'bad.sqlite3')), false);
   rmSync(join(root, card.contextDir, 'artifacts/result.md'));
   await assert.rejects(backupState(filename, join(dir, 'missing-backup'), root), /Dirty/);
-  assert.throws(() => verifyReferences(filename, root), /ENOENT|Missing artifact/);
+  assert.doesNotThrow(() => verifyReferences(filename, root, gitVersions(root, contextGit(root).head())));
 });
 
 test('project and org remove report remaining home folders and leave them in place', async t => {

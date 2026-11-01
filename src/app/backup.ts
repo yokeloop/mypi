@@ -6,14 +6,16 @@ import { backupGit, clonePublishedCommit } from '../infrastructure/git/backup-gi
 import { relativeContextPath } from '../infrastructure/filesystem/context-files.js';
 import { InputError } from '../shared/errors.js';
 import { snapshotDatabase, restoreDatabase, withWriteLock } from '../infrastructure/database/backup.js';
-import { contextGit, cloneContextBundle } from '../infrastructure/git/context-git.js';
+import { contextGit, cloneContextBundle, gitVersions } from '../infrastructure/git/context-git.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { createWorkspace, defaultContextRoot } from './create-workspace.js';
 import { PartialError } from '../shared/context.js';
+import { checkArtifactReference } from './artifact-references.js';
+import type { ArtifactVersions } from './artifact-references.js';
 
 function hash(file: string): string { return createHash('sha256').update(readFileSync(file)).digest('hex'); }
-export function requiredReferences(filename: string, root: string): string[] {
+export function requiredReferences(filename: string, root: string, versions: ArtifactVersions | undefined): string[] {
   const required: string[] = [];
   const app = createWorkspace(filename, true, root), files = contextFiles(root);
   try {
@@ -22,11 +24,11 @@ export function requiredReferences(filename: string, root: string): string[] {
       const base = parent ? 'projects/' + parent.org + '/' + parent.slug + '/' : '';
       const prefix = ['tasks/', 'requests/'].map(dir => base + dir).find(p => card.contextDir.startsWith(p + card.key + '-'));
       if (!prefix || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(card.contextDir.slice((prefix + card.key + '-').length))) throw new Error('Invalid task context link');
-      app.verifyFile(card.contextDir + '/source.md');
+      if (!statSync(files.path(card.contextDir + '/source.md')).isFile()) throw new Error('Missing source: ' + card.contextDir + '/source.md');
       required.push(card.contextDir + '/source.md');
     }
     for (const entry of app.history('all')) for (const artifact of entry.artifacts ?? []) {
-      if (typeof artifact !== 'string') continue;
+      if (typeof artifact !== 'string') { checkArtifactReference(artifact, versions); continue; }
       if (!statSync(files.path(artifact)).isFile()) throw new Error('Missing artifact');
       app.verifyFile(artifact);
       required.push(artifact);
@@ -34,7 +36,7 @@ export function requiredReferences(filename: string, root: string): string[] {
   } finally { app.close(); }
   return [...new Set(required)];
 }
-export function verifyReferences(filename: string, root: string): void { requiredReferences(filename, root); }
+export function verifyReferences(filename: string, root: string, versions: ArtifactVersions | undefined): void { requiredReferences(filename, root, versions); }
 export async function backupState(filename: string, destination: string, root = defaultContextRoot()) {
   externalDatabasePath(filename, root);
   destination = resolve(destination);
@@ -43,7 +45,7 @@ export async function backupState(filename: string, destination: string, root = 
   return withWriteLock(filename, async () => {
     const git = contextGit(root), hasContext = existsSync(root);
     if (hasContext) git.cleanAll();
-    verifyReferences(filename, root);
+    verifyReferences(filename, root, hasContext ? gitVersions(root, git.head()) : undefined);
     mkdirSync(destination, { recursive: false, mode: 0o700 });
     const files: Record<string, string> = {};
     try {
@@ -59,7 +61,7 @@ export async function backupState(filename: string, destination: string, root = 
         const savedRoot = join(probe, 'home');
         if (head) cloneContextBundle(join(destination, 'context.bundle'), savedRoot);
         else contextGit(savedRoot).initialize();
-        verifyReferences(join(destination, 'state.sqlite3'), savedRoot);
+        verifyReferences(join(destination, 'state.sqlite3'), savedRoot, head ? gitVersions(savedRoot, head) : undefined);
       } finally { rmSync(probe, { recursive: true, force: true }); }
       writeFileSync(join(destination, 'manifest.json'), JSON.stringify({ version: 1, files }) + '\n', { flag: 'wx', mode: 0o600 });
       return { status: 'ok', destination };
@@ -84,7 +86,7 @@ export function restoreState(backup: string, filename: string, root = defaultCon
     if (manifest.files['context.bundle']) cloneContextBundle(join(backup, 'context.bundle'), root);
     else contextGit(root).initialize();
     contextGit(root).cleanAll();
-    verifyReferences(filename, root);
+    verifyReferences(filename, root, gitVersions(root, contextGit(root).head()));
     return { status: 'ok', database: filename, context: root };
   } catch (e) { throw new PartialError(String(e), [], ['inspect restored DB/context'], [filename, root]); }
 }
@@ -134,7 +136,7 @@ export async function publishBackup(input: PublishBackupInput): Promise<PublishB
   const explicit = input.selectedPaths ?? [];
   for (const path of explicit) selectedPath(path);
   if (new Set(explicit).size !== explicit.length) throw new InputError('Duplicate selected file');
-  const required = requiredReferences(filename, root);
+  const required = requiredReferences(filename, root, gitVersions(root, base));
   const selectedPaths = [...new Set([...required, ...explicit])].sort();
   if (git.ignored(generated + '/state.sqlite3') || git.ignored(generated + '/manifest.json')) {
     throw new InputError('Generated backup is excluded by Git');
@@ -196,7 +198,7 @@ export async function publishBackup(input: PublishBackupInput): Promise<PublishB
             mkdirSync(dirname(target), { recursive: true });
             writeFileSync(target, preimages.get(path)!, { mode: 0o600 });
           }
-          verifyReferences(verifiedSnapshot, probe);
+          verifyReferences(verifiedSnapshot, probe, gitVersions(root, base));
         } finally { rmSync(verification, { recursive: true, force: true }); }
         if (git.head() !== base || selectedPaths.some(path => !readFileSync(contextFiles(root).path(path)).equals(preimages.get(path)!))) {
           throw new InputError('Home changed during backup');
@@ -271,7 +273,7 @@ export function restorePublishedBackup(input: RestorePublishedInput): ReturnType
       mkdirSync(dirname(target), { recursive: true });
       writeFileSync(target, git.read(commit, path), { flag: 'wx', mode: 0o600 });
     }
-    verifyReferences(saved, probe);
+    verifyReferences(saved, probe, gitVersions(repository, commit));
     mkdirSync(dirname(filename), { recursive: true, mode: 0o700 });
     restoreDatabase(saved, filename);
     // Clone the selected commit, never the source clone's mutable working tree.
@@ -288,7 +290,7 @@ export function restorePublishedBackup(input: RestorePublishedInput): ReturnType
         }
       }
     }
-    verifyReferences(filename, root);
+    verifyReferences(filename, root, gitVersions(root, commit));
     return { status: 'ok', database: filename, context: root };
   } catch (error) { throw new PartialError(String(error), [], ['inspect restored DB/context'], [filename, root]); }
   finally { rmSync(temp, { recursive: true, force: true }); }
