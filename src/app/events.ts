@@ -1,10 +1,12 @@
 import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import { WAITING_NOTIFICATIONS } from './session-input.js';
-import { sessionKey } from './sessions.js';
+import { callerKey, sessionKey } from './sessions.js';
 import { localTime, warmupScope } from './warmup.js';
 import { deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
+import { inputText } from './input-text.js';
+import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
 import { frame, parentKey, startedByParent } from '../modules/events/public.js';
 import type { TurnPromptReader } from '../modules/events/public.js';
@@ -46,5 +48,18 @@ export function readInbox(filename: string, c: Of<'inbox'>) {
       return { events: events.map(e => ({ id: e.id, from: e.fromKey, to: e.toKey, kind: e.kind, createdAt: e.createdAt,
         text: frame(e, localTime(e.createdAt)) })) };
     });
+  } finally { app.close(); }
+}
+
+export async function sendMessage(filename: string, c: Of<'message_send'>, transports: EventTransports = {},
+  proc = '/proc'): Promise<{ message: number; delivered: boolean }> {
+  const text = inputText(c.body);
+  const from = callerKey(filename, c);
+  if (from === undefined) throw new InputError('The calling session key could not be resolved');
+  const app = createApp(filename, false);
+  try {
+    const id = app.events.send({ from, to: c.key, message: text });
+    const acked = await deliverPending(app, c.key, c.runtime ?? c.session?.runtime, transports, proc);
+    return { message: id, delivered: acked.includes(id) };
   } finally { app.close(); }
 }

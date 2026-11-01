@@ -11,15 +11,9 @@ import { InputError } from '../shared/errors.js';
 import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { openSession } from './launcher.js';
-import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
-import { emitEvent, readInbox, turnEnd } from './events.js';
+import { callerKey, forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
-
-function callerKey(filename: string, c: Extract<AppCommand, { name: 'task_status' }>): string | undefined {
-  try {
-    return warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
-  } catch { return undefined; }
-}
 
 function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
@@ -48,6 +42,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'event_emit') return emitEvent(filename, c, transports);
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
+  if (c.name === 'message_send') return sendMessage(filename, c, transports);
   // DB-only operations must remain usable without context/Git, including a damaged home.
   if (c.name.startsWith('project_') || c.name.startsWith('status_') || c.name === 'org_remove') {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));

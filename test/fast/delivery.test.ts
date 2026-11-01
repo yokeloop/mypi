@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
+import { emitEvent, readInbox, sendMessage, turnEnd } from '../../src/app/events.js';
 import { deliverOnOpen, deliverToStarted } from '../../src/app/delivery.js';
 import { parentFrame, startFrame } from '../../src/modules/events/public.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
@@ -255,4 +255,33 @@ test('deliverOnOpen leaves the rows queued when the session does not acknowledge
   assert.deepEqual(await deliverOnOpen(filename, 'MP-12', startFrame('MP-12', 'state'), { pi: transport(() => []), pause }, run, proc, wait),
     { rows: [1], failure: 'the session did not accept it' });
   assert.deepEqual(delivered(), [[1, false]]);
+});
+
+test('send delivers a message live to the child, marks it and starts with the parent frame', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+    { pi: transport(ids => ids) }, proc), { message: 1, delivered: true });
+  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go') }] }]);
+  assert.deepEqual(delivered(), [[1, true]]);
+});
+
+test('send to a closed child queues the message', async t => {
+  const { filename, run, proc, delivered, calls, transport } = fixture(t);
+  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+    { pi: transport(ids => ids) }, proc), { message: 1, delivered: false });
+  assert.equal(calls.length, 0);
+  assert.deepEqual(delivered(), [[1, false]]);
+});
+
+test('send from a session that is not the parent writes nothing', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  for (const [envScope, error] of [['global', /Only MP may send messages to MP-12; this session is global/],
+    ['MP-7', /Only MP may send messages to MP-12; this session is MP-7/]] as const) {
+    await assert.rejects(sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
+      { pi: transport(ids => ids) }, proc), error);
+  }
+  assert.equal(calls.length, 0);
+  assert.deepEqual(delivered(), []);
 });
