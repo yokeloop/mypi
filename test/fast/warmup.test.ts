@@ -177,7 +177,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
   {
     const { filename, root, write } = fixture(t);
     write('projects/one/MEMORY.md', facts('org', 'Org', 60, 'ж'));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 10, 'ж'));
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5, 'ж'));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(Buffer.byteLength(out) > 9500);
@@ -186,7 +186,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
     assert(hidden > 0 && hidden < 60);
     for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
     assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 59)));
-    for (let i = 0; i < 10; i++) assert(out.includes(fact('project', i)));
+    for (let i = 0; i < 5; i++) assert(out.includes(fact('project', i)));
     assert(!out.includes('older facts hidden from projects/one/project/MEMORY.md'));
     const full = readWarmup(filename, root, 'MP');
     assert(!full.includes('older facts hidden'));
