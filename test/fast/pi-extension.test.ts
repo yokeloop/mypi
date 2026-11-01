@@ -236,6 +236,8 @@ test('pi extension /open runs mypi open and notifies its result', async () => {
   await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
   assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'open', 'MP-12', '--agent', 'pi'], { cwd: root, timeout: 120000 }]);
   assert.deepEqual(pi.notes.at(-1), ['mypi open: ' + stdout, 'info']);
+  await pi.commands.get('open')!.handler('MP-12 --agent pi --message сделай два  шага ', pi.ctx);
+  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'open', 'MP-12', '--agent', 'pi', '--message', 'сделай два  шага'], { cwd: root, timeout: 120000 }]);
   const error = '{"status":"error","message":"Herdr is not available"}';
   pi.state.result = () => ({ code: 1, killed: false, stdout: '', stderr: error });
   await pi.commands.get('open')!.handler('MP', pi.ctx);

@@ -168,9 +168,12 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.registerCommand('open', {
-    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode]',
+    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]',
     handler: async (args, ctx) => {
-      const result = await pi.exec('node', [cli, 'open', ...args.trim().split(/\s+/).filter(Boolean)], { cwd: root, timeout: 120000 })
+      const marker = /(?:^|\s)--message(?:\s|$)/.exec(args);
+      const head = marker === null ? args : args.slice(0, marker.index);
+      const message = marker === null ? [] : ['--message', args.slice(marker.index + marker[0].length).trim()];
+      const result = await pi.exec('node', [cli, 'open', ...head.trim().split(/\s+/).filter(Boolean), ...message], { cwd: root, timeout: 120000 })
         .catch((error: unknown) => ({ code: 1, killed: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
       if (result.code === 0 && !result.killed) ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
       else ctx.ui.notify('mypi open failed: ' + (result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit'), 'warning');
