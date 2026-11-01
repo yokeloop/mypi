@@ -169,7 +169,7 @@ order: the row for this native id, the live record of the same process,
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
 `mypi session forget <key>` drops a row on the user's request. Without
-`XDG_RUNTIME_DIR` or an initialized schema 10 database registration fails and the
+`XDG_RUNTIME_DIR` or an initialized schema 12 database registration fails and the
 warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
@@ -178,7 +178,10 @@ org/project or org/project#N — it focuses the live session's Herdr tab or open
 new tab in its project's Herdr workspace (label `org/project`, created when
 missing; a task gets its tab there without starting the project session) in the
 engine root with `MYPI_SCOPE` and starts the agent there; an existing session
-continues with its own agent. A new session (not a resumed or focused one) gets
+continues with its own agent. A project without a clone is first cloned from its
+registered `repository` (`local`: `git init`) into `projects/<org>/<project>`,
+verified and registered, with `clone prepared: …` in `notes`; without a
+`repository` it is refused before anything opens. A new session (not a resumed or focused one) gets
 one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through
 the same socket as events: for a project its open tasks by status and the number
 of undelivered events, for a task its status, worktree and the last journal
@@ -257,6 +260,9 @@ after it was marked delivered.
 
 Upgrading to schema 10: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
+
+Upgrading to schema 12: run `mypi db init` once after updating (back up the
+database first).
 
 ### Updating without overwriting customizations
 

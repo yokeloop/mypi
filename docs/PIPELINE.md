@@ -50,7 +50,8 @@ batch branch the engineer checks as a whole.
   `derive.json`.
 - `scripts/pipeline/mp-task` subcommands: `scope` (session scope as JSON), `project`
   (project record as JSON: `code`, `project`, `checkoutPath`, `home`, `repository`;
-  takes a CODE or a KEY), `show`, `dir`, `slug`, `source`, `status`, `progress`,
+  `repository` is `owner/name` from the project's `repository` field, null for
+  `local`, else from the clone's `origin`; takes a CODE or a KEY), `show`, `dir`, `slug`, `source`, `status`, `progress`,
   `board` (board rows of a project as JSON lines; terminal statuses with `all`). Run
   it without arguments for usage.
 
