@@ -112,19 +112,16 @@ the status.
       for the plan.
 
 7. **Record.**
-   1. `cp <task folder>/plan.md <task folder>/plan-v<version>.md`, `<version>`
-      from `derive.json`. Nobody edits the snapshot afterwards; `plan.md` stays
-      the live working copy that `/do`, the executor and the reviewer read, and
-      it is never registered.
-   2. Fresh plan:
-      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan-v<version>.md`.
+   1. Fresh plan:
+      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan.md`.
       Rework:
-      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>; переработка: <что изменилось>" plan-v<version>.md`.
-   3. `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`.
+      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>; переработка: <что изменилось>" plan.md`.
+      `<version>` from `derive.json`.
+   2. `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`.
       On rework the status is already `planning`: this call writes nothing to the
       journal (`changed: false`) and its reason is lost, so the rework reason
-      lives in the `progress` entry of item 2.
-   4. `$BIN/mp-home-commit <KEY> "<KEY>: plan v<version>"`.
+      lives in the `progress` entry of item 1.
+   3. `$BIN/mp-home-commit <KEY> "<KEY>: plan v<version>"`.
 
 8. **Report** one line per key: the key, the derive URL, «ждёт согласования —
    /do <KEY> запускает». A published plan starts nothing.

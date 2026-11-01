@@ -49,11 +49,9 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
    2. If you mark the merge in `progress.md` (a line or a «смержено» checkbox),
       do it here: it is the last entry in `progress.md`; the manual check has
       already appended to `pr.md` by now.
-   3. `cp <task folder>/pr.md <task folder>/pr-final.md` and
-      `cp <task folder>/progress.md <task folder>/progress-final.md`.
-   4. `$BIN/mp-task progress <KEY> "Смержено: <PR url>" pr-final.md progress-final.md`.
-   5. After this `pr.md` and `progress.md` are not appended to; the `*-final.md`
-      snapshots are immutable.
+   3. `$BIN/mp-task progress <KEY> "Смержено: <PR url>" pr.md progress.md`.
+   4. After this entry `pr.md` and `progress.md` are not appended to (the entry
+      points at their commit).
 5. **Clean up.** `<base clone>` is the project's `<checkoutPath>`. Inspect the worktree: `git status --porcelain --ignored` — unique
    untracked files are moved to the task folder in home before removal, ignored
    build output is not. `git -C <base clone> worktree remove <worktree>`;

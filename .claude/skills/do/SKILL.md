@@ -49,7 +49,7 @@ Score is `<task folder>/progress.md`: the plan path on the first line, a checkbo
 per stage below, ticked the moment its condition is met. A resumed run starts at
 the first unchecked box and never redoes checked work. `progress.md` is a live
 file (checkboxes, `blocked` reasons, `--force`, entries of `/ship` and of the
-manual check); it is never registered in the journal.
+manual check); `/ship` registers it.
 
 1. **Worktree.** `$BIN/mp-worktree <KEY> [--base batch/<name>]` → JSON; without
    `--base` it takes the base and the task branch from the project's flow. `dirty:
@@ -98,16 +98,11 @@ manual check); it is never registered in the journal.
      `git -C <batch worktree> merge --no-ff <branch> -m "Merge <KEY>: <title>"`
      and push the batch branch. No PR per task.
    Write `pr.md` in the task folder: PR URL (or batch merge SHA), checks, review.
-   `pr.md` is a live file: the manual check appends its own section to it, and
-   `/do` does not register it.
+   The manual check appends its own section to it later; step 6 registers it.
 
 6. **Record.**
-   `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <PR url | batch merge>" plan-v<version>.md do-report.json review-report.json`,
-   `<version>` from `derive.json` (the approved plan version; `/plan` made its
-   snapshot). Registering the same snapshot again is a no-op (its content
-   matches the fingerprint); `plan.md`, `pr.md` and `progress.md` are never
-   registered; `do-report.json` and `review-report.json` are not rewritten after
-   this entry (the fix loop runs before step 6). `$BIN/mp-task status <KEY> review "ждёт ручной
+   `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <PR url | batch merge>" plan.md pr.md do-report.json review-report.json`.
+   `$BIN/mp-task status <KEY> review "ждёт ручной
    проверки: <url>"`; `$BIN/mp-home-commit <KEY> "<KEY>: implemented, PR"`. Ask the
    teammate to shut down (`SendMessage` «shut down»; `TaskStop` if it does not
    answer).
