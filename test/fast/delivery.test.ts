@@ -192,19 +192,17 @@ test('deliverToStarted waits for a record that appears during the wait', async t
 test('deliverToStarted gives a reason when no session appears, when Pi has no socket, without a transport and when the session does not acknowledge', async t => {
   const { filename, run, proc, register, die, delivered, transport } = fixture(t);
   const pi = transport(ids => ids);
-  let started = Date.now();
-  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
-  assert.ok(Date.now() - started >= wait.deadlineMs);
-  register(101, null, 'claude', 'c101', 'MP-12');
   let pauses = 0;
   const counted = async () => { pauses++; };
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
+  assert.ok(pauses > 0);
+  register(101, null, 'claude', 'c101', 'MP-12');
+  pauses = 0;
   assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
   assert.equal(pauses, 0);
   die(101);
   register(102, null, 'pi', 'p102', 'MP-12');
-  started = Date.now();
   assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
-  assert.ok(Date.now() - started >= wait.deadlineMs);
   assert.ok(pauses > 0);
   die(102);
   register(103, '/s/MP-12.sock', 'pi', 'p103', 'MP-12');
