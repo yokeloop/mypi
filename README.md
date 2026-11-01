@@ -394,7 +394,7 @@ mypi/
 $XDG_STATE_HOME/mypi/state.sqlite3 # outside both Git repositories
 ```
 
-A card's context_dir locates source.md and artifacts. `mypi task worktree <KEY>` creates the task branch `task/<KEY>-<slug>` and its worktree beside the base clone from the fast-forwarded main branch and records the path in the card. Its current status is in DB;
+A card's context_dir locates source.md and artifacts. `mypi task worktree <KEY>` creates the task branch and its worktree `<clone>--<KEY>-<slug>` beside the base clone by the project's flow (`home/projects/<org>/<project>/flow.json`, read with `mypi project flow`; without it `task/<KEY>-<slug>` from the fast-forwarded `origin/HEAD`, else `main`), records the path in the card and on repeat returns the recorded worktree; an invalid flow is refused. Its current status is in DB;
 history is in the SQLite journal. Existing monthly UTC JSONL files remain unchanged;
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
