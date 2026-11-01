@@ -29,7 +29,7 @@ export function openSession(filename: string, root: string, c: Of<'open_session'
   }
   const parsed = c.keys.map(parseOpenKey);
   const read = createApp(filename, true);
-  const { keys, chosen, mode } = (() => {
+  const { keys, labels, chosen, mode } = (() => {
     try {
       return read.readSnapshot(() => {
         const projects = read.projects.list(), cards = read.tasks.list();
@@ -42,20 +42,21 @@ export function openSession(filename: string, root: string, c: Of<'open_session'
             throw new InputError('Unknown task: ' + project.code + '-' + number);
           }
           if (project.checkoutPath === null) throw noCloneError(project);
-          return number === undefined ? project.code : project.code + '-' + number;
+          return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug };
         });
         const chosen = c.agent ?? defaultAgent(readSettings(root));
         const mode = c.permissionMode ?? callerMode(read.sessions(c.runtime, proc), c.session) ?? null;
-        return { keys: [...new Set(resolved)], chosen, mode };
+        const labels = new Map<string, string>();
+        for (const { key, label } of resolved) if (!labels.has(key)) labels.set(key, label);
+        return { keys: [...labels.keys()], labels, chosen, mode };
       });
     } finally { read.close(); }
   })();
   const herdr = herdrCli();
   const cwd = engineRoot().replace(/\/$/, '');
-  let workspaceId: string | undefined;
+  const byLabel = new Map<string, string>();
   try {
-    const workspaces = herdr.workspaces();
-    workspaceId = c.workspace ?? workspaces.find(w => w.label === 'mypi')?.workspaceId;
+    for (const w of herdr.workspaces()) if (!byLabel.has(w.label)) byLabel.set(w.label, w.workspaceId);
   } catch (error) {
     if (!(error instanceof HerdrError)) throw error;
     if (error.code === 'unavailable') throw new InputError('Herdr is not available (' + error.message + '); /open needs a running Herdr server. Nothing was opened.');
@@ -82,13 +83,27 @@ export function openSession(filename: string, root: string, c: Of<'open_session'
         continue;
       }
       const worktreePath = key.includes('-') ? openTaskWorktree(filename, key).worktreePath : null;
-      workspaceId ??= herdr.createWorkspace(cwd, 'mypi');
-      const tab = herdr.createTab({ workspaceId, cwd, label: name,
-        env: { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) } });
-      herdr.startAgent(name, decision.agent, tab.paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
+      const label = labels.get(key)!;
+      const env = { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };
+      const existing = byLabel.get(label);
+      let workspaceId: string, tabId: string, paneId: string;
+      if (existing !== undefined) {
+        const tab = herdr.createTab({ workspaceId: existing, cwd, label: name, env });
+        workspaceId = existing;
+        tabId = tab.tabId;
+        paneId = tab.paneId;
+      } else {
+        const created = herdr.createWorkspace({ cwd, label, env });
+        byLabel.set(label, created.workspaceId);
+        herdr.renameTab(created.tabId, name);
+        workspaceId = created.workspaceId;
+        tabId = created.tabId;
+        paneId = created.paneId;
+      }
+      herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
       if (decision.agent === 'pi' && mode !== null) notes.push('Pi has no permission mode; ' + mode + ' was not passed to ' + key);
       opened.push({ key, agent: decision.agent, action: decision.action === 'resume' ? 'resumed' : 'started', workspaceId,
-        tabId: tab.tabId, worktreePath, notes });
+        tabId, worktreePath, notes });
     } catch (error) {
       if (!(error instanceof HerdrError) && !(error instanceof InputError)) throw error;
       if (i > 0) throw new PartialError(key + ': ' + error.message, opened.map(o => o.key), keys.slice(i), []);

@@ -18,12 +18,16 @@ const herdr = `#!/usr/bin/bash
 if [ "\${HERDR_FAKE:-}" = down ]; then echo '{"error":{"code":"server_not_running","message":"server is not running"}}'; exit 1; fi
 case "$1 $2" in
   'workspace list') echo "{\\"result\\":{\\"type\\":\\"workspace_list\\",\\"workspaces\\":\${HERDR_FAKE_WORKSPACES:-[]}}}" ;;
-  'workspace create') echo '{"result":{"workspace":{"workspace_id":"w-new","label":"mypi"}}}' ;;
+  'workspace create')
+    label=; previous=
+    for arg in "$@"; do [ "$previous" = --label ] && label="$arg"; previous="$arg"; done
+    echo "{\\"result\\":{\\"workspace\\":{\\"workspace_id\\":\\"w-$label\\",\\"label\\":\\"$label\\"},\\"tab\\":{\\"tab_id\\":\\"t-$label\\"},\\"root_pane\\":{\\"pane_id\\":\\"p-$label\\"}}}" ;;
   'tab create')
     label=; previous=
     for arg in "$@"; do [ "$previous" = --label ] && label="$arg"; previous="$arg"; done
     if [ -n "\${HERDR_FAKE_TAB_FAIL:-}" ] && [ "$label" = "$HERDR_FAKE_TAB_FAIL" ]; then echo '{"error":{"code":"tab_failed","message":"boom"}}'; exit 1; fi
     echo '{"result":{"tab":{"tab_id":"t1","workspace_id":"w1"},"root_pane":{"pane_id":"p1"}}}' ;;
+  'tab rename') echo '{"result":{"type":"ok"}}' ;;
   'agent start') echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
   'agent focus')
     if [ "\${HERDR_FAKE_FOCUS:-}" = fail ]; then echo '{"error":{"code":"agent_not_found","message":"no agent"}}'; exit 1; fi
@@ -55,7 +59,7 @@ function fixture(t: TestContext) {
   const ok = (args: string[], extra: Record<string, string> = {}) => {
     const result = cli(args, extra);
     assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout) as { opened: { key: string; agent: string; action: string; worktreePath: string | null; notes: string[] }[] };
+    return JSON.parse(result.stdout) as { opened: { key: string; agent: string; action: string; workspaceId: string | null; worktreePath: string | null; notes: string[] }[] };
   };
   const failed = (args: string[], extra: Record<string, string> = {}) => {
     const result = cli(args, extra);
@@ -73,12 +77,16 @@ function fixture(t: TestContext) {
   git('-C', seed, 'push', '--quiet', 'origin', 'main');
   mkdirSync(join(dir, 'projects', 'one'), { recursive: true });
   git('clone', '--quiet', bare, clone);
+  const other = join(dir, 'projects', 'two', 'other');
+  mkdirSync(join(dir, 'projects', 'two'), { recursive: true });
+  git('clone', '--quiet', bare, other);
   assert.equal(cli(['db', 'init']).status, 0);
   const filename = resolveStatePath(env, dir);
   const app = createApp(filename, false);
   try {
     const projectId = app.projects.add('one/project', 'MP', clone).id;
     app.projects.add('one/noclone', 'NC');
+    app.projects.add('two/other', 'OT', other);
     app.tasks.create({ projectId, slug: 'open', title: 'open', status: 'new' }, () => {});
   } finally { app.close(); }
   const calls = () => existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(line => line !== '').map(line => line.split('\u001f')) : [];
@@ -95,38 +103,60 @@ function fixture(t: TestContext) {
   return { env, cli, ok, failed, calls, reset, rows, worktreePaths, pid, worktree: realpathSync(clone) + '--MP-1-open' };
 }
 
+const workspace = (label: string, key: string, state: string) =>
+  ['workspace', 'create', '--cwd', root, '--label', label, '--env', 'MYPI_SCOPE=' + key, '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
 const tab = (workspace: string, label: string, key: string, state: string) =>
   ['tab', 'create', '--workspace', workspace, '--cwd', root, '--label', label, '--env', 'MYPI_SCOPE=' + key, '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
 
-test("open starts new Claude sessions in no-focus tabs of the caller's workspace and creates the task worktree", t => {
+test('open puts a project and its task into one project workspace whatever HERDR_WORKSPACE_ID says', t => {
   const { env, ok, calls, rows, worktree } = fixture(t);
   const result = ok(['open', 'MP', 'MP-1'], { HERDR_WORKSPACE_ID: 'w1' });
   assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.worktreePath]),
     [['MP', 'claude', 'started', null], ['MP-1', 'claude', 'started', worktree]]);
   assert.ok(existsSync(worktree));
   const log = calls();
-  const uuids = [log[2]![9]!, log[4]![9]!];
+  const uuids = [log[3]![9]!, log[5]![9]!];
   for (const uuid of uuids) assert.match(uuid, /^[0-9a-f-]{36}$/);
   assert.notEqual(uuids[0], uuids[1]);
   assert.deepEqual(log, [
     ['workspace', 'list'],
-    tab('w1', 'mp', 'MP', env['XDG_STATE_HOME']!),
-    ['agent', 'start', 'mp', '--kind', 'claude', '--pane', 'p1', '--', '--session-id', uuids[0]!, '--name', 'MP', '--settings', accept],
-    tab('w1', 'mp-1', 'MP-1', env['XDG_STATE_HOME']!),
+    workspace('one/project', 'MP', env['XDG_STATE_HOME']!),
+    ['tab', 'rename', 't-one/project', 'mp'],
+    ['agent', 'start', 'mp', '--kind', 'claude', '--pane', 'p-one/project', '--', '--session-id', uuids[0]!, '--name', 'MP', '--settings', accept],
+    tab('w-one/project', 'mp-1', 'MP-1', env['XDG_STATE_HOME']!),
     ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p1', '--', '--session-id', uuids[1]!, '--name', 'MP-1', '--settings', accept],
   ]);
+  assert.ok(!log.some(c => c.includes('w1')));
+  assert.equal(log.filter(c => c[0] === 'workspace' && c[1] === 'create').length, 1);
   assert.deepEqual(rows(), []);
 });
 
-test('open picks the mypi workspace and creates it once when missing', t => {
-  const { env, ok, calls, reset } = fixture(t);
-  ok(['open', 'MP'], { HERDR_FAKE_WORKSPACES: '[{"workspace_id":"w9","label":"mypi","focused":false}]' });
-  assert.deepEqual(calls().slice(0, 2), [['workspace', 'list'], tab('w9', 'mp', 'MP', env['XDG_STATE_HOME']!)]);
-  assert.ok(!calls().some(c => c[0] === 'workspace' && c[1] === 'create'));
-  reset();
-  ok(['open', 'MP']);
-  assert.deepEqual(calls().slice(0, 3), [['workspace', 'list'], ['workspace', 'create', '--cwd', root, '--label', 'mypi', '--no-focus'],
-    tab('w-new', 'mp', 'MP', env['XDG_STATE_HOME']!)]);
+test('open finds the project workspace by its label and gives another project its own', t => {
+  const { env, ok, calls } = fixture(t);
+  const result = ok(['open', 'MP', 'OT'], { HERDR_FAKE_WORKSPACES:
+    '[{"workspace_id":"w8","label":"mypi","focused":true},{"workspace_id":"w9","label":"one/project","focused":false},{"workspace_id":"w10","label":"one/project","focused":false}]' });
+  const log = calls();
+  assert.deepEqual(log.map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
+    ['workspace', 'list'],
+    tab('w9', 'mp', 'MP', env['XDG_STATE_HOME']!),
+    ['agent', 'start', 'mp', '--kind', 'claude', '--pane', 'p1'],
+    workspace('two/other', 'OT', env['XDG_STATE_HOME']!),
+    ['tab', 'rename', 't-two/other', 'ot'],
+    ['agent', 'start', 'ot', '--kind', 'claude', '--pane', 'p-two/other'],
+  ]);
+  assert.deepEqual(result.opened.map(o => [o.key, o.workspaceId]), [['MP', 'w9'], ['OT', 'w-two/other']]);
+  assert.ok(!log.some(c => c.includes('w8') || c.includes('mypi')));
+});
+
+test('open of a task without its project workspace creates the workspace with only the task tab', t => {
+  const { env, ok, calls } = fixture(t);
+  ok(['open', 'MP-1']);
+  assert.deepEqual(calls().map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
+    ['workspace', 'list'],
+    workspace('one/project', 'MP-1', env['XDG_STATE_HOME']!),
+    ['tab', 'rename', 't-one/project', 'mp-1'],
+    ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p-one/project'],
+  ]);
 });
 
 test('open focuses a live session and continues it with its own agent', t => {
@@ -149,14 +179,14 @@ test('open resumes a closed session with its saved agent and passes the requeste
   assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
   const claude = ok(['open', 'MP-1', '--permission-mode', 'plan']);
   assert.deepEqual(claude.opened.map(o => [o.key, o.agent, o.action]), [['MP-1', 'claude', 'resumed']]);
-  assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p1', '--', '--resume', 'c1', '--permission-mode', 'plan',
+  assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p-one/project', '--', '--resume', 'c1', '--permission-mode', 'plan',
     '--settings', accept]);
   reset();
   assert.equal(cli(['session', 'register', '--agent', 'pi', '--native-id', 'p9', '--pid', pid], { MYPI_SCOPE: 'MP' }).status, 0);
   assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
   const pi = ok(['open', 'MP', '--permission-mode', 'auto']);
   assert.deepEqual(pi.opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP', 'pi', 'resumed', ['Pi has no permission mode; auto was not passed to MP']]]);
-  assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp', '--kind', 'pi', '--pane', 'p1', '--', '--session-id', 'p9']);
+  assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp', '--kind', 'pi', '--pane', 'p-one/project', '--', '--session-id', 'p9']);
 });
 
 test('open refuses without Herdr, without a clone and for unknown keys, leaving no tab, worktree or rows', t => {

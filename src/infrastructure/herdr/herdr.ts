@@ -38,15 +38,20 @@ export function herdrCli() {
       return list.map((w: { workspace_id?: unknown; label?: unknown; focused?: unknown }) =>
         ({ workspaceId: text(w.workspace_id, args), label: text(w.label, args), focused: w.focused === true }));
     },
-    createWorkspace(cwd: string, label: string): string {
-      const args = ['workspace', 'create', '--cwd', cwd, '--label', label, '--no-focus'];
-      return text((call(args, 10_000) as { result?: { workspace?: { workspace_id?: unknown } } } | undefined)?.result?.workspace?.workspace_id, args);
+    createWorkspace(input: { cwd: string; label: string; env: Record<string, string> }): { workspaceId: string; tabId: string; paneId: string } {
+      const args = ['workspace', 'create', '--cwd', input.cwd, '--label', input.label,
+        ...Object.entries(input.env).flatMap(([k, v]) => ['--env', k + '=' + v]), '--no-focus'];
+      const result = (call(args, 10_000) as { result?: { workspace?: { workspace_id?: unknown }; tab?: { tab_id?: unknown }; root_pane?: { pane_id?: unknown } } } | undefined)?.result;
+      return { workspaceId: text(result?.workspace?.workspace_id, args), tabId: text(result?.tab?.tab_id, args), paneId: text(result?.root_pane?.pane_id, args) };
     },
     createTab(input: { workspaceId: string; cwd: string; label: string; env: Record<string, string> }): { tabId: string; paneId: string } {
       const args = ['tab', 'create', '--workspace', input.workspaceId, '--cwd', input.cwd, '--label', input.label,
         ...Object.entries(input.env).flatMap(([k, v]) => ['--env', k + '=' + v]), '--no-focus'];
       const result = (call(args, 10_000) as { result?: { tab?: { tab_id?: unknown }; root_pane?: { pane_id?: unknown } } } | undefined)?.result;
       return { tabId: text(result?.tab?.tab_id, args), paneId: text(result?.root_pane?.pane_id, args) };
+    },
+    renameTab(tabId: string, label: string): void {
+      call(['tab', 'rename', tabId, label], 10_000);
     },
     startAgent(name: string, kind: 'claude' | 'pi', paneId: string, args: string[]): void {
       call(['agent', 'start', name, '--kind', kind, '--pane', paneId, '--', ...args], 45_000);
