@@ -6,6 +6,7 @@ export interface Project {
   slug: string;
   code: string;
   checkoutPath: string | null;
+  repository: string | null;
 }
 
 export type ProjectScope =
