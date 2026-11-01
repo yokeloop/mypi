@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 
 const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
+const shortEmit = fileURLToPath(new URL('../support/event-emit.js', import.meta.url));
 
 function fixture(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-sock-'));
@@ -52,6 +53,14 @@ function fixture(t: TestContext) {
     ? ['session', 'register', '--agent', 'claude', '--pid', String(pid), '--native-id', 'c1', '--socket', sock]
     : ['session', 'register', '--agent', 'pi', '--pid', String(pid), '--native-id', 'p1', '--socket', sock], { MYPI_SCOPE: 'MP' });
   const emit = (message: string) => JSON.parse(ok(['event', 'emit', '--from', 'MP-1', '--message', message])) as { event: number | null; delivered: number[] };
+  const emitShort = (message: string) => {
+    const result = spawnSync(process.execPath, [shortEmit, filename, 'event', 'emit', '--from', 'MP-1', '--message', message],
+      { env, cwd: dir, encoding: 'utf8', timeout: 8000 });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr);
+    return JSON.parse(result.stdout) as { event: number | null; delivered: number[] };
+  };
   const delivered = () => {
     const db = openDatabase(filename, true);
     try {
@@ -62,7 +71,7 @@ function fixture(t: TestContext) {
   const received = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '')
     .map(line => (JSON.parse(line) as { id?: number }).id).filter(id => id !== undefined);
   const lines = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '');
-  return { dir, sock, listen, register, emit, delivered, received, lines };
+  return { dir, sock, listen, register, emit, emitShort, delivered, received, lines };
 }
 
 test('a real Pi socket that acknowledges gets the event and it is marked delivered', async t => {
@@ -75,9 +84,9 @@ test('a real Pi socket that acknowledges gets the event and it is marked deliver
 });
 
 test('a silent socket leaves the event undelivered after the deadline', async t => {
-  const { listen, register, emit, delivered, received } = fixture(t);
+  const { listen, register, emitShort, delivered, received } = fixture(t);
   register((await listen('silent')).pid!);
-  assert.deepEqual(emit('готово'), { event: 1, delivered: [] });
+  assert.deepEqual(emitShort('готово'), { event: 1, delivered: [] });
   assert.deepEqual(delivered(), [[1, false]]);
   assert.deepEqual(received(), [1]);
 });

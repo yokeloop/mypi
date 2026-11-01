@@ -1,6 +1,6 @@
 import { createConnection } from 'node:net';
 
-export function piEventSocket(socket: string, events: { id: number; text: string }[]): Promise<number[]> {
+export function piEventSocket(socket: string, events: { id: number; text: string }[], deadlineMs = 2000): Promise<number[]> {
   return new Promise(resolve => {
     const sent = new Set(events.map(e => e.id));
     const acked: number[] = [];
@@ -13,7 +13,7 @@ export function piEventSocket(socket: string, events: { id: number; text: string
       connection.destroy();
       resolve(acked);
     };
-    const deadline = setTimeout(finish, 2000);
+    const deadline = setTimeout(finish, deadlineMs);
     connection.setEncoding('utf8');
     connection.on('connect', () => {
       for (const e of events) connection.write(JSON.stringify({ id: e.id, text: e.text }) + '\n');
