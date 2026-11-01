@@ -4,9 +4,33 @@ export interface ProjectWorktree { path: string; branch: string | null; prunable
 
 const kept = new Set(['GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_SSH_VARIANT', 'GIT_ASKPASS']);
 
-export function projectGit(clone: string) {
-  const env = { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') || kept.has(key))),
+export const CLONE_TIMEOUT_MS = 100_000;
+
+function gitEnv() {
+  return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') || kept.has(key))),
     GIT_TERMINAL_PROMPT: '0' };
+}
+
+function run(args: string[], timeout: number, action: string): void {
+  const result = spawnSync('git', args, { encoding: 'utf8', timeout, maxBuffer: 1024 * 1024, env: gitEnv() });
+  if ((result.error as NodeJS.ErrnoException | undefined)?.code === 'ETIMEDOUT') throw new Error(action + ' timed out after ' + timeout / 1000 + ' s');
+  if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr.trim() || action + ' failed');
+}
+
+export function cloneRepository(repository: string, target: string): void {
+  run(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.sshCommand=ssh -o BatchMode=yes',
+    'clone', '--quiet', '--', repository, target], CLONE_TIMEOUT_MS, 'git clone');
+}
+
+export function initRepository(target: string): void {
+  run(['-c', 'core.hooksPath=/dev/null', 'init', '--quiet', '--initial-branch=main', '--', target], 10_000, 'git init');
+  run(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-C', target, '-c', 'user.name=mypi',
+    '-c', 'user.email=mypi@localhost', '-c', 'commit.gpgSign=false', 'commit', '--quiet', '--allow-empty', '-m', 'Initial empty commit'],
+  10_000, 'git commit');
+}
+
+export function projectGit(clone: string) {
+  const env = gitEnv();
   function git(args: string[], timeout: number, allowedStatus?: number): { status: number; stdout: string } {
     const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-C', clone, ...args],
       { encoding: 'utf8', timeout, maxBuffer: 1024 * 1024, env });
@@ -36,6 +60,14 @@ export function projectGit(clone: string) {
     },
     hasRef,
     checkedOut,
+    topLevel(): string | null {
+      const result = git(['rev-parse', '--show-toplevel'], 10_000, 128);
+      return result.status === 0 ? result.stdout.trim() : null;
+    },
+    originUrl(): string | null {
+      const result = git(['config', '--get', 'remote.origin.url'], 10_000, 1);
+      return result.status === 0 ? result.stdout.trim() : null;
+    },
     defaultBranch(): string | null {
       const result = git(['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'], 10_000, 1);
       const name = result.stdout.trim();
