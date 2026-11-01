@@ -57,6 +57,7 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['task_update', { key: 'MP-1', status: 'done', title: 'new', reason: 'verified', progress: 'done' },
       [['task', 'status', 'MP-1', 'done', '--reason', 'verified'], ['task', 'title', 'MP-1', 'new', '--reason', 'verified'], ['task', 'progress', 'MP-1', 'done']]],
     ['context_read', { path: 'MEMORY.md' }, [['context', 'read', 'MEMORY.md']]],
+    ['context_read', { path: 'MEMORY.md', revision: 'a'.repeat(40) }, [['context', 'read', 'MEMORY.md', '--revision', 'a'.repeat(40)]]],
     ['context_write', { paths: ['MEMORY.md'], message: 'reconciled' }, [['context', 'commit', 'MEMORY.md', '--message', 'reconciled']]],
     ['sessions', {}, [['sessions']]],
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
@@ -106,6 +107,7 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['warmup', { scope: 7 }, /scope/],
     ['warmup', { maxChars: 9500 }, /Unrecognized/],
     ['journal', { scope: g, limit: 0 }, /limit/],
+    ['context_read', { path: 'MEMORY.md', revision: 'abc' }, /revision/],
     ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }, /project/],
   ] as const) assert.throws(() => toolCommand(name, args), re);
 });

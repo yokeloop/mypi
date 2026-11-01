@@ -1,6 +1,6 @@
 import type { Database } from 'better-sqlite3';
 import { entryValue } from '../model.js';
-import type { Entry } from '../model.js';
+import type { ArtifactRef, Entry } from '../model.js';
 import type { JournalStore } from '../ports.js';
 
 export interface FileFingerprint { path: string; sha256: string; byteLength: number; registeredAt: string }
@@ -78,8 +78,8 @@ export function sqliteJournalStore(db: Database): JournalStore & {
         WHERE artifacts_json IS NOT NULL AND instr(artifacts_json, '"' || ? || '/') > 0`).all(from) as { id: number; artifactsJson: string }[];
       let artifacts = 0;
       for (const row of rows) {
-        const paths = JSON.parse(row.artifactsJson) as string[];
-        const mapped = paths.map(p => p.startsWith(from + '/') ? to + p.slice(from.length) : p);
+        const paths = JSON.parse(row.artifactsJson) as ArtifactRef[];
+        const mapped = paths.map(p => typeof p === 'string' && p.startsWith(from + '/') ? to + p.slice(from.length) : p);
         if (mapped.some((p, i) => p !== paths[i])) {
           db.prepare('UPDATE knowledge_journal SET artifacts_json = ? WHERE id = ?').run(JSON.stringify(mapped), row.id);
           artifacts++;

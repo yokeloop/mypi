@@ -32,20 +32,15 @@ batch branch the engineer checks as a whole.
 - Task folder in mypi home (its own Git repository, direct `main`):
   `<project home>/tasks/<KEY>-<slug>/`
   (`requests/` until `mypi home migrate-tasks` has run on this home — T14 (MP-45);
-  `scripts/pipeline/mp-task dir <KEY>` prints the actual folder). Files by kind:
-  - write-once: `source.md` (task registration), `addendum.md` and other card
-    addenda beside it, `do-report.json`, `review-report.json` (rewritten only in
-    the `/do` fix loop, before they are registered);
-  - snapshot (version in the name, never edited after registration):
-    `plan-v<N>.md` (N is the derive version from `derive.json`, taken by `/plan`),
-    `pr-final.md`, `progress-final.md` (taken by `/ship`);
-  - live (rewritten and appended to, never registered): `plan.md` (the working
-    copy that `/do`, the executor and the reviewer read), `derive.json`,
-    `progress.md`, `pr.md`.
-
-  A registered file is immutable (`mypi backup` checks every fingerprint). Never
-  register a file that will still be written; register a snapshot whose name
-  carries its version. After every write:
+  `scripts/pipeline/mp-task dir <KEY>` prints the actual folder). Every file of
+  the folder may be edited. `task progress … <files>` commits the named files in
+  home and records each as `{path, commit}`: the entry always reads the version it
+  registered (`mypi context read <path> --revision <commit>`). Registered directly:
+  `plan.md` (`/plan`); `plan.md`, `pr.md`, `do-report.json`, `review-report.json`
+  (`/do`); `pr.md`, `progress.md` (`/ship`). A card is corrected by editing
+  `source.md` and running `mp-home-commit`. The
+  `plan-v<N>.md`, `*-final.md` and `addendum.md` files of earlier tasks remain
+  history and are no longer created. After every write:
   `scripts/pipeline/mp-home-commit <KEY|CODE> "<message>"` (the `requests`, `tasks`
   and `batches` folders of that project).
 - Batch: `<project home>/batches/<name>.md`.
@@ -213,8 +208,9 @@ else `<checkoutPath>/CLAUDE.md`.
   engine update: those are the engineer's separate authorizations (for MP, task T14
   of the plan).
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
-  folder; commit home after each change. Artifacts are only the write-once files
-  and snapshots from «Places», never a live file. A repeated `status` with the
+  folder; commit home after each change. Artifacts are the task folder's files
+  named in `progress`; each entry points at the home commit `progress` made. Never
+  rewrite or force-push home history: the references live in it. A repeated `status` with the
   same value writes nothing to the journal, so a rework reason goes into
   `progress`.
 - A stage is passed by its named condition with the command output as evidence,

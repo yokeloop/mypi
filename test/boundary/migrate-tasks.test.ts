@@ -10,6 +10,9 @@ import { parseCommand } from '../../src/cli/command.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
 import { contextGit } from '../../src/infrastructure/git/context-git.js';
 import { legacyTask } from '../support/legacy-task.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { sqliteJournalStore } from '../../src/modules/knowledge/public.js';
+import { fileFingerprint } from '../../src/app/file-fingerprints.js';
 
 function git(...args: string[]): string {
   const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { encoding: 'utf8', timeout: 5000 });
@@ -53,6 +56,13 @@ test('home migrate-tasks previews, moves legacy folders in one commit, rewrites 
   assert.equal(task.contextDir, 'projects/one/project/tasks/MP-1-task');
   const legacy = legacyTask(filename, home, 1, 'legacy');
   assert.equal(legacy.contextDir, 'requests/REQ-1-legacy');
+  contextFiles(home).create('requests/REQ-1-legacy/old.md', 'old proof');
+  const db = openDatabase(filename);
+  try {
+    sqliteJournalStore(db).append({ at: '2026-01-02T00:00:00.000Z', scope: { type: 'task', key: 'REQ-1' }, event_type: 'note',
+      text: 'old artifact', artifacts: ['requests/REQ-1-legacy/old.md'] });
+    sqliteJournalStore(db).saveFingerprint(fileFingerprint(contextFiles(home), 'requests/REQ-1-legacy/old.md', '2026-01-02T00:00:00.000Z'));
+  } finally { db.close(); }
   const artifacts = join(dir, 'artifacts.json');
   writeFileSync(artifacts, JSON.stringify([{ path: 'artifacts/result.md', text: 'proof' }]));
   await cli('task', 'progress', 'MP-1', 'progress', '--artifacts', artifacts);
@@ -60,7 +70,9 @@ test('home migrate-tasks previews, moves legacy folders in one commit, rewrites 
   writeFileSync(legacyArtifacts, JSON.stringify([{ path: 'result.md', text: 'legacy proof' }]));
   await cli('task', 'progress', 'REQ-1', 'legacy progress', '--artifacts', legacyArtifacts);
   await cli('context', 'commit', task.contextDir + '/source.md', task.contextDir + '/artifacts/result.md',
-    'requests/REQ-1-legacy/source.md', 'requests/REQ-1-legacy/result.md', '--message', 'Publish task files');
+    'requests/REQ-1-legacy/source.md', 'requests/REQ-1-legacy/old.md', '--message', 'Publish task files');
+  const reference = (await cli('journal', 'read', '-s', 'task:REQ-1')).at(-1).artifacts[0];
+  assert.deepEqual(reference, { path: 'requests/REQ-1-legacy/result.md', commit: reference.commit });
   assert.equal((await cli('backup', join(dir, 'before'))).status, 'ok');
   const head = git('-C', home, 'rev-parse', 'HEAD');
   const shown = await cli('task', 'show', 'MP-1');
@@ -80,10 +92,9 @@ test('home migrate-tasks previews, moves legacy folders in one commit, rewrites 
   assert.equal(existsSync(join(home, 'requests')), false);
   assert.equal((await cli('task', 'show', 'REQ-1')).contextDir, 'tasks/REQ-1-legacy');
   assert.deepEqual(await cli('task', 'show', 'MP-1'), shown);
-  assert.deepEqual((await cli('journal', 'read', '-s', 'task:REQ-1')).map((e: { artifacts?: string[] }) => e.artifacts),
-    [['tasks/REQ-1-legacy/result.md']]);
-  assert.deepEqual(fingerprints(), ['projects/one/project/tasks/MP-1-task/artifacts/result.md', 'projects/one/project/tasks/MP-1-task/source.md',
-    'tasks/REQ-1-legacy/result.md', 'tasks/REQ-1-legacy/source.md']);
+  assert.deepEqual((await cli('journal', 'read', '-s', 'task:REQ-1')).map((e: { artifacts?: unknown[] }) => e.artifacts),
+    [['tasks/REQ-1-legacy/old.md'], [reference]]);
+  assert.deepEqual(fingerprints(), ['tasks/REQ-1-legacy/old.md', 'tasks/REQ-1-legacy/source.md']);
   assert.equal((await cli('backup', join(dir, 'after'))).status, 'ok');
   assert.deepEqual(await cli('home', 'migrate-tasks'), { status: 'noop' });
   assert.equal(git('-C', home, 'rev-parse', 'HEAD'), result.commit);

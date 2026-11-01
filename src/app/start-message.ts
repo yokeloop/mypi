@@ -15,7 +15,7 @@ function entryLines(entry: Entry): string[] {
   const text = entry.text.replace(/\r?\n/g, ' ');
   const line = '- ' + localDate(entry.at) + ' ' + localTime(entry.at) + ' ' + entry.event_type + ': '
     + (text.length > 300 ? text.slice(0, 300) + '…' : text);
-  return entry.artifacts === undefined ? [line] : [line, '  Артефакты: ' + entry.artifacts.join(', ')];
+  return entry.artifacts === undefined ? [line] : [line, '  Артефакты: ' + entry.artifacts.map(a => typeof a === 'string' ? a : a.path + '@' + a.commit.slice(0, 7)).join(', ')];
 }
 
 export function startMessage(filename: string, key: string, worktreePath: string | null): string {

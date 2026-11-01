@@ -62,6 +62,25 @@ match the GitHub releases.
   parameter of `piEventSocket` and `claudeInboxSocket` with the same production
   value of 2000 ms; the silent-socket boundary test uses 200 ms. The other
   limits are unchanged ([docs/TESTING.md](docs/TESTING.md) §6).
+- Journal artifacts are references to a file version (MP-53): `task progress`
+  commits the named files in home (without push) and records each as
+  `{path, commit}`. Artifact files and a task's `source.md` stay editable; an
+  entry reads the version it registered with `mypi context read <path> --revision
+  <commit>` or MCP `context_read` with `revision`. `mypi backup`, `backup
+  --publish` and restore check that every reference resolves in the saved home
+  history instead of comparing the file on disk with a fingerprint. The `/plan`,
+  `/do` and `/ship` skills register the live `plan.md`, `pr.md`, `progress.md`
+  and reports directly and no longer create `plan-v<N>.md`, `*-final.md` or
+  `addendum.md`; `scripts/pipeline/mp-home-commit` also pushes home commits that
+  `task progress` made when nothing new is staged.
+
+### Upgrade
+
+- Schema 11, migration 011 (no table changes): after updating run `mypi db init`
+  once (it also applies schema 10 of MP-55; back up the database first). An older
+  application refuses the upgraded database. Old entries with plain artifact
+  paths are not migrated: their files stay frozen by their fingerprint. Existing
+  `*-final.md`, `plan-v<N>.md` and `addendum.md` files remain history.
 
 ## [0.8.0] - 2026-10-31
 

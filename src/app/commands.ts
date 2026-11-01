@@ -31,7 +31,7 @@ export type AppCommand =
   | { name: 'status_add' | 'status_terminal'; code: string; terminal: boolean }
   | { name: 'status_rename'; code: string; newCode: string }
   | { name: 'status_remove'; code: string }
-  | { name: 'context_read'; path: string }
+  | { name: 'context_read'; path: string; revision?: string }
   | { name: 'context_commit'; paths: string[]; message: string }
   | { name: 'context_restore'; path: string; revision: string }
   | { name: 'backup'; destination: string }

@@ -36,7 +36,7 @@ mypi task list [--project org/project --status code] | show <key>
 mypi task status <key> <code> --reason text | title <key> <title> --reason text
 mypi task progress <key> <text> [--artifacts JSON-file] | touch <key> | worktree <key>
 mypi status list | add <code> [--terminal] | rename <code> <new> | terminal <code> <true|false> | remove <code>
-mypi context read <path> | commit <paths...> --message text | restore <path> --revision SHA
+mypi context read <path> [--revision SHA] | commit <paths...> --message text | restore <path> --revision SHA
 mypi backup <directory> | backup --publish [--dry-run] [--file exact-relative-path ...]
 mypi restore <backup-directory> | restore --repository <absolute-local-clone> --commit <full-SHA>
 mypi home migrate-tasks [--dry-run]

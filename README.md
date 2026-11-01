@@ -32,11 +32,14 @@ describe older revisions, not the current operating policy.
   materials live under home/projects/<org>/<project>, separate from the source checkout.
 - **History records outcomes.** One factual outcome with evidence paths, not a narration
   of activity. Task history is an ordered append-only SQLite journal.
-- **Published artifacts remain addressable.** New versions use new paths. Mutable
-  memory/context can change with history; original source and append-only logs cannot.
-- **Saving is not synchronization.** Task and journal operations save locally in
-  SQLite without Git. Other context writes still commit locally. Publish source and
-  artifact files separately before local backup; manual publication requires explicit authorization.
+- **Artifacts are references into home history.** A journal artifact is `{path, commit}`:
+  its file and a task's `source.md` can be edited, and the entry still reads the version
+  it registered. Plain-path artifacts recorded before schema 11 stay frozen by their
+  fingerprint. The inbox and append-only logs cannot change.
+- **Saving is not synchronization.** `task progress` with artifacts commits the named
+  files to home without pushing; other task and journal saves stay in SQLite without
+  Git. Other context writes still commit locally. Commit remaining files before local
+  backup; manual publication requires explicit authorization.
 - **Future acceptance belongs to unit contracts.** A unit defines role, interface,
   restrictions and acceptance; it is not a running agent or a Pi extension. No
   universal human-only rule, and no acceptance that grants new external permissions.

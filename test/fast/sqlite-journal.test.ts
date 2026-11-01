@@ -36,12 +36,12 @@ test('legacy import primitives retain duplicate source rows, reject changed repl
 });
 
 test('relocateFiles rewrites only exact directory prefixes in fingerprints and artifacts', t => {
-  const { filename } = state(t), db = openDatabase(filename), journal = sqliteJournalStore(db);
+  const { filename } = state(t), db = openDatabase(filename), journal = sqliteJournalStore(db), commit = 'c'.repeat(40);
   try {
     db.transaction(() => {
       journal.saveFingerprint({ path: 'requests/REQ-1-x/result.md', sha256: 'a'.repeat(64), byteLength: 20, registeredAt: entry('x').at });
       journal.saveFingerprint({ path: 'requests/REQ-1-xy/result.md', sha256: 'a'.repeat(64), byteLength: 20, registeredAt: entry('x').at });
-      journal.append({ ...entry('with artifacts'), artifacts: ['requests/REQ-1-x/a.md', 'requests/REQ-1-xy/b.md'] });
+      journal.append({ ...entry('with artifacts'), artifacts: ['requests/REQ-1-x/a.md', 'requests/REQ-1-xy/b.md', { path: 'requests/REQ-1-x/c.md', commit }] });
       journal.append(entry('plain'));
     }).immediate();
     assert.deepEqual(journal.relocateFiles('requests/REQ-1-x', 'tasks/REQ-1-x'), { fingerprints: 1, artifacts: 1 });
@@ -49,7 +49,7 @@ test('relocateFiles rewrites only exact directory prefixes in fingerprints and a
     assert.equal(journal.fingerprint('requests/REQ-1-x/result.md'), undefined);
     assert.ok(journal.fingerprint('requests/REQ-1-xy/result.md'));
     assert.deepEqual([...journal.entries()].map(x => (x as { artifacts?: string[] }).artifacts),
-      [['tasks/REQ-1-x/a.md', 'requests/REQ-1-xy/b.md'], undefined]);
+      [['tasks/REQ-1-x/a.md', 'requests/REQ-1-xy/b.md', { path: 'requests/REQ-1-x/c.md', commit }], undefined]);
     assert.deepEqual(journal.relocateFiles('requests/REQ-1-x', 'tasks/REQ-1-x'), { fingerprints: 0, artifacts: 0 });
   } finally { db.close(); }
 });

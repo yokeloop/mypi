@@ -27,13 +27,13 @@ export function initializeWorkspace(filename: string, root = defaultContextRoot(
 export function createWorkspace(filename: string, readonly: boolean, root = defaultContextRoot(), clock = () => new Date().toISOString()) {
   externalDatabasePath(filename, root);
   const database = createApp(filename, readonly, clock), files = contextFiles(root);
-  let published: ReadonlySet<string> = new Set();
-  const git = contextGit(root, () => published);
+  let frozen: ReadonlySet<string> = new Set();
+  const git = contextGit(root, () => frozen);
   const core = { ...database, serialize<T>(work: () => T): T {
     return database.serialize(() => {
       git.validateJournal();
-      const previous = published; published = journal.published();
-      try { return work(); } finally { published = previous; }
+      const previous = frozen; frozen = journal.frozen();
+      try { return work(); } finally { frozen = previous; }
     });
   } };
   function project(id: number) {
@@ -65,7 +65,10 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
     matchesFingerprint(saved, fileFingerprint(files, path, clock()));
   }
-  const tasks = taskWork(database, files, database.journalStore, journal, taskKey, clock);
+  const tasks = taskWork(database, files, database.journalStore, journal, { commit(paths: string[], message: string) {
+    const previous = frozen; frozen = journal.frozen();
+    try { return git.commit(paths, message); } finally { frozen = previous; }
+  } }, taskKey, clock);
   function contextPath(scope?: string): string {
     const resolved = core.projects.resolveScope(scope);
     if (resolved.type === 'global') return '';
@@ -100,15 +103,17 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     migrateTasks(dryRun: boolean) { return migrateTaskDirectories(database, files, git, taskKey, dryRun); },
     verifyFile,
     read: files.read,
+    readVersion: (path: string, revision: string) => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(git.readVersion(path, revision)),
     restoreContext(path: string, revision: string) {
-      if (database.journalStore.fingerprint(path) || journal.published().has(path)) throw new InputError('Registered file cannot be restored');
+      if (journal.frozen().has(path)) throw new InputError('Registered file cannot be restored');
       return core.serialize(() => git.restoreFile(path, revision));
     },
     complete(paths: string[], message: string) {
       return core.serialize(() => {
-        for (const path of paths) {
+        const frozenPaths = journal.frozen();
+        for (const path of paths) if (frozenPaths.has(path)) {
           if (database.journalStore.fingerprint(path)) verifyFile(path);
-          else if (journal.published().has(path)) throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
+          else throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
         }
         return git.commit(paths, message);
       });

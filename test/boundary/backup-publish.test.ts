@@ -82,6 +82,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   assert.ok(preview.excludedPaths.includes('old name.md'));
   assert.ok(preview.excludedPaths.includes('new name.md'));
   assert.ok(preview.selectedPaths.includes(card.contextDir + '/source.md'));
+  assert.ok(!preview.selectedPaths.includes(card.contextDir + '/artifacts/result.md'));
   const result = await run(parseCommand(['backup', '--publish', '--file', 'chosen.md']), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
   assert.equal(result.status, 'published', result.error);
   assert.equal(result.publicationConfirmed, true);

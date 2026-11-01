@@ -1,5 +1,5 @@
 import { PartialError } from '../shared/context.js';
-import type { ContextFiles } from '../shared/context.js';
+import type { ContextFiles, ContextHistory } from '../shared/context.js';
 import { InputError } from '../shared/errors.js';
 import type { createApp } from './create-app.js';
 import type { createJournal, sqliteJournalStore } from '../modules/knowledge/public.js';
@@ -9,16 +9,11 @@ import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 
 export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
   store: ReturnType<typeof sqliteJournalStore>, journal: ReturnType<typeof createJournal>,
-  key: (card: Card) => string, clock: () => string) {
+  history: Pick<ContextHistory, 'commit'>, key: (card: Card) => string, clock: () => string) {
   function find(publicKey: string): Card {
     const result = core.tasks.list().find(card => key(card) === publicKey);
     if (!result) throw new InputError('Unknown task key');
     return result;
-  }
-  function register(path: string): void {
-    const current = fileFingerprint(files, path, clock()), saved = store.fingerprint(path);
-    if (saved) matchesFingerprint(saved, current);
-    else store.saveFingerprint(current);
   }
   return {
     get: find,
@@ -45,7 +40,6 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
             } else files.create(path, input.source);
             saved = true;
           });
-          register(result.contextDir + '/source.md');
           journal.append(journal.record({ type: 'task', key: key(result) }, 'Task registered.', 'task_created'));
           return result;
         });
@@ -77,22 +71,27 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       const card = find(publicKey), entry = journal.record({ type: 'task', key: publicKey }, text, 'note');
       const paths = artifacts.map(a => card.contextDir + '/' + a.path);
       if (new Set(paths).size !== paths.length || artifacts.some(a => a.path === 'source.md')) throw new InputError('Invalid artifact set');
-      if (paths.length) entry.artifacts = paths;
       const created: string[] = [];
       try {
         return core.serialize(() => {
           for (const [index, artifact] of artifacts.entries()) {
             const path = paths[index]!;
-            if (artifact.text === undefined) {
-              if (!store.fingerprint(path) && journal.published().has(path)) throw new InputError('Historical artifact requires explicit reconciliation');
-            } else { files.create(path, artifact.text); created.push(path); }
-            register(path);
+            if (journal.frozen().has(path)) {
+              const saved = store.fingerprint(path);
+              if (!saved || artifact.text !== undefined) throw new InputError('Historical artifact requires explicit reconciliation');
+              matchesFingerprint(saved, fileFingerprint(files, path, clock()));
+            } else if (artifact.text !== undefined) { files.create(path, artifact.text); created.push(path); }
+            else if (!files.isFile(path)) throw new InputError('Missing referenced file');
+          }
+          if (paths.length) {
+            const commit = history.commit(paths, 'Register artifacts of ' + publicKey);
+            entry.artifacts = paths.map(path => ({ path, commit }));
           }
           journal.append(entry);
           return core.tasks.touch(card.id);
         });
       } catch (e) { throw new PartialError(String(e), created.length ? ['artifacts'] : [],
-        ['inspect artifacts', 'journal', 'activity timestamp'], created.length ? created : [card.contextDir], card.id); }
+        ['inspect artifacts', 'git', 'journal', 'activity timestamp'], created.length ? created : [card.contextDir], card.id); }
     },
     touch(publicKey: string) { return core.tasks.touch(find(publicKey).id); },
   };

@@ -1,0 +1,1 @@
+-- Journal artifacts may be {path, commit} objects; no table changes.
