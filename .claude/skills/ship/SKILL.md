@@ -1,6 +1,6 @@
 ---
 name: ship
-description: After the engineer's manual check — bring each task PR (or a batch PR) onto main, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/ship <KEY|batch/<name>> [<KEY>…]".
+description: After the engineer's manual check — bring each task PR (or a batch PR) onto the project's PR target, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/ship <KEY|batch/<name>> [<KEY>…]".
 ---
 
 # /ship — merge what the engineer accepted
@@ -28,22 +28,24 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
    the single match of `home/projects/*/*/batches/<name>.md` — no match or several →
    say so and stop. The batch's project follows from the path of that file and the
    keys in it; the score names the PR and the keys. Anything else → say so and stop.
-2. **Update from main.** In the worktree: `git fetch origin`; merge `origin/main`
+   `$BIN/mp-task flow <KEY|CODE>` gives the project's `prTarget` and `mergeMethod`;
+   a non-zero exit → print its error and stop before any write.
+2. **Update from the PR target.** In the worktree: `git fetch origin`; merge `origin/<prTarget>`
    in (the repository's history keeps merge commits; never rebase a pushed task
    branch). Conflicts: read the neighbour's merged PR and this plan before
    touching a hunk; keep both intents; never `--ours`/`--theirs`; a hunk the plan
-   cannot answer is resolved toward main and reported as an open point. A clean
+   cannot answer is resolved toward the PR target and reported as an open point. A clean
    merge is untested: the project's checks by «Checks» of `docs/PIPELINE.md`, as in
    `/do` Preconditions 5 (MP: `mise exec -- pnpm build && mise exec -- pnpm verify`,
    one verify at a time). Red you cannot fix inside the plan's scope → stop, report
    the literal output, touch nothing further.
 3. **Push and wait.** `git push`; `gh pr checks <url> --watch --fail-fast`. Red →
    stop and report.
-4. **Merge.** `gh pr merge <url> --merge`, unless the project's instructions name
-   another method — then that method (merge commits are the convention of mypi:
-   `git log --merges` shows them). Then for the key (every key of
+4. **Merge.** `gh pr merge <url> --<mergeMethod>` (mypi has no flow.json, so the
+   default `merge` keeps the merge commits of its convention: `git log --merges`
+   shows them). Then for the key (every key of
    a batch), in this order:
-   1. `$BIN/mp-task status <KEY> merged "смержено в main: <merge sha>"`.
+   1. `$BIN/mp-task status <KEY> merged "смержено в <prTarget>: <merge sha>"`.
    2. If you mark the merge in `progress.md` (a line or a «смержено» checkbox),
       do it here: it is the last entry in `progress.md`; the manual check has
       already appended to `pr.md` by now.

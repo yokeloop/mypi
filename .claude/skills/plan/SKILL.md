@@ -56,10 +56,11 @@ the status.
 
 3. **Reconnaissance.** `$BIN/mp-task project <KEY>` gives `project`, `checkoutPath`
    and `home`; when `checkoutPath` is `null`, say the project has no registered
-   clone and stop. Update the base clone first:
-   `git -C <checkoutPath> fetch -q origin &&
-   git -C <checkoutPath> merge -q --ff-only origin/main` (only when it is on `main` and clean;
-   otherwise read `origin/main` and say so). Spawn the `plan-scout` subagent with:
+   clone and stop. `$BIN/mp-task flow <KEY>` gives the project's `integration`; a
+   non-zero exit → print its error and stop before any write. Update the base clone
+   first: `git -C <checkoutPath> fetch -q origin &&
+   git -C <checkoutPath> merge -q --ff-only origin/<integration>` (only when it is on
+   `<integration>` and clean; otherwise read `origin/<integration>` and say so). Spawn the `plan-scout` subagent with:
    the full `source.md`, the general-plan card text if there is one, the remarks if
    any, the project `<org>/<slug>`, the clone path `<checkoutPath>`, the project's
    folder in home, `.yoke/` and `AGENTS.md` (else `CLAUDE.md`) of the clone when they
