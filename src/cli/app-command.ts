@@ -78,7 +78,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       if (!['true', 'false'].includes(a[1]!)) throw new InputError('Use true or false');
       return { name: 'status_terminal', code: a[0]!, terminal: a[1] === 'true' };
     case 'status remove': return { name: 'status_remove', code: a[0]! };
-    case 'context read': return { name: 'context_read', path: a[0]! };
+    case 'context read': return { name: 'context_read', path: a[0]!, ...(opt('revision') === undefined ? {} : { revision: opt('revision')! }) };
     case 'context commit': return { name: 'context_commit', paths: a, message: required('message') };
     case 'context restore': return { name: 'context_restore', path: a[0]!, revision: required('revision') };
     case 'backup': return o['publish'] ? { name: 'backup_publish', dryRun: Boolean(o['dry-run']), selectedPaths: o['file'] as string[] ?? [] } :

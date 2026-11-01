@@ -99,6 +99,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       case 'task_touch': return app.tasks.touch(c.key);
       case 'task_progress': return app.tasks.progress(c.key, c.text, c.artifacts);
       case 'context_read': {
+        if (c.revision !== undefined) return { path: c.path, revision: c.revision, text: app.readVersion(c.path, c.revision) };
         const content = app.read(c.path);
         if (content === undefined) throw new InputError('Missing context file');
         return { path: c.path, text: content };

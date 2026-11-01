@@ -35,7 +35,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'status rename': [2, 2, [], []],
   'status terminal': [2, 2, [], []],
   'status remove': [1, 1, [], []],
-  'context read': [1, 1, [], []],
+  'context read': [1, 1, ['revision'], []],
   'context commit': [1, Infinity, ['message'], []],
   'context restore': [1, 1, ['revision'], []],
   backup: [0, 1, ['file'], ['publish', 'dry-run']],

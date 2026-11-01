@@ -82,7 +82,7 @@ test('task start message shows status, worktree and the last five journal entrie
     { at: '2026-10-30T13:00:00.000Z', scope: task, event_type: 'note', text: long },
     { at: '2026-10-30T13:30:00.000Z', scope: task, event_type: 'note', text: 'derive', artifacts: [folder + 'plan-v1.md', folder + 'derive.json'] },
     { at: '2026-10-30T14:04:00.000Z', scope: task, event_type: 'status_changed', text: 'research → planning. plan published',
-      artifacts: [folder + 'plan-v2.md'] },
+      artifacts: [{ path: folder + 'plan.md', commit: 'b'.repeat(40) }] },
   );
   assert.equal(startMessage(filename, 'MP-12', '/abs/clone--MP-12-scoped-warmup'),
     'Задача MP-12 «Scoped warmup», статус planning.\n'
@@ -94,7 +94,7 @@ test('task start message shows status, worktree and the last five journal entrie
     + '- 2026-10-30 13:30 note: derive\n'
     + '  Артефакты: ' + folder + 'plan-v1.md, ' + folder + 'derive.json\n'
     + '- 2026-10-30 14:04 status_changed: research → planning. plan published\n'
-    + '  Артефакты: ' + folder + 'plan-v2.md\n\n'
+    + '  Артефакты: ' + folder + 'plan.md@bbbbbbb\n\n'
     + 'Дождись указаний или предложи следующий шаг.');
 });
 
