@@ -73,8 +73,8 @@ export function prepareCheckouts(filename: string, projects: Project[], projects
   const done: PreparedCheckout[] = [];
   for (const project of unique) {
     try { done.push(prepareCheckout(filename, project, projectsRoot)); } catch (error) {
-      if (!(error instanceof InputError) || done.length === 0) throw error;
-      throw new InputError(error.message + '; already prepared and registered: '
+      if (done.length === 0) throw error;
+      throw new InputError((error as Error).message + '; already prepared and registered: '
         + done.map(d => d.code + ' at ' + d.checkoutPath).join(', ') + '; nothing was opened');
     }
   }

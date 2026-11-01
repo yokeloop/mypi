@@ -25,11 +25,11 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   const url = 'file://' + bare;
   const app = createApp(filename, false);
   const add = (identity: string, code: string, repository: string) => app.projects.add(identity, code, undefined, repository);
-  const [remote, adopted, busy, foreign, empty, missing, taken, local] = (() => {
+  const [remote, adopted, busy, foreign, empty, missing, taken, local, second, blocked] = (() => {
     try {
       return [add('one/remote', 'RE', url), add('one/adopted', 'AD', url), add('one/busy', 'BU', url), add('one/foreign', 'FO', url),
         add('one/empty', 'EM', url), add('one/missing', 'MI', join(dir, 'missing.git')), add('one/taken', 'TA', url),
-        add('one/local', 'LO', 'local')];
+        add('one/local', 'LO', 'local'), add('one/second', 'SE', 'local'), add('file/blocked', 'FB', 'local')];
     } finally { app.close(); }
   })();
   const checkout = (code: string) => {
@@ -65,6 +65,11 @@ test('a project without a clone is cloned, initialized or adopted only when safe
     /is ready \(cloned\) but registering it failed: Checkout path already registered.*--expected-unset --path /);
   assert.equal(git('-C', join(root, 'one', 'taken'), 'config', '--get', 'remote.origin.url'), url);
   assert.equal(checkout('TA'), null);
+
+  writeFileSync(join(root, 'file'), 'not a directory');
+  assert.throws(() => prepareCheckouts(filename, [second, blocked], root),
+    /^InputError: ENOTDIR.*; already prepared and registered: SE at .*second; nothing was opened$/);
+  assert.equal(checkout('FB'), null);
 
   const target = join(root, 'one', 'local');
   assert.equal(checkout('LO'), target);
