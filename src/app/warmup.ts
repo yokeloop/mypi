@@ -66,25 +66,23 @@ function memoryText(zone: Zone, hidden: number, label: string): string {
     : gone.has(index) ? [] : [line]).join('\n').trimEnd();
 }
 
-function flowBlock(files: FlowFiles, project: Project): string {
+function flowLine(files: FlowFiles, project: Project): string {
   let read;
   try { read = readProjectFlow(files, project); } catch (error) {
-    return 'Flow: invalid — ' + (error as Error).message + '; task worktree and the pipeline refuse until it is fixed';
+    return '\nFlow: invalid — ' + (error as Error).message + '; task worktree and the pipeline refuse';
   }
   const { source, flow } = read;
-  return (source === 'default' ? 'Flow (default, no flow.json in the project home):' : 'Flow (home ' + flowFile(project) + '):')
-    + '\n- Integration branch: ' + (flow.integration ?? 'origin/HEAD of the base clone, else main')
-    + '\n- Task branch: ' + (flow.taskBranch ?? DEFAULT_TASK_BRANCH)
-    + '\n- PR target: ' + (flow.prTarget ?? flow.integration ?? 'the integration branch')
-    + '\n- Merge method: ' + (flow.mergeMethod ?? 'merge')
-    + '\n- Release procedure: ' + (flow.release === undefined ? 'not set' : flow.release + ' — read it only when the user asks for a release');
+  if (source === 'default') return '';
+  return '\nFlow (' + flowFile(project) + '): integration ' + (flow.integration ?? 'origin/HEAD, else main')
+    + ' · task branch ' + (flow.taskBranch ?? DEFAULT_TASK_BRANCH) + ' · PR → ' + (flow.prTarget ?? flow.integration ?? 'integration')
+    + ' · merge ' + (flow.mergeMethod ?? 'merge') + ' · release ' + (flow.release === undefined ? 'not set' : flow.release + ', only when the user asks');
 }
 
 function expectedBranch(files: FlowFiles, project: Project, key: string, card: Card): string {
-  try {
-    const { flow } = readProjectFlow(files, project);
-    return taskBranchName(flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
-  } catch (error) { return 'unknown — ' + (error as Error).message; }
+  let read;
+  try { read = readProjectFlow(files, project); } catch (error) { return '\nExpected branch: unknown — ' + (error as Error).message; }
+  if (read.source === 'default') return '';
+  return '\nExpected branch: ' + taskBranchName(read.flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
 }
 
 export function readWarmup(filename: string, root: string, key: string, maxChars?: number): string {
@@ -126,7 +124,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         if (!project) throw new InputError('Unknown project: ' + key);
         if (project.checkoutPath === null) throw noCloneError(project);
         header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')\n\nBase clone: ' + project.checkoutPath
-          + '\n\n' + flowBlock(files, project);
+          + flowLine(files, project);
         role = 'project';
         zones = [orgZone(project), projectZone(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
@@ -150,7 +148,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
             + '\n\n' + (source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2)),
           '## Worktree\n\n' + (card.worktreePath === null
             ? 'Not created yet. Expected path: ' + project.checkoutPath + '--' + basename(card.contextDir)
-              + '\nExpected branch: ' + expectedBranch(files, project, key, card)
+              + expectedBranch(files, project, key, card)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
       } else {

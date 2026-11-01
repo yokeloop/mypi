@@ -23,7 +23,8 @@ match the GitHub releases.
   the project's branch flow from `home/projects/<org>/<project>/flow.json`
   (`integration`, `taskBranch`, `prTarget`, `mergeMethod`, `release`) with
   defaults and `source` `file|default`; an invalid file is refused with the file
-  and the field. The project warmup shows the flow after `Base clone:`.
+  and the field. With a flow.json the project warmup shows one flow line after
+  `Base clone:` and a task warmup the expected task branch; without it, nothing.
 
 ### Changed
 

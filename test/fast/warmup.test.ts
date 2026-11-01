@@ -74,18 +74,17 @@ test('global, MP and MP-12 warmups match the golden files and read nothing but f
   assert(!started.includes('Not created yet'));
 });
 
-test('a flow file shows its values in the project warmup and the expected task branch; an invalid one is a visible line', t => {
+test('a flow file shows one flow line in the project warmup and the expected task branch; an invalid one is a visible line', t => {
   const { dir, filename, root, write } = fixture(t);
   const before = readFileSync(filename);
   write('projects/one/project/flow.json', '{"integration":"develop","taskBranch":"feature/{KEY}-{slug}","mergeMethod":"squash","release":"docs/RELEASE.md"}');
-  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\n\nFlow (home projects/one/project/flow.json):\n'
-    + '- Integration branch: develop\n- Task branch: feature/{KEY}-{slug}\n- PR target: develop\n- Merge method: squash\n'
-    + '- Release procedure: docs/RELEASE.md — read it only when the user asks for a release\n'));
+  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\nFlow (projects/one/project/flow.json): integration develop'
+    + ' · task branch feature/{KEY}-{slug} · PR → develop · merge squash · release docs/RELEASE.md, only when the user asks\n'));
   assert(readWarmup(filename, root, 'MP-12').includes('Expected path: ' + join(dir, 'clone--MP-12-scoped-warmup') + '\nExpected branch: feature/MP-12-scoped-warmup\n'));
   write('projects/one/project/flow.json', '{"preset":"gitflow"}');
   const message = 'Invalid flow ' + join(root, 'projects/one/project/flow.json') + ': unknown field preset';
-  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\n\nFlow: invalid — ' + message
-    + '; task worktree and the pipeline refuse until it is fixed\n'));
+  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\nFlow: invalid — ' + message
+    + '; task worktree and the pipeline refuse\n'));
   assert(readWarmup(filename, root, 'MP-12').includes('\nExpected branch: unknown — ' + message + '\n'));
   assert.deepEqual(readFileSync(filename), before);
 });
@@ -177,7 +176,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
   {
     const { filename, root, write } = fixture(t);
     write('projects/one/MEMORY.md', facts('org', 'Org', 60, 'ж'));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5, 'ж'));
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 10, 'ж'));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(Buffer.byteLength(out) > 9500);
@@ -186,7 +185,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
     assert(hidden > 0 && hidden < 60);
     for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
     assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 59)));
-    for (let i = 0; i < 5; i++) assert(out.includes(fact('project', i)));
+    for (let i = 0; i < 10; i++) assert(out.includes(fact('project', i)));
     assert(!out.includes('older facts hidden from projects/one/project/MEMORY.md'));
     const full = readWarmup(filename, root, 'MP');
     assert(!full.includes('older facts hidden'));
