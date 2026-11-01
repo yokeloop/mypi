@@ -14,6 +14,17 @@ match the GitHub releases.
   listing each kind of reference with its count. `home/` folders stay and are
   reported as `homeFolder`. Neither command is available over MCP.
 
+### Changed
+
+- `/open` (MP-57) opens the sessions of a project and of its tasks as tabs in
+  that project's Herdr workspace: labelled `org/project`, found by its label,
+  created when missing, its first tab taken by the first session opened. A task
+  opened without its project's workspace creates it without the project session.
+  `HERDR_WORKSPACE_ID` and the `mypi` workspace are no longer used. Tabs already
+  open in `mypi` are not moved: a live session is still focused by its agent
+  name, and after its agent quits the next `/open` continues it in the project's
+  workspace while the old shell tab stays.
+
 ## [0.8.0] - 2026-10-31
 
 Upgrading from v0.7.0: move personal Pi settings from `home/pi/` to `~/.pi/agent/`

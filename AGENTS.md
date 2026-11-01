@@ -183,8 +183,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `mypi session forget <key>` drops a row on the user's request. Without
   `XDG_RUNTIME_DIR` or an initialized schema 9 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
-  session's Herdr tab or opens a new tab in the engine root with MYPI_SCOPE and
-  starts or resumes the agent; it writes no session rows.
+  session's Herdr tab or opens a new tab in its project's Herdr workspace (label
+  org/project, created when missing; a task gets its tab there without starting
+  the project session) in the engine root with MYPI_SCOPE and starts or resumes
+  the agent; it writes no session rows.
 
 ## Project setup and maintenance
 
