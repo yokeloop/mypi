@@ -8,8 +8,8 @@ export type Artifact = { path: string; text?: string };
 export type AppCommand =
   | { name: 'db_init' | 'bootstrap' | 'status_list' | 'journal_import' }
   | { name: 'project_list'; org?: string }
-  | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }
-  | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
+  | { name: 'project_add'; identity: string; code: string; checkoutPath?: string; repository?: string }
+  | { name: 'project_update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string; expectedRepository?: string | null; repository?: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }

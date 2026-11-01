@@ -9,9 +9,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
-    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }) };
+    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }),
+    ...(command.repository === undefined ? {} : { repository: command.repository }) };
   if (command.type === 'update') return { name: 'project_update', identity: command.identity,
-    expectedCheckoutPath: command.expectedCheckoutPath, checkoutPath: command.checkoutPath };
+    ...(command.checkoutPath === undefined ? {} : { expectedCheckoutPath: command.expectedCheckoutPath ?? null, checkoutPath: command.checkoutPath }),
+    ...(command.repository === undefined ? {} : { expectedRepository: command.expectedRepository ?? null, repository: command.repository }) };
   const { name, args: a, options: o } = command;
   const opt = (key: string) => typeof o[key] === 'string' ? o[key] as string : undefined;
   const required = (key: string) => { const value = opt(key); if (!value) throw new InputError('--' + key + ' required'); return value; };

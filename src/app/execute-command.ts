@@ -51,8 +51,11 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     try {
       switch (c.name) {
         case 'project_list': return { projects: app.projects.list(c.org) };
-        case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath) };
-        case 'project_update': return { project: app.projects.updateCheckout(c.identity, c.expectedCheckoutPath, c.checkoutPath) };
+        case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath, c.repository) };
+        case 'project_update': return { project: app.projects.update(c.identity, {
+          ...(c.checkoutPath === undefined ? {} : { checkout: { expected: c.expectedCheckoutPath ?? null, path: c.checkoutPath } }),
+          ...(c.repository === undefined ? {} : { repository: { expected: c.expectedRepository ?? null, value: c.repository } }),
+        }) };
         case 'project_resolve': return app.projects.resolveCheckout(c.path);
         case 'project_remove': {
           const project = app.projects.remove(c.identity, c.expectedCode);
