@@ -1,6 +1,6 @@
 import { createConnection } from 'node:net';
 
-export function claudeInboxSocket(socket: string, events: { id: number; text: string }[]): Promise<number[]> {
+export function claudeInboxSocket(socket: string, events: { id: number; text: string }[], deadlineMs = 2000): Promise<number[]> {
   return new Promise(resolve => {
     let done = false;
     const connection = createConnection(socket);
@@ -11,7 +11,7 @@ export function claudeInboxSocket(socket: string, events: { id: number; text: st
       connection.destroy();
       resolve(accepted);
     };
-    const deadline = setTimeout(() => finish([]), 2000);
+    const deadline = setTimeout(() => finish([]), deadlineMs);
     connection.resume();
     connection.on('connect', () => {
       for (const e of events) connection.write(JSON.stringify({ type: 'user', message: { role: 'user', content: e.text } }) + '\n');
