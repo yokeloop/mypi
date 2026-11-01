@@ -3,10 +3,14 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { AppCommand } from './commands.js';
 import { createApp, engineRoot } from './create-app.js';
+import { deliverToStarted } from './delivery.js';
+import type { EventTransports } from './delivery.js';
 import { callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
+import { startMessage } from './start-message.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { noCloneError } from './warmup.js';
 import { HerdrError, herdrCli } from '../infrastructure/herdr/herdr.js';
+import { startFrame } from '../modules/events/public.js';
 import type { Agent } from '../modules/sessions/public.js';
 import { PartialError } from '../shared/context.js';
 import { InputError } from '../shared/errors.js';
@@ -22,7 +26,7 @@ function readSettings(root: string): string | undefined {
   }
 }
 
-export function openSession(filename: string, root: string, c: Of<'open_session'>, proc = '/proc') {
+export async function openSession(filename: string, root: string, c: Of<'open_session'>, transports: EventTransports = {}, proc = '/proc') {
   if (c.keys.length === 0) throw new InputError('Name at least one key');
   if (c.permissionMode !== undefined && !(PERMISSION_MODES as readonly string[]).includes(c.permissionMode)) {
     throw new InputError('--permission-mode must be one of manual, acceptEdits, auto, bypassPermissions, dontAsk, plan');
@@ -83,6 +87,10 @@ export function openSession(filename: string, root: string, c: Of<'open_session'
         continue;
       }
       const worktreePath = key.includes('-') ? openTaskWorktree(filename, key).worktreePath : null;
+      let text: string | null = null, reason: string | null = null;
+      if (decision.action === 'start') {
+        try { text = startFrame(key, startMessage(filename, key, worktreePath)); } catch (error) { reason = (error as Error).message; }
+      }
       const label = labels.get(key)!;
       const env = { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };
       const existing = byLabel.get(label);
@@ -101,6 +109,10 @@ export function openSession(filename: string, root: string, c: Of<'open_session'
         paneId = created.paneId;
       }
       herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
+      if (decision.action === 'start') {
+        if (text !== null) reason = await deliverToStarted(filename, key, [text], transports, c.runtime, proc);
+        if (reason !== null) notes.push('start message not delivered: ' + reason);
+      }
       if (decision.agent === 'pi' && mode !== null) notes.push('Pi has no permission mode; ' + mode + ' was not passed to ' + key);
       opened.push({ key, agent: decision.agent, action: decision.action === 'resume' ? 'resumed' : 'started', workspaceId,
         tabId, worktreePath, notes });
