@@ -19,10 +19,11 @@ batch branch the engineer checks as a whole.
   `projects/` beside it. Every session's cwd; every path below is relative to it. The `mypi` CLI is `mise exec -- node dist/src/cli/main.js` there;
   `scripts/pipeline/mp-task` wraps it.
 - Base clone: the project's `checkoutPath` from `scripts/pipeline/mp-task project <KEY>`
-  (MP: `projects/yokeloop/mypi`), branch `main`.
+  (MP: `projects/yokeloop/mypi`), on the integration branch of the project's flow
+  (`scripts/pipeline/mp-task flow <KEY>`; without `flow.json`: `origin/HEAD`, else `main`).
   The pipeline only fetches and fast-forwards it; never commit or switch there.
 - Task worktree: `<checkoutPath>--<KEY>-<slug>`
-  on branch `task/<KEY>-<slug>`. One writer per worktree. `scripts/pipeline/mp-worktree`
+  on the task branch of the flow (default `task/<KEY>-<slug>`). One writer per worktree. `scripts/pipeline/mp-worktree`
   creates it and installs dependencies only when it has a `pnpm-lock.yaml`.
 - Project home: the `home` field of `mp-task project` (`home/projects/<org>/<slug>`).
   The clone path comes only from `checkoutPath`, the home only from `org/slug`; neither
@@ -117,8 +118,8 @@ so:
   the main chat the mypi MCP (`task_show`, `task_update`), but the skills also
   read `inbox`, which arrives with MP-41 (T10); the script goes once the skills
   call the MCP tools.
-- `scripts/pipeline/mp-worktree` — until MP-39 (T8) ships `mypi task worktree`;
-  then the skills call that command and the script goes.
+- `scripts/pipeline/mp-worktree` — its single mode delegates to `mypi task worktree`;
+  it stays for the batch mode, the dirty check and `pnpm install`.
 - `scripts/pipeline/mp-home-commit` has no planned replacement: `context commit`
   commits locally only and publication goes through `backup --publish`.
 
@@ -150,7 +151,7 @@ final message is exactly one JSON object per its definition.
 - `review`: implementation finished, review clean, checks green, PR open (single
   mode) or merged into the batch branch (batch mode). Waiting for the engineer's
   manual check.
-- `merged`: the PR is merged into `main` by `/ship`.
+- `merged`: the PR is merged into the PR target by `/ship`.
 - `done`: the engineer's word after the installed engine runs the change. The
   pipeline never sets it.
 - `blocked`: the pipeline stopped on an open point; the reason names it.
@@ -188,16 +189,18 @@ else `<checkoutPath>/CLAUDE.md`.
 
 ## Branches and merging
 
-- Single mode: base `origin/main` of the project's clone; PR `task/<KEY>-<slug>` →
-  `main` in the `repository` from `mp-task project` (`gh pr create --repo
+- The flow comes from `scripts/pipeline/mp-task flow <KEY|CODE>` (`integration`,
+  `taskBranch`, `prTarget`, `mergeMethod`). An invalid `flow.json` is refused: the
+  skill prints the error and stops before any write.
+- Single mode: base `origin/<integration>` of the project's clone; PR from the task
+  branch → `<prTarget>` in the `repository` from `mp-task project` (`gh pr create --repo
   <repository>`), merged by `/ship` after the engineer's check.
 - Batch mode: the keys of one project; base `batch/<name>` created in the project's
-  clone from `origin/main` and pushed, batch worktree `<checkoutPath>--batch-<name>`;
+  clone from `origin/<integration>` and pushed, batch worktree `<checkoutPath>--batch-<name>`;
   each task branch merges `--no-ff` into `batch/<name>` right after its review and
-  checks; one PR `batch/<name>` → `main` at the end. The engineer checks the batch
+  checks; one PR `batch/<name>` → `<prTarget>` at the end. The engineer checks the batch
   branch. Tasks run strictly one after another, in the order typed.
-- `/ship` merges with `gh pr merge --merge` unless the project's instructions name
-  another method.
+- `/ship` merges with `gh pr merge --<mergeMethod>`.
 - Commits: English, imperative, one concern, no code comments, no attribution
   trailers (the `task-executor` rule).
 - Never force-push. Never delete a remote branch. Worktrees are removed only by

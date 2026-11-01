@@ -122,7 +122,8 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Retry/mixed-operation recovery | Bounded failure scenarios at durable protocol boundaries | Abrupt termination/restart when exceptions/finally behave differently |
 | Backup/restore | Real backup, restore to new storage, validate data/references | Real filesystem mode and required recovery, not file existence alone |
 | /open | Key parsing, decision and launch arguments; MCP/CLI parity; start message text, frame and the wait to send it | Real CLI with a fake herdr on PATH: project workspaces, tabs, focus, resume, refusals without rows; the fake herdr registers a child, a socket server receives the start message, resume and focus send nothing |
-| Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone |
+| Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone; a develop/feature flow, an invalid flow, a recorded worktree after the flow changed |
+| Project flow | Parsing and validation of flow.json; MCP/CLI translation; the warmup's flow block | `project flow` on a temp clone: defaults, the file, refusals |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
 
 Cover useful commands without replicating the complete error matrix at every level.

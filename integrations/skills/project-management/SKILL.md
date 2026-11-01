@@ -27,6 +27,14 @@ Use this workflow only for the part of project setup or maintenance the user act
 - Use normal file tools to search/read project Markdown and edit ordinary documents, `home/USER-INSTRUCTIONS.md` and `home/settings.json`. Never rewrite immutable source or append-only history this way. Built-in skills live in the engine's `integrations/skills/`, and agent configuration such as `.pi/` is tracked engine source; personal agent settings belong to the agent's user-level configuration (for Pi, `~/.pi/agent/`). Do not customize built-ins to implement personal preferences.
 - For ongoing maintenance, update appropriate project-owned documentation and metadata when the user asks or when needed to keep the requested change accurate. Keep instructions factual and current; do not rewrite historical or immutable records. Ask before introducing a new tracking convention. A mistaken mypi registration is undone with `project remove` / `org remove` (see AGENTS.md); they work only for unreferenced registrations.
 
+## Project flow
+
+- A registered project may have a machine-readable flow in `home/projects/<org>/<project>/flow.json`. Fields, all optional: `integration` (the branch tasks start from), `taskBranch` (template with `{KEY}` and optionally `{slug}`), `prTarget` (the branch PRs go into), `mergeMethod` (`merge`, `squash` or `rebase`), `release` (an https URL or a path relative to the project's clone naming the release procedure; it is only shown, never run). There are no presets and no other fields.
+- Defaults without the file or a field: `integration` `origin/HEAD` of the base clone, else `main`; `taskBranch` `task/{KEY}-{slug}`; `prTarget` the integration branch; `mergeMethod` `merge`; no release procedure.
+- Validation: branch names follow `git check-ref-format --branch`; the template must contain `{KEY}`, use no other placeholders and give a valid branch name. An invalid file makes `task worktree`, `project flow` and the pipeline refuse with the file and the field; the warmup shows `Flow: invalid — …`.
+- Example (gitflow): `{"integration":"develop","taskBranch":"feature/{KEY}-{slug}","prTarget":"develop","release":"docs/RELEASE.md"}`.
+- Edit the file by hand in home on the user's request and commit it by the home rules; there is no write command. Check it with `mypi project flow <CODE>` (MCP `projects` action `flow`).
+
 ## Verify and report
 
 - Check the created or updated files, registration result where applicable, and final Git status. Check MCP `status` (`ok`, `error`, or `partial`) and `saved`/`missing` fields before claiming success; a resolved tool call is not proof of a completed write. Run the relevant checks for changes made under the repository's isolation rules. Commit and publish only task changes under the applicable repository policy; report a missing remote or failed push rather than implying delivery.
