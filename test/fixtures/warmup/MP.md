@@ -2,6 +2,13 @@
 
 Base clone: <TMP>/clone
 
+Flow (default, no flow.json in the project home):
+- Integration branch: origin/HEAD of the base clone, else main
+- Task branch: task/{KEY}-{slug}
+- PR target: the integration branch
+- Merge method: merge
+- Release procedure: not set
+
 ## Personal instructions
 
 ### Personal instructions
