@@ -109,7 +109,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `PI_SESSION_ID` and runs `mypi warmup`; it first registers the session
   (`mypi session register --agent pi`) and passes the registered key to the
   warmup, and unregisters the process when Pi quits; the output is the
-  `mypi_context` system-prompt section of every turn. The key is the one saved for
+  `mypi_context` system-prompt section of every turn. It also appends one codemode
+  tool guideline to every turn: `searchTools()`, `describeTool()` and
+  `describeNamespace()` return Promises and must be awaited; Pi shows it in the
+  prompt rules only while codemode is active. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
   It also registers the /open command (`/open <key...> [--message text]`, the
   rest of the line after --message is the text), which runs mypi open, and the /inbox

@@ -131,7 +131,9 @@ to `integrations/skills/`. The extension needs a built engine. At each session s
 `PI_SESSION_ID` — and runs `mypi warmup`; it first registers the session
 (`mypi session register --agent pi`) and passes the registered key to the warmup,
 and unregisters the process when Pi quits. The output becomes the `mypi_context`
-system-prompt section of every turn of that session. The key is the one saved for
+system-prompt section of every turn of that session. Every turn it also adds a
+codemode guideline that `searchTools()`, `describeTool()` and `describeNamespace()`
+return Promises to be awaited. The key is the one saved for
 this conversation, else `MYPI_SCOPE` of the Pi process, else `global`. If warmup fails, the section states the error, Pi shows
 a warning and the MCP tools stay available. Tool schemas use the configured exposure
 (mostly codemode; `projects` and `warmup` are direct).
