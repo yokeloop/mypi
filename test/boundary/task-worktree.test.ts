@@ -46,11 +46,16 @@ function fixture(t: TestContext, slugs: string[]) {
     for (const slug of slugs) app.tasks.create({ projectId, slug, title: slug, status: 'new' }, () => {});
   } finally { app.close(); }
   const base = realpathSync(clone);
-  return { dir, filename, bare, seed, clone: base, expected: (key: string) => base + '--' + key };
+  return { dir, filename, root: join(dir, 'home'), bare, seed, clone: base, expected: (key: string) => base + '--' + key };
 }
 
 function worktree(filename: string, key: string): Promise<unknown> {
-  return run(parseCommand(['task', 'worktree', key]), filename);
+  return run(parseCommand(['task', 'worktree', key]), filename, join(dirname(filename), 'home'));
+}
+
+function writeFlow(root: string, text: string): void {
+  mkdirSync(join(root, 'projects', 'one', 'project'), { recursive: true });
+  writeFileSync(join(root, 'projects', 'one', 'project', 'flow.json'), text);
 }
 
 function paths(filename: string): (string | null)[] {
@@ -67,7 +72,7 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   const { filename, seed, clone, expected } = fixture(t, ['task-worktree']);
   const head = push(seed, 'two');
   const path = expected('MP-1-task-worktree');
-  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-task-worktree', worktreePath: path, created: true });
+  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-task-worktree', worktreePath: path, created: true, createdBranch: true });
   assert.ok(existsSync(path));
   assert.equal(git('-C', path, 'branch', '--show-current'), 'task/MP-1-task-worktree');
   const list = git('-C', clone, 'worktree', 'list', '--porcelain');
@@ -78,7 +83,7 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   assert.equal(git('-C', path, 'rev-parse', 'HEAD'), head);
   untouched(clone);
   const count = (text: string) => text.split('\n').filter(line => line.startsWith('worktree ')).length;
-  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-task-worktree', worktreePath: path, created: false });
+  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-task-worktree', worktreePath: path, created: false, createdBranch: false });
   assert.equal(count(git('-C', clone, 'worktree', 'list', '--porcelain')), count(list));
 
   git('-C', clone, 'switch', '--quiet', '-c', 'side');
@@ -87,7 +92,7 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   finally { app.close(); }
   const next = push(seed, 'three');
   const second = expected('MP-2-second');
-  assert.deepEqual(await worktree(filename, 'MP-2'), { key: 'MP-2', branch: 'task/MP-2-second', worktreePath: second, created: true });
+  assert.deepEqual(await worktree(filename, 'MP-2'), { key: 'MP-2', branch: 'task/MP-2-second', worktreePath: second, created: true, createdBranch: true });
   assert.equal(git('-C', clone, 'rev-parse', 'main'), next);
   assert.equal(git('-C', second, 'rev-parse', 'HEAD'), next);
   untouched(clone, 'side');
@@ -125,14 +130,54 @@ test('a main branch that cannot be updated refuses the worktree and records noth
     assert.deepEqual(paths(filename), [null]);
   };
   git('-C', clone, 'remote', 'set-url', 'origin', join(dir, 'missing.git'));
-  await assert.rejects(worktree(filename, 'MP-1'), /Main branch cannot be updated in /);
+  await assert.rejects(worktree(filename, 'MP-1'), /Integration branch .* cannot be updated in /);
   absent();
   git('-C', clone, 'remote', 'set-url', 'origin', bare);
   git('-C', clone, 'commit', '--quiet', '--allow-empty', '-m', 'local');
   const local = git('-C', clone, 'rev-parse', 'HEAD');
   push(seed, 'remote');
-  await assert.rejects(worktree(filename, 'MP-1'), /Main branch cannot be updated in /);
+  await assert.rejects(worktree(filename, 'MP-1'), /Integration branch .* cannot be updated in /);
   assert.equal(git('-C', clone, 'rev-parse', 'HEAD'), local);
   untouched(clone);
   absent();
+});
+
+test('a develop flow creates feature/<KEY>-<slug> from origin/develop', async t => {
+  const { filename, root, seed, clone, expected } = fixture(t, ['gitflow']);
+  git('-C', seed, 'switch', '--quiet', '-c', 'develop');
+  writeFileSync(join(seed, 'README.md'), 'develop');
+  git('-C', seed, 'commit', '--quiet', '-am', 'develop');
+  git('-C', seed, 'push', '--quiet', 'origin', 'develop');
+  const develop = git('-C', seed, 'rev-parse', 'HEAD');
+  writeFlow(root, '{"integration":"develop","taskBranch":"feature/{KEY}-{slug}"}');
+  const path = expected('MP-1-gitflow');
+  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'feature/MP-1-gitflow', worktreePath: path, created: true, createdBranch: true });
+  assert.equal(git('-C', path, 'branch', '--show-current'), 'feature/MP-1-gitflow');
+  assert.equal(git('-C', path, 'rev-parse', 'HEAD'), develop);
+  assert.equal(git('-C', clone, 'rev-parse', 'origin/develop'), develop);
+  assert.deepEqual(paths(filename), [path]);
+  untouched(clone);
+});
+
+test('an invalid flow refuses the worktree and records nothing', async t => {
+  const { filename, root, clone, expected } = fixture(t, ['invalid']);
+  for (const [text, field] of [['{"integration":"bad..name"}', 'integration'], ['{"taskBranch":"task/{slug}"}', 'taskBranch']]) {
+    writeFlow(root, text!);
+    await assert.rejects(worktree(filename, 'MP-1'), new RegExp('Invalid flow .*flow\\.json: ' + field));
+    assert.notEqual(gitStatus('-C', clone, 'rev-parse', '--verify', '--quiet', 'refs/heads/task/MP-1-invalid'), 0);
+    assert.ok(!existsSync(expected('MP-1-invalid')));
+    assert.deepEqual(paths(filename), [null]);
+  }
+  untouched(clone);
+});
+
+test('a recorded worktree is returned after the flow changed', async t => {
+  const { filename, root, clone, expected } = fixture(t, ['kept']);
+  const path = expected('MP-1-kept');
+  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-kept', worktreePath: path, created: true, createdBranch: true });
+  writeFlow(root, '{"taskBranch":"feature/{KEY}-{slug}"}');
+  assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-kept', worktreePath: path, created: false, createdBranch: false });
+  assert.notEqual(gitStatus('-C', clone, 'rev-parse', '--verify', '--quiet', 'refs/heads/feature/MP-1-kept'), 0);
+  assert.deepEqual(paths(filename), [path]);
+  untouched(clone);
 });
