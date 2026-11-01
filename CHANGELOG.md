@@ -29,9 +29,22 @@ match the GitHub releases.
   back as `turn_end`. The warmup does not show messages. An instruction never
   stands in for the engineer's word for /do, /ship, merge, release, migration or
   an engine update.
+- `project flow <CODE|org/project>` and `projects` action `flow` (MP-58) return
+  the project's branch flow from `home/projects/<org>/<project>/flow.json`
+  (`integration`, `taskBranch`, `prTarget`, `mergeMethod`, `release`) with
+  defaults and `source` `file|default`; an invalid file is refused with the file
+  and the field. With a flow.json the project warmup shows one flow line after
+  `Base clone:` and a task warmup the expected task branch; without it, nothing.
 
 ### Changed
 
+- `task worktree` (MP-58) applies the project's flow: it fast-forwards the flow's
+  integration branch and names the task branch by its template, refuses an invalid
+  flow before creating or recording anything, adds `createdBranch` to its result
+  and returns a recorded worktree with its actual branch after the flow changed.
+  `scripts/pipeline/mp-worktree` delegates its single mode to it; the `/do`,
+  `/batch`, `/ship` and `/plan` skills take the base, PR target and merge method
+  from `mp-task flow` instead of `main`.
 - `/open` (MP-57) opens the sessions of a project and of its tasks as tabs in
   that project's Herdr workspace: labelled `org/project`, found by its label,
   created when missing, its first tab taken by the first session opened. A task

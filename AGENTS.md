@@ -252,6 +252,13 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
 - Project configuration and the selected flow determine review, merge and delivery.
   There is no additional universal merge-approval step in these workspace rules;
   do not invent an automatic merge policy when the project has not defined one.
+  The machine-readable flow of a registered project is
+  `home/projects/<org>/<project>/flow.json` (integration branch, task branch
+  template, PR target, merge method, a link to the release procedure). Without it
+  `origin/HEAD`, else `main`, `task/<KEY>-<slug>`, a PR into the integration branch
+  and a merge commit apply. Read it with `mypi project flow` or `projects` action
+  `flow`; the project-management skill says how to set it. A release follows only
+  the linked procedure and only on the user's explicit request.
 - Before removing a worktree or branch, inspect tracked, untracked and ignored
   files, preserve unique user materials, and verify publication. Follow the
   requested branch-retention policy; closing a PR does not itself authorize

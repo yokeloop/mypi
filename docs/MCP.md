@@ -78,7 +78,10 @@ An instruction never stands in for the user's word.
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.
 `open_session` takes keys (project code, CODE-N, org/project, org/project#N), optional agent, permissionMode and message (one key; the caller must be its parent, as for `send_message`): it returns `{ opened: [{ key, agent, action: focused|resumed|started, workspaceId, tabId, worktreePath, notes, message }] }` or a partial result naming opened and unopened keys. Each new tab opens in its project's Herdr workspace (label `org/project`), which is created when missing. A new session (action `started`) gets one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through the same socket as events: for a project its open tasks by status and the number of undelivered events, for a task its status, worktree and the last journal entries with their artifacts. It is state, not an instruction, and creates no events; if it cannot be delivered, the key's `notes` say `start message not delivered: <reason>` and the call still succeeds. For Claude in `bypassPermissions` delivery is not promised. A `message` is queued after the focus or start (`message` is its id, else null), sent live to a focused session, and otherwise delivered with the queued messages after a resume or in the same message as the start text; undelivered ones stay queued with a note. It needs a running Herdr server.
 `journal` global remains global-only. CLI `project resolve /absolute/path`
-exposes the same operation as projects action resolve. Invalid JSON-RPC remains an SDK protocol error;
+exposes the same operation as projects action resolve. `projects` action `flow`
+(`project`: a code or org/project) returns the project's branch flow from
+`home/projects/<org>/<project>/flow.json` with defaults and `source` `file|default`,
+the same as CLI `project flow`; an invalid file is refused. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.
 Backup, its publication and restore are CLI operations; see [M1-CLI](M1-CLI.md).
 Always check isError and structuredContent.status, not promise resolution alone.

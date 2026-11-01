@@ -115,7 +115,8 @@ git -C home push -u origin main
 ```
 
 Fixtures: a fixture project clone with its own bare remote and a `main` branch
-(`/open` of a task key creates the task worktree from `origin/main`),
+(`/open` of a task key creates the task worktree from `origin/<integration>` of the project's flow
+(`origin/main` without flow.json)),
 `mp project add <org/project> --code <CODE> --path <clone>`, and tasks created with
 `mp task create … --project <org/project>`. Use synthetic data only; keep real data
 and existing checkouts out of the fixtures.

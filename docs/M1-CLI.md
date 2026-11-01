@@ -21,6 +21,7 @@ Use only with explicit intent; stop other writers for bootstrap/restore.
 project add org/project --code MP [--path /absolute/checkout]
 project list [--org org]
 project resolve /absolute/existing-directory
+project flow MP|org/project
 project remove org/project --expected-code MP
 org remove org
 memory add "fact" [-s org/project]
@@ -96,14 +97,30 @@ journal read --all --type status_changed
 These are independent syntax examples, not a mandatory sequence. `task status` to `review`, `blocked`, `merged` or a terminal status also queues a `milestone` event for the project chat (inbox, warmup), unless the caller is the project chat itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones are never sent live. Tasks belong to a
 registered project; existing standalone REQ records remain readable.
 
+`project flow MP` (or `org/project`) prints the project's branch flow from
+`home/projects/<org>/<project>/flow.json`:
+`{project,code,source,file,integration,taskBranch,prTarget,mergeMethod,release}`.
+`source` is `file` or `default`. Without the file: `integration` is the clone's
+`origin/HEAD` (read locally, no fetch), else `main`, and `main` without a clone;
+`taskBranch` `task/{KEY}-{slug}`, `prTarget` the integration branch, `mergeMethod`
+`merge`, `release` `null`. Fields not in the file take the same defaults. The file
+accepts exactly these fields; an unknown field, a wrong type, an invalid branch name,
+a template without `{KEY}` or with other placeholders, a merge method other than
+`merge`, `squash` or `rebase`, or a release that is neither an https URL nor a path
+relative to the clone is refused with `Invalid flow <absolute file>: <field> …`. An
+unknown project is refused. It only reads.
+
 `task worktree MP-1` works in the project's registered base clone: it fetches
-`origin`, fast-forwards the main branch (`origin/HEAD`, else `main`) without
-switching the clone's branch, creates `task/MP-1-<slug>` from it in
-`<clone>--MP-1-<slug>` and records the path as the card's `worktreePath`. It prints
-`{key,branch,worktreePath,created}`. A repeated call returns the recorded worktree
-(`created: false`) without fetching. It refuses tasks without a project, projects
-without a clone, a main branch that cannot be fetched or fast-forwarded, a branch
-checked out in another worktree and a foreign directory at the path. It installs no
+`origin`, fast-forwards the integration branch of the project's flow (without
+`integration`: `origin/HEAD`, else `main`) without switching the clone's branch,
+creates the task branch by the flow's template (default `task/MP-1-<slug>`) from it
+in `<clone>--MP-1-<slug>` and records the path as the card's `worktreePath`. It prints
+`{key,branch,worktreePath,created,createdBranch}`. A repeated call returns the
+recorded worktree (`created: false`) with its actual branch, whatever the flow says
+now, without fetching. An invalid flow is refused before anything is created or
+recorded. It refuses tasks without a project, projects without a clone, an
+integration branch that cannot be fetched or fast-forwarded, a branch checked out in
+another worktree and a foreign directory at the path. It installs no
 dependencies, writes no journal entry and has no MCP tool; removing worktrees and
 branches stays manual.
 

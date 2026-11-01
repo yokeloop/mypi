@@ -74,6 +74,21 @@ test('global, MP and MP-12 warmups match the golden files and read nothing but f
   assert(!started.includes('Not created yet'));
 });
 
+test('a flow file shows one flow line in the project warmup and the expected task branch; an invalid one is a visible line', t => {
+  const { dir, filename, root, write } = fixture(t);
+  const before = readFileSync(filename);
+  write('projects/one/project/flow.json', '{"integration":"develop","taskBranch":"feature/{KEY}-{slug}","mergeMethod":"squash","release":"docs/RELEASE.md"}');
+  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\nFlow (projects/one/project/flow.json): integration develop'
+    + ' · task branch feature/{KEY}-{slug} · PR → develop · merge squash · release docs/RELEASE.md, only when the user asks\n'));
+  assert(readWarmup(filename, root, 'MP-12').includes('Expected path: ' + join(dir, 'clone--MP-12-scoped-warmup') + '\nExpected branch: feature/MP-12-scoped-warmup\n'));
+  write('projects/one/project/flow.json', '{"preset":"gitflow"}');
+  const message = 'Invalid flow ' + join(root, 'projects/one/project/flow.json') + ': unknown field preset';
+  assert(readWarmup(filename, root, 'MP').includes('Base clone: ' + join(dir, 'clone') + '\nFlow: invalid — ' + message
+    + '; task worktree and the pipeline refuse\n'));
+  assert(readWarmup(filename, root, 'MP-12').includes('\nExpected branch: unknown — ' + message + '\n'));
+  assert.deepEqual(readFileSync(filename), before);
+});
+
 test('scope priority: explicit over MYPI_SCOPE over global, and missing personal instructions omit the section', t => {
   assert.equal(warmupScope('MP', 'MP-12'), 'MP');
   assert.equal(warmupScope(undefined, 'MP-12'), 'MP-12');

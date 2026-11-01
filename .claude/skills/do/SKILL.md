@@ -39,6 +39,9 @@ malformed session key, a non-zero exit) — print the refusal text from
    `pnpm verify`), else the check commands of the Acceptance section of `plan.md`.
    Neither names any → say what is missing (no checks in the project's instructions
    nor in the plan) and stop: no worktree, no status change.
+6. `$BIN/mp-task flow <KEY>` → the project's flow: `integration`, `prTarget`,
+   `mergeMethod`. A non-zero exit → print its error and stop before any write
+   (an invalid `flow.json` is fixed in the project home first).
 
 ## Stages
 
@@ -48,14 +51,16 @@ the first unchecked box and never redoes checked work. `progress.md` is a live
 file (checkboxes, `blocked` reasons, `--force`, entries of `/ship` and of the
 manual check); it is never registered in the journal.
 
-1. **Worktree.** `$BIN/mp-worktree <KEY> [--base batch/<name>]` → JSON. `dirty:
+1. **Worktree.** `$BIN/mp-worktree <KEY> [--base batch/<name>]` → JSON; without
+   `--base` it takes the base and the task branch from the project's flow. `dirty:
    true` → stop and show `git status` of the worktree; nothing is cleaned
    automatically. Status: `$BIN/mp-task status <KEY> in_progress "worktree
    <path>, base <base_ref>"`.
 
 2. **Executor.** Spawn a teammate: `Agent` with `subagent_type: task-executor`,
    `name: <key in lower case>` (`mp-33`), prompt carrying: the key, the plan path,
-   the worktree path, the task folder path, the base branch, the path of
+   the worktree path, the task folder path, the base branch (`base_ref` from
+   `mp-worktree`), the path of
    `PIPELINE.md`, the project's checks from Preconditions 5 (for MP:
    `mise exec -- pnpm build`, `mise exec -- pnpm verify`, one verify at a time, the
    retry rule), the rule
@@ -83,7 +88,7 @@ manual check); it is never registered in the journal.
 
 5. **Deliver.**
    - Single mode (no `--base`): `git -C <worktree> push -u origin <branch>`, then
-     `gh pr create --repo <repository> --base main --head <branch>` with title
+     `gh pr create --repo <repository> --base <prTarget> --head <branch>` with title
      `<KEY>: <task title>` and a body: the goal, the plan's derive URL, the steps
      done, the checks with their exit codes, the review verdict, open advice, and
      the ending `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.

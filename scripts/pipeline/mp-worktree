@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Create or reuse the task worktree of a task of any registered project. Prints one JSON object.
-#   mp-worktree <KEY> [--base <ref>]     default base: origin/main
+#   mp-worktree <KEY> [--base <ref>]     default base: the project's integration branch
 # Never touches the base clone's checked-out branch; never cleans a dirty worktree.
 set -euo pipefail
 ENGINE=${MYPI_ENGINE_ROOT:-$PWD}
@@ -8,9 +8,10 @@ ENGINE=${MYPI_ENGINE_ROOT:-$PWD}
 [[ -f "$ENGINE/package.json" && -d "$ENGINE/home" && -d "$ENGINE/projects" ]] \
   || { echo "{\"error\":\"run from the installation root (engine checkout with home/ and projects/), got $ENGINE\"}" >&2; exit 2; }
 BIN=$(cd "$(dirname "$0")" && pwd)
+cli() { (cd "$ENGINE" && mise exec -- node dist/src/cli/main.js "$@"); }
 key=${1:-}; [[ -n "$key" ]] || { echo "usage: mp-worktree <KEY> [--base <ref>]" >&2; exit 2; }
 shift
-base_ref=origin/main
+base_ref=
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --base) base_ref=$2; shift 2 ;;
@@ -20,33 +21,57 @@ done
 proj=$("$BIN/mp-task" project "$key")
 BASE_CLONE=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["checkoutPath"] or "")' <<<"$proj")
 [[ -n "$BASE_CLONE" && -d "$BASE_CLONE" ]] || { echo "{\"error\":\"no registered clone (checkoutPath) for $key\"}"; exit 1; }
-slug=$("$BIN/mp-task" slug "$key")
-branch="task/$key-$slug"
-wt="$BASE_CLONE--$key-$slug"
+field() { python3 -c 'import sys,json;print(json.load(sys.stdin)[sys.argv[1]])' "$1" <<<"$flow"; }
+err=$(mktemp); trap 'rm -f "$err"' EXIT
+fail() {
+  python3 -c 'import sys,json
+t=sys.argv[1].strip()
+try: m=json.loads(t.splitlines()[-1])["message"]
+except Exception: m=t
+print(json.dumps({"error":m}))' "$(<"$err")"
+  exit 1
+}
 
-git -C "$BASE_CLONE" fetch -q origin
-# A batch base lives on origin; take it from there when it is not a local ref.
-if ! git -C "$BASE_CLONE" rev-parse -q --verify "$base_ref^{commit}" >/dev/null; then
-  if git -C "$BASE_CLONE" rev-parse -q --verify "origin/$base_ref^{commit}" >/dev/null; then
-    base_ref="origin/$base_ref"
-  else
-    echo "{\"error\":\"base ref not found: $base_ref\"}"; exit 1
+if [[ -z "$base_ref" ]]; then
+  wt_json=$(cli task worktree "$key" 2>"$err") || fail
+  { read -r branch; read -r wt; read -r created_worktree; read -r created_branch; } < <(python3 -c 'import sys,json
+r=json.loads(sys.argv[1])
+print(r["branch"],r["worktreePath"],str(r["created"]).lower(),str(r["createdBranch"]).lower(),sep="\n")' "$wt_json")
+  flow=$("$BIN/mp-task" flow "$key" 2>"$err") || fail
+  base_ref="origin/$(field integration)"
+  base_sha=$(git -C "$BASE_CLONE" rev-parse "$base_ref")
+else
+  flow=$("$BIN/mp-task" flow "$key" 2>"$err") || fail
+  slug=$("$BIN/mp-task" slug "$key")
+  template=$(field taskBranch)
+  branch=${template//\{KEY\}/$key}
+  branch=${branch//\{slug\}/$slug}
+  wt="$BASE_CLONE--$key-$slug"
+
+  git -C "$BASE_CLONE" fetch -q origin
+  # A batch base lives on origin; take it from there when it is not a local ref.
+  if ! git -C "$BASE_CLONE" rev-parse -q --verify "$base_ref^{commit}" >/dev/null; then
+    if git -C "$BASE_CLONE" rev-parse -q --verify "origin/$base_ref^{commit}" >/dev/null; then
+      base_ref="origin/$base_ref"
+    else
+      echo "{\"error\":\"base ref not found: $base_ref\"}"; exit 1
+    fi
   fi
-fi
-base_sha=$(git -C "$BASE_CLONE" rev-parse "$base_ref")
+  base_sha=$(git -C "$BASE_CLONE" rev-parse "$base_ref")
 
-created_branch=false
-if ! git -C "$BASE_CLONE" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
-  if git -C "$BASE_CLONE" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
-    git -C "$BASE_CLONE" branch -q --track "$branch" "origin/$branch"
-  else
-    git -C "$BASE_CLONE" branch -q "$branch" "$base_sha"; created_branch=true
+  created_branch=false
+  if ! git -C "$BASE_CLONE" rev-parse -q --verify "refs/heads/$branch" >/dev/null; then
+    if git -C "$BASE_CLONE" rev-parse -q --verify "refs/remotes/origin/$branch" >/dev/null; then
+      git -C "$BASE_CLONE" branch -q --track "$branch" "origin/$branch"
+    else
+      git -C "$BASE_CLONE" branch -q "$branch" "$base_sha"; created_branch=true
+    fi
   fi
-fi
 
-created_worktree=false
-if [[ ! -d "$wt" ]]; then
-  git -C "$BASE_CLONE" worktree add -q "$wt" "$branch"; created_worktree=true
+  created_worktree=false
+  if [[ ! -d "$wt" ]]; then
+    git -C "$BASE_CLONE" worktree add -q "$wt" "$branch"; created_worktree=true
+  fi
 fi
 current=$(git -C "$wt" branch --show-current)
 [[ "$current" == "$branch" ]] || { echo "{\"error\":\"worktree $wt is on $current, expected $branch\"}"; exit 1; }

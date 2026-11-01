@@ -1,9 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createApp } from './create-app.js';
+import { flowFile, readProjectFlow } from './project-flow.js';
+import type { FlowFiles } from './project-flow.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { factLines } from '../modules/memory/public.js';
+import { DEFAULT_TASK_BRANCH, taskBranchName } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { frame } from '../modules/events/public.js';
@@ -63,6 +66,25 @@ function memoryText(zone: Zone, hidden: number, label: string): string {
     : gone.has(index) ? [] : [line]).join('\n').trimEnd();
 }
 
+function flowLine(files: FlowFiles, project: Project): string {
+  let read;
+  try { read = readProjectFlow(files, project); } catch (error) {
+    return '\nFlow: invalid — ' + (error as Error).message + '; task worktree and the pipeline refuse';
+  }
+  const { source, flow } = read;
+  if (source === 'default') return '';
+  return '\nFlow (' + flowFile(project) + '): integration ' + (flow.integration ?? 'origin/HEAD, else main')
+    + ' · task branch ' + (flow.taskBranch ?? DEFAULT_TASK_BRANCH) + ' · PR → ' + (flow.prTarget ?? flow.integration ?? 'integration')
+    + ' · merge ' + (flow.mergeMethod ?? 'merge') + ' · release ' + (flow.release === undefined ? 'not set' : flow.release + ', only when the user asks');
+}
+
+function expectedBranch(files: FlowFiles, project: Project, key: string, card: Card): string {
+  let read;
+  try { read = readProjectFlow(files, project); } catch (error) { return '\nExpected branch: unknown — ' + (error as Error).message; }
+  if (read.source === 'default') return '';
+  return '\nExpected branch: ' + taskBranchName(read.flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
+}
+
 export function readWarmup(filename: string, root: string, key: string, maxChars?: number): string {
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 1 && maxChars <= WARMUP_MAX_CHARS)) {
     throw new InputError('Warmup max-chars must be an integer from 1 to ' + WARMUP_MAX_CHARS);
@@ -101,7 +123,8 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         const project = projects.find(p => p.code === key);
         if (!project) throw new InputError('Unknown project: ' + key);
         if (project.checkoutPath === null) throw noCloneError(project);
-        header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')\n\nBase clone: ' + project.checkoutPath;
+        header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')\n\nBase clone: ' + project.checkoutPath
+          + flowLine(files, project);
         role = 'project';
         zones = [orgZone(project), projectZone(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
@@ -125,6 +148,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
             + '\n\n' + (source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2)),
           '## Worktree\n\n' + (card.worktreePath === null
             ? 'Not created yet. Expected path: ' + project.checkoutPath + '--' + basename(card.contextDir)
+              + expectedBranch(files, project, key, card)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
       } else {

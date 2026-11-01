@@ -11,6 +11,7 @@ export type AppCommand =
   | { name: 'project_add'; identity: string; code: string; checkoutPath?: string }
   | { name: 'project_update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string }
   | { name: 'project_resolve'; path: string }
+  | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
   | { name: 'memory_show'; scope: ScopeInput }

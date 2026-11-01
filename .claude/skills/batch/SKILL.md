@@ -1,6 +1,6 @@
 ---
 name: batch
-description: Run several tasks of one registered project in a row without per-task approval — plan (auto, published to derive for the record), implement, review, checks — each merged into one batch branch; one PR batch/<name> → main at the end for the engineer's manual check. Triggered by "/batch <name> <KEY> [<KEY>…]".
+description: Run several tasks of one registered project in a row without per-task approval — plan (auto, published to derive for the record), implement, review, checks — each merged into one batch branch; one PR batch/<name> → the project's PR target at the end for the engineer's manual check. Triggered by "/batch <name> <KEY> [<KEY>…]".
 ---
 
 # /batch — a pack of tasks into one branch
@@ -32,13 +32,15 @@ their own Step 0 with the same key.
   order suggested; `--force` after the list overrides.
 - `$BIN/mp-task project <first KEY>` gives `checkoutPath`, `home` and `repository`;
   `checkoutPath` or `repository` `null` → say so and stop.
+- `$BIN/mp-task flow <first KEY>` gives the project's `integration` and `prTarget`;
+  a non-zero exit → print its error and stop before any write.
 
 ## Batch branch
 
 `<base clone>` is the project's `<checkoutPath>`.
 
 1. `git -C <base clone> fetch -q origin`. If `origin/batch/<name>` does not exist:
-   `git -C <base clone> branch batch/<name> origin/main && git -C <base clone>
+   `git -C <base clone> branch batch/<name> origin/<integration> && git -C <base clone>
    push -u origin batch/<name>`.
 2. Batch worktree: `<checkoutPath>--batch-<name>` on
    `batch/<name>` (`git -C <base clone> worktree add <path> batch/<name>` when
@@ -64,7 +66,7 @@ their own Step 0 with the same key.
    when the project's instructions name none, the check commands of the plans of all
    keys of the batch, in order) once more on the merged result (semantic conflicts between tasks merge clean
    and only checks expose them). Red → report with the literal output, open no PR.
-2. `gh pr create --repo <repository> --base main --head batch/<name>` with title
+2. `gh pr create --repo <repository> --base <prTarget> --head batch/<name>` with title
    `Batch <name>: <KEY>, <KEY>, …` and a body listing per key: title, plan URL,
    review verdict, checks; then the ending
    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
