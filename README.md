@@ -164,7 +164,7 @@ order: the row for this native id, the live record of the same process,
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
 `mypi session forget <key>` drops a row on the user's request. Without
-`XDG_RUNTIME_DIR` or an initialized schema 9 database registration fails and the
+`XDG_RUNTIME_DIR` or an initialized schema 10 database registration fails and the
 warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
@@ -180,7 +180,11 @@ of undelivered events, for a task its status, worktree and the last journal
 entries with their artifacts. It is state, not an instruction, and creates no
 events. If it cannot be delivered, `/open` still succeeds and the key's `notes`
 say `start message not delivered: <reason>`; for Claude in `bypassPermissions`
-delivery is not promised, as for events.
+delivery is not promised, as for events. `/open <key> --message <text>` (one key;
+the calling session must be the key's parent) also gives the session a parent
+instruction: queued after the focus or start, sent live to a focused session,
+after a resume, or in the same message as the start text; `opened[].message` is
+its id.
 
 A task chat (`MP-12`) reports to its parent key (`MP`) through rows in the `events`
 table, only when the parent needs to act on them:
@@ -199,9 +203,19 @@ table, only when the parent needs to act on them:
   status, unless the project chat itself makes the change (`task_update`,
   `mypi task status`).
 
-Until the parent-to-child channel (MP-55) lands, nothing writes the parent-message
-frame into a child's socket, so the Claude hooks and the Pi extension create no
-events at all; only milestones and a manual `mypi event emit --from` remain.
+A parent writes the parent-message frame itself: send_message (MCP), `mypi send
+<key> (text | --file source)` or `/open <key> --message <text>` store an `events`
+row of kind `message` from the parent to its direct child (project chat → its
+task, main chat → a project; any other caller is refused). A live child gets it
+at once through the same socket as events, as a new turn; a closed child gets its
+queued messages exactly once at the next `/open`, in one message with the start
+text. The warmup does not show them; the child's own `/inbox` returns and marks
+them, `/inbox all` skips them. The turn such a message opens is parent-started,
+so its end comes back to the parent as `turn_end`. A busy Claude child takes the
+message as a `queued_command` inside its current turn without a `turn_end` of its
+own; Pi takes it as a `followUp` after the run. An instruction never carries the
+engineer's authorization: steps such as /do, /ship, merge, release, migration or
+an engine update still need the engineer's word in the child's tab.
 Project and global chats emit nothing. The project chat receives the undelivered
 events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
 runs the `inbox` skill as `/skill:inbox`; MCP `inbox`, CLI `mypi inbox`) and in its warmup under
@@ -236,7 +250,7 @@ with every send, so it stays in `/inbox` and the warmup; a message held in bypas
 and then rejected or expired, or a parent that quits before handling it, is lost
 after it was marked delivered.
 
-Upgrading to schema 9: run `mypi db init` once after updating; until then every
+Upgrading to schema 10: run `mypi db init` once after updating; until then every
 command that opens the database, including warmup, asks for it.
 
 ### Updating without overwriting customizations

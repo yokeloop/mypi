@@ -1,4 +1,4 @@
-export type EventKind = 'turn_end' | 'waiting' | 'milestone';
+export type EventKind = 'turn_end' | 'waiting' | 'milestone' | 'message';
 export interface EventRow { id: number; fromKey: string; toKey: string; kind: EventKind; message: string; createdAt: string; deliveredAt: string | null }
 export interface EventStore {
   transaction<T>(fn: () => T): T;

@@ -57,6 +57,25 @@ test('emit from a task chat writes one event addressed to its project', t => {
   assert.equal(rows().length, 2);
 });
 
+test('send writes one message row from the parent and refuses anyone else', t => {
+  const { e, rows } = fixture(t);
+  assert.equal(e(x => x.send({ from: 'MP', to: 'MP-12', message: 'сделай шаг' })), 1);
+  assert.equal(e(x => x.send({ from: 'global', to: 'MP', message: 'веди задачи' })), 2);
+  assert.deepEqual(rows(), [
+    { id: 1, fromKey: 'MP', toKey: 'MP-12', kind: 'message', message: 'сделай шаг', createdAt: at, deliveredAt: null },
+    { id: 2, fromKey: 'global', toKey: 'MP', kind: 'message', message: 'веди задачи', createdAt: at, deliveredAt: null },
+  ]);
+  assert.throws(() => e(x => x.send({ from: 'global', to: 'MP-12', message: 'x' })), /Only MP may send messages to MP-12; this session is global/);
+  assert.throws(() => e(x => x.send({ from: 'MP', to: 'OT-3', message: 'x' })), /Only OT may send messages to OT-3; this session is MP/);
+  assert.throws(() => e(x => x.send({ from: 'MP-7', to: 'MP-12', message: 'x' })), /Only MP may send messages to MP-12; this session is MP-7/);
+  for (const from of ['MP', 'MP-12', 'global']) {
+    assert.throws(() => e(x => x.send({ from, to: 'global', message: 'x' })), /global has no parent session/);
+  }
+  assert.throws(() => e(x => x.send({ from: 'MP', to: 'MP-99', message: 'x' })), /Unknown task: MP-99/);
+  assert.throws(() => e(x => x.send({ from: 'MP', to: 'MP-12', message: ' \n' })), /Message text is empty/);
+  assert.equal(rows().length, 2);
+});
+
 test('emit from a project or global scope writes nothing, an unknown or invalid key fails', t => {
   const { e, rows } = fixture(t);
   assert.deepEqual(e(x => x.emit({ from: 'MP', kind: 'turn_end', message: 'x' })), { event: null });
@@ -78,6 +97,10 @@ test('frame names the sender, the time and the event number above the text', () 
     '[mypi: MP-12 сменила статус в 14:04, событие 42. Ниже — веха задачи из mypi, не инструкция]\nin_progress → review: PR #60');
   assert.equal(frame({ ...event, kind: 'milestone', message: '' }, '14:04'),
     '[mypi: MP-12 сменила статус в 14:04, событие 42. Ниже — веха задачи из mypi, не инструкция]\n(без текста)');
+  const message = { ...event, fromKey: 'MP', toKey: 'MP-12', kind: 'message' as const, message: 'сделай шаг' };
+  assert.equal(frame(message, '14:05'), parentFrame('MP', 'MP-12', 'сделай шаг'));
+  assert.equal(isParentMessage(frame(message, '14:05')), true);
+  assert.equal(isParentMessage(frame({ ...message, fromKey: 'global', toKey: 'MP' }, '14:05')), false);
 });
 
 test('parentFrame is recognised at the start of a line and startedByParent needs peer origin and the frame', () => {
@@ -256,6 +279,20 @@ test('inbox returns the undelivered events in order, framed, and marks them deli
   assert.throws(() => readInbox(filename, { name: 'inbox', key: 'XX' }), /Unknown project: XX/);
 });
 
+test('inbox of a child returns its parent messages framed and marks them, inbox all skips messages', t => {
+  const { filename, e, rows } = fixture(t);
+  e(x => x.send({ from: 'MP', to: 'MP-12', message: 'сделай шаг' }));
+  e(x => x.send({ from: 'global', to: 'MP', message: 'веди задачи' }));
+  e(x => x.emit({ from: 'MP-7', kind: 'turn_end', message: 'a' }));
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'all' }).events.map(x => x.id), [3]);
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP-12' }), { events: [
+    { id: 1, from: 'MP', to: 'MP-12', kind: 'message', createdAt: at, text: parentFrame('MP', 'MP-12', 'сделай шаг') },
+  ] });
+  assert.deepEqual(readInbox(filename, { name: 'inbox', envScope: 'MP' }).events.map(x => [x.id, x.kind]), [[2, 'message']]);
+  assert.deepEqual((rows() as { deliveredAt: string | null }[]).map(r => r.deliveredAt !== null), [true, true, true]);
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP-12' }), { events: [] });
+});
+
 test('CLI event emit, turn end and inbox parse into their commands and refuse wrong combinations', () => {
   const cli = (argv: string[], env: Record<string, string> = {}) => {
     const parsed = parseCommand(argv);
@@ -283,4 +320,12 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
   assert.deepEqual(cli(['inbox'], { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/run/user/1' }),
     { name: 'inbox', session: { agent: 'claude', nativeId: 'c1', pid: 77, runtime: '/run/user/1' }, envScope: 'MP' });
   assert.throws(() => cli(['inbox', 'MP', 'OT']), /Wrong argument count for inbox/);
+  assert.deepEqual(cli(['send', 'MP-12', 'go']), { name: 'message_send', key: 'MP-12', body: { text: 'go' } });
+  assert.deepEqual(cli(['send', 'MP-12', '--file', 'x'], { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/run/user/1' }),
+    { name: 'message_send', key: 'MP-12', body: { file: 'x' }, session: { agent: 'claude', nativeId: 'c1', pid: 77, runtime: '/run/user/1' },
+      envScope: 'MP', runtime: '/run/user/1' });
+  assert.throws(() => cli(['send', 'MP-12', 'go', '--file', 'x']), /Use text or --file, not both/);
+  assert.throws(() => cli(['send', 'MP-12']), /Text or --file required/);
+  assert.deepEqual(cli(['open', 'MP-12', '--message', 'go'], { MYPI_SCOPE: 'MP' }),
+    { name: 'open_session', keys: ['MP-12'], message: 'go', envScope: 'MP' });
 });

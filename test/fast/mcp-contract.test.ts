@@ -17,9 +17,9 @@ const cli = (argv: string[]) => {
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
-test('MCP lists exactly fourteen agent tools; maintenance and replaced names are unknown tools', () => {
+test('MCP lists exactly fifteen agent tools; maintenance and replaced names are unknown tools', () => {
   assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
-    'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
+    'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
@@ -60,6 +60,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['sessions', {}, [['sessions']]],
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
+    ['open_session', { keys: ['MP-12'], message: 'go' }, [['open', 'MP-12', '--message', 'go']]],
+    ['send_message', { key: 'MP-12', text: 'go' }, [['send', 'MP-12', 'go']]],
     ['inbox', { key: 'MP' }, [['inbox', 'MP']]],
     ['inbox', {}, [['inbox']]],
   ];
@@ -177,6 +179,21 @@ test('open_session takes the caller, state and runtime from the environment', ()
   assert.deepEqual([appCommand(parsed, env, 7)], expected);
   for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }]) {
     assert.throws(() => toolCommand('open_session', args));
+  }
+});
+test('send_message and open_session with a message carry the caller session, MYPI_SCOPE and the runtime as the CLI does', () => {
+  const env = { MYPI_SCOPE: 'MP', CLAUDE_CODE_SESSION_ID: 'c1', XDG_RUNTIME_DIR: '/r' };
+  const cli = (argv: string[]) => {
+    const parsed = parseCommand(argv);
+    if (parsed.type === 'help') throw new Error('Unexpected help');
+    return appCommand(parsed, env, 7);
+  };
+  assert.deepEqual(toolCommand('send_message', { key: 'MP-12', text: 'go' }, env, 7), [cli(['send', 'MP-12', 'go'])]);
+  assert.deepEqual(toolCommand('send_message', { key: 'MP-12', text: 'go' }, env, 7), [{ name: 'message_send', key: 'MP-12', body: { text: 'go' },
+    session: { agent: 'claude', nativeId: 'c1', pid: 7, runtime: '/r' }, envScope: 'MP', runtime: '/r' }]);
+  assert.deepEqual(toolCommand('open_session', { keys: ['MP-12'], message: 'go' }, env, 7), [cli(['open', 'MP-12', '--message', 'go'])]);
+  for (const args of [{ key: 'MP-12' }, { text: 'go' }, { key: 'MP-12', text: 'go', file: '/x' }]) {
+    assert.throws(() => toolCommand('send_message', args));
   }
 });
 test('task_update and CLI task status carry the caller session and MYPI_SCOPE', () => {

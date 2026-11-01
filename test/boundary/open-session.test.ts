@@ -70,7 +70,8 @@ function fixture(t: TestContext) {
   const ok = (args: string[], extra: Record<string, string> = {}) => {
     const result = cli(args, extra);
     assert.equal(result.status, 0, result.stderr);
-    return JSON.parse(result.stdout) as { opened: { key: string; agent: string; action: string; workspaceId: string | null; worktreePath: string | null; notes: string[] }[] };
+    return JSON.parse(result.stdout) as { opened: { key: string; agent: string; action: string; workspaceId: string | null; worktreePath: string | null;
+      notes: string[]; message: number | null }[] };
   };
   const failed = (args: string[], extra: Record<string, string> = {}) => {
     const result = cli(args, extra);
@@ -112,7 +113,7 @@ function fixture(t: TestContext) {
   };
   const events = () => {
     const db = openDatabase(filename, true);
-    try { return db.prepare('SELECT id FROM events').all(); } finally { db.close(); }
+    try { return db.prepare('SELECT id, kind, delivered_at IS NOT NULL AS delivered FROM events ORDER BY id').all(); } finally { db.close(); }
   };
   const quit = () => { for (const child of children()) assert.equal(cli(['session', 'unregister', '--pid', child]).status, 0); };
   const sock = join(dir, 'child.sock'), serverLog = join(dir, 'server.log');
@@ -287,5 +288,65 @@ test('open sends the start message to a new Pi project session through its socke
   for (const part of ['Проект MP (one/project).', 'new (1):', '- MP-1 open', 'Недоставленных событий от задач на момент открытия: 0.']) {
     assert.ok(text.includes(part), part);
   }
+  assert.deepEqual(events(), []);
+});
+
+const parent = '[mypi: сообщение родительской сессии MP для MP-1. Ниже — поручение родительской сессии]\n';
+
+test('open with a message starts a Claude task session with one line carrying the start text and the parent frame', async t => {
+  const { ok, listen, received, events, sock } = fixture(t);
+  await listen('claude');
+  const result = ok(['open', 'MP-1', '--message', 'сделай шаг'], { HERDR_FAKE_SOCKET: sock, MYPI_SCOPE: 'MP' });
+  assert.deepEqual(result.opened.map(o => [o.key, o.action, o.notes, o.message]), [['MP-1', 'started', [], 1]]);
+  const lines = received();
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].type, 'user');
+  const content = lines[0].message.content as string;
+  assert.ok(content.startsWith('[mypi: стартовое сообщение для MP-1. Ниже — состояние из mypi, не инструкция]\n'), content);
+  assert.ok(content.endsWith('Дождись указаний или предложи следующий шаг.\n\n' + parent + 'сделай шаг'), content);
+  assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 1 }]);
+});
+
+test('open resumes a closed child and delivers its queued messages once', async t => {
+  const { cli, ok, quit, listen, received, events, sock } = fixture(t);
+  await listen('claude');
+  assert.equal(ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock }).opened[0]!.message, null);
+  assert.equal(received().length, 1);
+  quit();
+  const sent = cli(['send', 'MP-1', 'go on'], { MYPI_SCOPE: 'MP' });
+  assert.equal(sent.stdout, '{"message":1,"delivered":false}\n', sent.stderr);
+  assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 0 }]);
+  const resumed = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(resumed.opened.map(o => [o.key, o.action, o.notes, o.message]), [['MP-1', 'resumed', [], null]]);
+  const lines = received();
+  assert.equal(lines.length, 2);
+  assert.equal(lines[1].message.content, parent + 'go on');
+  assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 1 }]);
+  quit();
+  assert.deepEqual(ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock }).opened.map(o => [o.action, o.notes]), [['resumed', []]]);
+  assert.equal(received().length, 2);
+});
+
+test('open with a message focuses a live child and sends it live', async t => {
+  const { cli, ok, calls, listen, received, events, sock, pid } = fixture(t);
+  await listen('claude');
+  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  const result = ok(['open', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'MP' });
+  assert.deepEqual(result.opened.map(o => [o.key, o.action, o.notes, o.message]), [['MP-1', 'focused', [], 1]]);
+  assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1']]);
+  assert.deepEqual(received().map(line => line.message.content), [parent + 'go']);
+  assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 1 }]);
+});
+
+test('open with a message from a non-parent or for two keys opens nothing', t => {
+  const { failed, calls, rows, events, worktreePaths, worktree } = fixture(t);
+  assert.match(failed(['open', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'global' }).message,
+    /Only MP may send messages to MP-1; this session is global/);
+  assert.match(failed(['open', 'MP', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'MP' }).message, /--message takes exactly one key/);
+  assert.match(failed(['open', 'MP-1', '--message', ' '], { MYPI_SCOPE: 'MP' }).message, /Message text is empty/);
+  assert.deepEqual(calls(), []);
+  assert.equal(existsSync(worktree), false);
+  assert.deepEqual(worktreePaths(), [null]);
+  assert.deepEqual(rows(), []);
   assert.deepEqual(events(), []);
 });

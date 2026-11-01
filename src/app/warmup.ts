@@ -107,7 +107,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
         tail = ['## Open tasks\n\n' + (open.length === 0 ? '(none)'
           : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n'))];
-        fresh = app.events.pending(key);
+        fresh = app.events.pending(key).filter(event => event.kind !== 'message');
         const openKeys = new Set(open.map(taskKey));
         history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
       } else if (/^[A-Z]+-[1-9][0-9]*$/.test(key)) {

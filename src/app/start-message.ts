@@ -32,7 +32,7 @@ export function startMessage(filename: string, key: string, worktreePath: string
         const tasks = open.length === 0 ? 'Открытых задач нет.' : 'Открытые задачи по статусам:\n'
           + [...groups].map(([status, lines]) => status + ' (' + lines.length + '):\n' + lines.join('\n')).join('\n');
         return 'Проект ' + key + ' (' + project.org + '/' + project.slug + ').\n\n' + tasks + '\n\n'
-          + 'Недоставленных событий от задач на момент открытия: ' + app.events.pending(key).length + '.\n\n' + NEXT;
+          + 'Недоставленных событий от задач на момент открытия: ' + app.events.pending(key).filter(e => e.kind !== 'message').length + '.\n\n' + NEXT;
       }
       const [code, number] = key.split('-');
       const project = projects.find(p => p.code === code)!;
