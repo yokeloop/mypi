@@ -125,12 +125,16 @@ dependencies, writes no journal entry and has no MCP tool; removing worktrees an
 branches stays manual.
 
 Progress artifacts: JSON array `[{"path":"research/result.md","text":"new content"}]`;
-omit text to reference an existing file. Paths are relative to the task directory;
-journal stores home-relative references. New content is created without overwrite.
+omit text to reference an existing file. Paths are relative to the task directory.
+New content is created without overwrite. `progress` commits the named files in home
+(it does not push) and the journal stores each as `{path, commit}` with the
+home-relative path and the full commit SHA. The files stay editable; an entry reads
+its own version with `context read <path> --revision <commit>`. Entries from before
+schema 11 store plain paths; their files stay frozen by a fingerprint.
 Read the DB status dictionary and choose explicitly; used status terminality cannot
 change. Legacy REQ records keep their own numbering and task scope. Title does not rename the folder;
-terminal tasks cannot reopen. Original source is immutable; additional material
-can be stored separately.
+terminal tasks cannot reopen. `source.md` is editable; correct a card by editing it
+and committing.
 
 Journal filters: global (default), org:slug, project:CODE, task:KEY; org/project
 resolves through DB. Global is not the whole journal. Results are time-ordered; limit
@@ -142,8 +146,9 @@ task progress by recording the same event in the project journal.
 `home migrate-tasks [--dry-run]` moves every task folder from `requests/` to `tasks/`
 (home root for legacy REQ records, `projects/<org>/<project>/` for project tasks) with
 `git mv`, commits once in home as `Move task directories from requests/ to tasks/`, then
-rewrites `context_dir`, file fingerprints and journal artifact paths of exactly those
-folders in one SQLite transaction. `--dry-run` prints `{status:"preview",moves,rewrites}`
+rewrites `context_dir`, file fingerprints and plain journal artifact paths of exactly
+those folders in one SQLite transaction; `{path, commit}` references keep the path of
+their commit. `--dry-run` prints `{status:"preview",moves,rewrites}`
 and changes nothing. A dirty home or an existing target folder refuses; a folder already
 moved by hand gets only the DB rewrite; nothing left to do returns `{status:"noop"}`.
 Never pushes. Run `backup` before and after.
@@ -161,28 +166,33 @@ Never pushes. Run `backup` before and after.
 5. If progress artifacts/journal/Git are saved but activity timestamp is missing,
    explicitly complete it with `task touch KEY`.
 
-`context read path` does not create files; missing means error. `context restore path
+`context read path [--revision FULL_SHA]` does not create files; missing means error;
+with `--revision` it reads the file as committed there. `context restore path
 --revision FULL_SHA` restores a mutable file (including a deleted one) from a saved
 full Git revision in a new commit. Commit/restore take exact files, not directories.
-Dirty/staged preimages are preserved; immutable source/inbox and append-only logs
-cannot be rewritten this way. Git cannot restore data it never contained.
+Dirty/staged preimages are preserved; frozen plain-path artifacts of old entries,
+`journal/`, `inbox/` and `errors.md` cannot be restored this way. Git cannot restore data it never contained.
 
 ## Backup and restore
 
 `backup /existing-parent/new-backup-directory` uses SQLite backup API, a separate Git
 bundle and checksum manifest. Cooperating writers are locked; dirty context/broken
-references need reconciliation. DB-only backup is allowed without home. Snapshots
+references need reconciliation: every `{path, commit}` reference must resolve in the
+saved home history (`Unresolvable artifact reference: <path>@<commit>`). DB-only
+backup is allowed without home. Snapshots
 are outside Git; the manifest is written last. Incomplete backup is not success.
 
 `restore /backup-directory` targets a new installation with absent DB/home. It never
 overwrites current data; repetition refuses without changes. It checks hashes,
-schema/integrity/FKs, source and all artifact references. Preserve damaged data
+schema/integrity/FKs, sources and that every artifact reference resolves in the
+restored home history. Preserve damaged data
 separately before recovery; there is no automatic deletion or retention policy.
 
 `backup --publish [--dry-run] [--file exact-relative-path ...]` previews or publishes
 an SQLite snapshot and committed home baseline to the already configured home
-`origin/main`. Repeat `--file` for additional exact files; registered source/artifact
-files are selected automatically. Preview reports selected/excluded paths, unpushed
+`origin/main`. Repeat `--file` for additional exact files; task `source.md` files and
+old plain-path artifacts are selected automatically, and every `{path, commit}`
+reference must resolve in the published history. Preview reports selected/excluded paths, unpushed
 ancestor commits and destination without saving, committing or pushing. Publication
 returns `preview`, `published` or `partial`, with `snapshotSaved`, optional `commit`,
 `publicationConfirmed`, and error details. A partial result exits nonzero; inspect

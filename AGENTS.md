@@ -65,7 +65,8 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   these operations or for changes outside the requested task.
 - Preserve user data and historical artifacts. `home/` is a separate ignored context
   repository; the SQLite DB is outside both repositories. Neither is engine source.
-  Do not relocate personal data or rewrite immutable source and append-only history.
+  Do not relocate personal data, rewrite append-only history, or rewrite or force-push
+  home's Git history: journal artifacts are `{path, commit}` references into it.
 - Partial operations or lost connections do not imply rollback. Inspect actual state
   before repeating a write; report verification and remaining limitations honestly.
 

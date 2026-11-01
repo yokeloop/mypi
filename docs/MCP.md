@@ -54,6 +54,8 @@ explicit `"all"`. A project scope key is its code; task_create.project is org/pr
 (required; standalone REQ records are legacy). Do not invent an org/task reassignment command.
 TextInput is exactly `{text}` or `{file:absolutePath}`; BOM/CRLF are preserved.
 Context paths are home-relative; progress artifact paths are task-directory-relative.
+`context_read` takes an optional `revision` (full home commit SHA) to read the version a
+`{path, commit}` journal artifact points at.
 
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and

@@ -18,7 +18,7 @@ SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP
 
 The memory/task APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
-workflow has been withdrawn; existing cards, immutable sources and storage/API
+workflow has been withdrawn; existing cards, sources and storage/API
 contracts, including nullable project_id, are unchanged.
 
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
@@ -108,8 +108,8 @@ both layouts.
 
 home/projects is context, not the working-clone directory projects/. Engine code stays
 in its checkout; using project/task context is not a prerequisite for development.
-Source/progress are not duplicated in SQL fields; the journal event text and file
-fingerprints live in SQLite. There is no per-task journal/status.md.
+Source/progress are not duplicated in SQL fields; the journal event text and the file
+fingerprints of old plain-path entries live in SQLite. There is no per-task journal/status.md.
 Personal context is not part of the engine repository and is not moved by cleanup.
 
 ## 4. Projects, tasks and statuses
@@ -140,8 +140,8 @@ at/scope/event_type/text and optional home-relative artifacts. Types:
 note/task_created/status_changed. Events do not launch flow. Existing monthly
 JSONL files are read only by explicit `journal import`; originals remain untouched.
 Stop old writers before cutover. Import rejects changed or corrupt input and retains
-legitimate duplicate entries. Legacy source/artifact fingerprints require unchanged,
-published files; reconcile dirty legacy files separately.
+legitimate duplicate entries. Imported plain-path artifacts keep fingerprints that
+require unchanged, published files; reconcile dirty legacy files separately.
 
 Selection: global only global; org includes projects/tasks; project includes its
 tasks; task only itself; all is explicit. Relations resolve through DB; relevant
@@ -185,11 +185,12 @@ puts a 2,000-character preview with the file path into the context.
 
 - DB-only: transaction, independent of workspace/Git, no empty commit.
 - Context changes: safe file writes and commits of exact operation paths.
-- Task create: source file first; task row, source fingerprint and event commit
-  together in SQLite. SQL failure discloses the orphaned source.
-- Status/title: task row and event commit together. Progress: files first, then
-  fingerprints, event and activity timestamp in one SQLite transaction.
-  Task/journal saves do not invoke Git; local success is not publication or backup.
+- Task create: source file first; task row and event commit together in SQLite.
+  SQL failure discloses the orphaned source.
+- Status/title: task row and event commit together. Progress: files first, then a
+  home commit of the named files (no push), then event and activity timestamp in one
+  SQLite transaction. Other task/journal saves do not invoke Git; local success is
+  not publication or backup.
 
 No global SQLite/FS/Git atomicity. Partial reports saved/missing work, paths and
 taskId when known. CLI exits nonzero; MCP returns an error/partial envelope.
@@ -200,10 +201,10 @@ recovery note instead of invented transition, or explicit touch as appropriate.
 
 Filesystem guards reject traversal, symlink/hardlink aliases and implicit overwrite.
 Git preserves unrelated staged changes and avoids hooks/fsmonitor/signing/network.
-Private attributes prevent EOL/encoding/filter transforms. Source/inbox are immutable;
-errors append-only. Registered sources and artifacts are checked against insert-only
-SHA-256/byte-count fingerprints before reuse, backup and context publication.
-New versions get new paths. Mutable context can be
+Private attributes prevent EOL/encoding/filter transforms. Inbox is immutable;
+errors append-only. Only old plain-path artifacts are checked against insert-only
+SHA-256/byte-count fingerprints before reuse, backup and context publication; new
+artifacts are `{path, commit}` references that backup checks against the home history. Mutable context can be
 restored from a full Git revision by making a new commit, not rewriting history.
 
 ## 7. Backup and restore
