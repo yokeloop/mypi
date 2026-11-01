@@ -98,6 +98,7 @@ function fixture(t: TestContext) {
   try {
     const projectId = app.projects.add('one/project', 'MP', clone).id;
     app.projects.add('one/noclone', 'NC');
+    app.projects.add('one/fromurl', 'FU', undefined, bare);
     app.projects.add('two/other', 'OT', other);
     app.tasks.create({ projectId, slug: 'open', title: 'open', status: 'new' }, () => {});
   } finally { app.close(); }
@@ -234,6 +235,10 @@ test('open refuses without Herdr, without a clone and for unknown keys, leaving 
   assert.deepEqual(rows(), []);
   reset();
   for (const args of [['open', 'NC'], ['open', 'MP', 'NC']]) assert.match(failed(args).message, /has no clone/);
+  assert.match(failed(['open', 'NC']).message, /no repository to clone it from.*--expected-repository-unset --repository <git-url\|local>/);
+  assert.match(failed(['open', 'FU'], { HERDR_FAKE: 'down' }).message, /^Herdr is not available/);
+  assert.equal(existsSync(join(root, 'projects', 'one', 'fromurl')), false);
+  reset();
   assert.match(failed(['open', 'MP-99']).message, /Unknown task: MP-99/);
   assert.match(failed(['open', 'global']).message, /global is the main chat/);
   assert.match(failed(['open', 'REQ-1']).message, /REQ tasks have no project/);

@@ -8,10 +8,12 @@ import type { EventTransports } from './delivery.js';
 import { callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
 import { callerKey } from './sessions.js';
 import { startMessage } from './start-message.js';
+import { prepareCheckouts } from './project-checkout.js';
 import { openTaskWorktree } from './task-worktree.js';
-import { noCloneError } from './warmup.js';
 import { HerdrError, herdrCli } from '../infrastructure/herdr/herdr.js';
 import { assertParent, startFrame } from '../modules/events/public.js';
+import { noRepositoryError } from '../modules/projects/public.js';
+import type { Project } from '../modules/projects/public.js';
 import type { Agent } from '../modules/sessions/public.js';
 import { PartialError } from '../shared/context.js';
 import { InputError } from '../shared/errors.js';
@@ -27,14 +29,15 @@ function readSettings(root: string): string | undefined {
   }
 }
 
-export async function openSession(filename: string, root: string, c: Of<'open_session'>, transports: EventTransports = {}, proc = '/proc') {
+export async function openSession(filename: string, root: string, c: Of<'open_session'>, transports: EventTransports = {}, proc = '/proc',
+  projectsRoot = join(engineRoot(), 'projects')) {
   if (c.keys.length === 0) throw new InputError('Name at least one key');
   if (c.permissionMode !== undefined && !(PERMISSION_MODES as readonly string[]).includes(c.permissionMode)) {
     throw new InputError('--permission-mode must be one of manual, acceptEdits, auto, bypassPermissions, dontAsk, plan');
   }
   const parsed = c.keys.map(parseOpenKey);
   const read = createApp(filename, true);
-  const { keys, labels, chosen, mode } = (() => {
+  const { keys, labels, chosen, mode, missing } = (() => {
     try {
       return read.readSnapshot(() => {
         const projects = read.projects.list(), cards = read.tasks.list();
@@ -46,14 +49,15 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
           if (number !== undefined && !cards.some(card => card.projectId === project.id && card.number === number)) {
             throw new InputError('Unknown task: ' + project.code + '-' + number);
           }
-          if (project.checkoutPath === null) throw noCloneError(project);
-          return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug };
+          if (project.checkoutPath === null && project.repository === null) throw noRepositoryError(project);
+          return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug, project };
         });
         const chosen = c.agent ?? defaultAgent(readSettings(root));
         const mode = c.permissionMode ?? callerMode(read.sessions(c.runtime, proc), c.session) ?? null;
         const labels = new Map<string, string>();
         for (const { key, label } of resolved) if (!labels.has(key)) labels.set(key, label);
-        return { keys: [...labels.keys()], labels, chosen, mode };
+        const missing: Project[] = resolved.map(r => r.project).filter(p => p.checkoutPath === null);
+        return { keys: [...labels.keys()], labels, chosen, mode, missing };
       });
     } finally { read.close(); }
   })();
@@ -80,6 +84,8 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     if (error.code === 'unavailable') throw new InputError('Herdr is not available (' + error.message + '); /open needs a running Herdr server. Nothing was opened.');
     throw new InputError('Herdr failed: ' + error.message + '. Nothing was opened.');
   }
+  const prepared = new Map(prepareCheckouts(filename, missing, projectsRoot).map(p => [p.code,
+    'clone prepared: ' + p.action + ' ' + p.checkoutPath + (p.action === 'cloned' ? ' from ' + missing.find(m => m.code === p.code)!.repository : '')]));
   const opened: Opened[] = [];
   for (const [i, key] of keys.entries()) {
     try {
@@ -87,6 +93,8 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       const found = (() => { try { return app.sessions(c.runtime, proc).lookup(key); } finally { app.close(); } })();
       const decision = decideOpen(found, chosen);
       const notes: string[] = [];
+      const note = prepared.get(key.split('-')[0]!);
+      if (note !== undefined) notes.push(note);
       const name = key.toLowerCase();
       if (c.agent !== undefined && c.agent !== decision.agent) {
         notes.push(key + ' continues with its agent ' + decision.agent + '; --agent ' + c.agent + ' applies only to new sessions');
