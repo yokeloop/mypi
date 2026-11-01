@@ -12,5 +12,10 @@ test('journal validates envelope and applies overall ordering/limit even for uno
   }
   assert.throws(() => journal.record({ type: 'global' }, ' '));
   assert.throws(() => journal.record({ type: 'global' }, 'text', 'note', ['../escape']));
+  const commit = 'a'.repeat(40);
+  assert.deepEqual(journal.record({ type: 'global' }, 't', 'note', [{ path: 'a.md', commit }]).artifacts, [{ path: 'a.md', commit }]);
+  assert.throws(() => journal.record({ type: 'global' }, 't', 'note', [{ path: 'a.md', commit, extra: 1 } as never]), /Invalid artifact/);
+  assert.throws(() => journal.record({ type: 'global' }, 't', 'note', [{ path: 'a.md', commit: 'abc' }]), /Invalid artifact/);
+  assert.throws(() => journal.record({ type: 'global' }, 't', 'note', [{ path: '../x', commit }]), /Invalid artifact path/);
   assert.throws(() => journal.read('all', { from: '2026-02-30T00:00:00Z' }));
 });

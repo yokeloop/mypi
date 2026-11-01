@@ -33,7 +33,7 @@ export function importLegacyJournal(files: ContextFiles & { path(path: string): 
         if (entry.artifacts !== undefined && (!Array.isArray(entry.artifacts)
           || entry.artifacts.some(path => typeof path !== 'string'))) throw new Error('Invalid artifact references');
         entries.push(entry);
-        for (const artifact of entry.artifacts ?? []) paths.add(artifact);
+        for (const artifact of entry.artifacts ?? []) paths.add(artifact as string);
       } catch (error) { throw new Error(path + ':' + (index + 1) + ': ' + String(error)); }
     }
     sources.push({ path, bytes, sha256, entries });

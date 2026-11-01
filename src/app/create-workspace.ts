@@ -32,7 +32,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
   const core = { ...database, serialize<T>(work: () => T): T {
     return database.serialize(() => {
       git.validateJournal();
-      const previous = published; published = journal.published();
+      const previous = published; published = journal.frozen();
       try { return work(); } finally { published = previous; }
     });
   } };
@@ -101,14 +101,14 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     verifyFile,
     read: files.read,
     restoreContext(path: string, revision: string) {
-      if (database.journalStore.fingerprint(path) || journal.published().has(path)) throw new InputError('Registered file cannot be restored');
+      if (database.journalStore.fingerprint(path) || journal.frozen().has(path)) throw new InputError('Registered file cannot be restored');
       return core.serialize(() => git.restoreFile(path, revision));
     },
     complete(paths: string[], message: string) {
       return core.serialize(() => {
         for (const path of paths) {
           if (database.journalStore.fingerprint(path)) verifyFile(path);
-          else if (journal.published().has(path)) throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
+          else if (journal.frozen().has(path)) throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
         }
         return git.commit(paths, message);
       });

@@ -26,6 +26,7 @@ export function requiredReferences(filename: string, root: string): string[] {
       required.push(card.contextDir + '/source.md');
     }
     for (const entry of app.history('all')) for (const artifact of entry.artifacts ?? []) {
+      if (typeof artifact !== 'string') continue;
       if (!statSync(files.path(artifact)).isFile()) throw new Error('Missing artifact');
       app.verifyFile(artifact);
       required.push(artifact);

@@ -2,24 +2,25 @@ import type { Scope } from '../../shared/scope.js';
 import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
 import { entryValue, utc } from './model.js';
-import type { Entry, EventType } from './model.js';
+import type { ArtifactRef, Entry, EventType } from './model.js';
 import type { JournalStore } from './ports.js';
 export { createNotes } from './notes.js';
-export type { Entry, EventType } from './model.js';
+export type { ArtifactRef, Entry, EventType } from './model.js';
+export { artifactRefPath } from './model.js';
 export { sqliteJournalStore } from './adapters/sqlite-journal.js';
 export type { FileFingerprint, JournalImport } from './adapters/sqlite-journal.js';
 
-export function publishedArtifacts(store: JournalStore): Set<string> {
+export function frozenArtifacts(store: JournalStore): Set<string> {
   const result = new Set<string>();
-  for (const raw of store.entries()) for (const path of entryValue(raw).artifacts ?? []) result.add(path);
+  for (const raw of store.entries()) for (const ref of entryValue(raw).artifacts ?? []) if (typeof ref === 'string') result.add(ref);
   return result;
 }
 
 export function createJournal(store: JournalStore, resolve: (scope: Scope) => void,
   contains: (filter: Scope, scope: Scope) => boolean, clock: () => string) {
   return {
-    published: () => publishedArtifacts(store),
-    record(scope: Scope, text: string, type: EventType = 'note', artifacts?: string[]): Entry {
+    frozen: () => frozenArtifacts(store),
+    record(scope: Scope, text: string, type: EventType = 'note', artifacts?: ArtifactRef[]): Entry {
       const entry = entryValue({ at: clock(), scope, event_type: type, text, ...(artifacts?.length ? { artifacts } : {}) });
       resolve(entry.scope);
       return entry;

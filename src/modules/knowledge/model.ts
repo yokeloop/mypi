@@ -3,7 +3,8 @@ import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
 
 export type EventType = 'note' | 'task_created' | 'status_changed';
-export interface Entry { at: string; scope: Scope; event_type: EventType; text: string; artifacts?: string[] }
+export type ArtifactRef = string | { path: string; commit: string };
+export interface Entry { at: string; scope: Scope; event_type: EventType; text: string; artifacts?: ArtifactRef[] }
 export function utc(value: string): number {
   const time = Date.parse(value);
   if (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(value) || !Number.isFinite(time)
@@ -14,6 +15,17 @@ export function artifactPath(path: string): void {
   if (!path || /[\\\x00-\x1f:]/.test(path) || path.split('/').some(x => !x || x === '..' || x === '.' || x === '.git')) {
     throw new InputError('Invalid artifact path');
   }
+}
+export function artifactRefPath(ref: ArtifactRef): string {
+  return typeof ref === 'string' ? ref : ref.path;
+}
+function artifactRef(value: unknown): void {
+  if (typeof value === 'string') return artifactPath(value);
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new InputError('Invalid artifact');
+  const ref = value as Record<string, unknown>;
+  if (Object.keys(ref).sort().join(',') !== 'commit,path' || typeof ref['path'] !== 'string' || typeof ref['commit'] !== 'string'
+    || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(ref['commit'])) throw new InputError('Invalid artifact');
+  artifactPath(ref['path']);
 }
 export function entryValue(value: unknown): Entry {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new InputError('Invalid journal object');
@@ -28,8 +40,8 @@ export function entryValue(value: unknown): Entry {
   const entry: Entry = { at: x['at'], scope, event_type: type as EventType, text: x['text'] };
   if ('artifacts' in x) {
     if (!Array.isArray(x['artifacts']) || !x['artifacts'].length) throw new InputError('Invalid artifacts');
-    for (const p of x['artifacts']) { if (typeof p !== 'string') throw new InputError('Invalid artifact'); artifactPath(p); }
-    entry.artifacts = x['artifacts'] as string[];
+    for (const p of x['artifacts']) artifactRef(p);
+    entry.artifacts = x['artifacts'] as ArtifactRef[];
   }
   return entry;
 }

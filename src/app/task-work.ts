@@ -84,7 +84,7 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
           for (const [index, artifact] of artifacts.entries()) {
             const path = paths[index]!;
             if (artifact.text === undefined) {
-              if (!store.fingerprint(path) && journal.published().has(path)) throw new InputError('Historical artifact requires explicit reconciliation');
+              if (!store.fingerprint(path) && journal.frozen().has(path)) throw new InputError('Historical artifact requires explicit reconciliation');
             } else { files.create(path, artifact.text); created.push(path); }
             register(path);
           }
