@@ -21,6 +21,7 @@ usage: mp-task scope                           session scope as JSON
                                                relative to the task folder
        mp-task board <CODE> [all]              board rows of a project as JSON lines;
                                                terminal statuses only with "all"
+       mp-task flow <CODE|KEY>                 the project's flow as JSON (mypi project flow)
 EOF
   exit 2
 }
@@ -75,6 +76,7 @@ for p in projects:
 print(json.dumps({"error":"unknown project code "+code}),file=sys.stderr)
 sys.exit(1)' "$1" "$HOME_DIR" ;;
   show) [[ $# -eq 1 ]] || usage; cli task show "$1" ;;
+  flow) [[ $# -eq 1 ]] || usage; cli project flow "${1%%-*}" ;;
   dir) [[ $# -eq 1 ]] || usage
     rel=$(cli task show "$1" | python3 -c 'import sys,json;print(json.load(sys.stdin)["contextDir"])')
     echo "$HOME_DIR/$rel" ;;
