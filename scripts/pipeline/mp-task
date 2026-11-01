@@ -64,13 +64,19 @@ code,home=m.group(1),sys.argv[2]
 for p in projects:
     if p["code"]==code:
         cp=p["checkoutPath"]
+        source=p.get("repository")
         repository=None
-        if cp is not None and os.path.isdir(cp):
+        url=None
+        if source is not None and source!="local":
+            url=source
+        elif source is None and cp is not None and os.path.isdir(cp):
             r=subprocess.run(["git","-C",cp,"remote","get-url","origin"],capture_output=True,text=True)
             if r.returncode==0:
-                u=re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$",r.stdout.strip())
-                if u:
-                    repository=u.group(1)+"/"+u.group(2)
+                url=r.stdout.strip()
+        if url is not None:
+            u=re.search(r"[:/]([^/:]+)/([^/]+?)(?:\.git)?/?$",url)
+            if u:
+                repository=u.group(1)+"/"+u.group(2)
         print(json.dumps({"code":code,"project":p["org"]+"/"+p["slug"],"checkoutPath":cp,"home":home+"/projects/"+p["org"]+"/"+p["slug"],"repository":repository}))
         sys.exit(0)
 print(json.dumps({"error":"unknown project code "+code}),file=sys.stderr)
