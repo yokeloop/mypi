@@ -167,12 +167,12 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(toolCommand('sessions', {}, { XDG_RUNTIME_DIR: '/run/user/1' }), [{ name: 'sessions', runtime: '/run/user/1' }]);
   assert.throws(() => toolCommand('sessions', { key: 'x' }), /Unrecognized/);
 });
-test('open_session takes the caller, Herdr workspace, state and runtime from the environment', () => {
+test('open_session takes the caller, state and runtime from the environment', () => {
   const env = { CLAUDE_CODE_SESSION_ID: 'c1', HERDR_WORKSPACE_ID: 'w1', XDG_STATE_HOME: '/s', XDG_RUNTIME_DIR: '/r' };
   const parsed = parseCommand(['open', 'MP']);
   if (parsed.type === 'help') throw new Error('Unexpected help');
   const expected = [{ name: 'open_session', keys: ['MP'], session: { agent: 'claude', nativeId: 'c1', pid: 7, runtime: '/r' },
-    workspace: 'w1', stateHome: '/s', runtime: '/r' }];
+    stateHome: '/s', runtime: '/r' }];
   assert.deepEqual(toolCommand('open_session', { keys: ['MP'] }, env, 7), expected);
   assert.deepEqual([appCommand(parsed, env, 7)], expected);
   for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }]) {
