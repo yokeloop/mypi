@@ -48,4 +48,4 @@ export type AppCommand =
       transcript?: string }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
-      session?: SessionHint; workspace?: string; stateHome?: string; runtime?: string };
+      session?: SessionHint; stateHome?: string; runtime?: string };

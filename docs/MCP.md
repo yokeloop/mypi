@@ -71,7 +71,7 @@ the last delivered `turn_end` of each open task as history; so `warmup` is not r
 in its frame with the event number, and marks them delivered. Global and task keys return an
 empty list; an unknown project is an error. There is no read-only preview.
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.
-`open_session` takes keys (project code, CODE-N, org/project, org/project#N), optional agent and permissionMode; it returns `{ opened: [{ key, agent, action: focused|resumed|started, workspaceId, tabId, worktreePath, notes }] }` or a partial result naming opened and unopened keys. It needs a running Herdr server.
+`open_session` takes keys (project code, CODE-N, org/project, org/project#N), optional agent and permissionMode; it returns `{ opened: [{ key, agent, action: focused|resumed|started, workspaceId, tabId, worktreePath, notes }] }` or a partial result naming opened and unopened keys. Each new tab opens in its project's Herdr workspace (label `org/project`), which is created when missing. It needs a running Herdr server.
 `journal` global remains global-only. CLI `project resolve /absolute/path`
 exposes the same operation as projects action resolve. Invalid JSON-RPC remains an SDK protocol error;
 well-formed tools/call validation failures/unknown names use the application envelope.

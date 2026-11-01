@@ -170,8 +170,10 @@ warmup still runs.
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
 `mypi open`) needs a running Herdr server. For each key — a project code, CODE-N,
 org/project or org/project#N — it focuses the live session's Herdr tab or opens a
-new tab in the engine root with `MYPI_SCOPE` and starts the agent there; an
-existing session continues with its own agent.
+new tab in its project's Herdr workspace (label `org/project`, created when
+missing; a task gets its tab there without starting the project session) in the
+engine root with `MYPI_SCOPE` and starts the agent there; an existing session
+continues with its own agent.
 
 A task chat (`MP-12`) reports to its parent key (`MP`) through rows in the `events`
 table, only when the parent needs to act on them:

@@ -134,7 +134,6 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
         ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
         ...(hint === undefined ? {} : { session: hint }),
-        ...(env['HERDR_WORKSPACE_ID'] ? { workspace: env['HERDR_WORKSPACE_ID'] } : {}),
         ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
     }
     default: throw new InputError('Unknown workspace command');
