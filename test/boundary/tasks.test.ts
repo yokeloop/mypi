@@ -68,11 +68,15 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     assert.equal(app.tasks.get(b.key).contextDir, beforeRename.contextDir);
     assert.equal(app.tasks.get(b.key).status, beforeRename.status);
     const published = a.contextDir + '/research/result.md';
-    const eventsBefore = app.history('all').length;
+    const first = app.history({ type: 'task', key: a.key }).find(e => e.text === 'progress\nline')!.artifacts![0] as { path: string; commit: string };
+    assert.equal(first.path, published);
     writeFileSync(join(root, published), 'replacement');
-    assert.throws(() => app.tasks.progress(a.key, 'replace', [{ path: 'research/result.md' }]), /Registered file changed/);
-    assert.equal(app.history('all').length, eventsBefore);
-    assert.throws(() => app.complete([published], 'replace proof'), /Registered|Immutable/);
+    app.tasks.progress(a.key, 'replace', [{ path: 'research/result.md' }]);
+    const replaced = app.history({ type: 'task', key: a.key }).at(-1)!.artifacts![0] as { path: string; commit: string };
+    assert.equal(replaced.commit, spawnSync('git', ['-C', root, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim());
+    assert.notEqual(replaced.commit, first.commit);
+    assert.equal(app.readVersion(published, first.commit), 'result');
+    app.complete([published], 'replace proof');
     writeFileSync(join(root, published), 'result');
     app.tasks.progress(a.key, 'next version', [{ path: 'research/result-v2.md', text: 'replacement' }]);
     const injection = openDatabase(filename);
@@ -104,7 +108,7 @@ test('local task and journal saves never require a context Git repository', t =>
     app.projects.add('one/project', 'MP');
     const card = app.tasks.create({ project: 'one/project', title: 'No Git', status: 'new', slug: 'local', source: 'exact\r\n' });
     app.tasks.change(card.key, { status: 'planning' }, 'working');
-    app.tasks.progress(card.key, 'result', [{ path: 'result.md', text: 'proof' }]);
+    app.tasks.progress(card.key, 'result');
     app.journal({ type: 'global' }, 'another entry');
     assert.equal(app.read(card.contextDir + '/source.md'), 'exact\r\n');
     assert.deepEqual(app.history({ type: 'task', key: card.key }).map(x => x.event_type),
@@ -142,7 +146,7 @@ test('task and journal paths invoke no Git and preserve staged and unstaged inde
       app.projects.add('one/project', 'MP');
       const card = app.tasks.create({ project: 'one/project', title: 'Local', status: 'new', slug: 'local', source: 'source' });
       app.tasks.change(card.key, { status: 'planning' }, 'progress');
-      app.tasks.progress(card.key, 'result', [{ path: 'result.md', text: 'proof' }]);
+      app.tasks.progress(card.key, 'result');
       app.tasks.touch(card.key);
       app.journal({ type: 'global' }, 'global note');
       assert.equal(app.history({ type: 'global' })[0]?.text, 'global note');
