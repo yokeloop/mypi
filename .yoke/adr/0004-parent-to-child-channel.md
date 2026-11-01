@@ -16,8 +16,9 @@ project chat could not lead a task through its stages.
    migration 010): `from_key` is the parent, `to_key` the child. The queue,
    `pending`, `deliver` and the transports are the ones events already use.
 2. Only the direct parent. A project chat writes to its own tasks and the main
-   chat (`global`) to projects; the sender is the calling session's resolved key
-   (its registered key, else `MYPI_SCOPE`). Any other sender is refused with the
+   chat (`global`) to projects; the sender is the calling session's key resolved
+   like the warmup's (its registered key, else `MYPI_SCOPE`, else `global`), so an
+   unresolved caller counts as global and may send only to projects. Any other sender is refused with the
    name of the allowed parent, and nothing is written. Entry points are MCP
    `send_message`, CLI `mypi send` and `/open <key> --message` (MCP
    `open_session.message`), all one application command.

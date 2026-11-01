@@ -70,8 +70,9 @@ the last delivered `turn_end` of each open task as history; so `warmup` is not r
 `{ events: [{ id, from, to, kind, createdAt, text }] }` (`kind`: `turn_end`, `waiting`, `milestone` or `message`) with the undelivered rows, each `text`
 in its frame, and marks them delivered. A task key returns its parent's messages (`kind` `message`, in the parent frame), a project key its tasks' events and
 the main chat's messages to it; `"all"` skips messages. The global key returns an empty list; an unknown key is an error. There is no read-only preview.
-`send_message` takes `key` and `text`: the calling session (its registered key, else `MYPI_SCOPE`) must be the key's direct parent (a project for its task,
-global for a project), otherwise it is refused and nothing is written. It stores an `events` row of kind `message` and sends it at once to a live child in the
+`send_message` takes `key` and `text`: the calling session's key, resolved as for `warmup` (its registered key, else `MYPI_SCOPE`, else `global`; an unresolved caller
+therefore counts as global and may send only to projects), must be the key's direct parent (a project for its task, global for a project), otherwise it
+is refused and nothing is written. It stores an `events` row of kind `message` and sends it at once to a live child in the
 frame `[mypi: сообщение родительской сессии <parent> для <key>. …]`; a closed child gets it exactly once at the next `/open`. Result: `{ message, delivered }`.
 An instruction never stands in for the user's word.
 `sessions` returns `{ tree }`: global → projects → tasks, each node `{ key, session: { agent, nativeId, state: live|closed } | null, children }`. Registration, unregistration and forgetting are CLI-only.

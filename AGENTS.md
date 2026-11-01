@@ -134,7 +134,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   milestone event for the project chat unless the project chat makes it;
   milestones wait for /inbox and the warmup and are never sent live.
   Down go parent messages: a direct parent (project chat → its task, main chat →
-  a project; the caller's resolved key, else refused) writes an `events` row of
+  a project; the sender key is resolved like the warmup's — registered key, else
+  `MYPI_SCOPE`, else `global`, so an unresolved caller counts as global and may
+  send only to projects; any other sender is refused) writes an `events` row of
   kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
   It goes through the same channels with the same at-least-once semantics as a
   new turn in the parent-message frame; a closed child gets its queue once at the
