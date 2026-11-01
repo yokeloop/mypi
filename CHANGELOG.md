@@ -19,6 +19,16 @@ match the GitHub releases.
   task's status, worktree and last journal entries with their artifacts. It is
   state, not an instruction, and creates no events; when it cannot be delivered,
   `/open` still succeeds with `start message not delivered: <reason>` in `notes`.
+- Parent-to-child channel (MP-55): a direct parent (project chat → its task,
+  main chat → a project) sends its child an instruction with MCP `send_message`,
+  CLI `mypi send <key> (text | --file source)` or `/open <key> --message <text>`
+  (MCP `open_session.message`). It is stored as an `events` row of kind
+  `message`, arrives as a new turn in the parent-message frame through the same
+  channels as events, and a closed child gets it once at the next `/open`, in one
+  message with the start text. Its turn is parent-started, so the answer comes
+  back as `turn_end`. The warmup does not show messages. An instruction never
+  stands in for the engineer's word for /do, /ship, merge, release, migration or
+  an engine update.
 
 ### Changed
 
@@ -30,6 +40,10 @@ match the GitHub releases.
   open in `mypi` are not moved: a live session is still focused by its agent
   name, and after its agent quits the next `/open` continues it in the project's
   workspace while the old shell tab stays.
+- `inbox` (MP-55) of a task key returns its parent's messages and marks them;
+  `inbox all` skips messages. Upgrading: schema 9 → 10, migration 010: after
+  updating run `mypi db init` once (back up the database first); until then
+  commands that open the database ask for it.
 - The full test profile has a working budget of 40 s instead of 30 s (MP-63)
   because CI runner speed varies. The Pi and Claude socket reply deadline is a
   parameter of `piEventSocket` and `claudeInboxSocket` with the same production

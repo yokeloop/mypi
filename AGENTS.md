@@ -110,7 +110,8 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   warmup, and unregisters the process when Pi quits; the output is the
   `mypi_context` system-prompt section of every turn. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
-  It also registers the /open command, which runs mypi open, and the /inbox
+  It also registers the /open command (`/open <key...> [--message text]`, the
+  rest of the line after --message is the text), which runs mypi open, and the /inbox
   command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
   `mypi event emit` with the registered key, only in a turn that a message in
@@ -132,6 +133,17 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   A status change to review, blocked, merged or a terminal status queues a
   milestone event for the project chat unless the project chat makes it;
   milestones wait for /inbox and the warmup and are never sent live.
+  Down go parent messages: a direct parent (project chat → its task, main chat →
+  a project; the caller's resolved key, else refused) writes an `events` row of
+  kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
+  It goes through the same channels with the same at-least-once semantics as a
+  new turn in the parent-message frame; a closed child gets its queue once at the
+  next /open, in one message together with the start message. The warmup neither
+  shows nor marks messages; the child's own /inbox returns them. A busy Claude
+  child takes one as a `queued_command` inside the current turn, without its own
+  `turn_end`; Pi takes it as a `followUp`. A parent instruction never stands in
+  for the engineer's word: gated steps (/do, /ship, merge, release, migration,
+  engine update) still need the engineer in the child's tab.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
@@ -181,7 +193,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the older record moves to `<key>~<pid>.json`. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 9 database registration fails and the
+  `XDG_RUNTIME_DIR` or an initialized schema 10 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
   session's Herdr tab or opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
@@ -193,7 +205,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   and the last journal entries with their artifacts. It is state, not an
   instruction, and creates no events. If it cannot be delivered, /open still
   succeeds with `start message not delivered: <reason>` in `notes`; for Claude in
-  `bypassPermissions` delivery is not promised, as for events.
+  `bypassPermissions` delivery is not promised, as for events. `--message <text>`
+  (one key; the caller must be its parent, else nothing opens) queues a parent
+  message after the focus or start and delivers it live, after a resume or in the
+  same message as the start text; `opened[].message` is its id.
 
 ## Project setup and maintenance
 
