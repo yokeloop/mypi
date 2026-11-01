@@ -18,6 +18,15 @@ export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
       const canonical = paths.canonicalAbsoluteDirectory(checkoutPath);
       return store.updateCheckout({ org, slug, expectedCheckoutPath, checkoutPath: canonical });
     },
+    remove(identity: string, expectedCode: string) {
+      const { org, slug } = parseIdentity(identity);
+      return store.remove({ org, slug, expectedCode });
+    },
+    removeOrganization(org: string) {
+      if (!validSlug(org)) throw new InputError('Invalid organization slug');
+      store.removeOrganization(org);
+      return org;
+    },
     list(org?: string) {
       if (org !== undefined && (!validSlug(org) || !store.findOrganization(org))) {
         throw new InputError('Unknown organization');
