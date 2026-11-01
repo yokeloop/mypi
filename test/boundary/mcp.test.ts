@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-test('real stdio: twelve tools, maintenance absent, exact source, scope, task_update partial, two clients and CLI', async t => {
+test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_update partial, two clients and CLI', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function install(name: string) {
@@ -49,7 +49,7 @@ test('real stdio: twelve tools, maintenance absent, exact source, scope, task_up
   }
   const listed = (await client.listTools()).tools;
   assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
-    'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
+    'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   const readOnlyTools = ['task_list', 'task_show', 'journal', 'context_read', 'sessions'];
   for (const tool of listed) {
