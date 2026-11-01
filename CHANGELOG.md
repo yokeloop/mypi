@@ -73,6 +73,10 @@ match the GitHub releases.
   and reports directly and no longer create `plan-v<N>.md`, `*-final.md` or
   `addendum.md`; `scripts/pipeline/mp-home-commit` also pushes home commits that
   `task progress` made when nothing new is staged.
+- The Pi extension (MP-60) adds a codemode guideline to every turn:
+  `searchTools()`, `describeTool()` and `describeNamespace()` return Promises and
+  must be awaited, which prevents "value is not iterable" errors from unawaited
+  tool discovery.
 
 ### Upgrade
 

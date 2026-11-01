@@ -33,7 +33,9 @@ Pi sessions started in the engine checkout get the server from the tracked
 extension `.pi/extensions/mypi.ts` after project trust ([README](../README.md#pi)).
 It registers `node dist/src/mcp/main.js` with the engine root as cwd and the Pi
 session id in `PI_SESSION_ID`, with codemode exposure and projects and warmup
-direct. It installs no agent workflow, task-registration requirement, automatic
+direct. Every turn it also adds a codemode guideline that `searchTools()`,
+`describeTool()` and `describeNamespace()` return Promises to be awaited. It
+installs no agent workflow, task-registration requirement, automatic
 logging, delegation or Herdr-tab rule. A same-name entry in a Pi `mcp.json`
 replaces the registration. Exposure makes tools available, not mandatory.
 Connecting the server neither creates storage nor launches work.
