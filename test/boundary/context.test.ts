@@ -15,7 +15,7 @@ test('context preserves exact text, rejects escaping/overwrite, commits only sel
   const root = join(dir, 'home'), files = contextFiles(root), history = contextGit(root);
   history.initialize();
   files.create('source.md', '  Исходник\r\nдве строки\n');
-  history.commit(['source.md'], 'initial');
+  const initial = history.commit(['source.md'], 'initial');
   assert.equal(files.read('source.md'), '  Исходник\r\nдве строки\n');
   assert.throws(() => files.create('source.md', 'overwrite'));
   for (const path of ['../escape', '/tmp/escape', '.git/config', 'x/../../escape']) assert.throws(() => files.create(path, 'bad'));
@@ -39,7 +39,15 @@ test('context preserves exact text, rejects escaping/overwrite, commits only sel
   assert.throws(() => history.commit(['tasks/MP-1-large'], 'deleted directory bypass'), /file/);
   writeFileSync(join(root, 'source.md'), 'dirty');
   assert.throws(() => history.clean(['source.md']), /uncommitted/);
-  assert.throws(() => history.commit(['source.md'], 'overwrite original'), /Immutable/);
+  history.commit(['source.md'], 'edit source');
+  assert.deepEqual(history.readVersion('source.md', initial), Buffer.from('  Исходник\r\nдве строки\n'));
+  assert.throws(() => history.readVersion('source.md', initial.slice(0, 7)), /Full commit hash required/);
+  assert.throws(() => history.readVersion('notes/new.md', initial), /Missing context file version/);
+  files.create('inbox/message.md', 'incoming');
+  history.commit(['inbox/message.md'], 'inbox');
+  writeFileSync(join(root, 'inbox/message.md'), 'rewritten');
+  assert.throws(() => history.commit(['inbox/message.md'], 'rewrite inbox'), /Immutable/);
+  writeFileSync(join(root, 'inbox/message.md'), 'incoming');
   writeFileSync(join(root, '.git/index.lock'), 'blocked');
   assert.throws(() => changeContext(history, ['pending.md'],
     () => files.create('pending.md', 'saved despite Git failure'), 'fail'), error => {

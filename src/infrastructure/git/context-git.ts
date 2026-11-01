@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, lstatSync, mkdirSync, readFileSync, writeFileSync, openSync, closeSync, readSync, readlinkSync, fstatSync, constants } from 'node:fs';
 import { createHash } from 'node:crypto';
+import { constants as bufferConstants } from 'node:buffer';
 import { dirname, join, resolve } from 'node:path';
 import { contextFiles, relativeContextPath } from '../filesystem/context-files.js';
 import { PartialError } from '../../shared/context.js';
@@ -30,6 +31,15 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
     if (missingHead && result.status === 1 && !result.error) return '';
     if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr.trim() || 'Git failed');
     return result.stdout;
+  }
+  function probe(args: string[]): boolean {
+    const result = spawnSync('git', ['--literal-pathspecs', '-c', 'core.hooksPath=/dev/null',
+      '-c', 'core.fsmonitor=false', '-c', 'commit.gpgsign=false', '-c', 'core.autocrlf=false',
+      '-c', 'user.name=mypi', '-c', 'user.email=mypi@localhost', '-C', root, ...args],
+    { encoding: 'utf8', timeout: 3000, maxBuffer: 1024 * 1024,
+      env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
+    if (result.error) throw new Error(result.error.message);
+    return result.status === 0;
   }
   function matchesBlob(path: string, oid: string, size: number, immutable: boolean): boolean {
     const target = files.path(path);
@@ -94,9 +104,23 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       if (git(['status', '--porcelain=v1', '--untracked-files=all'])) throw new InputError('Dirty context; reconcile before backup');
     },
     bundle(destination: string) { git(['bundle', 'create', destination, 'HEAD']); },
+    readVersion(path: string, revision: string): Buffer {
+      check([path]);
+      if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(revision)) throw new InputError('Full commit hash required');
+      if (!probe(['cat-file', '-e', revision + ':' + path]) || git(['cat-file', '-t', revision + ':' + path]).trim() !== 'blob') {
+        throw new InputError('Missing context file version: ' + path + '@' + revision);
+      }
+      const size = Number(git(['cat-file', '-s', revision + ':' + path]).trim());
+      if (!Number.isSafeInteger(size) || size < 0 || size > bufferConstants.MAX_LENGTH - 65536) throw new Error('Git object is too large to read exactly');
+      const result = spawnSync('git', ['-C', root, 'show', revision + ':' + path], { encoding: 'buffer', timeout: 5000,
+        maxBuffer: size + 65536,
+        env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
+      if (result.error || result.status !== 0 || result.stdout.length !== size) throw new Error(result.error?.message || 'Git object read failed or returned incomplete bytes');
+      return result.stdout;
+    },
     restoreFile(path: string, revision: string) {
       check([path]);
-      if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path === 'source.md' || path.endsWith('/source.md') || path.endsWith('/errors.md')) {
+      if (published().has(path) || path.startsWith('journal/') || path.startsWith('inbox/') || path.endsWith('/errors.md')) {
         throw new InputError('Immutable/append-only history cannot be restored by rewriting');
       }
       if (!/^[a-f0-9]{40,64}$/.test(revision)) throw new InputError('Full commit hash required');
@@ -128,11 +152,10 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       const head = git(['rev-parse', '--verify', '--quiet', 'HEAD'], true).trim();
       if (head) for (const path of paths) {
         if (!git(['ls-tree', '--name-only', head, '--', path]).trim()) continue;
-        if (!(immutablePaths.has(path) || path.endsWith('/source.md') || path === 'source.md' || path.startsWith('inbox/')
-          || path.startsWith('journal/') || path.endsWith('/errors.md'))) continue;
+        if (!(immutablePaths.has(path) || path.startsWith('inbox/') || path.startsWith('journal/') || path.endsWith('/errors.md'))) continue;
         const oid = git(['rev-parse', '--verify', head + ':' + path]).trim();
         const size = Number(git(['cat-file', '-s', oid]).trim());
-        const immutable = immutablePaths.has(path) || path.endsWith('/source.md') || path === 'source.md' || path.startsWith('inbox/');
+        const immutable = immutablePaths.has(path) || path.startsWith('inbox/');
         if (!Number.isSafeInteger(size) || size < 0 || !matchesBlob(path, oid, size, immutable)) {
           throw new InputError(immutable ? 'Immutable source cannot be changed' : 'Append-only history cannot be rewritten');
         }
@@ -185,4 +208,17 @@ export function cloneContextBundle(bundle: string, root: string): void {
   const checkout = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.autocrlf=false', '-C', root, 'checkout', '--quiet', '--force', 'HEAD'],
     { encoding: 'utf8', timeout: 3000, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
   if (checkout.error || checkout.status !== 0) throw new Error(checkout.error?.message || checkout.stderr);
+}
+
+export function gitVersions(repository: string, tip: string | undefined): { reaches(commit: string): boolean; contains(commit: string, path: string): boolean } {
+  const probe = (args: string[]) => {
+    const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-C', resolve(repository), ...args],
+      { encoding: 'utf8', timeout: 3000, env: Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))) });
+    if (result.error) throw new Error(result.error.message);
+    return result;
+  };
+  return {
+    reaches: commit => tip !== undefined && probe(['merge-base', '--is-ancestor', commit, tip]).status === 0,
+    contains: (commit, path) => { const result = probe(['cat-file', '-t', commit + ':' + path]); return result.status === 0 && result.stdout.trim() === 'blob'; },
+  };
 }
