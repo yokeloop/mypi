@@ -22,23 +22,26 @@ proj=$("$BIN/mp-task" project "$key")
 BASE_CLONE=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["checkoutPath"] or "")' <<<"$proj")
 [[ -n "$BASE_CLONE" && -d "$BASE_CLONE" ]] || { echo "{\"error\":\"no registered clone (checkoutPath) for $key\"}"; exit 1; }
 field() { python3 -c 'import sys,json;print(json.load(sys.stdin)[sys.argv[1]])' "$1" <<<"$flow"; }
+err=$(mktemp); trap 'rm -f "$err"' EXIT
+fail() {
+  python3 -c 'import sys,json
+t=sys.argv[1].strip()
+try: m=json.loads(t.splitlines()[-1])["message"]
+except Exception: m=t
+print(json.dumps({"error":m}))' "$(<"$err")"
+  exit 1
+}
 
 if [[ -z "$base_ref" ]]; then
-  if ! wt_json=$(cli task worktree "$key" 2>&1); then
-    python3 -c 'import sys,json
-try: m=json.loads(sys.argv[1])["message"]
-except Exception: m=sys.argv[1]
-print(json.dumps({"error":m}))' "$wt_json"
-    exit 1
-  fi
+  wt_json=$(cli task worktree "$key" 2>"$err") || fail
   { read -r branch; read -r wt; read -r created_worktree; read -r created_branch; } < <(python3 -c 'import sys,json
 r=json.loads(sys.argv[1])
 print(r["branch"],r["worktreePath"],str(r["created"]).lower(),str(r["createdBranch"]).lower(),sep="\n")' "$wt_json")
-  flow=$("$BIN/mp-task" flow "$key")
+  flow=$("$BIN/mp-task" flow "$key" 2>"$err") || fail
   base_ref="origin/$(field integration)"
   base_sha=$(git -C "$BASE_CLONE" rev-parse "$base_ref")
 else
-  flow=$("$BIN/mp-task" flow "$key")
+  flow=$("$BIN/mp-task" flow "$key" 2>"$err") || fail
   slug=$("$BIN/mp-task" slug "$key")
   template=$(field taskBranch)
   branch=${template//\{KEY\}/$key}
