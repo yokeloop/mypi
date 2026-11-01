@@ -20,7 +20,7 @@ export interface ExtensionAPI {
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'session_shutdown', handler: (event: { reason: string }) => Promise<void>): void;
   on(name: 'agent_start', handler: () => void): void;
-  on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string> } }) => void): void;
+  on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: () => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
@@ -29,6 +29,7 @@ export interface ExtensionAPI {
 export type ServeEvents = (path: string, onBatch: (events: { id: number; text: string }[]) => Promise<number[]>) => Promise<{ close(): Promise<void> }>;
 
 const SECTION = 'mypi_context';
+export const CODEMODE_GUIDELINE = 'In codemode scripts `searchTools()`, `describeTool()` and `describeNamespace()` return Promises, like `tools.*` calls: `await` them before iterating or printing, e.g. `const hits = await searchTools("mcp__mypi open_session")`.';
 const MESSAGE_LIMIT = 32000;
 const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии [A-Z]+ для [A-Z]+-[1-9][0-9]*\. /;
 
@@ -133,7 +134,10 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     done?.();
   });
   pi.on('before_agent_start', event => {
-    if (context) event.systemPromptOptions.sections[SECTION] = context;
+    const options = event.systemPromptOptions;
+    if (context) options.sections[SECTION] = context;
+    const codemode = (options.toolGuidelines ??= {}).codemode ??= [];
+    if (!codemode.includes(CODEMODE_GUIDELINE)) codemode.push(CODEMODE_GUIDELINE);
   });
   pi.on('agent_end', event => {
     const reply = event.messages.filter(message => message.role === 'assistant').at(-1);
