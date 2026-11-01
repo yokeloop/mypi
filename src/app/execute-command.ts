@@ -10,7 +10,7 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { InputError } from '../shared/errors.js';
 import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
-import { projectFlow } from './project-flow.js';
+import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { emitEvent, readInbox, turnEnd } from './events.js';
