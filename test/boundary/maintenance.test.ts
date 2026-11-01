@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
+import { createApp } from '../../src/app/create-app.js';
+import { executeCommand } from '../../src/app/execute-command.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { backupState, restoreState, verifyReferences } from '../../src/app/backup.js';
 import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
@@ -54,4 +56,25 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   rmSync(join(root, card.contextDir, 'artifacts/result.md'));
   await assert.rejects(backupState(filename, join(dir, 'missing-backup'), root), /Dirty/);
   assert.throws(() => verifyReferences(filename, root), /ENOENT|Missing artifact/);
+});
+
+test('project and org remove report remaining home folders and leave them in place', async t => {
+  const { dir, filename } = state(t);
+  const root = join(dir, 'home');
+  mkdirSync(join(root, 'projects', 'one', 'project'), { recursive: true });
+  const app = createApp(filename, false);
+  let id: number, other: number;
+  try {
+    id = app.projects.add('one/project', 'MP').id;
+    other = app.projects.add('two/project', 'YM').id;
+  } finally { app.close(); }
+  assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'one/project', expectedCode: 'MP' }, filename, root),
+    { removed: { project: { id, org: 'one', slug: 'project', code: 'MP', checkoutPath: null } }, homeFolder: 'projects/one/project' });
+  assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'one' }, filename, root),
+    { removed: { organization: 'one' }, homeFolder: 'projects/one' });
+  assert(existsSync(join(root, 'projects', 'one', 'project')));
+  assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'two/project', expectedCode: 'YM' }, filename, root),
+    { removed: { project: { id: other, org: 'two', slug: 'project', code: 'YM', checkoutPath: null } }, homeFolder: null });
+  assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'two' }, filename, root),
+    { removed: { organization: 'two' }, homeFolder: null });
 });

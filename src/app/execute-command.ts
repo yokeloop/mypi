@@ -1,3 +1,5 @@
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AppCommand } from './commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
@@ -17,6 +19,10 @@ function callerKey(filename: string, c: Extract<AppCommand, { name: 'task_status
   try {
     return warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
   } catch { return undefined; }
+}
+
+function homeFolder(root: string | undefined, path: string): string | null {
+  return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
 }
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
@@ -43,7 +49,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
   // DB-only operations must remain usable without context/Git, including a damaged home.
-  if (c.name.startsWith('project_') || c.name.startsWith('status_')) {
+  if (c.name.startsWith('project_') || c.name.startsWith('status_') || c.name === 'org_remove') {
     const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));
     try {
       switch (c.name) {
@@ -51,6 +57,14 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath) };
         case 'project_update': return { project: app.projects.updateCheckout(c.identity, c.expectedCheckoutPath, c.checkoutPath) };
         case 'project_resolve': return app.projects.resolveCheckout(c.path);
+        case 'project_remove': {
+          const project = app.projects.remove(c.identity, c.expectedCode);
+          return { removed: { project }, homeFolder: homeFolder(root, 'projects/' + project.org + '/' + project.slug) };
+        }
+        case 'org_remove': {
+          const organization = app.projects.removeOrganization(c.org);
+          return { removed: { organization }, homeFolder: homeFolder(root, 'projects/' + organization) };
+        }
         case 'status_list': return app.tasks.statuses();
         case 'status_add': app.tasks.addStatus(c.code, c.terminal); break;
         case 'status_rename': app.tasks.renameStatus(c.code, c.newCode); break;

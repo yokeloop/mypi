@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdirSync, readFileSync, readdirSync, existsSync, symlinkSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { state } from '../support/state.js';
 
 test('registered scope, independent organizations and duplicate rollback through the public API', t => {
@@ -121,4 +122,69 @@ test('read APIs leave database bytes and filesystem unchanged; absent database i
   const missing = join(dir, 'absent', 'state.sqlite3');
   assert.throws(() => createApp(missing, true));
   assert.equal(existsSync(join(dir, 'absent')), false);
+});
+
+const at = '2026-10-28T00:00:00.000Z';
+
+function seed(filename: string, statements: [string, unknown[]][]) {
+  const db = openDatabase(filename);
+  try {
+    for (const [sql, params] of statements) db.prepare(sql).run(...params);
+  } finally { db.close(); }
+}
+
+test('project remove deletes only an unreferenced registration and refuses every dependent record', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    const project = app.projects.add('one/project', 'MP');
+    assert.throws(() => app.projects.remove('one/project', 'XX'), /Stale project code/);
+    assert.deepEqual(app.projects.list(), [project]);
+    assert.throws(() => app.projects.remove('one/absent', 'MP'), /Unknown project/);
+    assert.deepEqual(app.projects.remove('one/project', 'MP'), project);
+    assert.deepEqual(app.projects.list(), []);
+    assert.equal(app.projects.resolveScope('one').type, 'org');
+    app.projects.add('one/project', 'MP');
+    const referenced: [string, string, string, [string, unknown[]]][] = [
+      ['tasks', 'TA', 'tasks 1', [`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
+        VALUES ((SELECT id FROM projects WHERE code = 'TA'), 1, 'Task', (SELECT id FROM task_statuses WHERE code = 'new'),
+        'projects/two/tasks/tasks/TA-1-task', NULL, ?, ?)`, [at, at]]],
+      ['sessions', 'SE', 'sessions 1', [`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
+        VALUES ('SE', 'project', (SELECT id FROM projects WHERE code = 'SE'), NULL, 'claude', 'native', ?)`, [at]]],
+      ['project-journal', 'PJ', 'project journal entries 1', [`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text)
+        VALUES (?, 'project', 'PJ', 'note', 'Note')`, [at]]],
+      ['task-journal', 'TJ', 'task journal entries 1', [`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text)
+        VALUES (?, 'task', 'TJ-1', 'note', 'Note')`, [at]]],
+      ['events', 'EV', 'events 1', [`INSERT INTO events(from_key, to_key, kind, message, created_at)
+        VALUES ('EV-1', 'EV', 'turn_end', 'Done', ?)`, [at]]],
+    ];
+    for (const [slug, code, label, statement] of referenced) {
+      const dependent = app.projects.add('two/' + slug, code);
+      seed(filename, [statement]);
+      assert.throws(() => app.projects.remove('two/' + slug, code),
+        new RegExp('Project ' + code + ' is referenced by: ' + label + '$'));
+      assert(app.projects.list('two').some(p => p.id === dependent.id));
+    }
+    const prefix = app.projects.add('three/prefix', 'M');
+    seed(filename, [
+      [`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES (?, 'task', 'MP-1', 'note', 'Note')`, [at]],
+      [`INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP-1', 'MP', 'turn_end', 'Done', ?)`, [at]],
+    ]);
+    assert.deepEqual(app.projects.remove('three/prefix', 'M'), prefix);
+  } finally { app.close(); }
+});
+
+test('org remove deletes only an organization without projects', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    app.projects.add('one/project', 'MP');
+    seed(filename, [[`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES (?, 'org', 'one', 'note', 'Note')`, [at]]]);
+    assert.throws(() => app.projects.removeOrganization('one'), /Organization one has projects: 1/);
+    assert.throws(() => app.projects.removeOrganization('absent'), /Unknown organization/);
+    assert.throws(() => app.projects.removeOrganization('Bad'), /Invalid organization slug/);
+    app.projects.remove('one/project', 'MP');
+    assert.equal(app.projects.removeOrganization('one'), 'one');
+    assert.throws(() => app.projects.resolveScope('one'), /Unknown organization/);
+  } finally { app.close(); }
 });

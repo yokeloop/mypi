@@ -8,7 +8,7 @@ an LLM or execute flow. Full command syntax is in help.
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
-MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, home migrate-tasks and task worktree exist only in this CLI.
+MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, project remove, org remove, home migrate-tasks and task worktree exist only in this CLI.
 
 ## Storage and context operations
 
@@ -21,6 +21,8 @@ Use only with explicit intent; stop other writers for bootstrap/restore.
 project add org/project --code MP [--path /absolute/checkout]
 project list [--org org]
 project resolve /absolute/existing-directory
+project remove org/project --expected-code MP
+org remove org
 memory add "fact" [-s org/project]
 memory show [-s org/project]
 memory remove 1 --expected-revision SHA256 [-s org/project]
@@ -58,6 +60,13 @@ recorded).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
+`project remove` deletes a registration only when its code matches `--expected-code`
+and no tasks, sessions, journal entries of the project or its tasks, or events
+reference it; otherwise it exits 1 and lists each kind of reference with its count.
+`org remove` deletes an organization without projects; an organization left empty by
+`project remove` stays. Neither deletes `home/` folders. Result:
+`{removed:{project}|{organization}, homeFolder}`, where `homeFolder` is the path of
+the remaining folder or null.
 `session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered, displaced}`. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes the row and reports `live`. `sessions` prints the tree. All need `XDG_RUNTIME_DIR`.
 `event emit --from <key>` writes one event from a task key to its project key (`turn_end`, or `waiting` with `--waiting`; `--message` is its text); `--waiting --hook --pid` reads Claude's Notification input from stdin instead and can write only for `permission_prompt` and `elicitation_dialog`, never for `idle_prompt`. `turn end --pid` reads Claude's Stop input from stdin and can write a `turn_end` event with `last_assistant_message`, none when `stop_hook_active` is set. Both hook forms resolve the key like `session register` and write only when the transcript entry (`transcript_path`) that opened the current turn has `turnOrigin` `peer` and carries the mypi parent-message frame; a turn a person started, an unreadable transcript or a missing mark writes nothing. `--from` is not subject to this rule. A project or global key writes nothing. Result: `{"event":<number>}` or `{"event":null}`; errors exit 1, never 2. `inbox` prints the undelivered events of a project key (or of all projects with `all`; empty for global and task keys) as `{events: [{id, from, to, kind, createdAt, text}]}` with `text` in its frame, and marks them delivered; without a key it resolves the key like `warmup`. A project `warmup` also shows and marks the undelivered events and lists the last delivered `turn_end` of each open task.
 `open <key...>` takes a project code (MP), CODE-N, org/project or org/project#N. For each key it focuses a live session's Herdr agent (`herdr agent focus <key in lower case>`), or opens a new `--no-focus` tab in the caller's `HERDR_WORKSPACE_ID` workspace, else the workspace labelled `mypi` (created when missing), with the engine root as cwd and `MYPI_SCOPE=<key>`, and starts the agent there: the saved session resumed with its own agent, or a new one. A task key creates its worktree first (as `task worktree`). `--agent` applies only to new sessions (default `defaultAgent` in home/settings.json, else claude); `--permission-mode` is passed to Claude only (default the calling session's mode). Result: `{opened: [{key, agent, action, workspaceId, tabId, worktreePath, notes}]}`; a failure after an opened key is partial. Without a running Herdr server, for projects without a clone, for global, REQ and unknown keys it exits 1 with no tab, worktree or session rows; it never writes session rows itself.

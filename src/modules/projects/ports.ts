@@ -6,6 +6,8 @@ export interface ProjectStore {
   list(org?: string): Project[];
   find(org: string, slug: string): Project | undefined;
   findOrganization(slug: string): { id: number; slug: string } | undefined;
+  remove(input: { org: string; slug: string; expectedCode: string }): Project;
+  removeOrganization(slug: string): void;
 }
 
 export interface CheckoutPaths {
