@@ -51,6 +51,7 @@ test('project start message groups open tasks by status and counts undelivered e
     app.events.emit({ from: 'MP-12', kind: 'waiting', message: 'two' });
     app.events.milestone({ from: 'MP-3', message: 'new → review: ready' });
     app.events.emit({ from: 'OT-1', kind: 'turn_end', message: 'foreign' });
+    app.events.send({ from: 'global', to: 'MP', message: 'веди задачи' });
     app.events.deliver([1]);
   } finally { app.close(); }
   assert.equal(startMessage(filename, 'MP', null), 'Проект MP (one/project).\n\n'
@@ -61,7 +62,7 @@ test('project start message groups open tasks by status and counts undelivered e
     + 'Недоставленных событий от задач на момент открытия: 2.\n\n'
     + 'Дождись указаний или предложи следующий шаг.');
   const read = createApp(filename, true);
-  try { assert.deepEqual(read.events.pending('MP').map(e => e.id), [2, 3]); } finally { read.close(); }
+  try { assert.deepEqual(read.events.pending('MP').map(e => e.id), [2, 3, 5]); } finally { read.close(); }
   assert.equal(startMessage(filename, 'OT', null), 'Проект OT (two/other).\n\n'
     + 'Открытые задачи по статусам:\nnew (1):\n- OT-1 Foreign task\n\n'
     + 'Недоставленных событий от задач на момент открытия: 1.\n\n'

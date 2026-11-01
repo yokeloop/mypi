@@ -279,6 +279,20 @@ test('inbox returns the undelivered events in order, framed, and marks them deli
   assert.throws(() => readInbox(filename, { name: 'inbox', key: 'XX' }), /Unknown project: XX/);
 });
 
+test('inbox of a child returns its parent messages framed and marks them, inbox all skips messages', t => {
+  const { filename, e, rows } = fixture(t);
+  e(x => x.send({ from: 'MP', to: 'MP-12', message: 'сделай шаг' }));
+  e(x => x.send({ from: 'global', to: 'MP', message: 'веди задачи' }));
+  e(x => x.emit({ from: 'MP-7', kind: 'turn_end', message: 'a' }));
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'all' }).events.map(x => x.id), [3]);
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP-12' }), { events: [
+    { id: 1, from: 'MP', to: 'MP-12', kind: 'message', createdAt: at, text: parentFrame('MP', 'MP-12', 'сделай шаг') },
+  ] });
+  assert.deepEqual(readInbox(filename, { name: 'inbox', envScope: 'MP' }).events.map(x => [x.id, x.kind]), [[2, 'message']]);
+  assert.deepEqual((rows() as { deliveredAt: string | null }[]).map(r => r.deliveredAt !== null), [true, true, true]);
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP-12' }), { events: [] });
+});
+
 test('CLI event emit, turn end and inbox parse into their commands and refuse wrong combinations', () => {
   const cli = (argv: string[], env: Record<string, string> = {}) => {
     const parsed = parseCommand(argv);

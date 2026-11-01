@@ -41,7 +41,7 @@ export function readInbox(filename: string, c: Of<'inbox'>) {
   const app = createApp(filename, false);
   try {
     return app.serialize(() => {
-      const events = app.events.pending(key === 'all' ? null : key);
+      const events = key === 'all' ? app.events.pending(null).filter(e => e.kind !== 'message') : app.events.pending(key);
       app.events.deliver(events.map(e => e.id));
       return { events: events.map(e => ({ id: e.id, from: e.fromKey, to: e.toKey, kind: e.kind, createdAt: e.createdAt,
         text: frame(e, localTime(e.createdAt)) })) };
