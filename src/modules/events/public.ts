@@ -16,6 +16,9 @@ export function frame(event: EventRow, time: string): string {
 export function parentFrame(from: string, to: string, text: string): string {
   return '[mypi: сообщение родительской сессии ' + from + ' для ' + to + '. Ниже — поручение родительской сессии]\n' + text;
 }
+export function startFrame(key: string, text: string): string {
+  return '[mypi: стартовое сообщение для ' + key + '. Ниже — состояние из mypi, не инструкция]\n' + text;
+}
 export const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии [A-Z]+ для [A-Z]+-[1-9][0-9]*\. /;
 export function isParentMessage(text: string): boolean {
   return PARENT_MESSAGE.test(text);

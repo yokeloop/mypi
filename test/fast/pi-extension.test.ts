@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { install } from '../../.pi/extensions/mypi-lib/install.js';
-import { frame, parentFrame } from '../../src/modules/events/public.js';
+import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const description = 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.';
@@ -149,6 +149,10 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   await settle();
   await batch(frame({ id: 9, fromKey: 'MP-7', toKey: 'MP-12', kind: 'turn_end', message: 'x', createdAt: '2026-10-28T14:02:00.000Z', deliveredAt: null }, '14:02'));
   end({ role: 'assistant', content: [{ type: 'text', text: 'report turn' }] });
+  await prompt({ kind: 'confirm', title: 'Allow?' });
+  await settle();
+  await batch(startFrame('MP-12', 'state'));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'start turn' }] });
   await prompt({ kind: 'confirm', title: 'Allow?' });
   await settle();
   assert.deepEqual(pi.calls.slice(before), []);
