@@ -7,6 +7,7 @@ import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
+import { deliverToStarted } from '../../src/app/delivery.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
 
 function fixture(t: TestContext) {
@@ -33,10 +34,10 @@ function fixture(t: TestContext) {
     writeFileSync(join(proc, String(pid), 'cmdline'), 'pi\0');
   };
   const die = (pid: number) => rmSync(join(proc, String(pid)), { recursive: true, force: true });
-  const register = (pid: number, socket: string | null, agent: 'claude' | 'pi' = 'pi', nativeId = 'p' + pid) => {
+  const register = (pid: number, socket: string | null, agent: 'claude' | 'pi' = 'pi', nativeId = 'p' + pid, key = 'MP') => {
     alive(pid);
     const app = createApp(filename, false);
-    try { app.sessions(run, proc).register({ agent, nativeId, pid, name: null, socket, fork: false, envScope: 'MP' }); } finally { app.close(); }
+    try { app.sessions(run, proc).register({ agent, nativeId, pid, name: null, socket, fork: false, envScope: key }); } finally { app.close(); }
   };
   const delivered = () => {
     const db = openDatabase(filename, true);
@@ -165,5 +166,50 @@ test('turn end in a project scope sends nothing to a live Claude parent', async 
   assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
     { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
   assert.equal(calls.length, 0);
+  assert.deepEqual(delivered(), []);
+});
+
+const wait = { deadlineMs: 100, pollMs: 10 };
+const pause = async () => {};
+
+test('deliverToStarted sends the texts with ids 0, -1 to the live socket and writes nothing', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['first', 'second'], { pi: transport(ids => ids), pause }, run, proc, wait), null);
+  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 0, text: 'first' }, { id: -1, text: 'second' }] }]);
+  assert.deepEqual(delivered(), []);
+});
+
+test('deliverToStarted waits for a record that appears during the wait', async t => {
+  const { filename, run, proc, register, calls, transport } = fixture(t);
+  const pauses: number[] = [];
+  const appear = async (ms: number) => { pauses.push(ms); if (pauses.length === 2) register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12'); };
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['first'], { pi: transport(ids => ids), pause: appear }, run, proc, wait), null);
+  assert.deepEqual(pauses, [10, 10]);
+  assert.equal(calls.length, 1);
+});
+
+test('deliverToStarted gives a reason when no session appears, when Pi has no socket, without a transport and when the session does not acknowledge', async t => {
+  const { filename, run, proc, register, die, delivered, transport } = fixture(t);
+  const pi = transport(ids => ids);
+  let pauses = 0;
+  const counted = async () => { pauses++; };
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
+  assert.ok(pauses > 0);
+  register(101, null, 'claude', 'c101', 'MP-12');
+  pauses = 0;
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
+  assert.equal(pauses, 0);
+  die(101);
+  register(102, null, 'pi', 'p102', 'MP-12');
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
+  assert.ok(pauses > 0);
+  die(102);
+  register(103, '/s/MP-12.sock', 'pi', 'p103', 'MP-12');
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pause }, run, proc, wait), 'no transport for pi');
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x', 'y'], { pi: transport(ids => ids.slice(0, 1)), pause }, run, proc, wait),
+    'the session did not accept it');
+  assert.equal(await deliverToStarted(filename, 'MP-12', ['x'], { pi, pause }, undefined, proc, wait),
+    'XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
   assert.deepEqual(delivered(), []);
 });

@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { executeCommand } from '../app/execute-command.js';
+import type { EventTransports } from '../app/delivery.js';
 import { tools, toolCommand, readOnly } from './tools.js';
 import type { ToolName } from './tools.js';
 import { output } from './schemas.js';
@@ -8,13 +9,14 @@ import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
 import { runSequence } from './sequence.js';
 
-export function createServer(filename: string, root?: string, env: Readonly<Record<string, string | undefined>> = {}) {
+export function createServer(filename: string, root?: string, env: Readonly<Record<string, string | undefined>> = {},
+  transports: EventTransports = {}) {
   const server = new McpServer({ name: 'mypi', version: '0.8.0' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
       const commands = toolCommand(name, args, env);
-      return await calls.run(signal, async () => success(await runSequence(commands, command => executeCommand(command, filename, root))));
+      return await calls.run(signal, async () => success(await runSequence(commands, command => executeCommand(command, filename, root, transports))));
     } catch (error) { return failure(error); }
   }
   for (const name of Object.keys(tools) as ToolName[]) {

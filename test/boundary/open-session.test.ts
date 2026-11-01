@@ -1,7 +1,7 @@
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -10,6 +10,7 @@ import { createApp, resolveStatePath } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 
 const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
+const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
 const root = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const accept = '{"crossSessionInbound":"accept"}';
 
@@ -28,7 +29,12 @@ case "$1 $2" in
     if [ -n "\${HERDR_FAKE_TAB_FAIL:-}" ] && [ "$label" = "$HERDR_FAKE_TAB_FAIL" ]; then echo '{"error":{"code":"tab_failed","message":"boom"}}'; exit 1; fi
     echo '{"result":{"tab":{"tab_id":"t1","workspace_id":"w1"},"root_pane":{"pane_id":"p1"}}}' ;;
   'tab rename') echo '{"result":{"type":"ok"}}' ;;
-  'agent start') echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
+  'agent start')
+    sleep 1000 < /dev/null > /dev/null 2>&1 &
+    echo "$!" >> "$HERDR_CHILDREN"
+    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "fake-$3" --pid "$!" \\
+      \${HERDR_FAKE_SOCKET:+--socket "$HERDR_FAKE_SOCKET"} > /dev/null
+    echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
   'agent focus')
     if [ "\${HERDR_FAKE_FOCUS:-}" = fail ]; then echo '{"error":{"code":"agent_not_found","message":"no agent"}}'; exit 1; fi
     echo '{"result":{"type":"ok"}}' ;;
@@ -43,13 +49,18 @@ function git(...args: string[]): void {
 
 function fixture(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-open-'));
-  t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const bin = join(dir, 'bin'), runtime = join(dir, 'run'), log = join(dir, 'herdr.log');
+  const bin = join(dir, 'bin'), runtime = join(dir, 'run'), log = join(dir, 'herdr.log'), childList = join(dir, 'children');
+  const children = () => existsSync(childList) ? readFileSync(childList, 'utf8').split('\n').filter(line => line !== '') : [];
+  t.after(() => {
+    for (const child of children()) { try { process.kill(Number(child)); } catch {} }
+    rmSync(dir, { recursive: true, force: true });
+  });
   mkdirSync(bin);
   mkdirSync(runtime, { mode: 0o700 });
   writeFileSync(join(bin, 'herdr'), herdr, { mode: 0o755 });
   const env: Record<string, string> = { PATH: bin + ':/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
-    XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HERDR_LOG: log };
+    XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HERDR_LOG: log,
+    HERDR_CHILDREN: childList, FAKE_NODE: process.execPath, FAKE_CLI: entry };
   const cli = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 10000 });
     assert.ifError(result.error);
@@ -99,8 +110,27 @@ function fixture(t: TestContext) {
     const app = createApp(filename, true);
     try { return app.tasks.list().map(card => card.worktreePath); } finally { app.close(); }
   };
+  const events = () => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT id FROM events').all(); } finally { db.close(); }
+  };
+  const quit = () => { for (const child of children()) assert.equal(cli(['session', 'unregister', '--pid', child]).status, 0); };
+  const sock = join(dir, 'child.sock'), serverLog = join(dir, 'server.log');
+  const listen = async (mode: 'ack' | 'claude') => {
+    const child = spawn(process.execPath, [server, sock, mode, serverLog], { stdio: ['ignore', 'pipe', 'inherit'] });
+    t.after(() => { child.kill(); });
+    await new Promise<void>((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', code => reject(new Error('Socket server exited: ' + code)));
+      child.stdout.setEncoding('utf8');
+      let out = '';
+      child.stdout.on('data', (chunk: string) => { out += chunk; if (out.includes('ready\n')) resolve(); });
+    });
+  };
+  const received = () => existsSync(serverLog) ? readFileSync(serverLog, 'utf8').split('\n').filter(line => line !== '').map(line => JSON.parse(line)) : [];
   const pid = String(process.pid);
-  return { env, cli, ok, failed, calls, reset, rows, worktreePaths, pid, worktree: realpathSync(clone) + '--MP-1-open' };
+  return { env, cli, ok, failed, calls, reset, rows, worktreePaths, events, quit, listen, received, sock, pid,
+    worktree: realpathSync(clone) + '--MP-1-open' };
 }
 
 const workspace = (label: string, key: string, state: string) =>
@@ -128,7 +158,7 @@ test('open puts a project and its task into one project workspace whatever HERDR
   ]);
   assert.ok(!log.some(c => c.includes('w1')));
   assert.equal(log.filter(c => c[0] === 'workspace' && c[1] === 'create').length, 1);
-  assert.deepEqual(rows(), []);
+  assert.deepEqual(rows(), ['MP', 'MP-1']);
 });
 
 test('open finds the project workspace by its label and gives another project its own', t => {
@@ -150,7 +180,8 @@ test('open finds the project workspace by its label and gives another project it
 
 test('open of a task without its project workspace creates the workspace with only the task tab', t => {
   const { env, ok, calls } = fixture(t);
-  ok(['open', 'MP-1']);
+  assert.deepEqual(ok(['open', 'MP-1']).opened.map(o => [o.key, o.notes]),
+    [['MP-1', ['start message not delivered: the session has no event socket']]]);
   assert.deepEqual(calls().map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
     ['workspace', 'list'],
     workspace('one/project', 'MP-1', env['XDG_STATE_HOME']!),
@@ -215,4 +246,46 @@ test('open reports a partial result when a later key fails', t => {
   assert.equal(error.status, 'partial');
   assert.deepEqual(error.saved, ['MP']);
   assert.deepEqual(error.missing, ['MP-1']);
+});
+
+test('open sends the start message once to a new Claude task session and nothing on resume and focus', async t => {
+  const { cli, ok, quit, listen, received, events, sock, pid, worktree } = fixture(t);
+  await listen('claude');
+  const first = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(first.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'started', []]]);
+  const lines = received();
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].type, 'user');
+  assert.equal(lines[0].message.role, 'user');
+  const content = lines[0].message.content as string;
+  assert.ok(content.startsWith('[mypi: стартовое сообщение для MP-1. Ниже — состояние из mypi, не инструкция]\n'), content);
+  assert.ok(content.includes('Задача MP-1 «open», статус new.'), content);
+  assert.ok(content.includes('Worktree: ' + worktree), content);
+  assert.ok(content.includes('Дождись указаний или предложи следующий шаг.'), content);
+  assert.deepEqual(events(), []);
+  quit();
+  const again = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(again.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'resumed', []]]);
+  assert.equal(received().length, 1);
+  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  const focused = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(focused.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'focused', []]]);
+  assert.equal(received().length, 1);
+});
+
+test('open sends the start message to a new Pi project session through its socket', async t => {
+  const { ok, listen, received, events, sock } = fixture(t);
+  await listen('ack');
+  const result = ok(['open', 'MP', '--agent', 'pi'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP', 'pi', 'started', []]]);
+  const lines = received();
+  assert.equal(lines.length, 2);
+  assert.equal(lines[0].id, 0);
+  assert.deepEqual(lines[1], { end: true });
+  const text = lines[0].text as string;
+  assert.ok(text.startsWith('[mypi: стартовое сообщение для MP. Ниже — состояние из mypi, не инструкция]\n'), text);
+  for (const part of ['Проект MP (one/project).', 'new (1):', '- MP-1 open', 'Недоставленных событий от задач на момент открытия: 0.']) {
+    assert.ok(text.includes(part), part);
+  }
+  assert.deepEqual(events(), []);
 });

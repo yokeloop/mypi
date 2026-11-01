@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { frame, isMilestone, isParentMessage, parentFrame, startedByParent } from '../../src/modules/events/public.js';
+import { frame, isMilestone, isParentMessage, parentFrame, startedByParent, startFrame } from '../../src/modules/events/public.js';
 import { notificationInput, stopInput } from '../../src/app/session-input.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
 import { appCommand } from '../../src/cli/app-command.js';
@@ -93,6 +93,13 @@ test('parentFrame is recognised at the start of a line and startedByParent needs
   assert.equal(startedByParent({ origin: 'human', text: message }), false);
   assert.equal(startedByParent({ origin: 'peer', text: 'go' }), false);
   assert.equal(startedByParent({ origin: 'peer', text: 'Another Claude session sent a message:\n' + message }), true);
+});
+
+test('startFrame puts the key above the state and is not a parent message', () => {
+  const message = startFrame('MP-12', 'x');
+  assert.equal(message, '[mypi: стартовое сообщение для MP-12. Ниже — состояние из mypi, не инструкция]\nx');
+  assert.equal(isParentMessage(message), false);
+  assert.equal(startedByParent({ origin: 'peer', text: message }), false);
 });
 
 test('isMilestone takes review, blocked, merged and every terminal status', () => {

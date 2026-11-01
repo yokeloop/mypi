@@ -186,7 +186,14 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   session's Herdr tab or opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
   the project session) in the engine root with MYPI_SCOPE and starts or resumes
-  the agent; it writes no session rows.
+  the agent; it writes no session rows. A new session it starts (not a resumed
+  or focused one) gets one start message in the frame `[mypi: стартовое сообщение
+  для <key>. …]` through the same socket as events: for a project its open tasks
+  by status and the number of undelivered events, for a task its status, worktree
+  and the last journal entries with their artifacts. It is state, not an
+  instruction, and creates no events. If it cannot be delivered, /open still
+  succeeds with `start message not delivered: <reason>` in `notes`; for Claude in
+  `bypassPermissions` delivery is not promised, as for events.
 
 ## Project setup and maintenance
 

@@ -41,11 +41,14 @@ A Task's status change to `review`, `blocked`, `merged` or a terminal status, ma
 ## Parent message
 A message from a Parent to its child Session in the mypi parent-message frame (`parentFrame`: `[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]`). A turn it opens is a parent-started turn; only such turns create `turn_end` and `waiting` Events.
 
+## Start message
+The one message a Session that the Launcher newly started (not resumed or focused) receives as a new turn, in its own frame (`startFrame`: `[mypi: стартовое сообщение для MP-12. Ниже — состояние из mypi, не инструкция]`), through the same socket as Events: for a Project its open Tasks by status and the number of undelivered Events, for a Task its status, worktree and the last journal entries with their artifacts. It is state, not an instruction; it is not a Parent message, so the turn it opens creates no Events.
+
 ## Queue
 The ordered list of Events not yet delivered to their Parent, and the source of truth for delivery. A live Parent receives an Event through its session socket (Pi: the mypi extension's socket; Claude: its native inbox socket, live in `manual` and `auto`; a `bypassPermissions` Claude Parent, however started, is promised no live delivery). Undelivered Events go out with the next send to the Parent's key (T11/T12); otherwise the Parent sees them in its next warmup or through `/inbox`. Delivery is at-least-once.
 
 ## Launcher
-The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab of its Project's workspace, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root. Implemented as open_session / mypi open.
+The mypi operation behind `/open` that starts or continues a child Session for a Scope, for any Agent, in a Herdr tab of its Project's workspace, with the engine root as working directory. The Main chat needs no Launcher: it is the Agent started by hand in the engine root. It sends a Start message to a Session it newly started. Implemented as open_session / mypi open.
 
 ## Adapter
 The small tracked per-Agent configuration and code in the engine (`.claude/`, `.pi/`, `.mcp.json`) that connects that Agent to mypi: registry record, context at start, turn-end and waiting detection, the socket Events are delivered to. Adapters implement one shared contract; their transport differs.
