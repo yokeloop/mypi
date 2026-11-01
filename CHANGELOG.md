@@ -30,6 +30,11 @@ match the GitHub releases.
   open in `mypi` are not moved: a live session is still focused by its agent
   name, and after its agent quits the next `/open` continues it in the project's
   workspace while the old shell tab stays.
+- The full test profile has a working budget of 40 s instead of 30 s (MP-63)
+  because CI runner speed varies. The Pi and Claude socket reply deadline is a
+  parameter of `piEventSocket` and `claudeInboxSocket` with the same production
+  value of 2000 ms; the silent-socket boundary test uses 200 ms. The other
+  limits are unchanged ([docs/TESTING.md](docs/TESTING.md) §6).
 
 ## [0.8.0] - 2026-10-31
 
