@@ -193,6 +193,12 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   Clarify whether the user means a repository or a mypi registration; neither
   implies the other. Do not register projects, initialize storage, or start a
   project-tracking workflow automatically.
+- `mypi project remove <org/project> --expected-code <CODE>` and `mypi org remove <org>`
+  undo a mistaken registration, only on the user's explicit request. They refuse
+  while anything references the project (tasks, sessions, journal entries, events)
+  or while the organization has projects, never cascade, and leave `home/` folders
+  in place, reporting them as `homeFolder`. History is never deleted; a project with
+  history stays registered.
 
 ## Common project workflow
 

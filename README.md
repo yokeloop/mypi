@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API (maintenance is CLI-only).
+scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 

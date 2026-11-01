@@ -6,6 +6,14 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- CLI commands `project remove <org/project> --expected-code <CODE>` and
+  `org remove <org>` (MP-48) undo a mistaken registration: they delete only an
+  unreferenced project or an organization without projects and otherwise refuse,
+  listing each kind of reference with its count. `home/` folders stay and are
+  reported as `homeFolder`. Neither command is available over MCP.
+
 ## [0.8.0] - 2026-10-31
 
 Upgrading from v0.7.0: move personal Pi settings from `home/pi/` to `~/.pi/agent/`
