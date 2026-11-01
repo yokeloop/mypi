@@ -181,3 +181,18 @@ test('a recorded worktree is returned after the flow changed', async t => {
   assert.deepEqual(paths(filename), [path]);
   untouched(clone);
 });
+
+test('project flow reports defaults, the file and refuses an invalid file', async t => {
+  const { filename, root } = fixture(t, []);
+  const flow = (reference: string) => run(parseCommand(['project', 'flow', reference]), filename, root);
+  const file = join(root, 'projects', 'one', 'project', 'flow.json');
+  assert.deepEqual(await flow('MP'), { project: 'one/project', code: 'MP', source: 'default', file, integration: 'main',
+    taskBranch: 'task/{KEY}-{slug}', prTarget: 'main', mergeMethod: 'merge', release: null });
+  assert.equal((await flow('one/noclone') as { integration: string }).integration, 'main');
+  writeFlow(root, '{"integration":"develop","taskBranch":"feature/{KEY}-{slug}","mergeMethod":"squash","release":"docs/RELEASE.md"}');
+  assert.deepEqual(await flow('one/project'), { project: 'one/project', code: 'MP', source: 'file', file, integration: 'develop',
+    taskBranch: 'feature/{KEY}-{slug}', prTarget: 'develop', mergeMethod: 'squash', release: 'docs/RELEASE.md' });
+  writeFlow(root, '{"preset":"gitflow"}');
+  await assert.rejects(flow('MP'), /Invalid flow .*flow\.json: unknown field preset/);
+  await assert.rejects(flow('XX'), /Unknown project: XX/);
+});
