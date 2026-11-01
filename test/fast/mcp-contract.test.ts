@@ -25,7 +25,8 @@ test('MCP lists exactly fourteen agent tools; maintenance and replaced names are
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
-    'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end', 'unknown', '__proto__'])
+    'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end',
+    'project_remove', 'org_remove', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {
@@ -89,6 +90,7 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }, /Absolute path/],
     ['projects', { action: 'list', path: '/tmp' }, /path is not allowed for action list/],
     ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedCheckoutPath: null }, /expectedCheckoutPath is not allowed for action add/],
+    ['projects', { action: 'remove', identity: 'one/project', code: 'MP' }, /action/],
     ['task_update', { key: 'MP-1' }, /needs status, title, progress or touch/],
     ['task_update', { key: 'MP-1', status: 'done' }, /reason is required/],
     ['task_update', { key: 'MP-1', progress: 'x', reason: 'r' }, /reason is allowed only/],
@@ -119,6 +121,10 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
     { name: 'journal_read', scope: 'all', eventType: 'note', limit: 2 });
   assert.deepEqual(translate(['project', 'resolve', '/tmp']), { name: 'project_resolve', path: '/tmp' });
+  assert.deepEqual(translate(['project', 'remove', 'one/project', '--expected-code', 'MP']),
+    { name: 'project_remove', identity: 'one/project', expectedCode: 'MP' });
+  assert.deepEqual(translate(['org', 'remove', 'one']), { name: 'org_remove', org: 'one' });
+  assert.throws(() => translate(['project', 'remove', 'one/project']), /expected-code/);
   assert.deepEqual(translate(['project', 'update', 'one/project', '--expected-unset', '--path', '/tmp/new']),
     { name: 'project_update', identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' });
   assert.deepEqual(translate(['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new']),

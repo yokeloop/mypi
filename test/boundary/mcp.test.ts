@@ -65,7 +65,8 @@ test('real stdio: twelve tools, maintenance absent, exact source, scope, task_up
     assert.deepEqual(JSON.parse((invalid.content as { text: string }[])[0]!.text), invalid.structuredContent);
   }
   for (const name of ['db_init', 'bootstrap', 'backup', 'backup_publish', 'restore', 'restore_published', 'journal_import',
-    'status_list', 'status_add', 'status_rename', 'status_terminal', 'status_remove', 'context_restore', 'home_migrate_tasks']) {
+    'status_list', 'status_add', 'status_rename', 'status_terminal', 'status_remove', 'context_restore', 'home_migrate_tasks',
+    'project_remove', 'org_remove']) {
     const absent = await client.callTool({ name, arguments: {} });
     assert.equal(absent.isError, true);
     assert.deepEqual(absent.structuredContent, { status: 'error', message: 'Unknown tool: ' + name });

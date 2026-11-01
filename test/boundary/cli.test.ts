@@ -36,6 +36,18 @@ test('real Node launcher persists projects across independent processes without 
   assert.equal(duplicate.status, 1);
   assert.equal(JSON.parse(duplicate.stderr).status, 'error');
   assert.equal(duplicate.stdout, '');
+  const stale = run('project', 'remove', 'one/project', '--expected-code', 'XX');
+  assert.equal(stale.status, 1);
+  assert.deepEqual(JSON.parse(stale.stderr), { status: 'error', message: 'Stale project code' });
+  assert.equal(stale.stdout, '');
+  const removed = run('project', 'remove', 'one/project', '--expected-code', 'MP');
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.deepEqual(JSON.parse(removed.stdout).removed, { project });
+  assert(Object.hasOwn(JSON.parse(removed.stdout), 'homeFolder'));
+  const org = run('org', 'remove', 'one');
+  assert.equal(org.status, 0, org.stderr);
+  assert.deepEqual(JSON.parse(org.stdout).removed, { organization: 'one' });
+  assert.deepEqual(JSON.parse(run('project', 'list').stdout).projects, []);
   assert.equal(existsSync(join(dir, 'home')), false);
 });
 
