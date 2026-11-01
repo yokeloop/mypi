@@ -188,12 +188,12 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11):
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63, below).
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 30 s |
+| Full mandatory test-profile working time | ≤ 40 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
@@ -204,6 +204,20 @@ Apply hard bounds from the first safe measurement; assess working targets with a
 series of identically bounded representative runs. If unsuitable, discuss the cause
 and explicitly revise the decision, never auto-raise a failed limit. Without standard
 limits/isolation, do not run unbounded and do not build a custom supervisor.
+
+Revision 2026-11-01 (MP-63). By the operator's decision of 2026-11-01 the full
+profile's working time is 40 s instead of 30 s. The cause is the speed spread of
+CI runners, about ±25% for a sequential CPU-bound run (CPU ≈ wall,
+`--test-concurrency=1`), not growth of the tests. CI ubuntu-24.04 measurements:
+the same content took boundary 21.4 s on PR MP-57 and 29.2 s on main after the
+merge, 20.7 s on main on 2026-10-31; PR MP-52 took 28.5 / 31.6 / 28.1 s. Locally
+boundary takes ~23.5 s and the profile wall ~26 s. At the same time the
+silent-socket boundary test waits a 200 ms reply deadline instead of the
+production 2000 ms. Local measurements of this change, before / after: boundary
+`duration_ms` 22004 / 20141, `Cost: wall` 24212 / 22365 ms, silent-socket test
+2409 / 603 ms. The 60 s deadline, CPU/memory/task limits, fast ≤ 5 s and the
+single worker are unchanged. The next excess is again discussed and explicitly
+decided, never raised automatically.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated
