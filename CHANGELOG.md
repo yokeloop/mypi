@@ -13,6 +13,12 @@ match the GitHub releases.
   unreferenced project or an organization without projects and otherwise refuse,
   listing each kind of reference with its count. `home/` folders stay and are
   reported as `homeFolder`. Neither command is available over MCP.
+- `/open` (MP-52) sends a session it newly starts one start message in the frame
+  `[mypi: стартовое сообщение для <key>. …]` through the same socket as events:
+  a project's open tasks by status and the number of undelivered events, or a
+  task's status, worktree and last journal entries with their artifacts. It is
+  state, not an instruction, and creates no events; when it cannot be delivered,
+  `/open` still succeeds with `start message not delivered: <reason>` in `notes`.
 
 ### Changed
 

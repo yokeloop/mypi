@@ -8,6 +8,7 @@ The user asked to open sessions. Call the mypi tool `open_session` once with
 `permissionMode` from `--permission-mode` when given. Do not open anything else,
 do not retry and do not start work in the opened sessions.
 
-Report each entry of `opened`: key, agent, focused/resumed/started and its notes.
+Report each entry of `opened`: key, agent, focused/resumed/started and its notes,
+including a note that the start message was not delivered.
 On an error or a partial result, report the message and, for partial, which
 keys were opened and which were not.

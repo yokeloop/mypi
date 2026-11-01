@@ -173,7 +173,14 @@ org/project or org/project#N — it focuses the live session's Herdr tab or open
 new tab in its project's Herdr workspace (label `org/project`, created when
 missing; a task gets its tab there without starting the project session) in the
 engine root with `MYPI_SCOPE` and starts the agent there; an existing session
-continues with its own agent.
+continues with its own agent. A new session (not a resumed or focused one) gets
+one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through
+the same socket as events: for a project its open tasks by status and the number
+of undelivered events, for a task its status, worktree and the last journal
+entries with their artifacts. It is state, not an instruction, and creates no
+events. If it cannot be delivered, `/open` still succeeds and the key's `notes`
+say `start message not delivered: <reason>`; for Claude in `bypassPermissions`
+delivery is not promised, as for events.
 
 A task chat (`MP-12`) reports to its parent key (`MP`) through rows in the `events`
 table, only when the parent needs to act on them:
