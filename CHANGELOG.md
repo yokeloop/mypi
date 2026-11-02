@@ -6,6 +6,14 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-02
+
+Upgrading from v0.8.0: `git pull --ff-only`, install the locked dependencies and
+build; back up the database, then run `mypi db init` once (schema 9 → 12,
+migrations 010-012; until then commands that open the database ask for it);
+reload or restart Claude Code and Pi sessions. Details are in the Upgrade entries
+below.
+
 ### Added
 
 - CLI commands `project remove <org/project> --expected-code <CODE>` and
