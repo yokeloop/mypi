@@ -77,6 +77,8 @@ match the GitHub releases.
   `searchTools()`, `describeTool()` and `describeNamespace()` return Promises and
   must be awaited, which prevents "value is not iterable" errors from unawaited
   tool discovery.
+- The full test profile's working budget is 50 s instead of 40 s (MP-64): CI
+  runners spread 22–43 s on unchanged tests.
 
 ### Upgrade
 
