@@ -6,6 +6,14 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Changed
+
+- README «Claude Code» (MP-66) describes what tabs opened by `/open` load, how
+  Herdr restores sessions after a restart or reboot (the scope survives through
+  the native id; the permission mode and `/open`'s `crossSessionInbound` argument
+  do not, so live delivery to restored Claude sessions needs `accept` in user
+  settings) and how running Claude and Pi sessions pick up an engine update.
+
 ## [0.9.0] - 2026-11-02
 
 Upgrading from v0.8.0: `git pull --ff-only`, install the locked dependencies and

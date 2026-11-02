@@ -310,6 +310,44 @@ session gets the warmup of `MYPI_SCOPE`, else `global`, and is registered only w
 skills are symlinked from `integrations/skills/` into `.claude/skills/`. Keep
 personal settings in `.claude/settings.local.json` (ignored) or user settings.
 
+### Tabs opened by /open
+
+`/open` starts Claude through `herdr agent start` with only `--session-id`/`--name`
+(a new session) or `--resume <id>`, plus `--permission-mode` and
+`--settings '{"crossSessionInbound":"accept"}'`, and passes the tab only
+`MYPI_SCOPE` (and `XDG_STATE_HOME`). Everything else comes from the Herdr server's
+environment and your user configuration: user settings, user hooks and user MCP
+servers load in these tabs too.
+
+### Restoring sessions after a Herdr restart or reboot
+
+With `resume_agents_on_restore = true` in the Herdr config, Herdr restores
+workspaces, tabs and their working directories and resumes each agent by its
+native session id (Claude `--resume <id>`, Pi by its session file). It does not
+keep environment variables or the extra arguments `/open` passed:
+
+- The scope survives. The session key is resolved from the `sessions` row of the
+  native id before `MYPI_SCOPE`, so a resumed project or task chat gets its own
+  key, role and warmup without the variable. A brand-new conversation started by
+  hand in a restored tab gets `global`.
+- The permission mode does not survive: a resumed Claude session starts in the
+  default mode of your settings.
+- Live delivery of events and parent messages to a restored Claude session needs
+  `"crossSessionInbound": "accept"` in your user settings (`~/.claude/settings.json`);
+  without it they wait for `/inbox` and the warmup. It cannot go into the tracked
+  project settings, which can only tighten cross-session delivery. Pi needs
+  nothing extra.
+- Live records under `$XDG_RUNTIME_DIR/mypi/sessions/` do not survive a reboot
+  (a tmpfs); the resumed sessions register again at start.
+
+### After updating the engine
+
+The SessionStart, Stop and Notification hooks call the CLI from `dist/` on every
+run, so they use the new build at once. The `mypi` MCP server of a running
+session keeps the old code until it is restarted: in Claude use `/mcp` → `mypi` →
+Reconnect (or restart the session); the new warmup text arrives at the next
+`/clear`, `/compact` or restart. In Pi use `/reload` or restart the session.
+
 ## Develop and verify
 
 For an explicitly requested clean test stand, acceptance checklist and real Claude
