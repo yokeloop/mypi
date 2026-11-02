@@ -47,6 +47,12 @@ match the GitHub releases.
 
 ### Changed
 
+- The warmup's «How to work in mypi» (`integrations/prompts/howto.md`, MP-62)
+  states how to register tasks: only on the user's explicit request, one task per
+  independent problem, merged or split only with the user's agreement, with a
+  question when their number or boundaries are unclear; the title and card keep
+  the user's wording and scope. Other lines of the file are tightened without
+  changing their meaning, so the warmup stays within the 9500-character budget.
 - `task worktree` (MP-58) applies the project's flow: it fast-forwards the flow's
   integration branch and names the task branch by its template, refuses an invalid
   flow before creating or recording anything, adds `createdBranch` to its result
