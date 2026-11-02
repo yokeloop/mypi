@@ -189,12 +189,12 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63) and 2026-11-02 (MP-64, below).
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 40 s |
+| Full mandatory test-profile working time | ≤ 50 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
@@ -219,6 +219,16 @@ production 2000 ms. Local measurements of this change, before / after: boundary
 2409 / 603 ms. The 60 s deadline, CPU/memory/task limits, fast ≤ 5 s and the
 single worker are unchanged. The next excess is again discussed and explicitly
 decided, never raised automatically.
+
+Revision 2026-11-02 (MP-64). By the operator's decision of 2026-11-02 the full
+profile's working time is 50 s instead of 40 s. On 2026-11-01 the same content
+took a profile Service runtime of 22–43 s on CI ubuntu-24.04 runners: PR MP-60
+43.5 s and 39.1 s on rerun with unchanged tests, main after the MP-60 merge
+40.35 s, PR MP-61 41.2 / 40.6 s, all with fail 0; locally the profile takes
+~29 s. The spread is the runners', not growth of the tests. The 60 s deadline,
+CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. Speeding
+up boundary is a separate task; the next excess is again discussed and
+explicitly decided, never raised automatically.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated
