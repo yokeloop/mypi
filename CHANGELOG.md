@@ -35,6 +35,15 @@ match the GitHub releases.
   defaults and `source` `file|default`; an invalid file is refused with the file
   and the field. With a flow.json the project warmup shows one flow line after
   `Base clone:` and a task warmup the expected task branch; without it, nothing.
+- Project `repository` (MP-61): `project add --repository <git-url|local>`,
+  `project update` with `--expected-repository`/`--expected-repository-unset`
+  and MCP `projects` `repository`/`expectedRepository` record a project's Git
+  remote URL or `local`; `list` and `resolve` return it. `/open` of a project
+  without a clone clones it from that URL (or runs `git init` for `local`) into
+  `projects/<org>/<project>`, or adopts an existing clone there, verifies and
+  registers it, and says `clone prepared: …` in `notes`; without a repository it
+  refuses before anything opens. Task worktrees of a `local` project come from
+  its local branch without `origin`.
 
 ### Changed
 
@@ -82,6 +91,9 @@ match the GitHub releases.
 
 ### Upgrade
 
+- Schema 12, migration 012 (projects.repository): after updating run
+  `mypi db init` once (back up the database first); existing projects keep
+  repository null until it is set.
 - Schema 11, migration 011 (no table changes): after updating run `mypi db init`
   once (it also applies schema 10 of MP-55; back up the database first). An older
   application refuses the upgraded database. Old entries with plain artifact

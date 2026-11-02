@@ -69,12 +69,12 @@ test('project and org remove report remaining home folders and leave them in pla
     other = app.projects.add('two/project', 'YM').id;
   } finally { app.close(); }
   assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'one/project', expectedCode: 'MP' }, filename, root),
-    { removed: { project: { id, org: 'one', slug: 'project', code: 'MP', checkoutPath: null } }, homeFolder: 'projects/one/project' });
+    { removed: { project: { id, org: 'one', slug: 'project', code: 'MP', checkoutPath: null, repository: null } }, homeFolder: 'projects/one/project' });
   assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'one' }, filename, root),
     { removed: { organization: 'one' }, homeFolder: 'projects/one' });
   assert(existsSync(join(root, 'projects', 'one', 'project')));
   assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'two/project', expectedCode: 'YM' }, filename, root),
-    { removed: { project: { id: other, org: 'two', slug: 'project', code: 'YM', checkoutPath: null } }, homeFolder: null });
+    { removed: { project: { id: other, org: 'two', slug: 'project', code: 'YM', checkoutPath: null, repository: null } }, homeFolder: null });
   assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'two' }, filename, root),
     { removed: { organization: 'two' }, homeFolder: null });
 });

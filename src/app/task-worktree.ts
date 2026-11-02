@@ -5,7 +5,7 @@ import { noCloneError } from './warmup.js';
 import { flowFile, readProjectFlow } from './project-flow.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { projectGit } from '../infrastructure/git/project-git.js';
-import { DEFAULT_TASK_BRANCH, taskBranchName, validBranchName } from '../modules/projects/public.js';
+import { DEFAULT_TASK_BRANCH, LOCAL_REPOSITORY, taskBranchName, validBranchName } from '../modules/projects/public.js';
 import { InputError } from '../shared/errors.js';
 
 export function openTaskWorktree(filename: string, root: string, key: string): { key: string; branch: string; worktreePath: string; created: boolean; createdBranch: boolean } {
@@ -59,12 +59,20 @@ export function openTaskWorktree(filename: string, root: string, key: string): {
     if (entries.length > 0) throw new InputError('Branch ' + branch + ' is checked out in another worktree: ' + entries[0]!.path + '; free it there first');
     if (existsSync(expected)) throw new InputError('Worktree path exists and is not the worktree of ' + branch + ': ' + expected);
     let main: string | null = null;
-    try {
-      git.fetch();
-      main = flow.integration ?? git.defaultBranch();
-      if (main !== null) git.updateBranch(main);
-    } catch (error) {
-      throw new InputError('Integration branch ' + (main ?? flow.integration ?? 'origin/HEAD') + ' cannot be updated in ' + clone + ': ' + (error as Error).message);
+    if (project.repository === LOCAL_REPOSITORY) {
+      main = flow.integration ?? git.checkedOut() ?? 'main';
+      if (!git.hasRef('refs/heads/' + main)) {
+        throw new InputError('Integration branch ' + main + ' does not exist in ' + clone + ' (local project without origin); commit to it or set integration in '
+          + files.path(flowFile(project)));
+      }
+    } else {
+      try {
+        git.fetch();
+        main = flow.integration ?? git.defaultBranch();
+        if (main !== null) git.updateBranch(main);
+      } catch (error) {
+        throw new InputError('Integration branch ' + (main ?? flow.integration ?? 'origin/HEAD') + ' cannot be updated in ' + clone + ': ' + (error as Error).message);
+      }
     }
     if (main === null) {
       throw new InputError('Integration branch cannot be determined in ' + clone + ': origin/HEAD and origin/main are missing; set integration in '

@@ -8,12 +8,13 @@ export type Command =
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
-  | { type: 'add'; identity: string; code: string; checkoutPath?: string }
-  | { type: 'update'; identity: string; expectedCheckoutPath: string | null; checkoutPath: string };
+  | { type: 'add'; identity: string; code: string; checkoutPath?: string; repository?: string }
+  | { type: 'update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string;
+    expectedRepository?: string | null; repository?: string };
 
 export const usage = `mypi db init
-mypi project add <org/project> --code <CODE> [--path <checkout>]
-mypi project update <org/project> (--expected-path <previous> | --expected-unset) --path <new-absolute-directory>
+mypi project add <org/project> --code <CODE> [--path <checkout>] [--repository <git-url|local>]
+mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url|local>]
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
@@ -59,23 +60,33 @@ export function parseCommand(args: string[]): Command {
   }
   if (group === 'project' && action === 'add') {
     const { values, positionals } = parseArgs({
-      args: rest, options: { code: { type: 'string' }, path: { type: 'string' } }, allowPositionals: true,
+      args: rest, options: { code: { type: 'string' }, path: { type: 'string' }, repository: { type: 'string' } }, allowPositionals: true,
     });
     if (positionals.length !== 1 || !values.code) throw new InputError('project add requires org/project and --code');
     const command: Command = { type: 'add', identity: positionals[0]!, code: values.code };
     if (values.path !== undefined) command.checkoutPath = values.path;
+    if (values.repository !== undefined) command.repository = values.repository;
     return command;
   }
   if (group === 'project' && action === 'update') {
     const { values, positionals } = parseArgs({ args: rest, options: {
       'expected-path': { type: 'string' }, 'expected-unset': { type: 'boolean' }, path: { type: 'string' },
+      'expected-repository': { type: 'string' }, 'expected-repository-unset': { type: 'boolean' }, repository: { type: 'string' },
     }, allowPositionals: true });
-    if (positionals.length !== 1 || !values.path ||
-      (values['expected-path'] === undefined) !== (values['expected-unset'] === true)) {
+    const checkout = values.path !== undefined || values['expected-path'] !== undefined || values['expected-unset'] !== undefined;
+    const source = values.repository !== undefined || values['expected-repository'] !== undefined
+      || values['expected-repository-unset'] !== undefined;
+    if (positionals.length !== 1 || (!checkout && !source)) throw new InputError('project update requires org/project and --path or --repository');
+    if (checkout && (!values.path || (values['expected-path'] === undefined) !== (values['expected-unset'] === true))) {
       throw new InputError('project update requires org/project, --path and exactly one of --expected-path or --expected-unset');
     }
+    if (source && (!values.repository
+      || (values['expected-repository'] === undefined) !== (values['expected-repository-unset'] === true))) {
+      throw new InputError('project update requires --repository and exactly one of --expected-repository or --expected-repository-unset');
+    }
     return { type: 'update', identity: positionals[0]!,
-      expectedCheckoutPath: values['expected-path'] ?? null, checkoutPath: values.path };
+      ...(checkout ? { expectedCheckoutPath: values['expected-path'] ?? null, checkoutPath: values.path! } : {}),
+      ...(source ? { expectedRepository: values['expected-repository'] ?? null, repository: values.repository! } : {}) };
   }
   return parseWorkspaceCommand(args);
 }

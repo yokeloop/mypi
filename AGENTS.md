@@ -199,12 +199,15 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the older record moves to `<key>~<pid>.json`. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 10 database registration fails and the
+  `XDG_RUNTIME_DIR` or an initialized schema 12 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
   session's Herdr tab or opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
   the project session) in the engine root with MYPI_SCOPE and starts or resumes
-  the agent; it writes no session rows. A new session it starts (not a resumed
+  the agent; it writes no session rows. A project without a clone is first cloned
+  from its registered `repository` (`local`: `git init`) into
+  `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
+  `notes`; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
   or focused one) gets one start message in the frame `[mypi: стартовое сообщение
   для <key>. …]` through the same socket as events: for a project its open tasks
   by status and the number of undelivered events, for a task its status, worktree
@@ -223,6 +226,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   Clarify whether the user means a repository or a mypi registration; neither
   implies the other. Do not register projects, initialize storage, or start a
   project-tracking workflow automatically.
+- Record a project's `repository` (its Git remote URL, or `local`) when registering
+  it; ask the user when it is unknown. /open clones into `projects/<org>/<project>`
+  only when `checkoutPath` is empty; existing clones are not moved.
 - `mypi project remove <org/project> --expected-code <CODE>` and `mypi org remove <org>`
   undo a mistaken registration, only on the user's explicit request. They refuse
   while anything references the project (tasks, sessions, journal entries, events)

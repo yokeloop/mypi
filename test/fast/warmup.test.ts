@@ -112,7 +112,7 @@ test('unknown keys, tasks without a project and projects without a clone fail wi
   assert.throws(() => readWarmup(filename, root, 'REQ-1'), /Task REQ-1 has no project/);
   for (const key of ['NC', 'NC-1']) {
     assert.throws(() => readWarmup(filename, root, key),
-      /Project one\/noclone \(NC\) has no clone; register one with projects \{"action":"update","identity":"one\/noclone","expectedCheckoutPath":null,"checkoutPath":"<checkout>"\} \(CLI: mypi project update one\/noclone --expected-unset --path <checkout>\)/);
+      /Project one\/noclone \(NC\) has no clone; \/open NC clones it from its registered repository, or register an existing clone with projects \{"action":"update","identity":"one\/noclone","expectedCheckoutPath":null,"checkoutPath":"<checkout>"\} \(CLI: mypi project update one\/noclone --expected-unset --path <checkout>\)/);
   }
   for (const key of ['one/project', '', 'mp']) assert.throws(() => readWarmup(filename, root, key), /Invalid scope key/);
 });

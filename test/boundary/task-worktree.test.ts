@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { state } from '../support/state.js';
 import { legacyTask } from '../support/legacy-task.js';
 import { createApp } from '../../src/app/create-app.js';
+import { prepareCheckout } from '../../src/app/project-checkout.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
 
@@ -97,6 +98,19 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   assert.equal(git('-C', second, 'rev-parse', 'HEAD'), next);
   untouched(clone, 'side');
   git('-C', clone, 'switch', '--quiet', 'main');
+});
+
+test('a local project gets task worktrees from its local main without origin', async t => {
+  const { dir, filename } = state(t);
+  const app = createApp(filename, false);
+  const project = (() => { try { return app.projects.add('one/local', 'LO', undefined, 'local'); } finally { app.close(); } })();
+  const clone = prepareCheckout(filename, project, join(realpathSync(dir), 'projects')).checkoutPath;
+  const setup = createApp(filename, false);
+  try { setup.tasks.create({ projectId: project.id, slug: 'local', title: 'local', status: 'new' }, () => {}); } finally { setup.close(); }
+  const path = clone + '--LO-1-local';
+  assert.deepEqual(await worktree(filename, 'LO-1'), { key: 'LO-1', branch: 'task/LO-1-local', worktreePath: path, created: true, createdBranch: true });
+  assert.equal(git('-C', path, 'rev-parse', 'HEAD'), git('-C', clone, 'rev-parse', 'main'));
+  assert.equal((await worktree(filename, 'LO-1') as { created: boolean }).created, false);
 });
 
 test('task worktree refuses unknown and projectless tasks, projects without a clone, an occupied branch and a foreign directory, recording nothing', async t => {

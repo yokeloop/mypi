@@ -35,6 +35,10 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['projects', { action: 'list', org: 'one' }, [['project', 'list', '--org', 'one']]],
     ['projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }, [['project', 'add', 'one/project', '--code', 'MP', '--path', '/tmp']]],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }, [['project', 'update', 'one/project', '--expected-unset', '--path', '/tmp/new']]],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', repository: 'local' }, [['project', 'add', 'one/project', '--code', 'MP', '--repository', 'local']]],
+    ['projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'git@h:o/r.git' }, [['project', 'update', 'one/project', '--expected-repository-unset', '--repository', 'git@h:o/r.git']]],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: '/tmp/old', checkoutPath: '/tmp/new', expectedRepository: 'local', repository: '/srv/r.git' },
+      [['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new', '--expected-repository', 'local', '--repository', '/srv/r.git']]],
     ['projects', { action: 'resolve', path: '/tmp' }, [['project', 'resolve', '/tmp']]],
     ['projects', { action: 'flow', project: 'MP' }, [['project', 'flow', 'MP']]],
     ['memory', { action: 'show', scope: g }, [['memory', 'show']]],
@@ -93,6 +97,11 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['projects', { action: 'flow' }, /project is required for action flow/],
     ['projects', { action: 'update', identity: 'one/project', checkoutPath: '/tmp/new' }, /expectedCheckoutPath is required for action update/],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }, /Absolute path/],
+    ['projects', { action: 'update', identity: 'one/project' }, /needs checkoutPath or repository/],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null }, /checkoutPath is required for action update with expectedCheckoutPath/],
+    ['projects', { action: 'update', identity: 'one/project', repository: 'local' }, /expectedRepository is required for action update with repository/],
+    ['projects', { action: 'update', identity: 'one/project', expectedRepository: null }, /repository is required for action update with expectedRepository/],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedRepository: null }, /expectedRepository is not allowed for action add/],
     ['projects', { action: 'list', path: '/tmp' }, /path is not allowed for action list/],
     ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedCheckoutPath: null }, /expectedCheckoutPath is not allowed for action add/],
     ['projects', { action: 'remove', identity: 'one/project', code: 'MP' }, /action/],
@@ -138,6 +147,10 @@ test('CLI translates to the same subject commands without changing text or defau
   for (const args of [['project', 'update', 'one/project', '--path', '/tmp/new'],
     ['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--expected-unset', '--path', '/tmp/new']])
     assert.throws(() => translate(args), /exactly one/);
+  assert.deepEqual(translate(['project', 'update', 'one/project', '--expected-repository', 'local', '--repository', '/srv/r.git']),
+    { name: 'project_update', identity: 'one/project', expectedRepository: 'local', repository: '/srv/r.git' });
+  assert.throws(() => translate(['project', 'update', 'one/project']), /--path or --repository/);
+  assert.throws(() => translate(['project', 'update', 'one/project', '--repository', 'local']), /exactly one of --expected-repository/);
   assert.deepEqual(translate(['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)]),
     { name: 'memory_remove', scope: { type: 'global' }, number: 1, expectedRevision: 'a'.repeat(64) });
   assert.throws(() => translate(['memory', 'remove', '1']), /expected-revision/);

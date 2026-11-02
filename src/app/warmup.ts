@@ -35,7 +35,8 @@ function prompt(name: string): string {
 
 export function noCloneError(project: { org: string; slug: string; code: string }): InputError {
   const identity = project.org + '/' + project.slug;
-  return new InputError('Project ' + identity + ' (' + project.code + ') has no clone; register one with projects {"action":"update","identity":"'
+  return new InputError('Project ' + identity + ' (' + project.code + ') has no clone; /open ' + project.code
+    + ' clones it from its registered repository, or register an existing clone with projects {"action":"update","identity":"'
     + identity + '","expectedCheckoutPath":null,"checkoutPath":"<checkout>"} (CLI: mypi project update ' + identity
     + ' --expected-unset --path <checkout>)');
 }

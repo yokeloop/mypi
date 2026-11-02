@@ -76,6 +76,7 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
   cli('db', 'init');
   await call('projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: dir });
   assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: dir, checkoutPath: root })).project.checkoutPath, root);
+  assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'local' })).project.repository, 'local');
   assert.equal((await call('projects', { action: 'list', org: 'one' })).projects[0].code, 'MP');
   assert.equal((await call('projects', { action: 'resolve', path: root })).code, 'MP');
   cli('status', 'add', 'custom');

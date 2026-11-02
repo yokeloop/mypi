@@ -3,7 +3,7 @@ import { InputError } from '../../../shared/errors.js';
 import type { Project } from '../model.js';
 import type { ProjectStore } from '../ports.js';
 
-const select = `SELECT p.id, o.slug AS org, p.slug, p.code, p.checkout_path AS checkoutPath
+const select = `SELECT p.id, o.slug AS org, p.slug, p.code, p.checkout_path AS checkoutPath, p.repository
   FROM projects p JOIN organizations o ON o.id = p.org_id`;
 
 export function sqliteProjectStore(db: Database): ProjectStore {
@@ -16,18 +16,22 @@ export function sqliteProjectStore(db: Database): ProjectStore {
         throw new InputError('Project identity or code already exists');
       }
       const { lastInsertRowid } = db.prepare(
-        'INSERT INTO projects(org_id, slug, code, checkout_path) VALUES (?, ?, ?, ?)',
-      ).run(org.id, input.slug, input.code, input.checkoutPath);
+        'INSERT INTO projects(org_id, slug, code, checkout_path, repository) VALUES (?, ?, ?, ?, ?)',
+      ).run(org.id, input.slug, input.code, input.checkoutPath, input.repository);
       return db.prepare(select + ' WHERE p.id = ?').get(lastInsertRowid) as Project;
     }).immediate,
-    updateCheckout: db.transaction((input: Parameters<ProjectStore['updateCheckout']>[0]) => {
+    update: db.transaction((input: Parameters<ProjectStore['update']>[0]) => {
       const project = db.prepare(select + ' WHERE o.slug = ? AND p.slug = ?')
         .get(input.org, input.slug) as Project | undefined;
       if (!project) throw new InputError('Unknown project');
-      if (project.checkoutPath !== input.expectedCheckoutPath) throw new InputError('Stale project checkout path');
-      if (db.prepare('SELECT id FROM projects WHERE checkout_path = ? AND id <> ?')
-        .get(input.checkoutPath, project.id)) throw new InputError('Checkout path already registered to another project');
-      db.prepare('UPDATE projects SET checkout_path = ? WHERE id = ?').run(input.checkoutPath, project.id);
+      if (input.checkout) {
+        if (project.checkoutPath !== input.checkout.expected) throw new InputError('Stale project checkout path');
+        if (db.prepare('SELECT id FROM projects WHERE checkout_path = ? AND id <> ?')
+          .get(input.checkout.path, project.id)) throw new InputError('Checkout path already registered to another project');
+      }
+      if (input.repository && project.repository !== input.repository.expected) throw new InputError('Stale project repository');
+      db.prepare('UPDATE projects SET checkout_path = ?, repository = ? WHERE id = ?').run(
+        input.checkout?.path ?? project.checkoutPath, input.repository?.value ?? project.repository, project.id);
       return db.prepare(select + ' WHERE p.id = ?').get(project.id) as Project;
     }).immediate,
     remove: db.transaction((input: Parameters<ProjectStore['remove']>[0]) => {

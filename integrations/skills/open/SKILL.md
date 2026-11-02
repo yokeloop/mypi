@@ -15,3 +15,9 @@ id and its notes, including a note that the start message was not delivered or
 that a message stays queued.
 On an error or a partial result, report the message and, for partial, which
 keys were opened and which were not.
+
+A project without a clone is first cloned from its registered `repository`
+(`local`: `git init`); its entries carry the note `clone prepared: …`. On the
+refusal "no repository to clone it from", pass the text to the user. If the user
+then names a Git remote URL or `local`, set it with `projects` action `update`
+(`expectedRepository` null) and call `open_session` once more.
