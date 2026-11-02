@@ -11,7 +11,7 @@ import { runSequence } from './sequence.js';
 
 export function createServer(filename: string, root?: string, env: Readonly<Record<string, string | undefined>> = {},
   transports: EventTransports = {}) {
-  const server = new McpServer({ name: 'mypi', version: '0.8.0' });
+  const server = new McpServer({ name: 'mypi', version: '0.9.0' });
   const calls = serialCalls();
   async function invoke(name: string, args: unknown, signal: AbortSignal) {
     try {
