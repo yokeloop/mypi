@@ -1,0 +1,107 @@
+import { createServer } from 'node:http';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { isIP } from 'node:net';
+import type { AddressInfo } from 'node:net';
+import { randomUUID } from 'node:crypto';
+import { executeCommand } from '../app/execute-command.js';
+import { eventTransports } from '../app/event-transports.js';
+import { engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
+import { createChangeFeed } from '../app/change-feed.js';
+import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
+import { InputError } from '../shared/errors.js';
+import { API_VERSION, createApi } from './api.js';
+
+export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
+
+const json = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
+
+function error(res: ServerResponse, status: number, code: string, message: string): void {
+  res.writeHead(status, json).end(JSON.stringify({ apiVersion: API_VERSION, error: { code, message } }));
+}
+
+function readBody(req: IncomingMessage): Promise<string | undefined> {
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let size = 0;
+    req.on('data', (chunk: Buffer) => {
+      size += chunk.length;
+      if (size > MAX_BODY) { resolve(undefined); return; }
+      chunks.push(chunk);
+    });
+    req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
+    req.on('error', reject);
+  });
+}
+
+export async function serve(options: { filename: string; tokensFile: string; listen: string; port: string;
+  env: Readonly<Record<string, string | undefined>>; signal: AbortSignal;
+  out: (line: string) => void; log: (line: string) => void }): Promise<void> {
+  const host = options.listen;
+  if (isIP(host) === 0) throw new InputError('--listen must be an IP address');
+  if (!/^[0-9]+$/.test(options.port) || Number(options.port) > 65535) throw new InputError('--port must be a number from 0 to 65535');
+  if (listApiTokens(options.tokensFile).tokens.length === 0) {
+    throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write');
+  }
+  const feed = createChangeFeed(options.filename);
+  const instance = randomUUID(), version = engineVersion();
+  const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
+    execute: c => executeCommand(c, options.filename, undefined, eventTransports),
+    info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'] });
+  const streams = new Set<ServerResponse>();
+  const change = () => 'id: ' + feed.changeId() + '\nevent: change\ndata: ' + JSON.stringify({ changeId: feed.changeId() }) + '\n\n';
+
+  async function v1(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> {
+    const method = req.method ?? 'GET';
+    let body = '';
+    if (method === 'POST' || method === 'PATCH') {
+      const read = await readBody(req);
+      if (read === undefined) { error(res, 413, 'payload_too_large', 'Body exceeds ' + MAX_BODY + ' bytes'); req.destroy(); return; }
+      body = read;
+    }
+    const result = await api({ method, path: url.pathname, query: url.searchParams, authorization: req.headers.authorization,
+      contentType: req.headers['content-type'], body });
+    if (result.token !== undefined) token(result.token);
+    if ('stream' in result) {
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
+      res.write('retry: 2000\n' + change());
+      streams.add(res);
+      res.on('close', () => streams.delete(res));
+      return;
+    }
+    res.writeHead(result.status, json).end(JSON.stringify(result.body));
+  }
+
+  const mounts: { prefix: string; handle(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> }[] = [
+    { prefix: '/v1/', handle: v1 },
+  ];
+  const server = createServer((req, res) => {
+    const url = new URL(req.url ?? '/', 'http://localhost'), method = req.method ?? 'GET';
+    let tokenName: string | undefined;
+    res.on('close', () => options.log(new Date().toISOString() + ' ' + method + ' ' + url.pathname + ' ' + res.statusCode + ' ' + (tokenName ?? '-')));
+    const mount = mounts.find(m => url.pathname.startsWith(m.prefix));
+    if (mount === undefined) { error(res, 404, 'not_found', 'Unknown path: ' + url.pathname); return; }
+    mount.handle(req, res, url, name => { tokenName = name; }).catch((e: unknown) => {
+      if (!res.headersSent) error(res, 500, 'internal', e instanceof Error ? e.message : String(e));
+      else res.end();
+    });
+  });
+  const poll = setInterval(() => { if (feed.poll()) for (const res of streams) res.write(change()); }, POLL_MS);
+  const keepalive = setInterval(() => { for (const res of streams) res.write(': keepalive\n\n'); }, KEEPALIVE_MS);
+  const stop = () => {
+    clearInterval(poll); clearInterval(keepalive);
+    for (const res of streams) res.end();
+    server.close(); server.closeAllConnections(); feed.close();
+  };
+  try {
+    await new Promise<void>((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(Number(options.port), host, () => { server.off('error', reject); resolve(); });
+    });
+  } catch (e) { clearInterval(poll); clearInterval(keepalive); feed.close(); throw e; }
+  const address = server.address() as AddressInfo;
+  options.out(JSON.stringify({ status: 'listening', url: 'http://' + (isIP(host) === 6 ? '[' + host + ']' : host) + ':' + address.port }));
+  await new Promise<void>(resolve => {
+    server.once('close', () => resolve());
+    if (options.signal.aborted) stop(); else options.signal.addEventListener('abort', stop, { once: true });
+  });
+}
