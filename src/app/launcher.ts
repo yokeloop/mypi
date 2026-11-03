@@ -84,7 +84,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     if (error.code === 'unavailable') throw new InputError('Herdr is not available (' + error.message + '); /open needs a running Herdr server. Nothing was opened.');
     throw new InputError('Herdr failed: ' + error.message + '. Nothing was opened.');
   }
-  const prepared = new Map(prepareCheckouts(filename, missing, projectsRoot).map(p => [p.code,
+  const prepared = new Map((await prepareCheckouts(filename, missing, projectsRoot)).map(p => [p.code,
     'clone prepared: ' + p.action + ' ' + p.checkoutPath + (p.action === 'cloned' ? ' from ' + missing.find(m => m.code === p.code)!.repository : '')]));
   const opened: Opened[] = [];
   for (const [i, key] of keys.entries()) {

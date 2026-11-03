@@ -104,7 +104,7 @@ test('a local project gets task worktrees from its local main without origin', a
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
   const project = (() => { try { return app.projects.add('one/local', 'LO', undefined, 'local'); } finally { app.close(); } })();
-  const clone = prepareCheckout(filename, project, join(realpathSync(dir), 'projects')).checkoutPath;
+  const clone = (await prepareCheckout(filename, project, join(realpathSync(dir), 'projects'))).checkoutPath;
   const setup = createApp(filename, false);
   try { setup.tasks.create({ projectId: project.id, slug: 'local', title: 'local', status: 'new' }, () => {}); } finally { setup.close(); }
   const path = clone + '--LO-1-local';
