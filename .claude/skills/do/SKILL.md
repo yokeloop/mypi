@@ -1,6 +1,6 @@
 ---
 name: do
-description: Execute one approved task of a registered project by its plan — worktree, task-executor teammate implementing step by step, fresh task-reviewer, fix loop, the project's checks, push and PR (or merge into a batch branch), status review for the engineer's manual check. Typing it is the plan's approval. Triggered by "/do <KEY> [--base batch/<name>] [--force]".
+description: Execute one approved task of a registered project by its plan — worktree, task-executor teammate implementing step by step, fresh task-reviewer, fix loop, the project's checks, push and PR (or merge into a flow branch), status review for the engineer's manual check. Typing it is the plan's approval. Triggered by "/do <KEY> [--base flow/<name>] [--force]".
 ---
 
 # /do — execute an approved plan
@@ -29,7 +29,8 @@ malformed session key, a non-zero exit) — print the refusal text from
    plan is not approved — say which threads are open, suggest `/plan <KEY>`,
    stop. `--force` skips this check and the fact goes into `progress.md`.
 3. Dependencies listed in `source.md` («Связи → Зависит от»): each must be
-   `review`, `merged` or `done`, or already merged into the same batch base.
+   `review`, `merged` or `done`, or already merged into the same
+   flow base.
    Otherwise stop and name the missing one; `--force` proceeds and records it.
 4. `$BIN/mp-task project <KEY>`: `checkoutPath` `null` → say the project has no
    registered clone and stop; in single mode `repository` `null` → say there is no
@@ -51,7 +52,7 @@ the first unchecked box and never redoes checked work. `progress.md` is a live
 file (checkboxes, `blocked` reasons, `--force`, entries of `/ship` and of the
 manual check); `/ship` registers it.
 
-1. **Worktree.** `$BIN/mp-worktree <KEY> [--base batch/<name>]` → JSON; without
+1. **Worktree.** `$BIN/mp-worktree <KEY> [--base flow/<name>]` → JSON; without
    `--base` it takes the base and the task branch from the project's flow. `dirty:
    true` → stop and show `git status` of the worktree; nothing is cleaned
    automatically. Status: `$BIN/mp-task status <KEY> in_progress "worktree
@@ -71,7 +72,7 @@ manual check); `/ship` registers it.
    `do-report.json`. `openPoints` non-empty → decide: a question the code can
    answer goes to a `task-investigator` subagent and back to the teammate by
    `SendMessage`; a question only the engineer can answer → status `blocked`
-   with the reason, report, stop.
+   with the reason, report, stop (flow mode: a question, see «Flow mode»).
 
 3. **Review.** Spawn `task-reviewer` (fresh subagent, never the teammate) with:
    the plan path, the worktree path, the diff range `<base>..<head>` from the
@@ -79,12 +80,13 @@ manual check); `/ship` registers it.
    as `review-report.json`. `changes_required` → `SendMessage` the blocking
    findings to the teammate verbatim; it fixes and reports again; then one more
    review of the new diff. Still blocking after the second round → status
-   `blocked` with the findings, stop. `advice` findings go into `pr.md`, not into
-   the code.
+   `blocked` with the findings, stop (flow mode: a question, see «Flow mode»). In
+   single mode `advice` findings go into `pr.md`, not into the code; flow mode
+   treats them by «Flow mode».
 
 4. **Checks.** In the worktree, yourself: the project's checks (Preconditions 5);
    for MP one verify at a time and the retry rule from `PIPELINE.md`. Red → send the literal output to the teammate; three attempts,
-   then `blocked`. Keep the last output's tail for `pr.md`.
+   then `blocked` (flow mode: a question). Keep the last output's tail for `pr.md`.
 
 5. **Deliver.**
    - Single mode (no `--base`): `git -C <worktree> push -u origin <branch>`, then
@@ -92,23 +94,51 @@ manual check); `/ship` registers it.
      `<KEY>: <task title>` and a body: the goal, the plan's derive URL, the steps
      done, the checks with their exit codes, the review verdict, open advice, and
      the ending `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
-   - Batch mode (`--base batch/<name>`): push the task branch, then merge it in
-     the batch worktree that `/batch` owns
-     (`<checkoutPath>--batch-<name>`):
-     `git -C <batch worktree> merge --no-ff <branch> -m "Merge <KEY>: <title>"`
-     and push the batch branch. No PR per task.
-   Write `pr.md` in the task folder: PR URL (or batch merge SHA), checks, review.
+   - Flow mode (`--base flow/<name>`): push the task branch, then merge it in
+     the flow worktree that `/flow` owns
+     (`<checkoutPath>--flow-<name>`):
+     `git -C <flow worktree> merge --no-ff <branch> -m "Merge <KEY>: <title>"`
+     and push the flow branch. No PR per task.
+   Write `pr.md` in the task folder: PR URL (or flow merge SHA), checks, review.
    The manual check appends its own section to it later; step 6 registers it.
 
 6. **Record.**
-   `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <PR url | batch merge>" plan.md pr.md do-report.json review-report.json`.
+   `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <PR url | flow merge>" plan.md pr.md do-report.json review-report.json`.
    `$BIN/mp-task status <KEY> review "ждёт ручной
-   проверки: <url>"`; `$BIN/mp-home-commit <KEY> "<KEY>: implemented, PR"`. Ask the
-   teammate to shut down (`SendMessage` «shut down»; `TaskStop` if it does not
-   answer).
+   проверки: <url>"`; `$BIN/mp-home-commit <KEY> "<KEY>: implemented, PR"`. In single mode
+   ask the teammate to shut down (`SendMessage` «shut down»; `TaskStop` if it does
+   not answer). In flow mode the teammate stays: `/flow` shuts it down after the
+   key is recorded in the flow score.
 
-7. **Report** in a few lines: the PR URL or batch merge, the checks, the review
-   verdict, open advice, and «ждёт вашей ручной проверки; /ship <KEY> мержит».
+7. **Report** in a few lines: the PR URL or flow merge, the checks, the review
+   verdict, open advice, and «ждёт вашей ручной проверки; /ship <KEY> мержит». In
+   flow mode the report goes to the run, which continues with its next step.
 
 A stage you cannot pass becomes `blocked` with the literal failing output in the
-reason and in `progress.md`; the worktree and branch stay as they are.
+reason and in `progress.md`; the worktree and branch stay as they are. In flow
+mode such a stage is first a question to the engineer («Flow mode»).
+
+## Flow mode
+
+`--base flow/<name>` is flow mode: `/flow` runs this procedure inline in its own
+chat, so questions reach the engineer. Each of these stops is one
+`AskUserQuestion` by «Questions» of the `flow` skill, and the run waits for the
+answer instead of setting `blocked`:
+
+- `openPoints` only the engineer can answer (stage 2);
+- a review finding that needs a decision beyond the plan (stage 3);
+- findings still blocking after the second review round (stage 3);
+- a fix — of a finding or of advice — that would change the plan's agreed text or
+  behaviour (stage 3);
+- red checks the plan's scope cannot fix, or still red after three attempts
+  (stage 4);
+- an exceeded budget (the test budget, the model-turn budget of a stand);
+- a change of the task's scope, or a new task found on the way;
+- an unmet dependency of «Preconditions» 3, a dirty worktree in stage 1, and any
+  other stage this procedure would set `blocked` at.
+
+No retry and no bypass in place of the answer. The answer goes into
+`progress.md` (`вопрос: <question> — ответ: <answer>`) and the stage goes on by
+it; `blocked` is set only when the engineer answers so. Review advice: a cheap
+fix inside the plan's scope goes to the teammate by `SendMessage`, then one more
+review round of the new diff; the rest goes into `pr.md`.

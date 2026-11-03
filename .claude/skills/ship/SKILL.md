@@ -1,6 +1,6 @@
 ---
 name: ship
-description: After the engineer's manual check — bring each task PR (or a batch PR) onto the project's PR target, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/ship <KEY|batch/<name>> [<KEY>…]".
+description: After the engineer's manual check — bring each task PR (or a flow PR) onto the project's PR target, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/ship <KEY|flow/<name>> [<KEY>…]".
 ---
 
 # /ship — merge what the engineer accepted
@@ -13,20 +13,20 @@ one entered. `BIN=scripts/pipeline` (relative to the engine root, every session'
 ## Step 0 — session scope
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
-`/ship` and every typed argument: `global` — any keys and `batch/<name>`; `P` —
-keys with the code `P` and a batch of project `P`; `P-N` — continue only when every
-typed argument equals `P-N` (`batch/<name>` in a task chat is refused); anything
+`/ship` and every typed argument: `global` — any keys and `flow/<name>`; `P` —
+keys with the code `P` and a flow of project `P`; `P-N` — continue only when every
+typed argument equals `P-N` (`flow/<name>` in a task chat is refused); anything
 else (an argument that is not a key, a malformed session key, a non-zero exit) —
 print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `pr.md` is read, before
 `git fetch`, merge, push, `gh`, any status change and any worktree removal.
 
-## Per key (or batch)
+## Per key (or flow)
 
 1. **Locate.** A key: `$BIN/mp-task project <KEY>` gives `checkoutPath`; status
    must be `review`, `pr.md` in its task folder names the PR and the worktree. A
-   batch: in a `P` chat the batch score `<home of P>/batches/<name>.md`; in `global`
-   the single match of `home/projects/*/*/batches/<name>.md` — no match or several →
-   say so and stop. The batch's project follows from the path of that file and the
+   flow: in a `P` chat the flow score `<home of P>/flows/<name>.md`; in `global`
+   the single match of `home/projects/*/*/flows/<name>.md` — no match or several →
+   say so and stop. The flow's project follows from the path of that file and the
    keys in it; the score names the PR and the keys. Anything else → say so and stop.
    `$BIN/mp-task flow <KEY|CODE>` gives the project's `prTarget` and `mergeMethod`;
    a non-zero exit → print its error and stop before any write.
@@ -44,7 +44,7 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
 4. **Merge.** `gh pr merge <url> --<mergeMethod>` (mypi has no flow.json, so the
    default `merge` keeps the merge commits of its convention: `git log --merges`
    shows them). Then for the key (every key of
-   a batch), in this order:
+   a flow), in this order:
    1. `$BIN/mp-task status <KEY> merged "смержено в <prTarget>: <merge sha>"`.
    2. If you mark the merge in `progress.md` (a line or a «смержено» checkbox),
       do it here: it is the last entry in `progress.md`; the manual check has
@@ -56,10 +56,10 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
    untracked files are moved to the task folder in home before removal, ignored
    build output is not. `git -C <base clone> worktree remove <worktree>`;
    the local branch may go (`git -C <base clone> branch -d`), the remote branch
-   stays unless the engineer said otherwise. For a batch also remove the batch
+   stays unless the engineer said otherwise. For a flow also remove the flow
    worktree.
-6. `$BIN/mp-home-commit <KEY> "<KEY>: shipped"` (for a batch `<CODE>`; it stages the
-   batch score too).
+6. `$BIN/mp-home-commit <KEY> "<KEY>: shipped"` (for a flow `<CODE>`; it stages the
+   flow score too).
 
 ## Report
 

@@ -3,15 +3,17 @@
 Tooling for running the tasks of any registered project from the engine root; every
 session starts there, so each pipeline skill checks the session scope first (see
 «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
-`scripts/pipeline/`, the skills `/plan`, `/do`, `/batch`, `/ship`, `/board` in
+`scripts/pipeline/`, the skills `/plan`, `/do`, `/flow`, `/ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
 the installation they are run from and refuse any other working directory.
 
-The flow per task: `/plan` → the engineer reads the plan on derive → `/do`
+The cycle per task: `/plan` → the engineer reads the plan on derive → `/do`
 → automatic review and checks → PR → the engineer's manual check → `/ship`.
-`/batch` runs plan and do for several tasks in a row and merges them into one
-batch branch the engineer checks as a whole.
+`/flow` runs that cycle for one or more tasks of one project, one task at a time,
+asks the engineer at every decision and merges the tasks into one flow branch the
+engineer checks as a whole. In this file «flow» alone is that run; the project's
+flow is the project's branch and merge settings (`flow.json`, `mp-task flow`).
 
 ## Places
 
@@ -41,9 +43,10 @@ batch branch the engineer checks as a whole.
   `source.md` and running `mp-home-commit`. The
   `plan-v<N>.md`, `*-final.md` and `addendum.md` files of earlier tasks remain
   history and are no longer created. After every write:
-  `scripts/pipeline/mp-home-commit <KEY|CODE> "<message>"` (the `requests`, `tasks`
-  and `batches` folders of that project).
-- Batch: `<project home>/batches/<name>.md`.
+  `scripts/pipeline/mp-home-commit <KEY|CODE> "<message>"` (the `requests`, `tasks`,
+  `flows` and `batches` folders of that project).
+- Flow score: `<project home>/flows/<name>.md`. The
+  `batches/` scores of the former `/batch` stay as history.
 - Derive: the general plan is the derive artifact a task card links, if any (the v2
   cards of MP link `b7wieok9`, https://draft.yokeloop.com/artifacts/mypi-v2-b7wieok9);
   every task plan is its own artifact, `short_id` and `url` in the task folder's
@@ -72,14 +75,14 @@ nor `inbox` is used for the check, because both mark events delivered.
 
 The rule:
 
-- `global`: `/plan`, `/do` and `/ship` take tasks of any project; `/batch` and
-  `/ship batch/<name>` take the keys of one project.
-- `P` (any project): every typed key has the code `P`; a batch holds keys of `P`,
-  `/ship batch/<name>` takes a batch of project `P`.
+- `global`: `/plan`, `/do` and `/ship` take tasks of any project; `/flow` and
+  `/ship flow/<name>` take the keys of one project.
+- `P` (any project): every typed key has the code `P`; a flow holds keys of `P`,
+  `/ship flow/<name>` takes a flow of project `P`.
 - `P-N`: `/plan` and `/do` only when every typed key equals `P-N`; `/ship` only when
-  every typed argument equals `P-N`; `/batch` and `/ship batch/<name>` are refused.
-- A typed argument that is not a key `CODE-N` (other than `batch/<name>` of `/ship`
-  and the batch name of `/batch`), a malformed session key (`project` is `null` and
+  every typed argument equals `P-N`; `/flow` and `/ship flow/<name>` are refused.
+- A typed argument that is not a key `CODE-N` (other than `flow/<name>` of `/ship`
+  and the run name of `/flow`), a malformed session key (`project` is `null` and
   the key is not `global`) or a non-zero exit of `mp-task scope`: refused.
 - `/board`: in a session of project P or its task P-N — the board of P; a typed CODE
   must equal P. In global — the typed CODE, MP by default. A malformed key, an unknown
@@ -99,7 +102,7 @@ arguments and `<key>` substituted):
   (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan P-N, /do P-N and /ship P-N only.`
 - a changing skill with a malformed session key or a non-zero `mp-task scope`: `/<cmd> cannot tell this session's project (scope <key>); nothing was written. Run it in the main chat (/open global).`
 - a changing skill with an argument that is not a key: `/<cmd>: <arg> is not a task key (CODE-N); nothing was written.`
-- `/batch` in `global` with keys of several projects: `/batch <args> mixes projects <codes>; a batch holds tasks of one project; nothing was written.`
+- `/flow` in `global` with keys of several projects: `/flow <args> mixes projects <codes>; a flow holds tasks of one project; nothing was written.`
 
 This is an instruction for the agent, not access control: the scripts still work
 from any session.
@@ -115,7 +118,7 @@ so:
   read `inbox`, which arrives with MP-41 (T10); the script goes once the skills
   call the MCP tools.
 - `scripts/pipeline/mp-worktree` — its single mode delegates to `mypi task worktree`;
-  it stays for the batch mode, the dirty check and `pnpm install`.
+  it stays for the flow mode, the dirty check and `pnpm install`.
 - `scripts/pipeline/mp-home-commit` has no planned replacement: `context commit`
   commits locally only and publication goes through `backup --publish`.
 
@@ -131,7 +134,8 @@ The executor runs as an in-process **teammate** named by the key in lower case
 through the review loop, so reviewer findings go to it by `SendMessage` and it fixes
 in the same context. Reviewer and investigator are ordinary subagents: fresh
 context every time, never the lead's conclusions. When a task reaches `review`
-the lead asks the teammate to shut down.
+the lead asks the teammate to shut down. Under `/flow` it does so after the key is
+recorded in the flow score.
 
 What every executor prompt carries: the task key, the plan path, the worktree path,
 the task folder path, the base branch, this file's path, and the rule that its
@@ -145,7 +149,7 @@ final message is exactly one JSON object per its definition.
   Set by `/plan`.
 - `in_progress`: `/do` started; the worktree exists.
 - `review`: implementation finished, review clean, checks green, PR open (single
-  mode) or merged into the batch branch (batch mode). Waiting for the engineer's
+  mode) or merged into the flow branch (flow mode). Waiting for the engineer's
   manual check.
 - `merged`: the PR is merged into the PR target by `/ship`.
 - `done`: the engineer's word after the installed engine runs the change. The
@@ -156,12 +160,39 @@ Every status reason carries the relevant link: derive URL or PR URL.
 
 ## Approval semantics
 
-- An approved plan is the engineer typing `/do <KEY>` or `/batch …`. No
+- An approved plan is the engineer typing `/do <KEY>` or `/flow …`; under
+  `/flow` the engineer's answers to the plan's forks are part of the approval. No
   other signal counts; a published plan queues nothing.
 - Open comment threads on the plan artifact (`catch_up` with `comments: open`) are
   remarks. `/plan` reworks the plan and republishes, resolving each thread with
   `comment` and `set_state: resolved` and a reply saying what changed. `/do` refuses to start while a thread is open, unless typed with
   `--force`.
+
+## Where /flow waits for the engineer
+
+`/flow` decides nothing on its own: each point below is one `AskUserQuestion` in
+the flow's chat (header ≤ 12 characters, 2–4 options, the recommendation first),
+and the run waits for the answer. No retry, no bypass, no weakened check in its
+place; `blocked` only when the engineer answers so.
+
+- a dependency outside the run that is not `review`, `merged` or `done`;
+- every fork of a plan, one question at a time;
+- an edit of the lead to a plan beyond the plan-writer's output (or an explicit
+  line in the report);
+- `openPoints` of the executor only the engineer can answer;
+- a review finding that needs a decision beyond the plan, findings still blocking
+  after the second review round, a fix — of a finding or of advice — that would
+  change the plan's agreed text or behaviour;
+- red checks or CI the plan's scope cannot fix, or still red after three attempts;
+  CI red only on the test budget with `fail 0` is reported with the measurements,
+  never rerun in a loop;
+- an exceeded budget, a change of scope, a new task found on the way;
+- before a live acceptance on a stand (its time and model turns);
+- red checks on the assembled flow branch before the PR.
+
+Cheap review advice inside the plan's scope is fixed by the executor, followed
+by one more review round; other advice goes into `pr.md` and the PR. The order of
+the tasks is announced with its reasoning before the start, not asked.
 
 ## Checks
 
@@ -191,11 +222,13 @@ else `<checkoutPath>/CLAUDE.md`.
 - Single mode: base `origin/<integration>` of the project's clone; PR from the task
   branch → `<prTarget>` in the `repository` from `mp-task project` (`gh pr create --repo
   <repository>`), merged by `/ship` after the engineer's check.
-- Batch mode: the keys of one project; base `batch/<name>` created in the project's
-  clone from `origin/<integration>` and pushed, batch worktree `<checkoutPath>--batch-<name>`;
-  each task branch merges `--no-ff` into `batch/<name>` right after its review and
-  checks; one PR `batch/<name>` → `<prTarget>` at the end. The engineer checks the batch
-  branch. Tasks run strictly one after another, in the order typed.
+- Flow mode: the keys of one project; base `flow/<name>` created in the project's
+  clone from `origin/<integration>` and pushed, flow worktree
+  `<checkoutPath>--flow-<name>`; each task branch merges `--no-ff` into
+  `flow/<name>` right after its review, checks and live acceptance where its plan
+  names one; one PR `flow/<name>` → `<prTarget>` at the end, also for one task.
+  The engineer checks the flow branch. Tasks run strictly one at a time, in the
+  order announced before the start.
 - `/ship` merges with `gh pr merge --<mergeMethod>`.
 - Commits: English, imperative, one concern, no code comments, no attribution
   trailers (the `task-executor` rule).
@@ -207,7 +240,8 @@ else `<checkoutPath>/CLAUDE.md`.
 - A task of any project never edits the installed engine, its `AGENTS.md` or shipped
   resources. Never run migrations, bootstrap, release or restore, nor, for MP, the
   engine update: those are the engineer's separate authorizations (for MP, task T14
-  of the plan).
+  of the plan). Under `/flow` too: no GitHub Release or other publication and no
+  migration of the personal database without the engineer's separate permission.
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
   folder; commit home after each change. Artifacts are the task folder's files
   named in `progress`; each entry points at the home commit `progress` made. Never

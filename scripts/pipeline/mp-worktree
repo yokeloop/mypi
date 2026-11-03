@@ -49,7 +49,7 @@ else
   wt="$BASE_CLONE--$key-$slug"
 
   git -C "$BASE_CLONE" fetch -q origin
-  # A batch base lives on origin; take it from there when it is not a local ref.
+  # A flow base lives on origin; take it from there when it is not a local ref.
   if ! git -C "$BASE_CLONE" rev-parse -q --verify "$base_ref^{commit}" >/dev/null; then
     if git -C "$BASE_CLONE" rev-parse -q --verify "origin/$base_ref^{commit}" >/dev/null; then
       base_ref="origin/$base_ref"

@@ -47,7 +47,7 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
    `blocked`; the status itself for any other status.
 
    The `blocked` reason comes from `$BIN/mp-task show <KEY>` (the card's last
-   status reason). Batches: a line for each `<home>/batches/*.md`, only when
-   `<home>/batches` exists.
+   status reason). Flows: a line for each `<home>/flows/*.md`, only when
+   `<home>/flows` exists.
 
 No status changes, no commits. No mypi task worktree, warmup or inbox calls.
