@@ -9,7 +9,7 @@ export const FILTERS: Readonly<Record<Screen, readonly string[]>> = {
   journal: ['scope', 'type', 'from', 'to', 'q'],
 };
 
-const DATE = /^\d{4}-\d\d-\d\d$/;
+const DATE = /^\d{4}-\d\d-\d\d$/, CODE = /^[A-Z]+$/, KEY = /^[A-Z]+-[1-9][0-9]*$/;
 
 export function filtersOf(screen: Screen, search: URLSearchParams): Record<string, string> {
   const filters: Record<string, string> = {};
@@ -30,6 +30,7 @@ export function withFilter(search: URLSearchParams, key: string, value: string |
 function apiValue(screen: Screen, key: string, value: string): string | null {
   if (screen === 'projects' && key === 'q') return null;
   if (screen === 'events' && key === 'delivered') return value === 'true' || value === 'false' ? value : null;
+  if (screen === 'journal' && key === 'scope') return CODE.test(value) ? 'project:' + value : KEY.test(value) ? 'task:' + value : value;
   if (screen === 'journal' && (key === 'from' || key === 'to')) {
     if (!DATE.test(value)) return null;
     return value + (key === 'from' ? 'T00:00:00Z' : 'T23:59:59Z');

@@ -30,8 +30,13 @@ test('screen filters keep known non-empty keys and build API paths with the curs
   assert.equal(apiPath('tasks', {}), '/v1/tasks');
   assert.equal(apiPath('events', { delivered: 'maybe', kind: 'message' }), '/v1/events?kind=message');
   assert.equal(apiPath('journal', { from: '2026-11-01', to: '2026-11-03', scope: 'MP' }),
-    '/v1/journal?scope=MP&from=2026-11-01T00%3A00%3A00Z&to=2026-11-03T23%3A59%3A59Z');
+    '/v1/journal?scope=project%3AMP&from=2026-11-01T00%3A00%3A00Z&to=2026-11-03T23%3A59%3A59Z');
   assert.equal(apiPath('journal', { from: '2026-13' }), '/v1/journal');
+  assert.equal(apiPath('journal', { scope: 'FX' }), '/v1/journal?scope=project%3AFX');
+  assert.equal(apiPath('journal', { scope: 'FX-12' }), '/v1/journal?scope=task%3AFX-12');
+  for (const scope of ['global', 'fx', 'fx/one', 'task:FX-1', 'FX-0']) {
+    assert.equal(apiPath('journal', { scope }), '/v1/journal?' + new URLSearchParams({ scope }).toString(), scope);
+  }
   assert.equal(apiPath('projects', { org: 'yokeloop', q: 'x' }), '/v1/projects?org=yokeloop');
 });
 
