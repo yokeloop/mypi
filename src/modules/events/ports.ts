@@ -6,6 +6,7 @@ export interface EventStore {
   pending(toKey: string | null): EventRow[];
   lastDelivered(toKey: string): EventRow[];
   deliver(ids: number[], at: string): void;
+  browse(filter: { to?: string; from?: string; kind?: EventKind; delivered?: boolean; before?: number }): Iterable<EventRow>;
 }
 export type EventTransport = (socket: string, events: { id: number; text: string }[]) => Promise<number[]>;
 export interface TurnPrompt { origin: string; text: string }
