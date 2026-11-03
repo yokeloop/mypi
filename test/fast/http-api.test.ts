@@ -13,8 +13,8 @@ const taskShape = { key: 'MP-1', project: 'MP', number: 1, title: 'Задача'
   contextDir: 'projects/one/project/tasks/MP-1-task', worktreePath: null, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z' };
 const info = { version: '0.10.0', schemaVersion: 12, changeId: 4, instance: 'instance' };
 
-function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}) {
-  const commands: AppCommand[] = [];
+function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}, broken = false) {
+  const commands: AppCommand[] = [], logged: string[] = [];
   const fixtures: Record<string, (command: AppCommand) => unknown> = {
     task_page: () => ({ items: [{ ...card, key: 'MP-1' }], next: 3 }),
     task_show: () => card,
@@ -28,10 +28,10 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
     ...outcomes,
   };
   const api = createApi({
-    token: value => value === 'r-token' ? { name: 'reader', permission: 'read', sender: null }
-      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' } : undefined,
+    token: value => { if (broken) throw new InputError('Invalid API token file: /secret/config/mypi/api-tokens.json'); return value === 'r-token' ? { name: 'reader', permission: 'read', sender: null }
+      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' } : undefined; },
     execute: async command => { commands.push(command); const fixture = fixtures[command.name]; return fixture === undefined ? {} : fixture(command); },
-    info: () => info, runtime: '/run/u',
+    info: () => info, runtime: '/run/u', log: line => { logged.push(line); },
   });
   const call = (method: string, url: string, options: { token?: string; authorization?: string; body?: unknown; contentType?: string } = {}) => {
     const parsed = new URL(url, 'http://localhost');
@@ -41,7 +41,7 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
       body: options.body === undefined ? '' : typeof options.body === 'string' ? options.body : JSON.stringify(options.body) };
     return api(request) as Promise<{ status: number; body: { apiVersion: number; data?: unknown; error?: { code: string; message: string; saved?: string[]; missing?: string[] } }; token?: string; stream?: string }>;
   };
-  return { commands, call };
+  return { commands, call, logged };
 }
 
 test('requests without a known bearer token get 401 before routing and run nothing', async () => {
@@ -169,4 +169,13 @@ test('a request target that WHATWG URL rejects parses to undefined instead of th
   const url = requestUrl('/v1/tasks?limit=2');
   assert.deepEqual([url?.pathname, url?.searchParams.get('limit')], ['/v1/tasks', '2']);
   assert.equal(requestUrl(undefined)?.pathname, '/');
+});
+
+test('an unreadable token file answers a fixed 500 without its path and logs the real error', async () => {
+  const { commands, call, logged } = harness({}, true);
+  const result = await call('GET', '/v1/info', { token: 'r-token' });
+  assert.deepEqual([result.status, result.body, result.token], [500, { apiVersion: 1, error: { code: 'internal', message: 'API token file is unreadable' } }, undefined]);
+  assert.equal(JSON.stringify(result.body).includes('/secret'), false);
+  assert.deepEqual(logged, ['Invalid API token file: /secret/config/mypi/api-tokens.json']);
+  assert.equal(commands.length, 0);
 });

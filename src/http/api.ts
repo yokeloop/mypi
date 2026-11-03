@@ -12,7 +12,7 @@ export type ApiRequest = { method: string; path: string; query: URLSearchParams;
 export type ApiResult = { status: number; body: unknown; token?: string } | { status: 200; stream: 'changes'; token: string };
 export type ApiInfo = { version: string; schemaVersion: number; changeId: number; instance: string };
 export type ApiDeps = { token(value: string): ApiToken | undefined; execute(command: AppCommand): Promise<unknown>;
-  info(): ApiInfo; runtime: string | undefined };
+  info(): ApiInfo; runtime: string | undefined; log(line: string): void };
 
 type Reply = { status?: number; data: unknown } | { stream: 'changes' };
 type Route = { method: string; pattern: RegExp; permission: 'read' | 'write';
@@ -145,7 +145,11 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
   ];
   return async request => {
     const presented = /^Bearer ([A-Za-z0-9_-]+)$/.exec(request.authorization ?? '')?.[1];
-    const token = presented === undefined ? undefined : deps.token(presented);
+    let token: ApiToken | undefined;
+    try { token = presented === undefined ? undefined : deps.token(presented); } catch (error) {
+      deps.log(error instanceof Error ? error.message : String(error));
+      return { status: 500, body: { apiVersion: API_VERSION, error: { code: 'internal', message: 'API token file is unreadable' } } };
+    }
     if (token === undefined) return failure(new ApiError(401, 'unauthorized', 'Missing or unknown bearer token'));
     try {
       const matching = routes.map(route => ({ route, match: route.pattern.exec(request.path) })).filter(x => x.match !== null);

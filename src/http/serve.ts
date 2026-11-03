@@ -47,7 +47,8 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   const instance = randomUUID(), version = engineVersion();
   const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
-    info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'] });
+    info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
+    log: options.log });
   const streams = new Set<ServerResponse>();
   const change = () => 'id: ' + feed.changeId() + '\nevent: change\ndata: ' + JSON.stringify({ changeId: feed.changeId() }) + '\n\n';
 
