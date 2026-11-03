@@ -88,7 +88,7 @@ and MCP-CYCLE, the first implementation in M1-IMPLEMENTATION.
 | Profile | Allowed | Forbidden |
 |---|---|---|
 | test/fast/ | Deterministic in-worker checks; small temp FS/embedded DB fixtures; input tables | Child processes in tests or called code, extra workers, network/sockets, LLM/Pi, real sleeps |
-| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup | Nested runners, entire workflow for a local assertion, network/LLM, personal home, detached processes |
+| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup; loopback-only HTTP to a server subprocess started from dist (the bwrap netns has only lo) | Nested runners, entire workflow for a local assertion, external network/LLM, personal home, detached processes |
 
 Workers created by the standard runner are not forbidden child spawns from a fast
 test; they count toward the total budget. Server-based DB checks belong in boundary,
@@ -102,6 +102,7 @@ not a mislabeled fast profile.
 - Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
 - test/support holds shared helpers and the unix socket server fixture that boundary tests start as
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
+- The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -125,6 +126,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone; a develop/feature flow, an invalid flow, a recorded worktree after the flow changed |
 | Project flow | Parsing and validation of flow.json; MCP/CLI translation; the warmup's flow block | `project flow` on a temp clone: defaults, the file, refusals |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
+| HTTP API | Pure handler: auth, routing, validation, cursor paging, response shapes; keyset pages of tasks, events and journal; data_version feed; token file | One loopback serve subprocess: 401/403, a cursor read, a write, changeId and SSE after it, access log without secrets |
 
 Cover useful commands without replicating the complete error matrix at every level.
 A domain test and boundary canary may overlap when they catch different failures:

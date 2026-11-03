@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API (maintenance is CLI-only, including undoing a mistaken project or organization registration).
+scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -355,6 +355,15 @@ run, so they use the new build at once. The `mypi` MCP server of a running
 session keeps the old code until it is restarted: in Claude use `/mcp` → `mypi` →
 Reconnect (or restart the session); the new warmup text arrives at the next
 `/clear`, `/compact` or restart. In Pi use `/reload` or restart the session.
+
+## HTTP API
+
+`mypi serve` runs an optional REST/JSON API over the same commands, in the foreground.
+Create a token first with `mypi token create <name> --permission read|write`; it is
+printed once and stored hashed in `$XDG_CONFIG_HOME/mypi/api-tokens.json`. Then start
+`mypi serve`: it listens on `127.0.0.1:8737`, and `--listen <IP>` (for example a
+Tailscale IP) is the only way to expose it. Routes, tokens, change streams and an
+example systemd user unit: [docs/HTTP-API.md](docs/HTTP-API.md).
 
 ## Develop and verify
 

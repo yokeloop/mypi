@@ -24,7 +24,7 @@ contracts, including nullable project_id, are unchanged.
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
 agent permissions, task execution queue, session catalog, multi-device and network
 sync are not implemented. Current scope is data selection, not a security perimeter.
-No mandatory external tracker, HTTP daemon or implied automatic execution.
+No mandatory external tracker or implied automatic execution. `mypi serve` is an optional foreground HTTP API over AppCommand (docs/HTTP-API.md), not a daemon the engine starts.
 
 ## 2. Code and dependencies
 
@@ -32,6 +32,7 @@ No mandatory external tracker, HTTP daemon or implied automatic execution.
 src/
 ├── cli/                 # argv -> AppCommand, JSON, exit
 ├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
+├── http/                # node:http server, bearer tokens, /v1 routes, SSE changes
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
 │   ├── projects/        # registry, identity, checkout and scope
@@ -45,7 +46,7 @@ src/
 └── shared/              # scope types, errors and partial
 ```
 
-CLI/MCP → app → public domain APIs. A module uses its own rules/ports; adapters
+CLI/MCP/HTTP → app → public domain APIs. A module uses its own rules/ports; adapters
 implement ports with technical infrastructure; composition roots select adapters.
 Domain rules do not perform IO. Modules do not bypass each other's public API.
 App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.

@@ -6,6 +6,10 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- HTTP API (MP-71): `mypi serve` runs a foreground REST/JSON server under /v1 on 127.0.0.1:8737 (another address only with --listen, e.g. a Tailscale IP; no TLS in process) with bearer tokens from `mypi token create|list|revoke` kept hashed in $XDG_CONFIG_HOME/mypi/api-tokens.json. It reads projects, tasks, events (without marking them delivered) and the journal with filters, search and cursor pages, sessions and context files; it writes task create/update, journal notes and parent messages from the token's sender. /v1/info carries changeId, which also streams over SSE /v1/changes. A documented systemd user unit is an example, not installed. Restart the server after an engine update or migration.
+
 ### Changed
 
 - The main chat's role (MP-76) administers project setup on the user's request:
