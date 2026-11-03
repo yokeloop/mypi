@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { LOCAL_REPOSITORY, checkoutTarget, noRepositoryError, planCheckout, validateRepository } from '../../src/modules/projects/public.js';
+import { LOCAL_REPOSITORY, checkoutTarget, cloneStaging, noRepositoryError, planCheckout, stagingPid, validateRepository } from '../../src/modules/projects/public.js';
 
 test('a repository is a Git remote URL, an absolute path or local', () => {
   assert.equal(LOCAL_REPOSITORY, 'local');
@@ -50,4 +50,12 @@ test('a checkout is planned from the repository and the state of its target', ()
     { message: refused('is a Git repository with origin /srv/r.git, but the project is local') });
   assert.throws(() => planCheckout(url, target, { kind: 'other', reason: 'is a symbolic link' }),
     { message: refused('is a symbolic link') });
+});
+
+test('clone staging names belong to their target and carry the pid', () => {
+  assert.equal(cloneStaging('/p/one/big', 42), '/p/one/.big.mypi-clone-42');
+  assert.equal(stagingPid('/p/one/big', '.big.mypi-clone-42'), 42);
+  for (const name of ['.big.mypi-clone-x', '.big.mypi-clone-0', '.bigger.mypi-clone-42', '.big.mypi-clone-', 'big']) {
+    assert.equal(stagingPid('/p/one/big', name), null, name);
+  }
 });
