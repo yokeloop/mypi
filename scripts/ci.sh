@@ -3,11 +3,11 @@
 set -euo pipefail
 root="$(realpath "$(dirname "$0")/..")"
 [[ "$#" == 0 ]] || { echo 'Usage: bash scripts/ci.sh' >&2; exit 2; }
-[[ -d "$root/node_modules" && -d "$root/src" && -d "$root/test" && -d "$root/integrations" ]]
-[[ -z "$(find "$root/src" "$root/test" "$root/integrations" -type l -print -quit)" ]] || { echo 'Symlink in source' >&2; exit 1; }
+[[ -d "$root/node_modules" && -d "$root/src" && -d "$root/test" && -d "$root/integrations" && -d "$root/web/node_modules" ]]
+[[ -z "$(find "$root/src" "$root/test" "$root/integrations" "$root/web/src" -type l -print -quit)" ]] || { echo 'Symlink in source' >&2; exit 1; }
 work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mypi-ci.XXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
-cp -a --reflink=auto "$root"/{src,test,integrations,.pi,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.mcp.json} "$work/"
+cp -a --reflink=auto "$root"/{src,test,integrations,.pi,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.mcp.json,web,pnpm-workspace.yaml} "$work/"
 mkdir "$work/.claude" && cp --reflink=auto "$root/.claude/settings.json" "$work/.claude/"
 mkdir "$work/tools" "$work/dist"
 cp --reflink=auto "$(command -v node)" "$work/tools/node"
