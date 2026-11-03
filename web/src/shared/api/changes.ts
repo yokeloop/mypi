@@ -1,6 +1,6 @@
 import { INITIAL_CHANGES, onChange, onDisconnect } from '../lib';
 
-export function subscribeChanges(onRefetch: () => void, onLive: (live: boolean) => void): () => void {
+export function subscribeChanges(onRefetch: () => void, onLive: (live: boolean) => void, onClosed: () => void): () => void {
   const source = new EventSource('/v1/changes');
   let state = INITIAL_CHANGES;
   source.addEventListener('change', event => {
@@ -12,6 +12,7 @@ export function subscribeChanges(onRefetch: () => void, onLive: (live: boolean) 
   source.addEventListener('error', () => {
     state = onDisconnect(state);
     onLive(false);
+    if (source.readyState === EventSource.CLOSED) onClosed();
   });
   return () => source.close();
 }
