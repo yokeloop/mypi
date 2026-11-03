@@ -9,7 +9,7 @@ import { engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
 import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
-import { API_VERSION, createApi } from './api.js';
+import { API_VERSION, bearer, createApi } from './api.js';
 import { requestUrl } from './validate.js';
 
 export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
@@ -49,7 +49,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
     info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
     log: options.log });
-  const streams = new Set<ServerResponse>();
+  const streams = new Map<ServerResponse, string>();
   const change = () => 'id: ' + feed.changeId() + '\nevent: change\ndata: ' + JSON.stringify({ changeId: feed.changeId() }) + '\n\n';
 
   async function v1(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> {
@@ -66,7 +66,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     if ('stream' in result) {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
       res.write('retry: 2000\n' + change());
-      streams.add(res);
+      streams.set(res, bearer(req.headers.authorization)!);
       res.on('close', () => streams.delete(res));
       return;
     }
@@ -88,11 +88,17 @@ export async function serve(options: { filename: string; tokensFile: string; lis
       else res.end();
     });
   });
-  const poll = setInterval(() => { if (feed.poll()) for (const res of streams) res.write(change()); }, POLL_MS);
-  const keepalive = setInterval(() => { for (const res of streams) res.write(': keepalive\n\n'); }, KEEPALIVE_MS);
+  const valid = (presented: string) => { try { return verifyApiToken(options.tokensFile, presented) !== undefined; } catch { return false; } };
+  const poll = setInterval(() => {
+    const changed = feed.poll();
+    for (const [res, presented] of streams) {
+      if (!valid(presented)) { streams.delete(res); res.end(); } else if (changed) res.write(change());
+    }
+  }, POLL_MS);
+  const keepalive = setInterval(() => { for (const res of streams.keys()) res.write(': keepalive\n\n'); }, KEEPALIVE_MS);
   const stop = () => {
     clearInterval(poll); clearInterval(keepalive);
-    for (const res of streams) res.end();
+    for (const res of streams.keys()) res.end();
     server.close(); server.closeAllConnections(); feed.close();
   };
   try {

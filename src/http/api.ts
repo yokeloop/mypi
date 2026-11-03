@@ -21,6 +21,10 @@ type Page = { items: unknown[]; next: number | null };
 
 const KEY = '([A-Z]+-[1-9][0-9]*)', CODE = '([A-Z]+)';
 
+export function bearer(authorization: string | undefined): string | undefined {
+  return /^Bearer ([A-Za-z0-9_-]+)$/.exec(authorization ?? '')?.[1];
+}
+
 function invalid(message: string): ApiError {
   return new ApiError(400, 'invalid_request', message);
 }
@@ -144,7 +148,7 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
     } },
   ];
   return async request => {
-    const presented = /^Bearer ([A-Za-z0-9_-]+)$/.exec(request.authorization ?? '')?.[1];
+    const presented = bearer(request.authorization);
     let token: ApiToken | undefined;
     try { token = presented === undefined ? undefined : deps.token(presented); } catch (error) {
       deps.log(error instanceof Error ? error.message : String(error));

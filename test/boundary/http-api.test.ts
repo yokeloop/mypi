@@ -30,7 +30,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.equal(result.status, 0, result.stderr);
     return (JSON.parse(result.stdout) as { token: string }).token;
   };
-  const reader = token('reader', 'read'), writer = token('writer', 'write');
+  const reader = token('reader', 'read'), writer = token('writer', 'write'), viewer = token('viewer', 'read');
 
   const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
@@ -65,20 +65,24 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.deepEqual([schemaVersion, served], [12, version]);
 
   const controller = new AbortController();
-  const sse = await fetch(url + '/v1/changes', { headers: auth(reader), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
-  assert.equal(sse.status, 200);
-  const stream = sse.body!.getReader(), decoder = new TextDecoder();
-  let buffer = '';
-  const nextChange = async () => {
-    for (;;) {
-      const match = /data: (\{[^\n]*\})\n\n/.exec(buffer);
-      if (match) { buffer = buffer.slice(match.index + match[0].length); return (JSON.parse(match[1]!) as { changeId: number }).changeId; }
-      const { value, done } = await stream.read();
-      if (done) throw new Error('SSE ended');
-      buffer += decoder.decode(value, { stream: true });
-    }
+  const changes = async (value: string) => {
+    const sse = await fetch(url + '/v1/changes', { headers: auth(value), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+    assert.equal(sse.status, 200);
+    const stream = sse.body!.getReader(), decoder = new TextDecoder();
+    let buffer = '';
+    return async () => {
+      for (;;) {
+        const match = /data: (\{[^\n]*\})\n\n/.exec(buffer);
+        if (match) { buffer = buffer.slice(match.index + match[0].length); return (JSON.parse(match[1]!) as { changeId: number }).changeId; }
+        const { value, done } = await stream.read();
+        if (done) throw new Error('SSE ended');
+        buffer += decoder.decode(value, { stream: true });
+      }
+    };
   };
+  const nextChange = await changes(reader), nextViewed = await changes(viewer);
   assert.equal(await nextChange(), c0);
+  assert.equal(await nextViewed(), c0);
 
   const refused = await post('/v1/messages', reader, { to: 'FX', text: 'один' });
   assert.deepEqual([refused.status, refused.body.error.code], [403, 'forbidden']);
@@ -87,8 +91,12 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.equal(sent.status, 201);
     assert.equal(typeof sent.body.data.id, 'number');
   }
+  const revoked = run(['token', 'revoke', 'viewer']);
+  assert.equal(revoked.status, 0, revoked.stderr);
   const started = Date.now();
   assert.ok(await nextChange() > c0);
+  await assert.rejects(nextViewed(), /SSE ended/);
+  assert.equal((await get('/v1/info', viewer)).status, 401);
   assert.ok(Date.now() - started < 5000);
   assert.ok((await get('/v1/info')).body.data['changeId'] > c0);
 
@@ -99,11 +107,10 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const second = (await get('/v1/events?to=FX&limit=1&cursor=' + next)).body.data as { items: { text: string }[]; next: null };
   assert.deepEqual([second.items.map(e => e.text), second.next], [['один'], null]);
   controller.abort();
-  await stream.cancel().catch(() => {});
 
   child.kill('SIGTERM');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
   assert.match(stderr, / \/v1\/messages 201 writer/);
-  for (const secret of [reader, writer, 'один', 'два']) assert.equal(stderr.includes(secret), false, secret);
+  for (const secret of [reader, writer, viewer, 'один', 'два']) assert.equal(stderr.includes(secret), false, secret);
 });
