@@ -199,8 +199,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       }) : () => {};
       const status = (text: string | undefined) => { if (ctx.hasUI) ctx.ui.setStatus('mypi-open', text); };
       const words = head.trim().split(/\s+/).filter(Boolean);
-      const option = words.findIndex(word => word.startsWith('--'));
-      const label = 'mypi open ' + (option === -1 ? words : words.slice(0, option)).join(' ') + ': ';
+      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode'].includes(words[i - 1] ?? ''));
+      const label = 'mypi open' + (keys.length > 0 ? ' ' + keys.join(' ') : '') + ': ';
       const progress = (line: string) => {
         const rest = line.slice(6);
         if (!rest.startsWith('cloning ')) return rest;

@@ -303,6 +303,13 @@ test('pi extension /open shows clone progress in the status and Esc cancels it',
   assert.deepEqual(pi.statuses.at(-1), ['mypi-open', undefined]);
   assert.equal(pi.terminal.unsubscribed, 1);
   assert.deepEqual(pi.notes.at(-1), ['mypi open cancelled: ' + error, 'warning']);
+  const quick: RunCli = async () => ({ code: 0, signal: null, stdout: '{}', stderr: '' });
+  const other = stub();
+  install(other.api, root, serve, undefined, process.pid, quick);
+  await other.commands.get('open')!.handler('--agent pi FB', other.ctx);
+  await other.commands.get('open')!.handler('--agent pi', other.ctx);
+  assert.deepEqual(other.statuses.filter(([, text]) => text !== undefined).map(([, text]) => text),
+    ['mypi open FB: running — Esc cancels', 'mypi open: running — Esc cancels']);
   for (const data of ['\x1b', '\x1b[27u', '\x1b[27;1u', '\x1b[27;1:1u', '\x1b[27;1;27~']) assert.equal(isEscape(data), true, JSON.stringify(data));
   for (const data of ['\x1b[27;1:3u', '\x1b[A', 'q']) assert.equal(isEscape(data), false, JSON.stringify(data));
 });
