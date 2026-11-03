@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AppCommand } from './commands.js';
+import type { AppCommand, RunContext } from './commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
 import { createApp, initializeState } from './create-app.js';
 import { backupState, restoreState, publishBackup, restorePublishedBackup } from './backup.js';
@@ -22,7 +22,7 @@ function homeFolder(root: string | undefined, path: string): string | null {
 
 const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
-  transports: EventTransports = {}): Promise<unknown> {
+  transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
@@ -35,7 +35,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(),
     warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined), c.maxChars);
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
-  if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports);
+  if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
   if (c.name === 'session_register') return registerSession(filename, c);
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
