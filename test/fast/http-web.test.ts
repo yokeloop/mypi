@@ -40,6 +40,7 @@ test('web assets are served by exact path with types, cache and CSP headers, oth
   assert.deepEqual([post.status, post.headers['allow']], [405, 'GET, HEAD']);
   assert.equal(webResponse(assets, 'HEAD', '/').status, 200);
 
+  assert.throws(() => readWebAssets(join(dir, 'index.html')), /ENOTDIR/);
   const missing = readWebAssets(join(dir, 'missing'));
   assert.equal(missing.size, 0);
   const unbuilt = webResponse(missing, 'GET', '/');

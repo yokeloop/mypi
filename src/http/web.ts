@@ -17,7 +17,10 @@ export function readWebAssets(dir: string): ReadonlyMap<string, WebAsset> {
   const assets = new Map<string, WebAsset>();
   const visit = (path: string, key: string) => {
     let entries;
-    try { entries = readdirSync(path, { withFileTypes: true }); } catch { return; }
+    try { entries = readdirSync(path, { withFileTypes: true }); } catch (error) {
+      if (path === dir && (error as NodeJS.ErrnoException).code === 'ENOENT') return;
+      throw error;
+    }
     for (const entry of entries) {
       if (entry.isDirectory()) visit(join(path, entry.name), key + entry.name + '/');
       else if (entry.isFile()) assets.set(key + entry.name, { body: readFileSync(join(path, entry.name)), type: TYPES[extname(entry.name)] ?? 'application/octet-stream' });
