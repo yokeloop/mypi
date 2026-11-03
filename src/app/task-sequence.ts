@@ -1,4 +1,4 @@
-import type { AppCommand } from '../app/commands.js';
+import type { AppCommand } from './commands.js';
 import { PartialError } from '../shared/context.js';
 
 export async function runSequence(commands: AppCommand[], execute: (command: AppCommand) => Promise<unknown>): Promise<unknown> {

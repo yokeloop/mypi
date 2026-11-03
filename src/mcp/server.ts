@@ -8,7 +8,7 @@ import type { ToolName } from './tools.js';
 import { output } from './schemas.js';
 import { success, failure } from './result.js';
 import { serialCalls } from './serial.js';
-import { runSequence } from './sequence.js';
+import { runSequence } from '../app/task-sequence.js';
 
 type CallExtra = { signal: AbortSignal; _meta?: { progressToken?: string | number | undefined } | undefined;
   sendNotification: (n: ServerNotification) => Promise<void> };

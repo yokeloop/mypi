@@ -4,7 +4,7 @@ import { tools, toolCommand, readOnly } from '../../src/mcp/tools.js';
 import { success, failure } from '../../src/mcp/result.js';
 import { PartialError } from '../../src/shared/context.js';
 import { serialCalls } from '../../src/mcp/serial.js';
-import { runSequence } from '../../src/mcp/sequence.js';
+import { runSequence } from '../../src/app/task-sequence.js';
 import { InputError } from '../../src/shared/errors.js';
 import type { AppCommand } from '../../src/app/commands.js';
 import { appCommand } from '../../src/cli/app-command.js';
