@@ -15,5 +15,11 @@ export function sqliteEventStore(db: Database): EventStore {
       const update = db.prepare('UPDATE events SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL');
       for (const id of ids) update.run(at, id);
     },
+    browse: filter => {
+      const to = filter.to ?? null, from = filter.from ?? null, kind = filter.kind ?? null, before = filter.before ?? null;
+      const delivered = filter.delivered === undefined ? '' : filter.delivered ? ' AND delivered_at IS NOT NULL' : ' AND delivered_at IS NULL';
+      return db.prepare(select + ` WHERE (? IS NULL OR to_key = ?) AND (? IS NULL OR from_key = ?) AND (? IS NULL OR kind = ?)
+        AND (? IS NULL OR id < ?)` + delivered + ' ORDER BY id DESC').iterate(to, to, from, from, kind, kind, before, before) as Iterable<EventRow>;
+    },
   };
 }

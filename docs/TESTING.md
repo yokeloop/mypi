@@ -88,7 +88,7 @@ and MCP-CYCLE, the first implementation in M1-IMPLEMENTATION.
 | Profile | Allowed | Forbidden |
 |---|---|---|
 | test/fast/ | Deterministic in-worker checks; small temp FS/embedded DB fixtures; input tables | Child processes in tests or called code, extra workers, network/sockets, LLM/Pi, real sleeps |
-| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup | Nested runners, entire workflow for a local assertion, network/LLM, personal home, detached processes |
+| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup; loopback-only HTTP to a server subprocess started from dist (the bwrap netns has only lo) | Nested runners, entire workflow for a local assertion, external network/LLM, personal home, detached processes |
 
 Workers created by the standard runner are not forbidden child spawns from a fast
 test; they count toward the total budget. Server-based DB checks belong in boundary,
@@ -102,6 +102,7 @@ not a mislabeled fast profile.
 - Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
 - test/support holds shared helpers and the unix socket server fixture that boundary tests start as
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
+- The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -125,6 +126,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone; a develop/feature flow, an invalid flow, a recorded worktree after the flow changed |
 | Project flow | Parsing and validation of flow.json; MCP/CLI translation; the warmup's flow block | `project flow` on a temp clone: defaults, the file, refusals |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
+| HTTP API | Pure handler: auth, routing, validation, cursor paging, response shapes; keyset pages of tasks, events and journal; data_version feed; token file | One loopback serve subprocess: 401/403, a cursor read, a write, changeId and SSE after it, access log without secrets |
 
 Cover useful commands without replicating the complete error matrix at every level.
 A domain test and boundary canary may overlap when they catch different failures:
@@ -189,12 +191,12 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63) and 2026-11-02 (MP-64, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64) and 2026-11-04 (MP-71, below).
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 50 s |
+| Full mandatory test-profile working time | ≤ 55 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
@@ -228,6 +230,17 @@ took a profile Service runtime of 22–43 s on CI ubuntu-24.04 runners: PR MP-60
 ~29 s. The spread is the runners', not growth of the tests. The 60 s deadline,
 CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. Speeding
 up boundary is a separate task; the next excess is again discussed and
+explicitly decided, never raised automatically.
+
+Revision 2026-11-04 (MP-71). By the operator's decision of 2026-11-04 the full
+profile's working time is 55 s instead of 50 s. With the HTTP API boundary test
+(+~2 s) the same content took 49.4–50.4 s locally (Service runtime 50.414 s, CPU
+53.1 s, boundary 46.3 s, load average ~7) with fail 0. The 60 s deadline,
+CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. The test
+unit mypi-tests (scripts/check.sh) and the CI build unit mypi-ci-build
+(scripts/ci.sh) both get RuntimeMaxSec 58 s and TimeoutStopSec 2 s, still 60 s in
+total, which leaves room above the 55 s budget.
+Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.

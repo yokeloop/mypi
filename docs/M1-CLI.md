@@ -217,6 +217,15 @@ Context commits use the mypi identity, without user hooks/fsmonitor/signing; pri
 Git attributes preserve exact bytes without EOL/encoding/filter transformations.
 These commands do not modify working clones, branches or remote synchronization.
 
+## HTTP API server
+
+```text
+mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
+mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+```
+
+Routes, tokens, response shapes and change streams: [docs/HTTP-API.md](HTTP-API.md).
+
 ## Verification
 
 `mise exec -- pnpm verify`: admission + fast + boundary under systemd/bubblewrap,

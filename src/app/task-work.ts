@@ -3,6 +3,7 @@ import type { ContextFiles, ContextHistory } from '../shared/context.js';
 import { InputError } from '../shared/errors.js';
 import type { createApp } from './create-app.js';
 import type { createJournal, sqliteJournalStore } from '../modules/knowledge/public.js';
+import { pageTasks } from '../modules/tasks/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { isMilestone, parentKey } from '../modules/events/public.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
@@ -23,6 +24,15 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       if (options.status !== undefined && !core.tasks.statuses().some(s => s.code === options.status)) throw new InputError('Unknown status');
       return core.tasks.list().filter(c => (!scope || (scope.type === 'project' && c.projectId === scope.project.id))
         && (options.status === undefined || c.status === options.status)).map(card => ({ ...card, key: key(card) }));
+    },
+    page(options: { project?: string; status?: string; q?: string; before?: number; limit: number }) {
+      let project = options.project;
+      if (project !== undefined && /^[A-Z]+$/.test(project)) {
+        const code = project, found = core.projects.list().find(p => p.code === code);
+        if (!found) throw new InputError('Unknown project');
+        project = found.org + '/' + found.slug;
+      }
+      return pageTasks(this.list({ project, status: options.status }), { q: options.q, before: options.before, limit: options.limit });
     },
     create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean }) {
       if (typeof input.source !== 'string') throw new InputError('Source text required');

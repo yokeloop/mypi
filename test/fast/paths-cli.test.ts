@@ -56,6 +56,8 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['context', 'restore', 'MEMORY.md'], ['backup', '/tmp/backup'], ['restore', '/tmp/backup'],
     ['backup', '--publish', '--dry-run', '--file', 'chosen.md'], ['restore', '--repository', '/tmp/clone', '--commit', 'a'.repeat(40)],
     ['project', 'remove', 'one/project', '--expected-code', 'MP'], ['org', 'remove', 'one'],
+    ['token', 'create', 'phone', '--permission', 'read'], ['token', 'list'], ['token', 'revoke', 'phone'],
+    ['serve', '--listen', '100.64.0.1', '--port', '0'],
   ]) assert.equal(parseCommand(args).type, 'workspace');
   for (const args of [
     ['project', 'add', 'one/project'],
@@ -68,5 +70,7 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['project', 'remove', 'one/project', 'extra', '--expected-code', 'MP'],
     ['org', 'remove'],
     ['org', 'remove', 'one', '--expected-code', 'MP'],
+    ['token', 'create'],
+    ['serve', 'extra'],
   ]) assert.throws(() => parseCommand(args));
 });

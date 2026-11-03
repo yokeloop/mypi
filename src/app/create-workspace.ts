@@ -7,7 +7,7 @@ import { createApp, initializeState } from './create-app.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
-import { createJournal, createNotes } from '../modules/knowledge/public.js';
+import { createJournal, createJournalBrowser, createNotes } from '../modules/knowledge/public.js';
 import { importLegacyJournal } from './import-journal.js';
 import { migrateTaskDirectories } from './migrate-tasks.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
@@ -60,6 +60,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     return false;
   }
   const journal = createJournal(database.journalStore, resolve, contains, clock);
+  const browser = createJournalBrowser(database.journalStore, resolve, contains);
   function verifyFile(path: string): void {
     const saved = database.journalStore.fingerprint(path);
     if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
@@ -94,6 +95,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       removeStatus: core.tasks.removeStatus,
     },
     history: journal.read,
+    historyPage: browser.page,
     journal(scope: Scope, text: string) {
       const entry = journal.record(scope, text);
       return database.serialize(() => journal.append(entry));

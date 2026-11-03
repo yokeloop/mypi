@@ -6,8 +6,13 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- HTTP API (MP-71): `mypi serve` runs a foreground REST/JSON server under /v1 on 127.0.0.1:8737 (another address only with --listen, e.g. a Tailscale IP; no TLS in process) with bearer tokens from `mypi token create|list|revoke` kept hashed in $XDG_CONFIG_HOME/mypi/api-tokens.json. It reads projects, tasks, events (without marking them delivered) and the journal with filters, search and cursor pages, sessions and context files; it writes task create/update, journal notes and parent messages from the token's sender. /v1/info carries changeId, which also streams over SSE /v1/changes. A documented systemd user unit is an example, not installed. Restart the server after an engine update or migration.
+
 ### Changed
 
+- The full test profile's working budget is 55 s instead of 50 s (MP-71): with the HTTP API boundary test the profile took 49.4–50.4 s locally with fail 0. The test unit (scripts/check.sh) and the CI build unit mypi-ci-build (scripts/ci.sh) both get RuntimeMaxSec 58 s and TimeoutStopSec 2 s, still 60 s in total, so the external 60 s deadline and all other limits stay unchanged; speeding up boundary is a separate task.
 - The main chat's role (MP-76) administers project setup on the user's request:
   clones (a partial clone when a full one fails and the user agrees), remotes and
   forks, branches and worktrees, registrations, and whatever keeps a project or

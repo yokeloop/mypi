@@ -23,7 +23,9 @@ export type AppCommand =
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
   | { name: 'error_add'; project: string; text: string }
   | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; limit?: number }
+  | { name: 'journal_page'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; q?: string; before?: number; limit: number }
   | { name: 'task_list'; project?: string; status?: string }
+  | { name: 'task_page'; project?: string; status?: string; q?: string; before?: number; limit: number }
   | { name: 'task_show' | 'task_touch' | 'task_worktree'; key: string }
   | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
   | { name: 'task_status'; key: string; status: string; reason: string; session?: SessionHint; envScope?: string }
@@ -48,7 +50,11 @@ export type AppCommand =
       session?: SessionHint; envScope?: string; runtime?: string; transcript?: string }
   | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;
       transcript?: string }
+  | { name: 'event_list'; to?: string; from?: string; kind?: 'turn_end' | 'waiting' | 'milestone' | 'message'; delivered?: boolean; q?: string; before?: number; limit: number }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'message_send'; key: string; body: TextInput; session?: SessionHint; envScope?: string; runtime?: string }
+  | { name: 'api_token_create'; file: string; tokenName: string; permission: string; sender?: string }
+  | { name: 'api_token_list'; file: string }
+  | { name: 'api_token_revoke'; file: string; tokenName: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
       session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };

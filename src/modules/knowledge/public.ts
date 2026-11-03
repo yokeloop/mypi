@@ -3,7 +3,9 @@ import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
 import { entryValue, utc } from './model.js';
 import type { ArtifactRef, Entry, EventType } from './model.js';
-import type { JournalStore } from './ports.js';
+import type { JournalBrowseStore, JournalStore } from './ports.js';
+import { matchesQuery, takePage } from '../../shared/page.js';
+import type { Page } from '../../shared/page.js';
 export { createNotes } from './notes.js';
 export type { ArtifactRef, Entry, EventType } from './model.js';
 export { artifactRefPath } from './model.js';
@@ -14,6 +16,37 @@ export function frozenArtifacts(store: JournalStore): Set<string> {
   const result = new Set<string>();
   for (const raw of store.entries()) for (const ref of entryValue(raw).artifacts ?? []) if (typeof ref === 'string') result.add(ref);
   return result;
+}
+
+function historyFilter(options: { from?: string; to?: string; type?: EventType; limit?: number }): { from: number; to: number } {
+  const from = options.from === undefined ? -Infinity : utc(options.from);
+  const to = options.to === undefined ? Infinity : utc(options.to);
+  if (from > to || (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 1))
+    || (options.type !== undefined && !['note', 'task_created', 'status_changed'].includes(options.type))) {
+    throw new InputError('Invalid history filters');
+  }
+  return { from, to };
+}
+
+export function createJournalBrowser(store: JournalBrowseStore, resolve: (scope: Scope) => void,
+  contains: (filter: Scope, scope: Scope) => boolean) {
+  return {
+    page(filter: Scope | 'all', options: { from?: string; to?: string; type?: EventType; q?: string; before?: number; limit: number }): Page<{ id: number; entry: Entry }> {
+      const { from, to } = historyFilter(options);
+      if (filter !== 'all') resolve(scopeValue(filter));
+      function* rows() {
+        for (const { id, raw } of store.recent(options.before, options.from?.slice(0, 7), options.to?.slice(0, 7))) {
+          const entry = entryValue(raw);
+          resolve(entry.scope);
+          const at = utc(entry.at);
+          if (at < from || at > to || (options.type && entry.event_type !== options.type)
+            || (filter !== 'all' && !contains(filter, entry.scope)) || !matchesQuery(options.q, entry.text)) continue;
+          yield { id, entry };
+        }
+      }
+      return takePage(rows(), options.limit, x => x.id);
+    },
+  };
 }
 
 export function createJournal(store: JournalStore, resolve: (scope: Scope) => void,
@@ -28,12 +61,7 @@ export function createJournal(store: JournalStore, resolve: (scope: Scope) => vo
     append(entry: Entry) { const valid = entryValue(entry); resolve(valid.scope); return store.append(valid); },
     read(filter: Scope | 'all', options: { from?: string; to?: string; type?: EventType; limit?: number } = {}): Entry[] {
       if (filter !== 'all') resolve(scopeValue(filter));
-      const from = options.from === undefined ? -Infinity : utc(options.from);
-      const to = options.to === undefined ? Infinity : utc(options.to);
-      if (from > to || (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 1))
-        || (options.type !== undefined && !['note', 'task_created', 'status_changed'].includes(options.type))) {
-        throw new InputError('Invalid history filters');
-      }
+      const { from, to } = historyFilter(options);
       const result: Entry[] = [];
       for (const raw of store.entries(options.from?.slice(0, 7), options.to?.slice(0, 7))) {
         const entry = entryValue(raw);
