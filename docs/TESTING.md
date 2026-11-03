@@ -191,12 +191,12 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63) and 2026-11-02 (MP-64, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64) and 2026-11-04 (MP-71, below).
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 50 s |
+| Full mandatory test-profile working time | ≤ 55 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
@@ -230,6 +230,16 @@ took a profile Service runtime of 22–43 s on CI ubuntu-24.04 runners: PR MP-60
 ~29 s. The spread is the runners', not growth of the tests. The 60 s deadline,
 CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. Speeding
 up boundary is a separate task; the next excess is again discussed and
+explicitly decided, never raised automatically.
+
+Revision 2026-11-04 (MP-71). By the operator's decision of 2026-11-04 the full
+profile's working time is 55 s instead of 50 s. With the HTTP API boundary test
+(+~2 s) the same content took 49.4–50.4 s locally (Service runtime 50.414 s, CPU
+53.1 s, boundary 46.3 s, load average ~7) with fail 0. The 60 s deadline,
+CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged; the unit
+now gets RuntimeMaxSec 58 s and TimeoutStopSec 2 s, which keeps the external
+deadline at 60 s and leaves room above the 55 s budget.
+Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.

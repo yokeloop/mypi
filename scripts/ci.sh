@@ -15,7 +15,7 @@ cp --reflink=auto "$(command -v node)" "$work/tools/node"
 # source, scripts and the installed dependency tree are mounted read-only.
 systemd-run --user --wait --pipe --collect --unit=mypi-ci-build --service-type=exec \
   -p CPUQuota=200% -p MemoryMax=1G -p MemorySwapMax=0 -p TasksMax=64 \
-  -p RuntimeMaxSec=55s -p TimeoutStopSec=5s -p KillMode=control-group \
+  -p RuntimeMaxSec=58s -p TimeoutStopSec=2s -p KillMode=control-group \
   -p OOMPolicy=kill -p NoNewPrivileges=yes \
   bwrap --unshare-all --die-with-parent --new-session --cap-drop ALL --clearenv \
   --ro-bind /usr /usr --symlink usr/lib /lib --ro-bind /lib64 /lib64 \
