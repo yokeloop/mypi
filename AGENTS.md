@@ -207,7 +207,12 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the agent; it writes no session rows. A project without a clone is first cloned
   from its registered `repository` (`local`: `git init`) into
   `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
-  `notes`; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
+  `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
+  status, MCP progress notifications, CLI stderr lines prefixed "mypi: "), without a
+  total time limit but stopped after 5 minutes without progress, and the result
+  appears under projects/<org>/<project> only complete; Esc in Pi, cancelling the
+  MCP call or SIGINT/SIGTERM of the CLI stops git, removes the partial clone and
+  registers nothing, so the next /open prepares it again; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
   or focused one) gets one start message in the frame `[mypi: стартовое сообщение
   для <key>. …]` through the same socket as events: for a project its open tasks
   by status and the number of undelivered events, for a task its status, worktree

@@ -24,6 +24,15 @@ match the GitHub releases.
   home>/flows/`, earlier `batches/` scores and `batch/*` branches stay as history.
   `/plan --auto` is removed. The installed engine keeps `/batch` until it is
   updated.
+- `/open` (MP-75) clones a project without a clone asynchronously with live
+  progress — the Pi footer status with "Esc cancels", MCP progress notifications
+  when the call has a progressToken, CLI stderr lines prefixed "mypi: " — and
+  without the 100 s limit; a clone stops only after 5 minutes without progress.
+  Git clones into a temporary sibling directory that is renamed into place after
+  verification, so a half clone is never adopted. Esc in Pi, cancelling the MCP
+  call or SIGINT/SIGTERM of the CLI stops git and removes the partial clone;
+  nothing is registered and the next `/open` prepares it again. Pi's `/open` no
+  longer has a 120 s limit.
 
 ## [0.9.0] - 2026-11-02
 

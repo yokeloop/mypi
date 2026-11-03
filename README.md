@@ -180,7 +180,12 @@ missing; a task gets its tab there without starting the project session) in the
 engine root with `MYPI_SCOPE` and starts the agent there; an existing session
 continues with its own agent. A project without a clone is first cloned from its
 registered `repository` (`local`: `git init`) into `projects/<org>/<project>`,
-verified and registered, with `clone prepared: …` in `notes`; without a
+verified and registered, with `clone prepared: …` in `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
+status, MCP progress notifications, CLI stderr lines prefixed "mypi: "), without a
+total time limit but stopped after 5 minutes without progress, and the result
+appears under projects/<org>/<project> only complete; Esc in Pi, cancelling the
+MCP call or SIGINT/SIGTERM of the CLI stops git, removes the partial clone and
+registers nothing, so the next /open prepares it again; without a
 `repository` it is refused before anything opens. A new session (not a resumed or focused one) gets
 one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through
 the same socket as events: for a project its open tasks by status and the number
