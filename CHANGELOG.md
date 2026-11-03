@@ -6,6 +6,13 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-03
+
+Upgrading from v0.9.0: `git pull --ff-only`, install the locked dependencies and
+build; no migration (schema 12); reload or restart Claude Code and Pi sessions
+(Pi `/reload`, Claude `/mcp` reconnect) so `/open` progress, cancellation and key
+suggestions take effect.
+
 ### Added
 
 - Pi's /open suggests project and open task keys while its arguments are typed
