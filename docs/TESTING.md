@@ -236,9 +236,10 @@ Revision 2026-11-04 (MP-71). By the operator's decision of 2026-11-04 the full
 profile's working time is 55 s instead of 50 s. With the HTTP API boundary test
 (+~2 s) the same content took 49.4–50.4 s locally (Service runtime 50.414 s, CPU
 53.1 s, boundary 46.3 s, load average ~7) with fail 0. The 60 s deadline,
-CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged; the unit
-now gets RuntimeMaxSec 58 s and TimeoutStopSec 2 s, which keeps the external
-deadline at 60 s and leaves room above the 55 s budget.
+CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. The test
+unit mypi-tests (scripts/check.sh) and the CI build unit mypi-ci-build
+(scripts/ci.sh) both get RuntimeMaxSec 58 s and TimeoutStopSec 2 s, still 60 s in
+total, which leaves room above the 55 s budget.
 Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
 

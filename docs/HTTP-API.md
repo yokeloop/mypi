@@ -98,7 +98,9 @@ Query details:
 - `delivered` is `true` or `false`; `kind` one of `turn_end`, `waiting`, `milestone`,
   `message`; the journal's `type` one of `note`, `task_created`, `status_changed`; its
   `from`/`to` are UTC timestamps; its `scope` is a scope reference as in the CLI's
-  `-s` (`global`, an org, `CODE`, `CODE-N`), all scopes by default.
+  `journal -s`: `global`, an org slug, `org/project`, or `type:key` such as
+  `project:FX`, `task:FX-1` or `org:fx`; all scopes by default. A bare `FX` or
+  `FX-1` is refused.
 - `revision` is a full 40- or 64-hex commit.
 - Empty values are ignored; any parameter not listed for the route is refused.
 
@@ -111,7 +113,9 @@ refused:
   `true`). At least one of status, title, progress, touch; `reason` is required with
   status or title and refused without them; `touch` only alone. Parts apply in the
   order status, title, progress, touch; progress carries no artifacts.
-- `POST /v1/journal`: `scope`, `text` (a note).
+- `POST /v1/journal`: `scope`, `text` (a note). `scope` takes the same references
+  as the journal query (`global`, an org slug, `org/project`, `project:FX`,
+  `task:FX-1`).
 - `POST /v1/messages`: `to`, `text`; sent from the token's `sender`.
 
 Response shapes:
