@@ -36,6 +36,18 @@ export function checkoutTarget(projectsRoot: string, project: { org: string; slu
   return projectsRoot.replace(/\/$/, '') + '/' + project.org + '/' + project.slug;
 }
 
+export function cloneStaging(target: string, pid: number): string {
+  const cut = target.lastIndexOf('/');
+  return target.slice(0, cut) + '/.' + target.slice(cut + 1) + '.mypi-clone-' + pid;
+}
+
+export function stagingPid(target: string, name: string): number | null {
+  const prefix = '.' + target.slice(target.lastIndexOf('/') + 1) + '.mypi-clone-';
+  if (!name.startsWith(prefix)) return null;
+  const digits = name.slice(prefix.length);
+  return /^[0-9]+$/.test(digits) && Number(digits) >= 1 ? Number(digits) : null;
+}
+
 export function noRepositoryError(project: { org: string; slug: string; code: string }): InputError {
   const identity = project.org + '/' + project.slug;
   return new InputError('Project ' + identity + ' (' + project.code + ') has no clone and no repository to clone it from; '

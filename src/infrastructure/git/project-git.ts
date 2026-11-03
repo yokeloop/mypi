@@ -1,10 +1,15 @@
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
+import { CancelledError } from '../../shared/errors.js';
 
 export interface ProjectWorktree { path: string; branch: string | null; prunable: boolean }
 
 const kept = new Set(['GIT_SSH', 'GIT_SSH_COMMAND', 'GIT_SSH_VARIANT', 'GIT_ASKPASS']);
 
-export const CLONE_TIMEOUT_MS = 100_000;
+export const CLONE_IDLE_TIMEOUT_MS = 300_000;
+export const CLONE_HEARTBEAT_MS = 10_000;
+export const CLONE_KILL_GRACE_MS = 5_000;
+
+export interface CloneOptions { signal?: AbortSignal; onLine?: (line: string, heartbeat: boolean) => void; idleTimeoutMs?: number }
 
 function gitEnv() {
   return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') || kept.has(key))),
@@ -17,9 +22,67 @@ function run(args: string[], timeout: number, action: string): void {
   if (result.error || result.status !== 0) throw new Error(result.error?.message || result.stderr.trim() || action + ' failed');
 }
 
-export function cloneRepository(repository: string, target: string): void {
-  run(['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.sshCommand=ssh -o BatchMode=yes',
-    'clone', '--quiet', '--', repository, target], CLONE_TIMEOUT_MS, 'git clone');
+export function cloneRepository(repository: string, target: string, options: CloneOptions = {}): Promise<void> {
+  const { signal, onLine } = options;
+  if (signal?.aborted) return Promise.reject(new CancelledError('git clone cancelled'));
+  const idleMs = options.idleTimeoutMs ?? CLONE_IDLE_TIMEOUT_MS;
+  return new Promise((resolve, reject) => {
+    const child = spawn('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', '-c', 'core.sshCommand=ssh -o BatchMode=yes',
+      'clone', '--progress', '--', repository, target], { env: gitEnv(), stdio: ['ignore', 'ignore', 'pipe'] });
+    const lines: string[] = [];
+    let last: string | undefined;
+    let pending = '';
+    let failure: Error | undefined;
+    let grace: NodeJS.Timeout | undefined;
+    const stop = (error: Error) => {
+      if (failure) return;
+      failure = error;
+      child.kill('SIGTERM');
+      grace = setTimeout(() => child.kill('SIGKILL'), CLONE_KILL_GRACE_MS);
+    };
+    const arm = () => setTimeout(() => stop(new Error('git clone made no progress for ' + idleMs / 1000 + ' s and was stopped')), idleMs);
+    let idle = arm();
+    const heartbeat = setInterval(() => { if (last !== undefined) onLine?.(last, true); }, CLONE_HEARTBEAT_MS);
+    const onAbort = () => stop(new CancelledError('git clone cancelled'));
+    signal?.addEventListener('abort', onAbort, { once: true });
+    const take = (piece: string) => {
+      const line = piece.trim().replace(/\s+/g, ' ').replace(/^remote: /, '');
+      if (line === '') return;
+      clearTimeout(idle);
+      idle = arm();
+      last = line;
+      lines.push(line);
+      if (lines.length > 20) lines.shift();
+      onLine?.(line, false);
+    };
+    child.stderr.setEncoding('utf8');
+    child.stderr.on('data', (chunk: string) => {
+      const pieces = (pending + chunk).split(/[\r\n]+/);
+      pending = pieces.pop()!;
+      pieces.forEach(take);
+    });
+    const settle = () => {
+      clearTimeout(idle);
+      clearInterval(heartbeat);
+      clearTimeout(grace);
+      signal?.removeEventListener('abort', onAbort);
+    };
+    child.on('error', error => {
+      settle();
+      reject(new Error(error.message));
+    });
+    child.on('close', code => {
+      take(pending);
+      pending = '';
+      settle();
+      if (failure) reject(failure);
+      else if (code === 0) resolve();
+      else {
+        const reported = lines.filter(line => line.startsWith('fatal:') || line.startsWith('error:'));
+        reject(new Error(reported.length > 0 ? reported.join('; ') : lines.at(-1) ?? 'git clone exited with code ' + code));
+      }
+    });
+  });
 }
 
 export function initRepository(target: string): void {

@@ -5,6 +5,7 @@ export type TextInput = { text: string; file?: never } | { file: string; text?: 
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
 export type ScopeInput = Scope | { reference: string };
 export type Artifact = { path: string; text?: string };
+export type RunContext = { signal?: AbortSignal; onProgress?: (line: string) => void };
 export type AppCommand =
   | { name: 'db_init' | 'bootstrap' | 'status_list' | 'journal_import' }
   | { name: 'project_list'; org?: string }

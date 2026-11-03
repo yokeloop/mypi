@@ -8,7 +8,7 @@ export type { Project, ProjectScope } from './model.js';
 export { parseIdentity } from './model.js';
 export { parseFlow, taskBranchName, validBranchName, DEFAULT_TASK_BRANCH } from './flow.js';
 export type { ProjectFlow, MergeMethod } from './flow.js';
-export { LOCAL_REPOSITORY, validateRepository, checkoutTarget, noRepositoryError, planCheckout } from './repository.js';
+export { LOCAL_REPOSITORY, validateRepository, checkoutTarget, cloneStaging, stagingPid, noRepositoryError, planCheckout } from './repository.js';
 export type { CheckoutState } from './repository.js';
 
 export function createProjects(store: ProjectStore, paths: CheckoutPaths) {

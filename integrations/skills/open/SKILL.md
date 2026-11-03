@@ -21,3 +21,7 @@ A project without a clone is first cloned from its registered `repository`
 refusal "no repository to clone it from", pass the text to the user. If the user
 then names a Git remote URL or `local`, set it with `projects` action `update`
 (`expectedRepository` null) and call `open_session` once more.
+
+A large clone reports its progress while it runs. If the user interrupts it, the
+result is an error "open cancelled while cloning …; nothing was registered":
+report it; the next /open prepares the clone again.

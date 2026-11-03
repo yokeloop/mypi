@@ -3,7 +3,11 @@ import { join } from 'node:path';
 
 interface ExtensionContext {
   hasUI: boolean;
-  ui: { notify(message: string, level: 'info' | 'warning'): void };
+  ui: {
+    notify(message: string, level: 'info' | 'warning'): void;
+    setStatus(key: string, text: string | undefined): void;
+    onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void;
+  };
   isIdle(): boolean;
   sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getHeader(): { parentSession?: string } | null };
 }
@@ -26,6 +30,9 @@ export interface ExtensionAPI {
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
 }
 
+export type RunCli = (args: string[], options: { cwd: string; signal: AbortSignal; onLine: (line: string) => void }) =>
+  Promise<{ code: number | null; signal: string | null; stdout: string; stderr: string }>;
+
 export type ServeEvents = (path: string, onBatch: (events: { id: number; text: string }[]) => Promise<number[]>) => Promise<{ close(): Promise<void> }>;
 
 const SECTION = 'mypi_context';
@@ -33,12 +40,19 @@ export const CODEMODE_GUIDELINE = 'In codemode scripts `searchTools()`, `describ
 const MESSAGE_LIMIT = 32000;
 const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии [A-Z]+ для [A-Z]+-[1-9][0-9]*\. /;
 
+const unavailable: RunCli = async () => ({ code: null, signal: null, stdout: '', stderr: 'mypi open needs the CLI runner' });
+
+export function isEscape(data: string): boolean {
+  return data === '\x1b' || /^\x1b\[27(?:;1(?::1)?)?u$/.test(data) || data === '\x1b[27;1;27~';
+}
+
 function clip(text: string): string {
   const cut = text.slice(0, MESSAGE_LIMIT);
   return /[\uD800-\uDBFF]$/.test(cut) ? cut.slice(0, -1) : cut;
 }
 
-export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid): void {
+export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid,
+  runCli: RunCli = unavailable): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
@@ -177,10 +191,40 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       const marker = /(?:^|\s)--message(?:\s|$)/.exec(args);
       const head = marker === null ? args : args.slice(0, marker.index);
       const message = marker === null ? [] : ['--message', args.slice(marker.index + marker[0].length).trim()];
-      const result = await pi.exec('node', [cli, 'open', ...head.trim().split(/\s+/).filter(Boolean), ...message], { cwd: root, timeout: 120000 })
-        .catch((error: unknown) => ({ code: 1, killed: false, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
-      if (result.code === 0 && !result.killed) ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
-      else ctx.ui.notify('mypi open failed: ' + (result.stderr.trim().slice(0, 500) || 'timeout or nonzero exit'), 'warning');
+      const controller = new AbortController();
+      const stop = ctx.hasUI ? ctx.ui.onTerminalInput(data => {
+        if (!isEscape(data)) return undefined;
+        controller.abort();
+        return { consume: true };
+      }) : () => {};
+      const status = (text: string | undefined) => { if (ctx.hasUI) ctx.ui.setStatus('mypi-open', text); };
+      const words = head.trim().split(/\s+/).filter(Boolean);
+      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode'].includes(words[i - 1] ?? ''));
+      const label = 'mypi open' + (keys.length > 0 ? ' ' + keys.join(' ') : '') + ': ';
+      const progress = (line: string) => {
+        const rest = line.slice(6);
+        if (!rest.startsWith('cloning ')) return rest;
+        const into = rest.indexOf(' into ');
+        const cut = into === -1 ? -1 : rest.indexOf(': ', into);
+        return cut === -1 ? 'cloning' : rest.slice(cut + 2);
+      };
+      status(label + 'running — Esc cancels');
+      let result;
+      try {
+        result = await runCli([cli, 'open', ...words, ...message], { cwd: root, signal: controller.signal,
+          onLine: line => { if (line.startsWith('mypi: ')) status(label + progress(line) + ' — Esc cancels'); } })
+          .catch((error: unknown) => ({ code: null, signal: null, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
+      } finally {
+        stop();
+        status(undefined);
+      }
+      if (result.code === 0) {
+        ctx.ui.notify('mypi open: ' + result.stdout.trim(), 'info');
+        return;
+      }
+      const text = result.stderr.split('\n').map(line => line.trim()).filter(line => line !== '' && !line.startsWith('mypi: ')).at(-1)?.slice(0, 500)
+        || 'timeout or nonzero exit';
+      ctx.ui.notify((controller.signal.aborted ? 'mypi open cancelled: ' : 'mypi open failed: ') + text, 'warning');
     },
   });
   pi.registerCommand('inbox', {

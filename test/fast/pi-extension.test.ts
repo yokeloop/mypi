@@ -5,7 +5,8 @@ import type { TestContext } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { CODEMODE_GUIDELINE, install } from '../../.pi/extensions/mypi-lib/install.js';
+import { CODEMODE_GUIDELINE, install, isEscape } from '../../.pi/extensions/mypi-lib/install.js';
+import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -19,6 +20,9 @@ function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
+  const statuses: [string, string | undefined][] = [];
+  const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
+  const terminal = { unsubscribed: 0 };
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
   const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, header: null as { parentSession?: string } | null,
@@ -31,7 +35,12 @@ function stub() {
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
     sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
   };
-  const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); } },
+  const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); },
+    setStatus(key: string, text: string | undefined) { statuses.push([key, text]); },
+    onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined) {
+      inputs.push(handler);
+      return () => { terminal.unsubscribed++; };
+    } },
     isIdle: () => state.idle,
     sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getHeader: () => state.header } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
@@ -46,7 +55,8 @@ function stub() {
     await handlers.get('before_agent_start')?.(event, ctx);
     return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
   };
-  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, state, start, stop, turn, options, registration };
+  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
+    options, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -255,18 +265,53 @@ test('pi extension emits no events without a registered key', async () => {
 
 test('pi extension /open runs mypi open and notifies its result', async () => {
   const pi = stub();
-  install(pi.api, root, serve, undefined);
+  const runs: unknown[][] = [];
   const stdout = '{"opened":[{"key":"MP-12","agent":"pi","action":"started"}]}';
-  pi.state.result = () => ({ code: 0, killed: false, stdout: stdout + '\n', stderr: '' });
+  let result = { code: 0 as number | null, signal: null, stdout: stdout + '\n', stderr: '' };
+  const fake: RunCli = async (args, options) => { runs.push([args, options.cwd]); return result; };
+  install(pi.api, root, serve, undefined, process.pid, fake);
   await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
-  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'open', 'MP-12', '--agent', 'pi'], { cwd: root, timeout: 120000 }]);
+  assert.deepEqual(runs.at(-1), [[cli, 'open', 'MP-12', '--agent', 'pi'], root]);
   assert.deepEqual(pi.notes.at(-1), ['mypi open: ' + stdout, 'info']);
   await pi.commands.get('open')!.handler('MP-12 --agent pi --message сделай два  шага ', pi.ctx);
-  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'open', 'MP-12', '--agent', 'pi', '--message', 'сделай два  шага'], { cwd: root, timeout: 120000 }]);
+  assert.deepEqual(runs.at(-1), [[cli, 'open', 'MP-12', '--agent', 'pi', '--message', 'сделай два  шага'], root]);
   const error = '{"status":"error","message":"Herdr is not available"}';
-  pi.state.result = () => ({ code: 1, killed: false, stdout: '', stderr: error });
+  result = { code: 1, signal: null, stdout: '', stderr: error };
   await pi.commands.get('open')!.handler('MP', pi.ctx);
   assert.deepEqual(pi.notes.at(-1), ['mypi open failed: ' + error, 'warning']);
+  assert(pi.calls.every(call => !(call[1] as string[]).includes('open')));
+});
+
+test('pi extension /open shows clone progress in the status and Esc cancels it', async () => {
+  const pi = stub();
+  const line = 'mypi: cloning file:///r into /p/fx/big: Receiving objects: 45% (45/100), 12.30 MiB | 1.00 MiB/s';
+  const error = '{"status":"error","message":"open cancelled while cloning file:///r into /p/fx/big; nothing was registered"}';
+  const fake: RunCli = async (_args, { signal, onLine }) => {
+    onLine('mypi: cloning file:///r into /p/fx/big');
+    onLine(line);
+    await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
+    return { code: 143, signal: null, stdout: '', stderr: line + '\n' + error + '\n' };
+  };
+  install(pi.api, root, serve, undefined, process.pid, fake);
+  const running = pi.commands.get('open')!.handler('FB --agent pi', pi.ctx);
+  await settled();
+  assert.deepEqual(pi.statuses, [['mypi-open', 'mypi open FB: running — Esc cancels'], ['mypi-open', 'mypi open FB: cloning — Esc cancels'],
+    ['mypi-open', 'mypi open FB: Receiving objects: 45% (45/100), 12.30 MiB | 1.00 MiB/s — Esc cancels']]);
+  assert.equal(pi.inputs[0]!('a'), undefined);
+  assert.deepEqual(pi.inputs[0]!('\x1b'), { consume: true });
+  await running;
+  assert.deepEqual(pi.statuses.at(-1), ['mypi-open', undefined]);
+  assert.equal(pi.terminal.unsubscribed, 1);
+  assert.deepEqual(pi.notes.at(-1), ['mypi open cancelled: ' + error, 'warning']);
+  const quick: RunCli = async () => ({ code: 0, signal: null, stdout: '{}', stderr: '' });
+  const other = stub();
+  install(other.api, root, serve, undefined, process.pid, quick);
+  await other.commands.get('open')!.handler('--agent pi FB', other.ctx);
+  await other.commands.get('open')!.handler('--agent pi', other.ctx);
+  assert.deepEqual(other.statuses.filter(([, text]) => text !== undefined).map(([, text]) => text),
+    ['mypi open FB: running — Esc cancels', 'mypi open: running — Esc cancels']);
+  for (const data of ['\x1b', '\x1b[27u', '\x1b[27;1u', '\x1b[27;1:1u', '\x1b[27;1;27~']) assert.equal(isEscape(data), true, JSON.stringify(data));
+  for (const data of ['\x1b[27;1:3u', '\x1b[A', 'q']) assert.equal(isEscape(data), false, JSON.stringify(data));
 });
 
 test('pi extension /inbox runs the inbox skill', async () => {

@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AppCommand } from './commands.js';
+import type { AppCommand, RunContext } from './commands.js';
 import { createApp, engineRoot } from './create-app.js';
 import { deliverOnOpen, deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
@@ -30,7 +30,7 @@ function readSettings(root: string): string | undefined {
 }
 
 export async function openSession(filename: string, root: string, c: Of<'open_session'>, transports: EventTransports = {}, proc = '/proc',
-  projectsRoot = join(engineRoot(), 'projects')) {
+  projectsRoot = join(engineRoot(), 'projects'), context: RunContext = {}) {
   if (c.keys.length === 0) throw new InputError('Name at least one key');
   if (c.permissionMode !== undefined && !(PERMISSION_MODES as readonly string[]).includes(c.permissionMode)) {
     throw new InputError('--permission-mode must be one of manual, acceptEdits, auto, bypassPermissions, dontAsk, plan');
@@ -84,7 +84,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     if (error.code === 'unavailable') throw new InputError('Herdr is not available (' + error.message + '); /open needs a running Herdr server. Nothing was opened.');
     throw new InputError('Herdr failed: ' + error.message + '. Nothing was opened.');
   }
-  const prepared = new Map(prepareCheckouts(filename, missing, projectsRoot).map(p => [p.code,
+  const prepared = new Map((await prepareCheckouts(filename, missing, projectsRoot, context)).map(p => [p.code,
     'clone prepared: ' + p.action + ' ' + p.checkoutPath + (p.action === 'cloned' ? ' from ' + missing.find(m => m.code === p.code)!.repository : '')]));
   const opened: Opened[] = [];
   for (const [i, key] of keys.entries()) {
