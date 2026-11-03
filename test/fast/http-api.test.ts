@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import type { AppCommand } from '../../src/app/commands.js';
 import { createApi } from '../../src/http/api.js';
 import type { ApiRequest } from '../../src/http/api.js';
-import { decodeCursor, encodeCursor } from '../../src/http/validate.js';
+import { decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.js';
 import { InputError } from '../../src/shared/errors.js';
 import { PartialError } from '../../src/shared/context.js';
 
@@ -162,4 +162,11 @@ test('GET /v1/changes returns the stream result only for a known token', async (
   assert.deepEqual(await call('GET', '/v1/changes', { token: 'r-token' }), { status: 200, stream: 'changes', token: 'reader' });
   assert.equal((await call('GET', '/v1/changes')).status, 401);
   assert.equal(commands.length, 0);
+});
+
+test('a request target that WHATWG URL rejects parses to undefined instead of throwing', () => {
+  for (const target of ['http://[/', 'http://a b/']) assert.equal(requestUrl(target), undefined);
+  const url = requestUrl('/v1/tasks?limit=2');
+  assert.deepEqual([url?.pathname, url?.searchParams.get('limit')], ['/v1/tasks', '2']);
+  assert.equal(requestUrl(undefined)?.pathname, '/');
 });

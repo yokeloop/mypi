@@ -10,6 +10,7 @@ import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { API_VERSION, createApi } from './api.js';
+import { requestUrl } from './validate.js';
 
 export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
 
@@ -75,9 +76,10 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     { prefix: '/v1/', handle: v1 },
   ];
   const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://localhost'), method = req.method ?? 'GET';
+    const url = requestUrl(req.url), method = req.method ?? 'GET';
     let tokenName: string | undefined;
-    res.on('close', () => options.log(new Date().toISOString() + ' ' + method + ' ' + url.pathname + ' ' + res.statusCode + ' ' + (tokenName ?? '-')));
+    res.on('close', () => options.log(new Date().toISOString() + ' ' + method + ' ' + (url?.pathname ?? '-') + ' ' + res.statusCode + ' ' + (tokenName ?? '-')));
+    if (url === undefined) { error(res, 400, 'invalid_request', 'Invalid request target'); return; }
     const mount = mounts.find(m => url.pathname.startsWith(m.prefix));
     if (mount === undefined) { error(res, 404, 'not_found', 'Unknown path: ' + url.pathname); return; }
     mount.handle(req, res, url, name => { tokenName = name; }).catch((e: unknown) => {

@@ -9,6 +9,10 @@ function invalid(message: string): ApiError {
   return new ApiError(400, 'invalid_request', message);
 }
 
+export function requestUrl(target: string | undefined): URL | undefined {
+  try { return new URL(target ?? '/', 'http://localhost'); } catch { return undefined; }
+}
+
 export function query(params: URLSearchParams, allowed: string[]): Record<string, string> {
   const result: Record<string, string> = {};
   for (const name of new Set(params.keys())) {
