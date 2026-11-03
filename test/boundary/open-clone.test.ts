@@ -5,6 +5,8 @@ import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { cloneRepository } from '../../src/infrastructure/git/project-git.js';
 
 const herdr = `#!/usr/bin/bash
@@ -139,4 +141,28 @@ test('CLI open shows clone progress, stops on SIGINT and SIGTERM leaving nothing
   assert.equal(opened.status, 0, opened.stderr);
   assert.ok(JSON.parse(opened.stdout).opened[0].notes.includes('clone prepared: cloned ' + target + ' from ' + url), opened.stdout);
   assert.equal(checkout(), target);
+});
+
+test('MCP open_session reports clone progress, a cancelled call leaves nothing and the server keeps serving', async t => {
+  const { root, env, pidFile, url, target, clean } = installation(t);
+  const transport = new StdioClientTransport({ command: process.execPath, args: [join(root, 'dist/src/mcp/main.js')],
+    cwd: root, env: { ...env, FAKE_GIT_MODE: 'slow', FAKE_GIT_PID: pidFile }, stderr: 'pipe' });
+  const client = new Client({ name: 'test', version: '1' });
+  t.after(async () => { await client.close(); });
+  await client.connect(transport);
+  const controller = new AbortController();
+  const messages: string[] = [];
+  await assert.rejects(client.callTool({ name: 'open_session', arguments: { keys: ['FB'] } }, undefined, {
+    onprogress: progress => {
+      messages.push(progress.message ?? '');
+      if (progress.message?.includes('Receiving objects: 10%')) controller.abort();
+    },
+    signal: controller.signal, timeout: 20000,
+  }));
+  assert.equal(messages[0], 'cloning ' + url + ' into ' + target);
+  const listed = await client.callTool({ name: 'projects', arguments: { action: 'list' } });
+  const value = listed.structuredContent as { status: string; data: { projects: { code: string; checkoutPath: string | null }[] } };
+  assert.equal(value.status, 'ok');
+  assert.equal(value.data.projects.find(p => p.code === 'FB')!.checkoutPath, null);
+  clean();
 });
