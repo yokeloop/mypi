@@ -22,6 +22,7 @@
     "src/**/*.ts",
     "test/**/*.ts",
     ".pi/extensions/*.ts",
-    ".pi/extensions/mypi-lib/*.ts"
+    ".pi/extensions/mypi-lib/*.ts",
+    "web/src/shared/lib/*.ts"
   ]
 }

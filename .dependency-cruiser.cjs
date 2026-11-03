@@ -20,6 +20,9 @@ module.exports = {
     { name: 'cli-http-from-main-only', severity: 'error', from: { path: '^src/cli/(?!main\\.ts$)' }, to: { path: '^src/http/' } },
     { name: 'protocol-at-boundary', severity: 'error', from: { path: '^src/(?!mcp/)' },
       to: { path: 'node_modules/(@modelcontextprotocol/|zod/)' } },
+    { name: 'engine-not-web', severity: 'error', from: { path: '^src/' }, to: { path: '^web/' } },
+    { name: 'tests-reach-web-lib-only', severity: 'error', from: { path: '^test/' }, to: { path: '^web/', pathNot: '^web/src/shared/lib/' } },
+    { name: 'web-lib-is-pure', severity: 'error', from: { path: '^web/src/shared/lib/' }, to: { pathNot: '^web/src/shared/lib/' } },
     ...readdirSync('src/modules').map(name => ({
       name: name + '-public-api', severity: 'error',
       from: { pathNot: '^(src/modules/' + name + '/|src/app/(create-app|create-workspace|journal-storage)\\.ts$)' },
