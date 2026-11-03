@@ -33,13 +33,14 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
     execute: async command => { commands.push(command); const fixture = fixtures[command.name]; return fixture === undefined ? {} : fixture(command); },
     info: () => info, runtime: '/run/u', log: line => { logged.push(line); },
   });
-  const call = (method: string, url: string, options: { token?: string; authorization?: string; body?: unknown; contentType?: string } = {}) => {
+  const call = (method: string, url: string, options: { token?: string; authorization?: string; body?: unknown; contentType?: string; cookie?: string; forwardedProto?: string } = {}) => {
     const parsed = new URL(url, 'http://localhost');
     const request: ApiRequest = { method, path: parsed.pathname, query: parsed.searchParams,
       authorization: options.authorization ?? (options.token === undefined ? undefined : 'Bearer ' + options.token),
       contentType: options.contentType ?? (options.body === undefined ? undefined : 'application/json'),
-      body: options.body === undefined ? '' : typeof options.body === 'string' ? options.body : JSON.stringify(options.body) };
-    return api(request) as Promise<{ status: number; body: { apiVersion: number; data?: unknown; error?: { code: string; message: string; saved?: string[]; missing?: string[] } }; token?: string; stream?: string }>;
+      body: options.body === undefined ? '' : typeof options.body === 'string' ? options.body : JSON.stringify(options.body),
+      cookie: options.cookie, forwardedProto: options.forwardedProto };
+    return api(request) as Promise<{ status: number; body: { apiVersion: number; data?: unknown; error?: { code: string; message: string; saved?: string[]; missing?: string[] } }; token?: string; stream?: string; setCookie?: string }>;
   };
   return { commands, call, logged };
 }
@@ -178,4 +179,50 @@ test('an unreadable token file answers a fixed 500 without its path and logs the
   assert.equal(JSON.stringify(result.body).includes('/secret'), false);
   assert.deepEqual(logged, ['Invalid API token file: /secret/config/mypi/api-tokens.json']);
   assert.equal(commands.length, 0);
+});
+
+test('browser session: login sets an HttpOnly SameSite=Strict cookie that authenticates reads only; logout and unknown cookies clear it', async () => {
+  const { commands, call } = harness();
+  const cleared = 'mypi_session=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0';
+  const login = await call('POST', '/v1/session', { body: { token: 'r-token' } });
+  assert.equal(login.status, 200);
+  assert.deepEqual(login.body.data, { name: 'reader', permission: 'read' });
+  assert.equal(login.token, 'reader');
+  assert.equal(login.setCookie, 'mypi_session=r-token; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000');
+  assert.equal(commands.length, 0);
+  assert.ok((await call('POST', '/v1/session', { body: { token: 'r-token' }, forwardedProto: 'https' })).setCookie?.endsWith('; Secure'));
+  const unknown = await call('POST', '/v1/session', { body: { token: 'nope' } });
+  assert.deepEqual([unknown.status, unknown.body.error?.code, unknown.setCookie], [401, 'unauthorized', undefined]);
+  assert.equal((await call('POST', '/v1/session', { body: { token: 'r-token' }, contentType: 'text/plain' })).status, 415);
+  const missing = await call('POST', '/v1/session', { body: {} });
+  assert.deepEqual([missing.status, missing.body.error?.message], [400, 'Missing field: token']);
+  assert.equal((await call('POST', '/v1/session', { body: { token: 'r-token', x: 1 } })).status, 400);
+  const broken = harness({}, true);
+  for (const result of [await broken.call('POST', '/v1/session', { body: { token: 'r-token' } }),
+    await broken.call('GET', '/v1/info', { cookie: 'mypi_session=r-token' })]) {
+    assert.deepEqual([result.status, result.body.error?.code, result.body.error?.message], [500, 'internal', 'API token file is unreadable']);
+    assert.ok(!JSON.stringify(result.body).includes('/secret/'));
+  }
+  assert.ok(broken.logged.some(line => line.includes('/secret/config/mypi/api-tokens.json')));
+  const cookie = 'a=b; mypi_session=w-token';
+  assert.equal((await call('GET', '/v1/tasks', { cookie })).status, 200);
+  assert.equal(commands.at(-1)?.name, 'task_page');
+  assert.deepEqual((await call('GET', '/v1/session', { cookie })).body.data, { name: 'writer', permission: 'write', via: 'cookie' });
+  assert.deepEqual((await call('GET', '/v1/session', { token: 'w-token' })).body.data, { name: 'writer', permission: 'write', via: 'bearer' });
+  commands.length = 0;
+  for (const [method, path] of [['POST', '/v1/messages'], ['PATCH', '/v1/tasks/MP-1']] as const) {
+    const write = await call(method, path, { cookie: 'mypi_session=w-token', body: { to: 'MP', text: 'go' } });
+    assert.deepEqual([write.status, write.body.error?.code], [403, 'forbidden']);
+    assert.match(write.body.error?.message ?? '', /Browser sessions are read-only/);
+  }
+  assert.equal(commands.length, 0);
+  const header = await call('GET', '/v1/info', { authorization: 'Bearer nope', cookie: 'mypi_session=r-token' });
+  assert.equal(header.status, 401);
+  const stale = await call('GET', '/v1/info', { cookie: 'mypi_session=nope' });
+  assert.deepEqual([stale.status, stale.setCookie], [401, cleared]);
+  const logout = await call('DELETE', '/v1/session', { contentType: 'application/json' });
+  assert.deepEqual([logout.status, logout.body.data, logout.setCookie], [200, { loggedOut: true }, cleared]);
+  assert.equal((await call('DELETE', '/v1/session')).status, 415);
+  const stream = await call('GET', '/v1/changes', { cookie: 'mypi_session=r-token' });
+  assert.deepEqual([stream.stream, stream.token], ['changes', 'reader']);
 });

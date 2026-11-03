@@ -10,6 +10,7 @@ import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { API_VERSION, bearer, createApi } from './api.js';
+import { readSessionCookie } from './session.js';
 import { requestUrl } from './validate.js';
 
 export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
@@ -32,6 +33,11 @@ function readBody(req: IncomingMessage): Promise<string | undefined> {
     req.on('end', () => resolve(Buffer.concat(chunks).toString('utf8')));
     req.on('error', reject);
   });
+}
+
+function forwardedProto(req: IncomingMessage): string | undefined {
+  const h = req.headers['x-forwarded-proto'];
+  return typeof h === 'string' ? h.split(',')[0]!.trim().toLowerCase() : undefined;
 }
 
 export async function serve(options: { filename: string; tokensFile: string; listen: string; port: string;
@@ -61,15 +67,16 @@ export async function serve(options: { filename: string; tokensFile: string; lis
       body = read;
     }
     const result = await api({ method, path: url.pathname, query: url.searchParams, authorization: req.headers.authorization,
-      contentType: req.headers['content-type'], body });
+      contentType: req.headers['content-type'], body, cookie: req.headers.cookie, forwardedProto: forwardedProto(req) });
     if (result.token !== undefined) token(result.token);
     if ('stream' in result) {
       res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-store' });
       res.write('retry: 2000\n' + change());
-      streams.set(res, bearer(req.headers.authorization)!);
+      streams.set(res, req.headers.authorization !== undefined ? bearer(req.headers.authorization)! : readSessionCookie(req.headers.cookie)!);
       res.on('close', () => streams.delete(res));
       return;
     }
+    if (result.setCookie !== undefined) res.setHeader('set-cookie', result.setCookie);
     res.writeHead(result.status, json).end(JSON.stringify(result.body));
   }
 
