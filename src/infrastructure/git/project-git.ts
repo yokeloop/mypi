@@ -9,7 +9,7 @@ export const CLONE_IDLE_TIMEOUT_MS = 300_000;
 export const CLONE_HEARTBEAT_MS = 10_000;
 export const CLONE_KILL_GRACE_MS = 5_000;
 
-export interface CloneOptions { signal?: AbortSignal; onLine?: (line: string) => void; idleTimeoutMs?: number }
+export interface CloneOptions { signal?: AbortSignal; onLine?: (line: string, heartbeat: boolean) => void; idleTimeoutMs?: number }
 
 function gitEnv() {
   return { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_') || kept.has(key))),
@@ -42,7 +42,7 @@ export function cloneRepository(repository: string, target: string, options: Clo
     };
     const arm = () => setTimeout(() => stop(new Error('git clone made no progress for ' + idleMs / 1000 + ' s and was stopped')), idleMs);
     let idle = arm();
-    const heartbeat = setInterval(() => { if (last !== undefined) onLine?.(last); }, CLONE_HEARTBEAT_MS);
+    const heartbeat = setInterval(() => { if (last !== undefined) onLine?.(last, true); }, CLONE_HEARTBEAT_MS);
     const onAbort = () => stop(new CancelledError('git clone cancelled'));
     signal?.addEventListener('abort', onAbort, { once: true });
     const take = (piece: string) => {
@@ -53,7 +53,7 @@ export function cloneRepository(repository: string, target: string, options: Clo
       last = line;
       lines.push(line);
       if (lines.length > 20) lines.shift();
-      onLine?.(line);
+      onLine?.(line, false);
     };
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk: string) => {

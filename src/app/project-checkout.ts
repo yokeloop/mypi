@@ -61,7 +61,7 @@ export async function prepareCheckout(filename: string, project: Project, projec
     clearStaging(target);
     const staging = cloneStaging(target, process.pid);
     const { signal, onProgress } = options;
-    let report: ((line: string) => void) | undefined;
+    let report: ((line: string, heartbeat: boolean) => void) | undefined;
     if (onProgress) {
       onProgress('cloning ' + repository + ' into ' + target);
       report = throttleProgress(line => onProgress('cloning ' + repository + ' into ' + target + ': ' + line));
