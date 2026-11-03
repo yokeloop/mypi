@@ -1,6 +1,6 @@
 ---
 name: plan
-description: Take one or more registered tasks of any registered project (CODE-N) to a plan ready for /do — reconnaissance in plan-scout, forks closed with the engineer (or by assumptions with --auto), plan written by plan-writer into the task folder, published to derive, task status set to planning. Also reworks a published plan from open derive comments. Triggered by "/plan <KEY> [<KEY>…] [--auto]".
+description: Take one or more registered tasks of any registered project (CODE-N) to a plan ready for /do — reconnaissance in plan-scout, forks closed with the engineer, plan written by plan-writer into the task folder, published to derive, task status set to planning. Also reworks a published plan from open derive comments. Triggered by "/plan <KEY> [<KEY>…]".
 ---
 
 # /plan — from a registered task to an approved-ready plan
@@ -28,8 +28,6 @@ the status.
 
 - `/plan <KEY>` — a task registered in mypi (`$BIN/mp-task show <KEY>` works).
   Status must be `new`, `planning` or `blocked`; anything else → say so and stop.
-- `--auto` — no questions: every fork is closed by the scout's recommendation and
-  recorded as an Assumption. `/batch` uses this.
 
 ## Per key
 
@@ -70,14 +68,13 @@ the status.
    sources, assumptions and forks with recommendations. «Not solvable with what
    is given» → set status `blocked` with the reason, report what is missing, stop.
 
-4. **Questions.** Without `--auto`: close the scout's forks with the engineer one
+4. **Questions.** Close the scout's forks with the engineer one
    at a time through `AskUserQuestion` — header ≤ 12 characters, 2–4 options,
    the recommended one first and labelled `(рекомендую)`, one line of reasoning
    per option. Only forks whose answer changes the implementation; everything
    else is looked up in the code or recorded as an assumption. The engineer's
    answer ends the question. Never a question: logs, extra checks, release,
-   merging. With `--auto`: no questions; the recommendation of each fork becomes
-   an Assumption.
+   merging.
 
 5. **Plan.** Spawn the `plan-writer` subagent with: the key, the project, the
    task folder path, the scout's facts, every decision made above, the remarks
