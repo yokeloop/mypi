@@ -173,7 +173,10 @@ the older record moves to `<key>~<pid>.json`. A fork started by hand without
 warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
-`mypi open`) needs a running Herdr server. For each key — a project code, CODE-N,
+`mypi open`) needs a running Herdr server. In Pi, typing the arguments of /open
+suggests keys: the session's project and its open tasks in a project or task chat,
+all projects and open tasks in the main chat; choosing one inserts the key and a
+space. For each key — a project code, CODE-N,
 org/project or org/project#N — it focuses the live session's Herdr tab or opens a
 new tab in its project's Herdr workspace (label `org/project`, created when
 missing; a task gets its tab there without starting the project session) in the

@@ -6,6 +6,12 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- Pi's /open suggests project and open task keys while its arguments are typed
+  (MP-74): only the session's project in a project or task chat, everything in the
+  main chat; the list comes from the CLI and is reused for 15 s.
+
 ### Changed
 
 - README «Claude Code» (MP-66) describes what tabs opened by `/open` load, how

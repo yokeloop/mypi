@@ -115,8 +115,11 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   prompt rules only while codemode is active. The key is the one saved for
   this conversation, else `MYPI_SCOPE`, else `global`.
   It also registers the /open command (`/open <key...> [--message text]`, the
-  rest of the line after --message is the text), which runs mypi open, and the /inbox
-  command, which runs the inbox skill as /skill:inbox. On `agent_settled`
+  rest of the line after --message is the text), which runs mypi open
+  and suggests keys while its arguments are typed (the session's project and its
+  open tasks in a project or task chat, all projects and open tasks in the main
+  chat; loaded through the CLI and reused for 15 s; none for flags or after
+  --message), and the /inbox command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
   `mypi event emit` with the registered key, only in a turn that a message in
   the mypi parent-message frame started through its socket. From `session_start` to
