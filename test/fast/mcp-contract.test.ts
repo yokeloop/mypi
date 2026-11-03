@@ -26,7 +26,8 @@ test('MCP lists exactly fifteen agent tools; maintenance and replaced names are 
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
     'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end',
-    'project_remove', 'org_remove', 'unknown', '__proto__'])
+    'project_remove', 'org_remove', 'api_token_create', 'api_token_list', 'api_token_revoke', 'event_list', 'task_page',
+    'journal_page', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {

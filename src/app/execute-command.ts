@@ -15,6 +15,7 @@ import { openSession } from './launcher.js';
 import { callerKey, forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
+import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
@@ -23,6 +24,9 @@ function homeFolder(root: string | undefined, path: string): string | null {
 const reads = new Set(['memory_show', 'journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
+  if (c.name === 'api_token_create') return createApiToken(c.file, c);
+  if (c.name === 'api_token_list') return listApiTokens(c.file);
+  if (c.name === 'api_token_revoke') return revokeApiToken(c.file, c.tokenName);
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);

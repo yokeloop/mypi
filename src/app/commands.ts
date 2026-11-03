@@ -53,5 +53,8 @@ export type AppCommand =
   | { name: 'event_list'; to?: string; from?: string; kind?: 'turn_end' | 'waiting' | 'milestone' | 'message'; delivered?: boolean; q?: string; before?: number; limit: number }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'message_send'; key: string; body: TextInput; session?: SessionHint; envScope?: string; runtime?: string }
+  | { name: 'api_token_create'; file: string; tokenName: string; permission: string; sender?: string }
+  | { name: 'api_token_list'; file: string }
+  | { name: 'api_token_revoke'; file: string; tokenName: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
       session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };

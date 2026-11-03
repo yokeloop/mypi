@@ -50,6 +50,10 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   inbox: [0, 1, [], []],
   send: [1, 2, ['file'], []],
   open: [1, Infinity, ['agent', 'permission-mode', 'message'], []],
+  'token create': [1, 1, ['permission', 'sender'], []],
+  'token list': [0, 0, [], []],
+  'token revoke': [1, 1, [], []],
+  serve: [0, 0, ['listen', 'port'], []],
 };
 export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   const simple = specs[args[0]!], name = simple ? args[0]! : args.slice(0, 2).join(' ');
