@@ -24,6 +24,9 @@ match the GitHub releases.
   home>/flows/`, earlier `batches/` scores and `batch/*` branches stay as history.
   `/plan --auto` is removed. The installed engine keeps `/batch` until it is
   updated.
+- `/flow` runs the live acceptance a plan names without asking the engineer first
+  (MP-77); an exceeded stand budget or a failure that needs a decision is still a
+  question.
 - `/open` (MP-75) clones a project without a clone asynchronously with live
   progress — the Pi footer status with "Esc cancels", MCP progress notifications
   when the call has a progressToken, CLI stderr lines prefixed "mypi: " — and
