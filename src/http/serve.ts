@@ -88,12 +88,19 @@ export async function serve(options: { filename: string; tokensFile: string; lis
       else res.end();
     });
   });
-  const valid = (presented: string) => { try { return verifyApiToken(options.tokensFile, presented) !== undefined; } catch { return false; } };
   const poll = setInterval(() => {
     const changed = feed.poll();
+    let failure: string | undefined;
+    const valid = (presented: string) => {
+      try { return verifyApiToken(options.tokensFile, presented) !== undefined; } catch (e) {
+        failure ??= e instanceof Error ? e.message : String(e);
+        return false;
+      }
+    };
     for (const [res, presented] of streams) {
       if (!valid(presented)) { streams.delete(res); res.end(); } else if (changed) res.write(change());
     }
+    if (failure !== undefined) options.log(failure);
   }, POLL_MS);
   const keepalive = setInterval(() => { for (const res of streams.keys()) res.write(': keepalive\n\n'); }, KEEPALIVE_MS);
   const stop = () => {

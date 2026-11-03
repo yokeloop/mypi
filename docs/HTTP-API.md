@@ -42,7 +42,8 @@ mypi token revoke <name>
 - `create` prints the token value (`mypi_…`) once; it cannot be shown again.
   `list` shows names, permissions, senders and creation times, never hashes.
 - Every request sends `Authorization: Bearer <token>`. The file is read on every
-  request, so `revoke` takes effect at once, without a restart.
+  request, so `revoke` takes effect at once, without a restart; open `/v1/changes`
+  streams of a revoked token end within one poll tick (about 1 s).
 - `read` tokens only read; `write` tokens also write. A write token has a `sender`
   (default `global`): the session key on whose behalf `POST /v1/messages` and status
   changes run. The parent rule applies as everywhere: `global` may send only to
@@ -57,6 +58,7 @@ Every JSON response is `{ "apiVersion": 1, "data": … }` or
 | Status | Code | When |
 |---|---|---|
 | 400 | `invalid_request` | Unknown or repeated query parameter, bad value, unknown or missing body field, unknown task or project, any refused input |
+| 400 | `invalid_request` | A request target that cannot be parsed as a URL (logged with path `-`) |
 | 400 | `invalid_json` | The body is not JSON |
 | 401 | `unauthorized` | Missing or unknown bearer token (checked before routing) |
 | 403 | `forbidden` | A write route with a read token |
@@ -65,7 +67,7 @@ Every JSON response is `{ "apiVersion": 1, "data": … }` or
 | 413 | `payload_too_large` | Body over 1 MiB |
 | 415 | `unsupported_media_type` | A write without `Content-Type: application/json` |
 | 500 | `partial` | A multi-part update saved some parts; `error.saved` and `error.missing` list them |
-| 500 | `internal` | Anything else; the message is the engine's (for example a database that needs a restart after a migration) |
+| 500 | `internal` | An unreadable or invalid token file, with the fixed message `API token file is unreadable`; anything else with the engine's message (for example a database that needs a restart after a migration) |
 
 An unknown task is a 400, not a 404: 404 means only an unknown route.
 
@@ -174,7 +176,10 @@ One line per request on stderr:
 
 Time, method, path without the query, status and the token's name (`-` when no
 token was accepted). Token values, query strings, headers and bodies are never
-logged.
+logged. An unparseable request target is logged with path `-`. When the token file
+cannot be read, its raw error (with the file's path, never a token value) is written
+as a separate stderr line: once per request, and at most once per poll tick while
+change streams are checked.
 
 ## systemd user unit (example)
 
