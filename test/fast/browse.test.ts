@@ -8,6 +8,8 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { InputError } from '../../src/shared/errors.js';
 import { matchesQuery, pageLimit, takePage } from '../../src/shared/page.js';
 import { pageTasks } from '../../src/modules/tasks/public.js';
+import { createJournalBrowser, sqliteJournalStore } from '../../src/modules/knowledge/public.js';
+import { sameScope } from '../../src/shared/scope.js';
 
 test('takePage keeps the limit, returns the last shown id as next and stops reading after limit+1', () => {
   assert.deepEqual(takePage([5, 4, 3], 2, x => x), { items: [5, 4], next: 4 });
@@ -92,4 +94,28 @@ test('event browse filters by to, from, kind and delivery, searches the text, pa
   const second = browse({ before: 3, limit: 2 });
   assert.deepEqual([second.items.map(row => row.id), second.next], [[2, 1], null]);
   assert.deepEqual(rows().filter(row => row.id > 1).map(row => row.deliveredAt), [null, null, null]);
+});
+
+test('journal browser pages by id newest first with scope, time, type and text filters', t => {
+  const { filename } = state(t), db = openDatabase(filename), store = sqliteJournalStore(db);
+  t.after(() => db.close());
+  const entries = [
+    { at: '2026-10-02T00:00:00Z', scope: { type: 'global' as const }, event_type: 'note' as const, text: 'первая' },
+    { at: '2026-10-03T00:00:00Z', scope: { type: 'project' as const, key: 'MP' }, event_type: 'note' as const, text: 'Поиск один' },
+    { at: '2026-10-04T00:00:00Z', scope: { type: 'task' as const, key: 'MP-1' }, event_type: 'task_created' as const, text: 'Task registered.' },
+    { at: '2026-09-15T00:00:00Z', scope: { type: 'global' as const }, event_type: 'note' as const, text: 'вторая' },
+    { at: '2026-10-05T00:00:00Z', scope: { type: 'project' as const, key: 'MP' }, event_type: 'note' as const, text: 'поиск два' },
+  ];
+  for (const entry of entries) store.append(entry);
+  const browser = createJournalBrowser(store, () => {}, sameScope);
+  const ids = (page: { items: { id: number }[] }) => page.items.map(x => x.id);
+  const first = browser.page('all', { limit: 2 });
+  assert.deepEqual([ids(first), first.next], [[5, 4], 4]);
+  assert.deepEqual(ids(browser.page('all', { before: 4, limit: 10 })), [3, 2, 1]);
+  assert.deepEqual(ids(browser.page('all', { q: 'поиск', limit: 10 })), [5, 2]);
+  assert.deepEqual(ids(browser.page('all', { type: 'task_created', limit: 10 })), [3]);
+  assert.deepEqual(ids(browser.page({ type: 'project', key: 'MP' }, { limit: 10 })), [5, 2]);
+  assert.deepEqual(ids(browser.page('all', { from: '2026-10-01T00:00:00Z', to: '2026-10-31T23:59:59Z', limit: 10 })), [5, 3, 2, 1]);
+  assert.equal(first.items[0]!.entry.text, 'поиск два');
+  assert.throws(() => browser.page('all', { from: '2026-10-31T00:00:00Z', to: '2026-10-01T00:00:00Z', limit: 10 }), InputError);
 });

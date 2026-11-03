@@ -20,7 +20,7 @@ function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
 }
 
-const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_page', 'task_show', 'context_read']);
+const reads = new Set(['memory_show', 'journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
@@ -91,6 +91,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
         ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.limit === undefined ? {} : { limit: c.limit }),
       });
+      case 'journal_page': return app.historyPage(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {
+        ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
+        ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.q === undefined ? {} : { q: c.q }),
+        ...(c.before === undefined ? {} : { before: c.before }), limit: c.limit });
       case 'task_create': return app.tasks.create({
         title: c.title, status: c.status, slug: c.slug, source: inputText(c.source),
         project: c.project,
