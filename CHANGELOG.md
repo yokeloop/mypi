@@ -6,6 +6,15 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Changed
+
+- The main chat's role (MP-76) administers project setup on the user's request:
+  clones (a partial clone when a full one fails and the user agrees), remotes and
+  forks, branches and worktrees, registrations, and whatever keeps a project or
+  task tab from starting. Product work stays in project and task chats;
+  destructive actions and external writes need the user's current request and an
+  inspection first.
+
 ## [0.10.0] - 2026-11-03
 
 Upgrading from v0.9.0: `git pull --ff-only`, install the locked dependencies and
