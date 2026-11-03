@@ -13,6 +13,17 @@ match the GitHub releases.
   the native id; the permission mode and `/open`'s `crossSessionInbound` argument
   do not, so live delivery to restored Claude sessions needs `accept` in user
   settings) and how running Claude and Pi sessions pick up an engine update.
+- The pipeline skill `/batch` is replaced by `/flow <name> <KEY> [<KEY>…]`
+  (MP-67). One key is the ordinary case. The lead announces the order (dependencies
+  and file overlaps) before the start; tasks go one at a time through plan → do →
+  review → checks, with live acceptance where the plan names one. Plan forks, review
+  findings beyond the plan, red checks or CI, exceeded budgets and scope changes are
+  questions to the engineer, and the run waits for the answer instead of deciding or
+  setting `blocked`. The result is one branch `flow/<name>` and one PR to the
+  project's PR target, merged by `/ship flow/<name>`; scores live in `<project
+  home>/flows/`, earlier `batches/` scores and `batch/*` branches stay as history.
+  `/plan --auto` is removed. The installed engine keeps `/batch` until it is
+  updated.
 
 ## [0.9.0] - 2026-11-02
 
