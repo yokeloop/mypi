@@ -96,9 +96,8 @@ key is recorded in the flow score.
    every stop of `/do` is a question to the engineer («Flow mode» of the `do`
    skill).
 5. **Live acceptance**, only when the plan's Acceptance names a check on a stand.
-   Ask the engineer first (time and model-turn cost); on «no» record it in the
-   score and go on. On «yes» follow `docs/MANUAL-ACCEPTANCE.md` on the flow
-   worktree's head: the checklist is written before the start, checks are
+   It is part of the run, not a question: follow `docs/MANUAL-ACCEPTANCE.md` on
+   the flow worktree's head: the checklist is written before the start, checks are
    independent, the evidence goes into the task folder. Known pitfalls: Herdr
    restores the stand session's layout from a past run; tabs opened by `/open` load
    the user's personal MCP servers; start messages spend model turns (count them in
@@ -107,7 +106,8 @@ key is recorded in the flow score.
    Herdr session, and only then removes the directory. A failure inside the plan's
    scope goes to the key's teammate: fix in the task worktree, one more review
    round, the checks, a new `--no-ff` merge into the flow worktree, the failed
-   items again. A failure that needs a decision is a question.
+   items again. A failure that needs a decision is a question. A stand that would
+   exceed its model-turn or time budget is a question too.
 6. **Record.** Tick the key in the flow score with its merge SHA, the review
    verdict and the acceptance result; `$BIN/mp-home-commit <CODE> "flow <name>:
    <KEY> merged"`. Then shut the key's teammate down (`SendMessage` «shut down»;

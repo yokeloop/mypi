@@ -187,12 +187,13 @@ place; `blocked` only when the engineer answers so.
   CI red only on the test budget with `fail 0` is reported with the measurements,
   never rerun in a loop;
 - an exceeded budget, a change of scope, a new task found on the way;
-- before a live acceptance on a stand (its time and model turns);
 - red checks on the assembled flow branch before the PR.
 
 Cheap review advice inside the plan's scope is fixed by the executor, followed
 by one more review round; other advice goes into `pr.md` and the PR. The order of
-the tasks is announced with its reasoning before the start, not asked.
+the tasks is announced with its reasoning before the start, not asked. A live
+acceptance the plan names runs as part of the run, without a question; an
+exceeded stand budget or a failure that needs a decision is a question.
 
 ## Checks
 
