@@ -7,5 +7,8 @@ export function useDebouncedFilter(value: string | undefined, onChange: (value: 
   useEffect(() => {
     if (debounced.trim() !== (value ?? '')) onChange(debounced);
   }, [debounced]);
+  useEffect(() => {
+    if ((value ?? '') !== debounced.trim()) setDraft(value ?? '');
+  }, [value]);
   return [draft, setDraft];
 }
