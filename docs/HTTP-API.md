@@ -41,9 +41,14 @@ mypi token revoke <name>
   hashes. A symlink or a file readable by others is refused.
 - `create` prints the token value (`mypi_…`) once; it cannot be shown again.
   `list` shows names, permissions, senders and creation times, never hashes.
-- Every request sends `Authorization: Bearer <token>`. The file is read on every
+- Every request sends `Authorization: Bearer <token>`; a browser sends the
+  `mypi_session` cookie instead (see [Web UI](#web-ui)). The file is read on every
   request, so `revoke` takes effect at once, without a restart; open `/v1/changes`
-  streams of a revoked token end within one poll tick (about 1 s).
+  streams of a revoked token, over the header or the cookie, end within one poll tick
+  (about 1 s).
+- The `mypi_session` cookie is accepted only when there is no `Authorization` header
+  (the header wins) and only for reads: a write route answers 403 `forbidden`, even
+  for a write token. An unknown or revoked cookie answers 401 and clears the cookie.
 - `read` tokens only read; `write` tokens also write. A write token has a `sender`
   (default `global`): the session key on whose behalf `POST /v1/messages` and status
   changes run. The parent rule applies as everywhere: `global` may send only to
@@ -60,8 +65,8 @@ Every JSON response is `{ "apiVersion": 1, "data": … }` or
 | 400 | `invalid_request` | Unknown or repeated query parameter, bad value, unknown or missing body field, unknown task or project, any refused input |
 | 400 | `invalid_request` | A request target that cannot be parsed as a URL (logged with path `-`) |
 | 400 | `invalid_json` | The body is not JSON |
-| 401 | `unauthorized` | Missing or unknown bearer token (checked before routing) |
-| 403 | `forbidden` | A write route with a read token |
+| 401 | `unauthorized` | Missing or unknown bearer token or session cookie (checked before routing) |
+| 403 | `forbidden` | A write route with a read token or a browser session cookie |
 | 404 | `not_found` | Unknown path |
 | 405 | `method_not_allowed` | Known path, other method |
 | 413 | `payload_too_large` | Body over 1 MiB |
@@ -78,6 +83,9 @@ A task key is `CODE-N` (`MP-12`), a project code is `CODE` (`MP`).
 | Method and path | Permission | Command | `data` |
 |---|---|---|---|
 | `GET /v1/info` | read | — | `{ version, schemaVersion, changeId, instance }` |
+| `GET /v1/session` | read | — | `{ name, permission, via }`, `via` is `bearer` or `cookie` |
+| `POST /v1/session` | none | — | body `{ token }` → `{ name, permission }` and the `mypi_session` cookie; 401 `Unknown token` |
+| `DELETE /v1/session` | none | — | `Content-Type: application/json` required → `{ loggedOut: true }`, the cookie is cleared |
 | `GET /v1/changes` | read | — | SSE stream, see below |
 | `GET /v1/projects?org` | read | `project_list` | `{ items: project[] }` |
 | `GET /v1/projects/{CODE}/flow` | read | `project_flow` | `flow` |
@@ -209,8 +217,40 @@ systemctl --user enable --now mypi-api
 Add `Environment=XDG_STATE_HOME=…` or `Environment=XDG_CONFIG_HOME=…` when the state
 or the token file is not at the defaults.
 
+## Web UI
+
+The same `mypi serve` serves a read-only browser interface at
+`http://<listen>:<port>/` (`http://127.0.0.1:8737/` by default).
+
+- Sign in by pasting a token (read or write; in the browser both only read).
+  `POST /v1/session` sets the cookie
+  `mypi_session=<token>; Path=/; HttpOnly; SameSite=Strict; Max-Age=2592000`; page
+  scripts never see the token afterwards. Logout (`DELETE /v1/session`) clears it, and
+  `mypi token revoke` ends the session at the next request.
+- `Secure` is added only when the request carries `X-Forwarded-Proto: https` from an
+  HTTPS proxy (for example `tailscale serve`). Over plain http through Tailscale the
+  cookie has no `Secure`: the tunnel encrypts, and with `Secure` the browser would not
+  send the cookie back over http.
+- CSRF: writes over the cookie are refused, login and logout require
+  `Content-Type: application/json`, which a cross-site form cannot send, and there is
+  no CORS.
+- Static files: exact paths of `dist/ui`; any other path without an extension
+  outside `/assets/` falls back to `index.html` (client routes), while `/assets/*`
+  and paths with an extension that do not exist are 404. Hashed `/assets/*` are cached
+  for a year (`immutable`), everything else is `no-cache`; `index.html` carries a
+  Content-Security-Policy (`default-src 'self'`, inline styles only) and
+  `X-Frame-Options: DENY`. Static requests are logged with token `-`.
+- `dist/ui` is read once at startup: restart `serve` after `pnpm build`.
+- Screens: projects (with their flow), tasks, events and the journal, each with
+  filters kept in the URL, search (`q`) and a cursor "Load more". The UI rereads what
+  it shows on every `/v1/changes` event (a Live/Offline badge shows the stream), and
+  a Refresh button rereads on demand. Unknown fields and values are shown as they
+  come. The layout works down to phone width.
+- Development: `mise exec -- pnpm --filter mypi-web dev` starts Vite with a proxy of
+  `/v1` to `127.0.0.1:8737`.
+
 ## Extension points
 
-`src/http/serve.ts` dispatches by path prefix through `mounts`. The web interface
-(MP-72, static files on the same origin) and the remote MCP endpoint (MP-73, `/mcp`)
-each add one entry there.
+`src/http/serve.ts` dispatches by path prefix through `mounts`: `/v1/` (the API) and
+`/` (the web UI, MP-72), which stays last and catches every other path. The remote
+MCP endpoint (MP-73, `/mcp`) is inserted before `/`.

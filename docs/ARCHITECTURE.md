@@ -24,7 +24,7 @@ contracts, including nullable project_id, are unchanged.
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
 agent permissions, task execution queue, session catalog, multi-device and network
 sync are not implemented. Current scope is data selection, not a security perimeter.
-No mandatory external tracker or implied automatic execution. `mypi serve` is an optional foreground HTTP API over AppCommand (docs/HTTP-API.md), not a daemon the engine starts.
+No mandatory external tracker or implied automatic execution. `mypi serve` is an optional foreground HTTP API over AppCommand (docs/HTTP-API.md), not a daemon the engine starts. It also serves the read-only web UI (web/, built into dist/ui).
 
 ## 2. Code and dependencies
 
@@ -45,6 +45,8 @@ src/
 ├── infrastructure/      # SQLite, files, home Git and project clone Git, Herdr CLI, event socket
 └── shared/              # scope types, errors and partial
 ```
+
+web/ — browser UI package (React, Mantine, Vite; Feature-Sliced Design layers app → pages → widgets → features → entities → shared), built into dist/ui and served by src/http/web.ts.
 
 CLI/MCP/HTTP → app → public domain APIs. A module uses its own rules/ports; adapters
 implement ports with technical infrastructure; composition roots select adapters.

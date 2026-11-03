@@ -342,6 +342,10 @@ projects. Inspect each project's own instructions and verification commands.
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
   SQL migrations without an ORM, node:test + node:assert/strict.
+- The web UI (`web/`, a pnpm workspace package) uses React, Mantine and Vite in
+  Feature-Sliced Design layers, enforced by `.dependency-cruiser.web.cjs`.
+  `pnpm build` typechecks it and bundles it into `dist/ui`; its pure logic in
+  `web/src/shared/lib/` is tested with node:test, the UI itself on the stand.
 - Modular monolith, domain modules with Ports & Adapters and use cases.
   Before structural/dependency changes, inspect current module boundaries and
   contracts; preserve the separation of domain, application and adapters.
