@@ -3,14 +3,16 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { isIP } from 'node:net';
 import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { executeCommand } from '../app/execute-command.js';
 import { eventTransports } from '../app/event-transports.js';
-import { engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
+import { engineRoot, engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
 import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { API_VERSION, bearer, createApi } from './api.js';
 import { readSessionCookie } from './session.js';
+import { readWebAssets, webResponse } from './web.js';
 import { requestUrl } from './validate.js';
 
 export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
@@ -49,6 +51,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   if (listApiTokens(options.tokensFile).tokens.length === 0) {
     throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write');
   }
+  const assets = readWebAssets(join(engineRoot(), 'dist', 'ui'));
   const feed = createChangeFeed(options.filename);
   const instance = randomUUID(), version = engineVersion();
   const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
@@ -80,8 +83,15 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     res.writeHead(result.status, json).end(JSON.stringify(result.body));
   }
 
+  async function web(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
+    const r = webResponse(assets, req.method ?? 'GET', url.pathname);
+    res.writeHead(r.status, r.headers);
+    res.end(req.method === 'HEAD' ? undefined : r.body);
+  }
+
   const mounts: { prefix: string; handle(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> }[] = [
     { prefix: '/v1/', handle: v1 },
+    { prefix: '/', handle: web },
   ];
   const server = createServer((req, res) => {
     const url = requestUrl(req.url), method = req.method ?? 'GET';
