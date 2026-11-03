@@ -287,15 +287,16 @@ test('pi extension /open shows clone progress in the status and Esc cancels it',
   const line = 'mypi: cloning file:///r into /p/fx/big: Receiving objects: 45% (45/100), 12.30 MiB | 1.00 MiB/s';
   const error = '{"status":"error","message":"open cancelled while cloning file:///r into /p/fx/big; nothing was registered"}';
   const fake: RunCli = async (_args, { signal, onLine }) => {
+    onLine('mypi: cloning file:///r into /p/fx/big');
     onLine(line);
     await new Promise(resolve => signal.addEventListener('abort', resolve, { once: true }));
     return { code: 143, signal: null, stdout: '', stderr: line + '\n' + error + '\n' };
   };
   install(pi.api, root, serve, undefined, process.pid, fake);
-  const running = pi.commands.get('open')!.handler('FB', pi.ctx);
+  const running = pi.commands.get('open')!.handler('FB --agent pi', pi.ctx);
   await settled();
-  assert.deepEqual(pi.statuses, [['mypi-open', 'mypi open: running (Esc cancels)'],
-    ['mypi-open', 'mypi open: cloning file:///r into /p/fx/big: Receiving objects: 45% (45/100), 12.30 MiB | 1.00 MiB/s (Esc cancels)']]);
+  assert.deepEqual(pi.statuses, [['mypi-open', 'mypi open FB: running — Esc cancels'], ['mypi-open', 'mypi open FB: cloning — Esc cancels'],
+    ['mypi-open', 'mypi open FB: Receiving objects: 45% (45/100), 12.30 MiB | 1.00 MiB/s — Esc cancels']]);
   assert.equal(pi.inputs[0]!('a'), undefined);
   assert.deepEqual(pi.inputs[0]!('\x1b'), { consume: true });
   await running;

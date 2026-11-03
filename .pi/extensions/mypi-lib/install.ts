@@ -198,11 +198,21 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
         return { consume: true };
       }) : () => {};
       const status = (text: string | undefined) => { if (ctx.hasUI) ctx.ui.setStatus('mypi-open', text); };
-      status('mypi open: running (Esc cancels)');
+      const words = head.trim().split(/\s+/).filter(Boolean);
+      const option = words.findIndex(word => word.startsWith('--'));
+      const label = 'mypi open ' + (option === -1 ? words : words.slice(0, option)).join(' ') + ': ';
+      const progress = (line: string) => {
+        const rest = line.slice(6);
+        if (!rest.startsWith('cloning ')) return rest;
+        const into = rest.indexOf(' into ');
+        const cut = into === -1 ? -1 : rest.indexOf(': ', into);
+        return cut === -1 ? 'cloning' : rest.slice(cut + 2);
+      };
+      status(label + 'running — Esc cancels');
       let result;
       try {
-        result = await runCli([cli, 'open', ...head.trim().split(/\s+/).filter(Boolean), ...message], { cwd: root, signal: controller.signal,
-          onLine: line => { if (line.startsWith('mypi: ')) status('mypi open: ' + line.slice(6) + ' (Esc cancels)'); } })
+        result = await runCli([cli, 'open', ...words, ...message], { cwd: root, signal: controller.signal,
+          onLine: line => { if (line.startsWith('mypi: ')) status(label + progress(line) + ' — Esc cancels'); } })
           .catch((error: unknown) => ({ code: null, signal: null, stdout: '', stderr: error instanceof Error ? error.message : String(error) }));
       } finally {
         stop();
