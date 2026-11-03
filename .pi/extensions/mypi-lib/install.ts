@@ -1,5 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { completionSource, openCompletions, scopeCode } from './open-completions.js';
+import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
 interface ExtensionContext {
   hasUI: boolean;
@@ -18,7 +20,8 @@ interface McpServer {
 export interface ExtensionAPI {
   registerMcpServer(name: string, server: McpServer): void;
   unregisterMcpServer(name: string): void;
-  registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void> }): void;
+  registerCommand(name: string, command: { description: string; handler: (args: string, ctx: ExtensionContext) => Promise<void>;
+    getArgumentCompletions?: (prefix: string) => Promise<CompletionItem[] | null> }): void;
   exec(command: string, args: string[], options: { cwd: string; timeout: number }): Promise<{ code: number; killed?: boolean; stderr: string; stdout: string }>;
   sendUserMessage(content: string, options?: { expandPromptTemplates?: boolean; deliverAs?: 'steer' | 'followUp' }): void;
   on(name: 'session_start', handler: (event: { reason: string }, ctx: ExtensionContext) => Promise<void>): void;
@@ -52,7 +55,7 @@ function clip(text: string): string {
 }
 
 export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid,
-  runCli: RunCli = unavailable): void {
+  runCli: RunCli = unavailable, now: () => number = Date.now): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
@@ -73,6 +76,16 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   let loaded: string | undefined;
   let context = '';
   let key: string | undefined;
+  const catalog = completionSource(async () => {
+    try {
+      const [projects, tasks] = await Promise.all([
+        pi.exec('node', [cli, 'project', 'list'], { cwd: root, timeout: 5000 }),
+        pi.exec('node', [cli, 'task', 'list'], { cwd: root, timeout: 5000 }),
+      ]);
+      if (projects.code !== 0 || projects.killed || tasks.code !== 0 || tasks.killed) return undefined;
+      return { projects: (JSON.parse(projects.stdout) as { projects: OpenCatalog['projects'] }).projects, tasks: JSON.parse(tasks.stdout) as OpenCatalog['tasks'] };
+    } catch { return undefined; }
+  }, now);
   let last = '';
   let current: ExtensionContext | undefined;
   let socket: { path: string; server: { close(): Promise<void> }; dev?: number; ino?: number } | undefined;
@@ -187,6 +200,10 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   });
   pi.registerCommand('open', {
     description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]',
+    getArgumentCompletions: async prefix => {
+      const data = await catalog();
+      return data === undefined ? null : openCompletions(prefix, data, scopeCode(key));
+    },
     handler: async (args, ctx) => {
       const marker = /(?:^|\s)--message(?:\s|$)/.exec(args);
       const head = marker === null ? args : args.slice(0, marker.index);

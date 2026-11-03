@@ -23,7 +23,7 @@ function stub() {
   const statuses: [string, string | undefined][] = [];
   const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
   const terminal = { unsubscribed: 0 };
-  const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void> }>();
+  const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
   const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
@@ -31,7 +31,7 @@ function stub() {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
     registerMcpServer(name: string, config: unknown) { servers.push({ name, config }); },
     unregisterMcpServer(name: string) { removed.push(name); },
-    registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void> }) { commands.set(name, command); },
+    registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }) { commands.set(name, command); },
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
     sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
   };
@@ -321,6 +321,38 @@ test('pi extension /inbox runs the inbox skill', async () => {
   await pi.commands.get('inbox')!.handler('', pi.ctx);
   assert.deepEqual(pi.sent, [['/skill:inbox MP', { expandPromptTemplates: true }], ['/skill:inbox', { expandPromptTemplates: true }]]);
   assert.deepEqual(pi.calls, []);
+});
+
+test('pi extension /open suggests keys of the session\'s project from the CLI', async () => {
+  const pi = stub();
+  let clock = 1000;
+  install(pi.api, root, serve, undefined, process.pid, undefined, () => clock);
+  pi.state.key = 'MP-74';
+  const projects = { code: 0, killed: false, stderr: '', stdout: JSON.stringify({ projects: [{ id: 1, org: 'yokeloop', slug: 'mypi', code: 'MP' },
+    { id: 2, org: 'acme', slug: 'shop', code: 'SH' }] }) };
+  const tasks = { code: 0, killed: false, stderr: '', stdout: JSON.stringify([
+    { projectId: 1, number: 74, title: 'Completions', status: 'planning', isTerminal: false, key: 'MP-74' },
+    { projectId: 2, number: 3, title: 'Cart', status: 'open', isTerminal: false, key: 'SH-3' }]) };
+  let taskList: unknown = tasks;
+  pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : args[1] === 'project' ? projects : args[1] === 'task' ? taskList
+    : { code: 0, killed: false, stdout: '# mypi warmup\n', stderr: '' };
+  await pi.start('startup');
+  const open = pi.commands.get('open')!;
+  const lists = () => pi.calls.filter(call => (call[1] as string[])[1] === 'project').length;
+  assert.deepEqual(await open.getArgumentCompletions!('MP-'), [{ value: 'MP-74 ', label: 'MP-74', description: 'planning · Completions' }]);
+  assert.deepEqual(pi.calls.filter(call => ['project', 'task'].includes((call[1] as string[])[1]!)), [
+    ['node', [cli, 'project', 'list'], { cwd: root, timeout: 5000 }], ['node', [cli, 'task', 'list'], { cwd: root, timeout: 5000 }]]);
+  await open.getArgumentCompletions!('S');
+  assert.equal(lists(), 1);
+  clock += 15_000;
+  taskList = { code: 1, killed: false, stdout: '', stderr: 'boom' };
+  assert.equal(await open.getArgumentCompletions!(''), null);
+  assert.equal(lists(), 2);
+  taskList = tasks;
+  assert.deepEqual((await open.getArgumentCompletions!('') as { label: string }[]).map(item => item.label), ['MP', 'MP-74']);
+  assert.equal(lists(), 3);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
+  assert.equal(pi.commands.get('inbox')!.getArgumentCompletions, undefined);
 });
 
 function sockets(t: TestContext) {
