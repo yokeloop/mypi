@@ -104,6 +104,7 @@ pub struct App {
     pub view: View,
     pub focus: Focus,
     pub live: bool,
+    pub offline: Option<String>,
     pub info: Option<Info>,
     pub fatal: Option<String>,
     pub status: Option<String>,
@@ -129,6 +130,7 @@ impl App {
             view: View::List,
             focus: Focus::Normal,
             live: false,
+            offline: None,
             info: None,
             fatal: None,
             status: None,
@@ -204,9 +206,13 @@ impl App {
                 self.fatal = None;
             }
             Msg::Info(Err(failure)) => self.fatal = Some(failure.message),
-            Msg::StreamUp => self.live = true,
-            Msg::StreamDown(_) => {
+            Msg::StreamUp => {
+                self.live = true;
+                self.offline = None;
+            }
+            Msg::StreamDown(reason) => {
                 self.live = false;
+                self.offline = Some(reason);
                 self.changes.on_disconnect();
             }
             Msg::Change(data) => {
@@ -935,6 +941,7 @@ mod tests {
         assert!(app.take_effects().is_empty());
         app.apply(Msg::StreamDown("closed".into()));
         assert!(!app.live);
+        assert_eq!(app.offline.as_deref(), Some("closed"));
         app.apply(Msg::Change(r#"{"changeId":5}"#.into()));
         assert_eq!(
             app.take_effects(),

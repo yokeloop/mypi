@@ -110,6 +110,9 @@ fn header(frame: &mut Frame, app: &App, area: Rect, mode: Mode) {
             } else {
                 Span::styled("○ Offline", tone(Tone::Muted))
             });
+            if let (false, Some(reason)) = (app.live, &app.offline) {
+                spans.push(Span::styled(format!(" · {reason}"), tone(Tone::Dim)));
+            }
             if mode == Mode::Split {
                 spans.push(Span::styled(format!("  {}", app.url), tone(Tone::Dim)));
             }
