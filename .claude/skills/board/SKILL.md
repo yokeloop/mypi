@@ -1,13 +1,15 @@
 ---
 name: board
-description: Show where a project's tasks stand — status, plan URL, PR, worktree, open derive threads — in one table, with the next sensible step per task; the project of the session scope, or the typed CODE in the main chat. Read-only. Triggered by "/board [CODE] [all]".
+description: Show where a project's tasks stand — status, plan URL, PR, worktree, open derive threads — in one table, with the next sensible step per task; the project of the session scope, the projects of the organization in an organization chat, or the typed CODE in the main chat. Read-only. Triggered by "/board [CODE] [all]".
 ---
 
 # /board — the board
 
 `/board [CODE] [all]` — `CODE` is a project code, `all` also shows terminal tasks.
 The word `all` is always the flag, never a `CODE`: `/board all` is the board of the
-session's project (or MP in global) with terminal tasks.
+session's project (or MP in global) with terminal tasks. In an organization chat
+`/board` shows the boards of the organization's projects one after another, and
+`/board all` the same with terminal tasks.
 
 Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's working directory).
 
