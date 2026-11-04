@@ -47,7 +47,7 @@ Task and journal saves are local SQLite operations, not Git commits or remote ba
 Import legacy JSONL explicitly after stopping old writers; keep the original files.
 Local backup still requires clean, published context files. Publication uses existing home origin/main.
 Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
-open keys: a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
+open keys: an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
 Set XDG_STATE_HOME to isolated state for development.
 `;
 
