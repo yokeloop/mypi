@@ -16,6 +16,9 @@ mypi serve [--listen <IP>] [--port <n>]
   `{"status":"listening","url":"http://127.0.0.1:8737"}` (the real port after `--port 0`).
 - SIGINT or SIGTERM (Ctrl+C) stops it with exit code 0: change streams are closed and
   the port is released.
+- `mypi serve` validates its arguments and runs the server as a child process,
+  `node dist/src/http/main.js`, so other CLI commands never load the HTTP server or
+  the MCP SDK. SIGINT and SIGTERM are forwarded to it; the CLI exits with its code.
 - It refuses to start without any API token, without an initialized database, or
   with a database schema other than the one the engine expects (12).
 
@@ -99,6 +102,10 @@ A task key is `CODE-N` (`MP-12`), a project code is `CODE` (`MP`).
 | `POST /v1/messages` | write | `message_send` | `{ id, delivered }`, status 201 |
 | `GET /v1/sessions` | read | `sessions` | `session` (the root of the tree) |
 | `GET /v1/context?path&revision` | read | `context_read` | `context` |
+| `POST /mcp` | read or write, by token | MCP JSON-RPC (Streamable HTTP, stateless, JSON responses) | see [docs/MCP.md](MCP.md#remote-mcp-over-http) |
+
+Errors of `/mcp` are JSON-RPC (`401` with `WWW-Authenticate: Bearer`, `405` on
+`GET`/`DELETE`, `500` `API token file is unreadable`), not the `{apiVersion}` envelope.
 
 Query details:
 
@@ -193,6 +200,8 @@ cannot be read, its raw error (with the file's path, never a token value) is wri
 as a separate stderr line: once per request, and at most once per poll tick while
 change streams are checked.
 
+Requests to /mcp are logged the same way, with path /mcp.
+
 ## systemd user unit (example)
 
 Not installed automatically. `~/.config/systemd/user/mypi-api.service`:
@@ -251,6 +260,4 @@ The same `mypi serve` serves a read-only browser interface at
 
 ## Extension points
 
-`src/http/serve.ts` dispatches by path prefix through `mounts`: `/v1/` (the API) and
-`/` (the web UI, MP-72), which stays last and catches every other path. The remote
-MCP endpoint (MP-73, `/mcp`) is inserted before `/`.
+`src/http/serve.ts` dispatches by path prefix through `mounts`: `/v1/` (the API), `/mcp` (the remote MCP endpoint, [MCP](MCP.md#remote-mcp-over-http), same tokens and access log) and `/` (the web UI, MP-72), which stays last and catches every other path.

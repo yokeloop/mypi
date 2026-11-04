@@ -31,8 +31,8 @@ No mandatory external tracker or implied automatic execution. `mypi serve` is an
 ```text
 src/
 ├── cli/                 # argv -> AppCommand, JSON, exit
-├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
-├── http/                # node:http server, bearer tokens, /v1 routes, SSE changes
+├── mcp/                 # SDK stdio and remote Streamable HTTP, schemas, envelopes, serial calls
+├── http/                # node:http server (own entry main.ts, spawned by mypi serve), bearer tokens, /v1 routes, SSE changes, /mcp mount
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
 │   ├── projects/        # registry, identity, checkout and scope
