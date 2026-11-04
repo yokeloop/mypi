@@ -38,6 +38,7 @@ case "$cmd" in
       -p OOMPolicy=kill -p NoNewPrivileges=yes \
       bwrap --unshare-all --die-with-parent --new-session --cap-drop ALL --clearenv \
       --ro-bind /usr /usr --symlink usr/bin /bin --symlink usr/lib /lib --ro-bind /lib64 /lib64 \
+      --ro-bind-try /etc/alternatives /etc/alternatives \
       --proc /proc --dev /dev --tmpfs /tmp --dir /home --dir /home/test \
       --ro-bind "$sysroot" /rust --ro-bind "$tui" /work/tui --bind "$target" /work/tui/target \
       --setenv PATH /rust/bin:/usr/bin --setenv HOME /home/test --setenv LANG C.UTF-8 --setenv TMPDIR /tmp \
