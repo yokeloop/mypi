@@ -94,7 +94,7 @@ row `▼ Load more`, `m`, or `↓` on the last row loads the next page. Events m
 | `Tab` / `Shift-Tab`, `1`-`4` | switch section |
 | `j` `k`, `↓` `↑`, `PgDn` `PgUp`, `g` `G`, `Home` `End` | move; in the details: scroll |
 | `Enter` | details |
-| `Esc`, `Backspace` | back: closes the filter form or help, leaves the details |
+| `Esc`, `Backspace` | back: leaves the details (`f`/`Esc` close the filter form, any key closes help) |
 | `o` | open the session tab of a project or task row |
 | `r` | refresh the section |
 | `m` | load more |
@@ -128,7 +128,7 @@ are opened; `r` rereads by hand.
 Herdr it shows a message and changes nothing. It runs
 `mise exec -- node dist/src/cli/main.js open <KEY>` in the engine root, with the
 TUI's environment, so it uses the same database and the same Herdr. The engine root
-is two levels above the binary (`<engine>/tui/bin/mypi-tui`); `MYPI_ENGINE_ROOT`
+is two levels above the binary's directory (`<engine>/tui/bin/mypi-tui`); `MYPI_ENGINE_ROOT`
 overrides it. Clone progress and the result (`FX-1: started (claude)`, errors)
 appear in the status line.
 
