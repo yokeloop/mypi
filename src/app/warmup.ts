@@ -6,7 +6,7 @@ import type { FlowFiles } from './project-flow.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { factLines } from '../modules/memory/public.js';
-import { DEFAULT_TASK_BRANCH, taskBranchName } from '../modules/projects/public.js';
+import { DEFAULT_TASK_BRANCH, taskBranchName, validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { frame } from '../modules/events/public.js';
@@ -94,11 +94,12 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
     ? { size: (text: string) => Buffer.byteLength(text), max: WARMUP_LIMIT, label: '64 KiB' }
     : { size: (text: string) => text.length, max: maxChars, label: maxChars + '-character' };
   externalDatabasePath(filename, root);
-  const project = /^[A-Z]+$/.test(key);
-  const app = createApp(filename, !project);
+  const isOrg = key !== 'global' && key !== 'all' && validSlug(key);
+  const delivers = /^[A-Z]+$/.test(key) || isOrg;
+  const app = createApp(filename, !delivers);
   try {
     const files = contextFiles(root);
-    return (project ? app.serialize : app.readSnapshot)(() => {
+    return (delivers ? app.serialize : app.readSnapshot)(() => {
       const projects = app.projects.list();
       const cards = app.tasks.list();
       const owner = (card: Card) => projects.find(p => p.id === card.projectId);
@@ -110,8 +111,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       };
       const projectZone = (project: Project) => zone('projects/' + project.org + '/' + project.slug + '/MEMORY.md',
         { type: 'project', key: project.code }, ' -s ' + project.org + '/' + project.slug);
-      const orgZone = (project: Project) => zone('projects/' + project.org + '/MEMORY.md',
-        { type: 'org', key: project.org }, ' -s ' + project.org);
+      const orgZone = (org: string) => zone('projects/' + org + '/MEMORY.md', { type: 'org', key: org }, ' -s ' + org);
       let header: string, role: string, zones: Zone[], tail: string[];
       let fresh: EventRow[] = [], history: EventRow[] = [];
       if (key === 'global') {
@@ -127,10 +127,28 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         header = '# mypi warmup: ' + key + ' (' + project.org + '/' + project.slug + ')\n\nBase clone: ' + project.checkoutPath
           + flowLine(files, project);
         role = 'project';
-        zones = [orgZone(project), projectZone(project)];
+        zones = [orgZone(project.org), projectZone(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
         tail = ['## Open tasks\n\n' + (open.length === 0 ? '(none)'
           : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n'))];
+        fresh = app.events.pending(key).filter(event => event.kind !== 'message');
+        const openKeys = new Set(open.map(taskKey));
+        history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
+      } else if (isOrg) {
+        const own = app.projects.list(key).sort((a, b) => a.code.localeCompare(b.code));
+        header = '# mypi warmup: ' + key + ' (organization)';
+        role = 'org';
+        zones = [zone('MEMORY.md', { type: 'global' }, ''), orgZone(key)];
+        const open = cards.filter(card => own.some(p => p.id === card.projectId) && !card.isTerminal);
+        const counts = (project: Project) => {
+          const groups = new Map<string, number>();
+          for (const card of open.filter(c => c.projectId === project.id).sort((a, b) => a.statusId - b.statusId)) {
+            groups.set(card.status, (groups.get(card.status) ?? 0) + 1);
+          }
+          return groups.size === 0 ? 'none' : [...groups].map(([status, n]) => status + ' ' + n).join(', ');
+        };
+        tail = ['## Projects\n\n' + (own.length === 0 ? '(none)' : own.map(p => '- ' + p.code + ' ' + p.org + '/' + p.slug + ': '
+          + (p.checkoutPath ?? 'no clone') + ' · open: ' + counts(p)).join('\n'))];
         fresh = app.events.pending(key).filter(event => event.kind !== 'message');
         const openKeys = new Set(open.map(taskKey));
         history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
@@ -153,7 +171,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
       } else {
-        throw new InputError('Invalid scope key: ' + key + '; use global, a project code (MP) or a task key (MP-12)');
+        throw new InputError('Invalid scope key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
       const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
@@ -200,7 +218,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         else { out = render(hidden, true); break; }
         out = render(hidden, false);
       }
-      if (project) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));
+      if (delivers) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));
       return out;
     });
   } finally { app.close(); }

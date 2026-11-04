@@ -18,13 +18,13 @@ mypi project update <org/project> [(--expected-path <previous> | --expected-unse
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
-mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
+mypi bootstrap | warmup [-s global|org|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
-mypi inbox [CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
+mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
 mypi open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
