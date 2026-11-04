@@ -6,6 +6,16 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-04
+
+Upgrading from v0.10.0: `git pull --ff-only`, `mise install` (now also installs the
+pinned Rust 1.99.1 for the TUI), install the locked dependencies (the root and the
+`web/` workspace package) and build; no migration (schema 12); reload or restart
+Claude Code and Pi sessions (Pi `/reload`, Claude `/mcp` reconnect) so the new main
+chat role takes effect. For the terminal UI also run `pnpm tui:fetch` and
+`pnpm tui:build`. `mypi serve` (HTTP API, web UI, remote MCP) is optional and
+starts only when you run it; create a token with `mypi token create` first.
+
 ### Added
 
 - HTTP API (MP-71): `mypi serve` runs a foreground REST/JSON server under /v1 on 127.0.0.1:8737 (another address only with --listen, e.g. a Tailscale IP; no TLS in process) with bearer tokens from `mypi token create|list|revoke` kept hashed in $XDG_CONFIG_HOME/mypi/api-tokens.json. It reads projects, tasks, events (without marking them delivered) and the journal with filters, search and cursor pages, sessions and context files; it writes task create/update, journal notes and parent messages from the token's sender. /v1/info carries changeId, which also streams over SSE /v1/changes. A documented systemd user unit is an example, not installed. Restart the server after an engine update or migration.
