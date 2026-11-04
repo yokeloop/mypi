@@ -62,7 +62,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(info.status, 200);
   const version = (JSON.parse(readFileSync('/work/package.json', 'utf8')) as { version: string }).version;
   const { schemaVersion, version: served, changeId: c0 } = info.body.data as { schemaVersion: number; version: string; changeId: number };
-  assert.deepEqual([schemaVersion, served], [12, version]);
+  assert.deepEqual([schemaVersion, served], [13, version]);
 
   const page = await fetch(url + '/');
   const html = await page.text();
