@@ -69,6 +69,28 @@ test('project start message groups open tasks by status and counts undelivered e
     + 'Дождись указаний или предложи следующий шаг.');
 });
 
+test('organization start message lists each project\'s open tasks by status and counts the organization\'s undelivered events without delivering them', t => {
+  const { filename } = fixture(t);
+  const app = createApp(filename, false);
+  try {
+    app.projects.add('one/second', 'AB');
+    app.events.emit({ from: 'MP-7', kind: 'turn_end', message: 'one', to: 'one' });
+    app.events.emit({ from: 'MP-12', kind: 'waiting', message: 'two' });
+    app.events.milestone({ from: 'MP-3', to: 'one', message: 'new → review: ready' });
+    app.events.send({ from: 'global', to: 'one', message: 'веди проекты' });
+  } finally { app.close(); }
+  assert.equal(startMessage(filename, 'one', null), 'Организация one, проектов 2.\n\n'
+    + 'Проект AB (one/second): Открытых задач нет.\n\n'
+    + 'Проект MP (one/project): Открытые задачи по статусам:\n'
+    + 'new (2):\n- MP-3 Draft the API\n- MP-4 Other\n'
+    + 'planning (1):\n- MP-12 Scoped warmup\n'
+    + 'in_progress (1):\n- MP-7 Started work\n\n'
+    + 'Недоставленных событий от задач на момент открытия: 2.\n\n'
+    + 'Дождись указаний или предложи следующий шаг.');
+  const read = createApp(filename, true);
+  try { assert.deepEqual(read.events.pending('one').map(e => e.id), [1, 3, 4]); } finally { read.close(); }
+});
+
 test('task start message shows status, worktree and the last five journal entries with their artifacts', t => {
   const { filename, journal } = fixture(t);
   const task = { type: 'task' as const, key: 'MP-12' };
