@@ -104,6 +104,7 @@ not a mislabeled fast profile.
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
 - The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
 - Pure web UI logic lives in web/src/shared/lib/ (no React, DOM or Node APIs), is compiled by the root tsc and tested in fast; the UI is typechecked and bundled into dist/ui by pnpm build, its layers checked by .dependency-cruiser.web.cjs in verify, and its behavior accepted on the stand. There is no browser test runner.
+- The Rust TUI (tui/) has its own check, not a third node profile: pnpm verify first runs scripts/tui.sh check (cargo fmt, clippy -D warnings, test, build) offline in the bounded mypi-tui-check unit. cargo test runs only in-process unit tests of pure parts (no child processes, sockets or network; private files only in a temp dir); the terminal UI itself is accepted on the stand through Herdr.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -129,6 +130,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
 | HTTP API | Pure handler: auth, routing, validation, cursor paging, response shapes; keyset pages of tasks, events and journal; data_version feed; token file | One loopback serve subprocess: 401/403, a cursor read, a write, changeId and SSE after it, access log without secrets |
 | Web UI | Envelope unwrapping, screen filters and API paths, generic field display, change tracking; session cookie rules in the pure handler; static asset resolution | The same loopback serve subprocess: index, asset and SPA fallback, cookie login with HttpOnly/SameSite/Secure, read-only cookie, an SSE stream over the cookie, revocation ends it |
+| TUI (Rust) | cargo unit tests: arguments, URL and token file rules, envelope and page mapping, query parameters, SSE parsing and change tracking, schema-tolerant display, paging state, layout breakpoints, click zones, open outcome | Stand through Herdr: the real plugin pane, keys and clicks, narrow width, live refresh, mypi open |
 
 Cover useful commands without replicating the complete error matrix at every level.
 A domain test and boundary canary may overlap when they catch different failures:
@@ -244,6 +246,8 @@ unit mypi-tests (scripts/check.sh) and the CI build unit mypi-ci-build
 total, which leaves room above the 55 s budget.
 Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
+
+Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the 55 s test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated
