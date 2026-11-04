@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 
 mod api;
+mod app;
 mod config;
 mod filters;
 mod model;
