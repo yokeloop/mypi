@@ -81,6 +81,9 @@ installed=false
 if [[ -f "$wt/pnpm-lock.yaml" && ! -d "$wt/node_modules" ]]; then
   (cd "$wt" && mise exec -- pnpm install --frozen-lockfile --prefer-offline >&2); installed=true
 fi
+if [[ -f "$wt/tui/Cargo.lock" && ! -d "$wt/tui/target/cargo-home/registry" ]]; then
+  (cd "$wt" && mise exec -- pnpm tui:fetch >&2); installed=true
+fi
 head_sha=$(git -C "$wt" rev-parse HEAD)
 python3 - "$key" "$branch" "$wt" "$base_ref" "$base_sha" "$head_sha" "$dirty" "$created_branch" "$created_worktree" "$installed" <<'EOF'
 import sys,json

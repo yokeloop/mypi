@@ -3,11 +3,15 @@
 set -euo pipefail
 root="$(realpath "$(dirname "$0")/..")"
 [[ "$#" == 0 ]] || { echo 'Usage: bash scripts/ci.sh' >&2; exit 2; }
-[[ -d "$root/node_modules" && -d "$root/src" && -d "$root/test" && -d "$root/integrations" && -d "$root/web/node_modules" ]]
-[[ -z "$(find "$root/src" "$root/test" "$root/integrations" "$root/web/src" -type l -print -quit)" ]] || { echo 'Symlink in source' >&2; exit 1; }
+[[ -d "$root/node_modules" && -d "$root/src" && -d "$root/test" && -d "$root/integrations" && -d "$root/web/node_modules" && -d "$root/tui/target/cargo-home/registry" ]]
+[[ -z "$(find "$root/src" "$root/test" "$root/integrations" "$root/web/src" "$root/tui/src" -type l -print -quit)" ]] || { echo 'Symlink in source' >&2; exit 1; }
 work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mypi-ci.XXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
 cp -a --reflink=auto "$root"/{src,test,integrations,.pi,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.dependency-cruiser.web.cjs,.mcp.json,web,pnpm-workspace.yaml} "$work/"
+# The Rust TUI: sources and the fetched crates, not the host build output.
+mkdir -p "$work/tui/target"
+cp -a --reflink=auto "$root"/tui/{Cargo.toml,Cargo.lock,rust-toolchain.toml,src} "$work/tui/"
+cp -a --reflink=auto "$root/tui/target/cargo-home" "$work/tui/target/"
 mkdir "$work/.claude" && cp --reflink=auto "$root/.claude/settings.json" "$work/.claude/"
 mkdir "$work/tools" "$work/dist"
 cp --reflink=auto "$(command -v node)" "$work/tools/node"
