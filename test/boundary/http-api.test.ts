@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie', async t => {
+test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie, and MCP JSON-RPC on /mcp', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = '/work/dist/src/cli/main.js';
@@ -32,8 +32,8 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   };
   const reader = token('reader', 'read'), writer = token('writer', 'write'), viewer = token('viewer', 'read');
 
-  const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
-  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+  t.after(() => { if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid!, 'SIGKILL'); });
   let stdout = '', stderr = '';
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
   const exited = new Promise<number | null>(resolve => child.once('exit', code => resolve(code)));
@@ -145,11 +145,44 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.deepEqual([second.items.map(e => e.text), second.next], [['один'], null]);
   controller.abort();
 
-  child.kill('SIGTERM');
+  const rpc = async (value: string | undefined, body: unknown, method = 'POST') => {
+    const response = await fetch(url + '/mcp', { method, headers: { accept: 'application/json, text/event-stream', 'content-type': 'application/json',
+      ...(value === undefined ? {} : auth(value)) }, ...(method === 'POST' ? { body: JSON.stringify(body) } : {}) });
+    return { response, body: await response.json() as { result: never } };
+  };
+  const initialize = { jsonrpc: '2.0', id: 1, method: 'initialize',
+    params: { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'boundary', version: '1' } } };
+  const call = async (value: string, name: string, args: unknown) =>
+    (await rpc(value, { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name, arguments: args } })).body.result as
+      { isError?: boolean; structuredContent: { status: string; message: string; data: unknown } };
+  const anonymous = await rpc(undefined, initialize);
+  assert.equal(anonymous.response.status, 401);
+  assert.match(anonymous.response.headers.get('www-authenticate') ?? '', /^Bearer/);
+  assert.equal((await rpc(reader, undefined, 'GET')).response.status, 405);
+  const initialized = await rpc(reader, initialize);
+  assert.equal(initialized.response.status, 200);
+  const { serverInfo } = initialized.body.result as { serverInfo: { name: string; version: string } };
+  assert.deepEqual([serverInfo.name, serverInfo.version], ['mypi', version]);
+  assert.equal(initialized.response.headers.get('mcp-session-id'), null);
+  const names = async (value: string) => ((await rpc(value, { jsonrpc: '2.0', id: 2, method: 'tools/list' })).body.result as { tools: unknown[] }).tools.length;
+  assert.deepEqual([await names(reader), await names(writer)], [5, 9]);
+  const remoteTask = { project: 'fx/one', title: 'Удалённая', status: 'new', slug: 'remote', source: { text: 'с другой машины' } };
+  const readOnly = await call(reader, 'task_create', remoteTask);
+  assert.deepEqual([readOnly.isError, readOnly.structuredContent.message], [true, 'This token is read-only']);
+  assert.equal((await call(writer, 'task_create', { ...remoteTask, source: { file: '/etc/hostname' } })).isError, true);
+  assert.equal(((await call(reader, 'task_list', {})).structuredContent.data as unknown as unknown[]).length, 0);
+  const fx = { type: 'project', key: 'FX' };
+  assert.equal((await call(writer, 'note', { kind: 'journal', scope: fx, text: 'Удалённая' })).structuredContent.status, 'ok');
+  assert.match(JSON.stringify((await call(reader, 'journal', { scope: fx })).structuredContent.data), /Удалённая/);
+
+  process.kill(-child.pid!, 'SIGINT');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
   assert.match(stderr, / \/v1\/messages 201 writer/);
   assert.match(stderr, / \/ 200 -/);
   assert.match(stderr, / \/v1\/session 200 reader/);
-  for (const secret of [reader, writer, viewer, 'один', 'два']) assert.equal(stderr.includes(secret), false, secret);
+  assert.match(stderr, / \/mcp 401 -/);
+  assert.match(stderr, / \/mcp 405 reader/);
+  assert.match(stderr, / \/mcp 200 writer/);
+  for (const secret of [reader, writer, viewer, 'один', 'два', 'Удалённая', 'с другой машины']) assert.equal(stderr.includes(secret), false, secret);
 });

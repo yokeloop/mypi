@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) (maintenance is CLI-only, including undoing a mistaken project or organization registration).
+scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -365,6 +365,7 @@ printed once and stored hashed in `$XDG_CONFIG_HOME/mypi/api-tokens.json`. Then 
 `mypi serve`: it listens on `127.0.0.1:8737`, and `--listen <IP>` (for example a
 Tailscale IP) is the only way to expose it. Routes, tokens, change streams and an
 example systemd user unit: [docs/HTTP-API.md](docs/HTTP-API.md).
+`mypi serve` also answers MCP at `/mcp` for agents on other machines (a read or write subset by token; [docs/MCP.md](docs/MCP.md#remote-mcp-over-http)).
 
 Web UI: open `http://127.0.0.1:8737/` (or the `--listen` address) in a browser and
 paste a token. The interface only reads: projects, tasks, events and the journal,

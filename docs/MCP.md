@@ -1,7 +1,6 @@
 # mypi MCP
 
-Local stdio server in the same package, sharing the typed application API with CLI.
-No HTTP daemon or session orchestrator. [Implementation evidence](MCP-CYCLE.md).
+Local stdio server in the same package, sharing the typed application API with CLI; `mypi serve` also serves a remote subset over Streamable HTTP at /mcp ([below](#remote-mcp-over-http)). No session orchestrator. [Implementation evidence](MCP-CYCLE.md).
 Development guidance: [AGENTS](../AGENTS.md). The former mandatory agent workflow
 is [withdrawn](AGENT-WORKFLOW.md); the server supplies no workflow instructions.
 The [original MCP plan](MCP-PLAN.html) is historical, including its user-global setup.
@@ -48,7 +47,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-15 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions, open_session, send_message and inbox. Inspect live schemas for fields. Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+15 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions, open_session, send_message and inbox. Inspect live schemas for fields. The remote /mcp endpoint offers a narrower subset ([below](#remote-mcp-over-http)). Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
 `memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title and progress commands (or touch alone) in that order within one serial slot; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error. A status change to review, blocked, merged or a terminal status queues a milestone event for the project chat (inbox, warmup), unless the caller is the project chat itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones never start a turn.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
@@ -101,6 +100,48 @@ Scope is not an ACL. The server runs with local user permissions; file/checkout/
 arguments can reference explicit external paths. No arbitrary SQL/shell tool is exposed.
 Read-only hints are not authorization; writes are not declared idempotent, and backup,
 warmup and inbox are not read-only. Responses are not truncated by the server.
+
+## Remote MCP over HTTP
+
+`POST /mcp` is served by the `mypi serve` process ([HTTP API](HTTP-API.md)): the same
+address, `--listen`, port and token file. Every request carries
+`Authorization: Bearer <token>`; there is no OAuth.
+
+- Stateless: there is no session and no `mcp-session-id`; every request is answered
+  with one JSON body. `GET` and `DELETE` answer 405, so there is no server-to-client
+  SSE stream. The client sends `Accept: application/json, text/event-stream` and
+  `Content-Type: application/json`.
+- Tools: a read token sees `task_list`, `task_show`, `journal`, `context_read` and
+  `projects` (`list`, `flow`); a write token also sees `task_create`, `task_update`
+  (without `artifacts`), `note` (only `kind: journal`) and `send_message`. A write
+  called with a read token is refused with `This token is read-only`. Text inputs are
+  `{text}` only. There is no `warmup`, `inbox`, `sessions`, `open_session`, `memory`,
+  `context_write`, `projects` add/update/resolve or maintenance.
+- The web session cookie (MP-72) is not accepted on `/mcp`: only the `Authorization`
+  header authorizes. Only `authorization`, `accept`, `content-type` and
+  `mcp-protocol-version` are passed to the MCP handler.
+- The caller is the token's `sender`: `send_message` and status changes are made as
+  that key; `MYPI_SCOPE` and the server's session are never used. Results use the same
+  `{status, data}` envelope as the local server.
+- A remote agent gets no warmup, so the `task_create` description carries the rules:
+  register tasks only on the user's explicit request, one per independent problem.
+- Errors before MCP work are JSON-RPC: 401 with `WWW-Authenticate: Bearer realm="mypi"`,
+  405 with `Allow: POST`, 500 `API token file is unreadable`.
+
+Claude Code:
+
+```sh
+claude mcp add --transport http mypi-remote http://<IP>:8737/mcp --header "Authorization: Bearer <token>"
+```
+
+Check with curl:
+
+```sh
+H=(-H 'accept: application/json, text/event-stream' -H 'content-type: application/json' -H "Authorization: Bearer $TOKEN")
+curl -s -X POST http://127.0.0.1:8737/mcp "${H[@]}" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"curl","version":"1"}}}'
+curl -s -X POST http://127.0.0.1:8737/mcp "${H[@]}" -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+```
 
 ## Rollback
 
