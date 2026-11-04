@@ -22,8 +22,9 @@ reads.
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
 `/flow`: `global` — continue when every key has the same code (keys of several
-projects get the «mixes projects» text); `P` — continue when every key has the code
-`P`; `P-N` — refused; an argument that is not a key (other than the run name), a
+projects get the «mixes projects» text); an organization (`org` is not `null`) —
+continue when every key has the same code and that code is in `codes`; `P` —
+continue when every key has the code `P`; `P-N` — refused; an argument that is not a key (other than the run name), a
 malformed session key or a non-zero exit — refused. A refusal prints its text from
 `docs/PIPELINE.md` and stops. This step runs before «Preconditions», before
 `git fetch`, before the flow branch is created or pushed and before the flow score

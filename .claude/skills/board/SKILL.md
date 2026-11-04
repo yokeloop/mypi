@@ -17,8 +17,11 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
      a typed `CODE` must be empty or equal `P`, otherwise print
      `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
      and stop;
+   - an organization (`org` is not `null`) — a typed `CODE` must be in `codes`
+     (else the organization refusal text of `docs/PIPELINE.md`); without a `CODE`
+     the boards of all `codes`, one after another;
    - key `global` — the board of the typed `CODE`, `MP` by default;
-   - a malformed key (`project` is `null` and the key is not `global`) or a
+   - a malformed key (`project` and `org` are `null` and the key is not `global`) or a
      non-zero exit of `scope` — print
      `The board cannot tell this session's project (scope <key>). Open the main chat with /open global.`
      and stop;

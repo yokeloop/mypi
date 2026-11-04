@@ -13,8 +13,9 @@ one entered. `BIN=scripts/pipeline` (relative to the engine root, every session'
 ## Step 0 — session scope
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
-`/ship` and every typed argument: `global` — any keys and `flow/<name>`; `P` —
-keys with the code `P` and a flow of project `P`; `P-N` — continue only when every
+`/ship` and every typed argument: `global` — any keys and `flow/<name>`; an
+organization (`org` is not `null`) — keys with a code in `codes` and a flow of one
+project in `codes`; `P` — keys with the code `P` and a flow of project `P`; `P-N` — continue only when every
 typed argument equals `P-N` (`flow/<name>` in a task chat is refused); anything
 else (an argument that is not a key, a malformed session key, a non-zero exit) —
 print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `pr.md` is read, before

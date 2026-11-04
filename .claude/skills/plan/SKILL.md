@@ -16,8 +16,9 @@ order typed.
 ## Step 0 — session scope
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
-`/plan` and every typed key: `global` — any key; `P` — continue only when every
-typed key has the code `P`; `P-N` — continue only when every typed key equals
+`/plan` and every typed key: `global` — any key; an organization (`org` is not
+`null`) — continue only when every typed key has a code in `codes`; `P` — continue
+only when every typed key has the code `P`; `P-N` — continue only when every typed key equals
 `P-N`; anything else (an argument that is not a key, a malformed session key, a
 non-zero exit) — print the refusal text from `docs/PIPELINE.md` and stop. This step
 runs before the status check in «Input», before `$BIN/mp-task show` and before any
