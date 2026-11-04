@@ -10,7 +10,8 @@ import { engineRoot, engineVersion, SCHEMA_VERSION } from '../app/create-app.js'
 import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
-import { API_VERSION, bearer, createApi } from './api.js';
+import { bearer } from '../shared/bearer.js';
+import { API_VERSION, createApi } from './api.js';
 import { readSessionCookie } from './session.js';
 import { readWebAssets, webResponse } from './web.js';
 import { requestUrl } from './validate.js';

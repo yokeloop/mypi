@@ -1,6 +1,7 @@
 import type { AppCommand } from '../app/commands.js';
 import { runSequence } from '../app/task-sequence.js';
 import { InputError } from '../shared/errors.js';
+import { bearer } from '../shared/bearer.js';
 import { PartialError } from '../shared/context.js';
 import { ApiError, decodeCursor, encodeCursor, fields, jsonBody, limit, literalTrue, query, str } from './validate.js';
 import * as shape from './shape.js';
@@ -23,10 +24,6 @@ type Route = { method: string; pattern: RegExp; permission: 'read' | 'write';
 type Page = { items: unknown[]; next: number | null };
 
 const KEY = '([A-Z]+-[1-9][0-9]*)', CODE = '([A-Z]+)', TOKEN = /^[A-Za-z0-9_-]+$/;
-
-export function bearer(authorization: string | undefined): string | undefined {
-  return /^Bearer ([A-Za-z0-9_-]+)$/.exec(authorization ?? '')?.[1];
-}
 
 function invalid(message: string): ApiError {
   return new ApiError(400, 'invalid_request', message);
