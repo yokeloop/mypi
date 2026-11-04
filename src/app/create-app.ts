@@ -6,7 +6,7 @@ import { canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalD
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
-import { createProjects } from '../modules/projects/public.js';
+import { createProjects, validSlug } from '../modules/projects/public.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
 import { createSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
@@ -51,7 +51,12 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
       if (card.projectId === null) throw new InputError('Task ' + key + ' has no project; sessions need a task of a registered project');
       return { scopeType: 'task', orgId: null, projectId: card.projectId, taskId: card.id };
     }
-    throw new InputError('Invalid session key: ' + key + '; use global, a project code (MP) or a task key (MP-12)');
+    if (key === 'all') throw new InputError('all is reserved for /inbox all and is not a session key');
+    if (validSlug(key)) {
+      const scope = projects.resolveScope(key);
+      return { scopeType: 'org', orgId: scope.type === 'org' ? scope.id : null, projectId: null, taskId: null };
+    }
+    throw new InputError('Invalid session key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
   };
   return {
     readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),

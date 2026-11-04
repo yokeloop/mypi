@@ -118,7 +118,7 @@ test('the registry refuses an unsafe directory and a missing XDG_RUNTIME_DIR', t
 });
 
 test('register validates the process, the native id and the key', t => {
-  const { alive, s, rows, files, claude } = fixture(t);
+  const { filename, alive, s, rows, files, record, claude } = fixture(t);
   alive(101);
   const cases: [ReturnType<typeof claude>, RegExp][] = [
     [claude('c1', 999), /Process 999 is not running/],
@@ -126,13 +126,26 @@ test('register validates the process, the native id and the key', t => {
     [claude('c1', 101, { envScope: 'XX' }), /Unknown project: XX/],
     [claude('c1', 101, { envScope: 'MP-99' }), /Unknown task: MP-99/],
     [claude('c1', 101, { envScope: 'REQ-1' }), /has no project/],
-    [claude('c1', 101, { envScope: 'mp' }), /Invalid session key/],
+    [claude('c1', 101, { envScope: 'Mp' }), /Invalid session key: Mp; use global, an organization slug \(tb-ff\), a project code \(MP\) or a task key \(MP-12\)/],
+    [claude('c1', 101, { envScope: 'nope' }), /Unknown organization/],
+    [claude('c1', 101, { envScope: 'all' }), /all is reserved for \/inbox all and is not a session key/],
   ];
   for (const [input, error] of cases) {
     assert.throws(() => s(x => x.register(input)), error);
     assert.deepEqual(rows(), []);
     assert.deepEqual(files(), []);
   }
+  assert.deepEqual(s(x => x.register(claude('c1', 101, { envScope: 'one' }))), { key: 'one', registered: true, displaced: null });
+  const db = openDatabase(filename, true);
+  try {
+    assert.deepEqual(db.prepare('SELECT key, scope_type AS scopeType, org_id AS orgId, project_id AS projectId, task_id AS taskId FROM sessions').all(),
+      [{ key: 'one', scopeType: 'org', orgId: (db.prepare("SELECT id FROM organizations WHERE slug = 'one'").get() as { id: number }).id,
+        projectId: null, taskId: null }]);
+  } finally { db.close(); }
+  assert.deepEqual(files(), ['one.json']);
+  assert.equal(record('one.json')['key'], 'one');
+  assert.equal(s(x => x.lookup('one')).live!.pid, 101);
+  assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), 'one');
 });
 
 test("unregister removes only the caller's own records and keeps the row", t => {
