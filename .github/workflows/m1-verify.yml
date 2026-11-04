@@ -45,12 +45,19 @@ jobs:
       - name: Install dependencies from this revision
         timeout-minutes: 5
         run: timeout --kill-after=5s 295s pnpm install --frozen-lockfile --ignore-pnpmfile
+      - name: Install the pinned Rust toolchain
+        timeout-minutes: 5
+        run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"$/\1/p' tui/rust-toolchain.toml)" --profile minimal --component rustfmt,clippy
+      - name: Fetch the locked Rust crates of this revision
+        timeout-minutes: 5
+        run: timeout --kill-after=5s 295s bash scripts/tui.sh fetch
       - name: Build and verify this revision
         run: bash scripts/ci.sh
       - name: Diagnose isolation failure without loosening it
         if: failure()
         run: |
           bwrap --version
+          (cd tui && rustc --version) || true
           systemd --version
           uname -r
           grep -H . /proc/self/attr/current

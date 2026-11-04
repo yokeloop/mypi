@@ -48,6 +48,8 @@ src/
 
 web/ — browser UI package (React, Mantine, Vite; Feature-Sliced Design layers app → pages → widgets → features → entities → shared), built into dist/ui and served by src/http/web.ts.
 
+tui/ — terminal UI (Rust, ratatui): a separate binary that reads only the HTTP API (src/http) and opens tabs by running mypi open; docs/TUI.md.
+
 CLI/MCP/HTTP → app → public domain APIs. A module uses its own rules/ports; adapters
 implement ports with technical infrastructure; composition roots select adapters.
 Domain rules do not perform IO. Modules do not bypass each other's public API.
