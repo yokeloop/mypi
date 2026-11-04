@@ -290,6 +290,14 @@ test('turn end and hook events emit only in a parent-started turn of a task chat
   }
   assert.deepEqual((rows() as { fromKey: string; kind: string }[]).slice(2).map(r => [r.fromKey, r.kind]),
     [['MP-12', 'waiting'], ['MP-12', 'waiting']]);
+  const org = join(dir, 'org.jsonl');
+  writeFileSync(org, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
+    content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
+  assert.deepEqual(await turnEnd(filename, { ...stop, transcript: org }), { event: 5, delivered: [] });
+  await emitEvent(filename, { ...hook, notification: 'permission_prompt', transcript: org });
+  assert.deepEqual((rows() as { fromKey: string; toKey: string; kind: string }[]).map(r => [r.fromKey, r.toKey, r.kind]), [
+    ['MP-12', 'MP', 'turn_end'], ['MP-7', 'MP', 'turn_end'], ['MP-12', 'MP', 'waiting'], ['MP-12', 'MP', 'waiting'],
+    ['MP-12', 'one', 'turn_end'], ['MP-12', 'one', 'waiting']]);
 });
 
 test('inbox returns the undelivered events in order, framed, and marks them delivered', t => {
@@ -347,6 +355,9 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
   assert.throws(() => cli(['event', 'emit', '--message', 'x']), /--from required/);
   assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--from', 'MP-12']), /Use --hook or --from, not both/);
   assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--message', 'x']), /Use --hook or --from, not both/);
+  assert.deepEqual(cli(['event', 'emit', '--from', 'MP-12', '--to', 'one', '--waiting']),
+    { name: 'event_emit', kind: 'waiting', message: '', from: 'MP-12', to: 'one' });
+  assert.throws(() => cli(['event', 'emit', '--waiting', '--hook', '--pid', '1', '--to', 'one']), /Use --hook or --to, not both/);
   assert.throws(() => cli(['event', 'emit', '--hook', '--pid', '1']), /--hook requires --waiting/);
   assert.throws(() => cli(['event', 'emit', '--waiting', '--hook']), /--pid required/);
   assert.throws(() => cli(['event', 'emit', '--from', 'MP-12', 'extra']), /Wrong argument count for event emit/);

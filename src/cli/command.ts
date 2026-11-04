@@ -22,7 +22,7 @@ mypi bootstrap | warmup [-s global|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
-mypi event emit --from <key> [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event, then sends the parent's undelivered events to its live Pi or Claude session)
+mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
