@@ -6,6 +6,7 @@ read -r quota period </limits/cpu.max
 node scripts/build-state.mjs check
 node node_modules/dependency-cruiser/bin/dependency-cruiser.mjs --config .dependency-cruiser.cjs --output-type json src test > /tmp/dependencies.json || { node scripts/admission.mjs /tmp/dependencies.json; exit 1; }
 node scripts/admission.mjs /tmp/dependencies.json
+node node_modules/dependency-cruiser/bin/dependency-cruiser.mjs --config .dependency-cruiser.web.cjs --output-type err web/src
 start_fast="$(date +%s%N)"
 node --permission --allow-fs-read=* --allow-fs-write=* --allow-addons \
   --test-isolation=none --test --test-concurrency=1 --test-reporter=spec dist/test/fast/*.test.js
@@ -22,7 +23,7 @@ for status in /proc/[0-9]*/status; do
 done
 end="$(date +%s%N)"
 elapsed=$((end - MYPi_CHECK_START))
-budget=50000000000
+budget=55000000000
 [[ "$1" != fast ]] || budget=5000000000
 [[ "$elapsed" -le "$budget" ]] || { echo "Profile exceeds its working budget" >&2; exit 1; }
 printf 'Cost: wall=%sms fast=%sms memory_peak=%s tasks_peak=%s\n' \

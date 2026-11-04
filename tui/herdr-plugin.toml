@@ -1,0 +1,21 @@
+# The mypi TUI as a Herdr plugin. Build tui/bin/mypi-tui with pnpm tui:build, then
+# link this directory yourself: herdr plugin link <engine>/tui (docs/TUI.md).
+# The key binding belongs to your Herdr config.toml; the engine never installs either.
+id = "yokeloop.mypi"
+name = "mypi"
+version = "0.1.0"
+min_herdr_version = "0.9.5"
+description = "Browse mypi projects, tasks, events and the journal; open session tabs"
+platforms = ["linux"]
+
+[[actions]]
+id = "browse"
+title = "mypi: browse the database"
+contexts = ["workspace", "pane"]
+command = ["bin/mypi-tui", "herdr-open"]
+
+[[panes]]
+id = "browser"
+title = "mypi"
+placement = "tab"
+command = ["bin/mypi-tui"]

@@ -13,16 +13,20 @@ import { openTaskWorktree } from './task-worktree.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerKey, forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
-import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
+import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
+import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
 }
 
-const reads = new Set(['memory_show', 'journal_read', 'task_list', 'task_show', 'context_read']);
+const reads = new Set(['memory_show', 'journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
+  if (c.name === 'api_token_create') return createApiToken(c.file, c);
+  if (c.name === 'api_token_list') return listApiTokens(c.file);
+  if (c.name === 'api_token_revoke') return revokeApiToken(c.file, c.tokenName);
   if (c.name === 'db_init') { initializeState(filename); return { status: 'ok', database: filename }; }
   if (c.name === 'bootstrap') { initializeWorkspace(filename, root); return { status: 'ok' }; }
   if (c.name === 'backup') return backupState(filename, c.destination, root);
@@ -43,6 +47,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'event_emit') return emitEvent(filename, c, transports);
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
+  if (c.name === 'event_list') return listEvents(filename, c);
   if (c.name === 'message_send') return sendMessage(filename, c, transports);
   if (c.name === 'project_flow') return projectFlow(filename, root ?? defaultContextRoot(), c.project);
   // DB-only operations must remain usable without context/Git, including a damaged home.
@@ -90,12 +95,17 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
         ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.limit === undefined ? {} : { limit: c.limit }),
       });
+      case 'journal_page': return app.historyPage(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {
+        ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
+        ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.q === undefined ? {} : { q: c.q }),
+        ...(c.before === undefined ? {} : { before: c.before }), limit: c.limit });
       case 'task_create': return app.tasks.create({
         title: c.title, status: c.status, slug: c.slug, source: inputText(c.source),
         project: c.project,
         ...(c.adoptSource === undefined ? {} : { adoptSource: c.adoptSource }),
       });
       case 'task_list': return app.tasks.list(c);
+      case 'task_page': return app.tasks.page(c);
       case 'task_show': return app.tasks.get(c.key);
       case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason, callerKey(filename, c));
       case 'task_title': return app.tasks.change(c.key, { title: c.title }, c.reason);

@@ -51,6 +51,11 @@ export function readInbox(filename: string, c: Of<'inbox'>) {
   } finally { app.close(); }
 }
 
+export function listEvents(filename: string, c: Of<'event_list'>) {
+  const app = createApp(filename, true);
+  try { const { name: _, ...filter } = c; return app.events.browse(filter); } finally { app.close(); }
+}
+
 export async function sendMessage(filename: string, c: Of<'message_send'>, transports: EventTransports = {},
   proc = '/proc'): Promise<{ message: number; delivered: boolean }> {
   const text = inputText(c.body);

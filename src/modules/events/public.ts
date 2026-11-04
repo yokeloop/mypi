@@ -1,4 +1,6 @@
 import { InputError } from '../../shared/errors.js';
+import { matchesQuery, takePage } from '../../shared/page.js';
+import type { Page } from '../../shared/page.js';
 import type { SessionScope } from '../sessions/public.js';
 import type { EventKind, EventRow, EventStore, TurnPrompt } from './ports.js';
 export type { EventKind, EventRow, EventStore, EventTransport, TurnPrompt, TurnPromptReader } from './ports.js';
@@ -62,5 +64,10 @@ export function createEvents(store: EventStore, scope: (key: string) => SessionS
     },
     lastDelivered: (toKey: string): EventRow[] => store.lastDelivered(toKey),
     deliver: (ids: number[]): void => store.deliver(ids, clock()),
+    browse(filter: { to?: string; from?: string; kind?: EventKind; delivered?: boolean; before?: number; q?: string; limit: number }): Page<EventRow> {
+      const { q, limit, ...where } = filter;
+      function* rows() { for (const e of store.browse(where)) if (matchesQuery(q, e.message)) yield e; }
+      return takePage(rows(), limit, e => e.id);
+    },
   };
 }

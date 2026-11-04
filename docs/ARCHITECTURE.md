@@ -24,14 +24,15 @@ contracts, including nullable project_id, are unchanged.
 Flow is part of the intended system. Automated flow execution, agent runner, scoped
 agent permissions, task execution queue, session catalog, multi-device and network
 sync are not implemented. Current scope is data selection, not a security perimeter.
-No mandatory external tracker, HTTP daemon or implied automatic execution.
+No mandatory external tracker or implied automatic execution. `mypi serve` is an optional foreground HTTP API over AppCommand (docs/HTTP-API.md), not a daemon the engine starts. It also serves the read-only web UI (web/, built into dist/ui).
 
 ## 2. Code and dependencies
 
 ```text
 src/
 ├── cli/                 # argv -> AppCommand, JSON, exit
-├── mcp/                 # SDK stdio, schemas, envelopes, serial calls
+├── mcp/                 # SDK stdio and remote Streamable HTTP, schemas, envelopes, serial calls
+├── http/                # node:http server (own entry main.ts, spawned by mypi serve), bearer tokens, /v1 routes, SSE changes, /mcp mount
 ├── app/                 # composition, mixed operations, warmup, backup/restore
 ├── modules/
 │   ├── projects/        # registry, identity, checkout and scope
@@ -45,7 +46,11 @@ src/
 └── shared/              # scope types, errors and partial
 ```
 
-CLI/MCP → app → public domain APIs. A module uses its own rules/ports; adapters
+web/ — browser UI package (React, Mantine, Vite; Feature-Sliced Design layers app → pages → widgets → features → entities → shared), built into dist/ui and served by src/http/web.ts.
+
+tui/ — terminal UI (Rust, ratatui): a separate binary that reads only the HTTP API (src/http) and opens tabs by running mypi open; docs/TUI.md.
+
+CLI/MCP/HTTP → app → public domain APIs. A module uses its own rules/ports; adapters
 implement ports with technical infrastructure; composition roots select adapters.
 Domain rules do not perform IO. Modules do not bypass each other's public API.
 App coordinates persistence boundaries; CLI/MCP do not duplicate business logic.

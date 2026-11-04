@@ -1,5 +1,7 @@
 import { initializeDatabase, openDatabase } from '../infrastructure/database/database.js';
 import { fileURLToPath } from 'node:url';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
@@ -14,8 +16,14 @@ import { createEvents } from '../modules/events/public.js';
 import { sqliteEventStore } from '../modules/events/adapters/sqlite-event-store.js';
 import { InputError } from '../shared/errors.js';
 
+export { SCHEMA_VERSION } from '../infrastructure/database/database.js';
+
 export function engineRoot(): string {
   return fileURLToPath(new URL('../../../', import.meta.url));
+}
+
+export function engineVersion(): string {
+  return (JSON.parse(readFileSync(join(engineRoot(), 'package.json'), 'utf8')) as { version: string }).version;
 }
 
 export function resolveStatePath(env: Readonly<Record<string, string | undefined>>, home: string): string {

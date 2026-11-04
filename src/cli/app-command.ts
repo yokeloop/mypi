@@ -1,6 +1,7 @@
 import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
 import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
+import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
 
@@ -146,6 +147,10 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
         ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
     }
+    case 'token create': return { name: 'api_token_create', file: resolveApiTokensPath(env), tokenName: a[0]!, permission: required('permission'),
+      ...(opt('sender') === undefined ? {} : { sender: opt('sender')! }) };
+    case 'token list': return { name: 'api_token_list', file: resolveApiTokensPath(env) };
+    case 'token revoke': return { name: 'api_token_revoke', file: resolveApiTokensPath(env), tokenName: a[0]! };
     default: throw new InputError('Unknown workspace command');
   }
 }

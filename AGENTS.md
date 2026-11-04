@@ -227,6 +227,17 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   message after the focus or start and delivers it live, after a resume or in the
   same message as the start text; `opened[].message` is its id.
 
+## HTTP API
+
+- `mypi serve` (docs/HTTP-API.md) is an optional foreground HTTP API over the
+  same application commands; start it, expose it with `--listen` or install
+  its systemd unit only on the user's request. Server-side token hashes live
+  only in `$XDG_CONFIG_HOME/mypi/api-tokens.json`; a client's token value only in
+  `MYPI_API_TOKEN` or the private 0600 file `$XDG_CONFIG_HOME/mypi/tui-token`
+  (docs/TUI.md), never in home, a repository or a prompt; never print a token value except the one `mypi token create` returns.
+- docs/HTTP-API.md owns the API contract: a route or response change updates it
+  in the same change, and a breaking change needs a new /v<N>.
+
 ## Project setup and maintenance
 
 - For explicitly requested creation, initialization, registration or maintenance of
@@ -332,6 +343,16 @@ projects. Inspect each project's own instructions and verification commands.
 
 - TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
   SQL migrations without an ORM, node:test + node:assert/strict.
+- The web UI (`web/`, a pnpm workspace package) uses React, Mantine and Vite in
+  Feature-Sliced Design layers, enforced by `.dependency-cruiser.web.cjs`.
+  `pnpm build` typechecks it and bundles it into `dist/ui`; its pure logic in
+  `web/src/shared/lib/` is tested with node:test, the UI itself on the stand.
+- The terminal UI (`tui/`, Rust + ratatui, docs/TUI.md) reads data only through
+  the HTTP API and opens tabs only through `mypi open`. Rust is pinned in
+  `mise.toml` and `tui/rust-toolchain.toml` (change both together); run
+  `pnpm tui:fetch` once per checkout (network), and `pnpm verify` runs its cargo
+  checks offline in the bounded `mypi-tui-check` unit. Linking the Herdr plugin
+  and binding its key are user configuration, done only on the user's request.
 - Modular monolith, domain modules with Ports & Adapters and use cases.
   Before structural/dependency changes, inspect current module boundaries and
   contracts; preserve the separation of domain, application and adapters.

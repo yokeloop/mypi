@@ -88,7 +88,7 @@ and MCP-CYCLE, the first implementation in M1-IMPLEMENTATION.
 | Profile | Allowed | Forbidden |
 |---|---|---|
 | test/fast/ | Deterministic in-worker checks; small temp FS/embedded DB fixtures; input tables | Child processes in tests or called code, extra workers, network/sockets, LLM/Pi, real sleeps |
-| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup | Nested runners, entire workflow for a local assertion, network/LLM, personal home, detached processes |
+| test/boundary/ | Specific real Node CLI/Git/restart boundaries; isolated local data; explicit cleanup; loopback-only HTTP to a server subprocess started from dist (the bwrap netns has only lo) | Nested runners, entire workflow for a local assertion, external network/LLM, personal home, detached processes |
 
 Workers created by the standard runner are not forbidden child spawns from a fast
 test; they count toward the total budget. Server-based DB checks belong in boundary,
@@ -102,6 +102,9 @@ not a mislabeled fast profile.
 - Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
 - test/support holds shared helpers and the unix socket server fixture that boundary tests start as
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
+- The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
+- Pure web UI logic lives in web/src/shared/lib/ (no React, DOM or Node APIs), is compiled by the root tsc and tested in fast; the UI is typechecked and bundled into dist/ui by pnpm build, its layers checked by .dependency-cruiser.web.cjs in verify, and its behavior accepted on the stand. There is no browser test runner.
+- The Rust TUI (tui/) has its own check, not a third node profile: pnpm verify first runs scripts/tui.sh check (cargo fmt, clippy -D warnings, test, build) offline in the bounded mypi-tui-check unit. cargo test runs only in-process unit tests of pure parts (no child processes, sockets or network; private files only in a temp dir); the terminal UI itself is accepted on the stand through Herdr.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -125,6 +128,10 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Task worktree | CLI translation of task worktree | Isolated git processes on a temp bare remote and clone: create, repeat, refusals, untouched base clone; a develop/feature flow, an invalid flow, a recorded worktree after the flow changed |
 | Project flow | Parsing and validation of flow.json; MCP/CLI translation; the warmup's flow block | `project flow` on a temp clone: defaults, the file, refusals |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
+| HTTP API | Pure handler: auth, routing, validation, cursor paging, response shapes; keyset pages of tasks, events and journal; data_version feed; token file | One loopback serve subprocess: 401/403, a cursor read, a write, changeId and SSE after it, access log without secrets |
+| Web UI | Envelope unwrapping, screen filters and API paths, generic field display, change tracking; session cookie rules in the pure handler; static asset resolution | The same loopback serve subprocess: index, asset and SPA fallback, cookie login with HttpOnly/SameSite/Secure, read-only cookie, an SSE stream over the cookie, revocation ends it |
+| Remote MCP | Tool subset by token permission, schemas without {file}, sender from the token; the web-standard handler with in-process Request/Response: 401, 405, stateless initialize, tools/list, tools/call | The same loopback serve subprocess: JSON-RPC initialize, tools/list per token, refused writes and a journal note over /mcp, access log |
+| TUI (Rust) | cargo unit tests: arguments, URL and token file rules, envelope and page mapping, query parameters, SSE parsing and change tracking, schema-tolerant display, paging state, layout breakpoints, click zones, open outcome | Stand through Herdr: the real plugin pane, keys and clicks, narrow width, live refresh, mypi open |
 
 Cover useful commands without replicating the complete error matrix at every level.
 A domain test and boundary canary may overlap when they catch different failures:
@@ -189,12 +196,12 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63) and 2026-11-02 (MP-64, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64) and 2026-11-04 (MP-71, below).
 
 | Parameter | Accepted value |
 |---|---:|
 | Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 50 s |
+| Full mandatory test-profile working time | ≤ 55 s |
 | External hard deadline, including stop/cleanup | 60 s |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
@@ -229,6 +236,19 @@ took a profile Service runtime of 22–43 s on CI ubuntu-24.04 runners: PR MP-60
 CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. Speeding
 up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
+
+Revision 2026-11-04 (MP-71). By the operator's decision of 2026-11-04 the full
+profile's working time is 55 s instead of 50 s. With the HTTP API boundary test
+(+~2 s) the same content took 49.4–50.4 s locally (Service runtime 50.414 s, CPU
+53.1 s, boundary 46.3 s, load average ~7) with fail 0. The 60 s deadline,
+CPU/memory/task limits, fast ≤ 5 s and the single worker are unchanged. The test
+unit mypi-tests (scripts/check.sh) and the CI build unit mypi-ci-build
+(scripts/ci.sh) both get RuntimeMaxSec 58 s and TimeoutStopSec 2 s, still 60 s in
+total, which leaves room above the 55 s budget.
+Speeding up boundary is a separate task; the next excess is again discussed and
+explicitly decided, never raised automatically.
+
+Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the 55 s test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated

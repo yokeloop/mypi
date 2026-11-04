@@ -17,7 +17,10 @@
     "bootstrap": "pnpm build && node dist/src/cli/bootstrap.js",
     "test": "bash scripts/check.sh fast",
     "verify": "bash scripts/check.sh verify",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "tui:fetch": "bash scripts/tui.sh fetch",
+    "tui:check": "bash scripts/tui.sh check",
+    "tui:build": "bash scripts/tui.sh build"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.0",

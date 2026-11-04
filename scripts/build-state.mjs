@@ -3,7 +3,7 @@ import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import assert from 'node:assert/strict';
 
 const walk = dir => readdirSync(dir, { withFileTypes: true }).flatMap(e =>
-  e.isDirectory() ? walk(dir + '/' + e.name) : [dir + '/' + e.name]);
+  e.isDirectory() ? (e.name === 'node_modules' ? [] : walk(dir + '/' + e.name)) : [dir + '/' + e.name]);
 const digest = files => {
   const hash = createHash('sha256');
   for (const file of files.sort()) hash.update(file + '\0').update(readFileSync(file)).update('\0');
@@ -11,7 +11,7 @@ const digest = files => {
 };
 const manifest = 'dist/build-state.json';
 const state = {
-  input: digest([...walk('src'), ...walk('test'), ...walk('integrations'), ...walk('.pi/extensions'), 'package.json', 'pnpm-lock.yaml', 'tsconfig.json']),
+  input: digest([...walk('src'), ...walk('test'), ...walk('integrations'), ...walk('.pi/extensions'), ...walk('web'), 'package.json', 'pnpm-lock.yaml', 'tsconfig.json', 'pnpm-workspace.yaml']),
   output: digest(walk('dist').filter(file => file !== manifest)),
 };
 if (process.argv[2] === 'write') writeFileSync(manifest, JSON.stringify(state) + '\n');

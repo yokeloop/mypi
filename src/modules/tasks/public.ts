@@ -1,6 +1,14 @@
 import { InputError } from '../../shared/errors.js';
+import { matchesQuery, takePage } from '../../shared/page.js';
+import type { Page } from '../../shared/page.js';
 import type { TaskStore } from './ports.js';
 export type { Card, Status } from './ports.js';
+export function pageTasks<T extends { id: number; key: string; title: string }>(cards: T[],
+  options: { q?: string | undefined; before?: number | undefined; limit: number }): Page<T> {
+  const rows = [...cards].sort((a, b) => b.id - a.id)
+    .filter(c => (options.before === undefined || c.id < options.before) && matchesQuery(options.q, c.key, c.title));
+  return takePage(rows, options.limit, c => c.id);
+}
 function nonempty(text: string): void { if (typeof text !== 'string' || !text.trim()) throw new InputError('Nonempty text required'); }
 export function createTasks(store: TaskStore, clock: () => string,
   project: (id: number) => { code: string; prefix: string }) {

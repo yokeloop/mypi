@@ -6,6 +6,23 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- HTTP API (MP-71): `mypi serve` runs a foreground REST/JSON server under /v1 on 127.0.0.1:8737 (another address only with --listen, e.g. a Tailscale IP; no TLS in process) with bearer tokens from `mypi token create|list|revoke` kept hashed in $XDG_CONFIG_HOME/mypi/api-tokens.json. It reads projects, tasks, events (without marking them delivered) and the journal with filters, search and cursor pages, sessions and context files; it writes task create/update, journal notes and parent messages from the token's sender. /v1/info carries changeId, which also streams over SSE /v1/changes. A documented systemd user unit is an example, not installed. Restart the server after an engine update or migration.
+- Web UI (MP-72): `mypi serve` also serves a read-only browser interface at / (projects, tasks, events and the journal with filters, search, cursor "Load more", live refresh over /v1/changes and a Refresh button; phone-width layout). Sign in by pasting an API token: POST /v1/session sets an HttpOnly, SameSite=Strict cookie (Secure behind an HTTPS proxy) that authenticates reads only; DELETE /v1/session signs out, and revoking the token ends the session. Built from the web/ pnpm workspace package (React, Mantine, Vite) into dist/ui by pnpm build; restart the server after a rebuild.
+- Terminal UI (MP-70): tui/bin/mypi-tui (Rust, ratatui) browses projects, tasks, events and the journal through the HTTP API with filters, search, cursor pages, live refresh over /v1/changes (r to reload) and keyboard and mouse control; it adapts from phone-width ssh terminals (one column below 60) to wide split views, tolerates unknown fields and checks apiVersion. On project and task rows "o" opens or focuses the session tab through mypi open when it runs inside Herdr. It runs in any terminal or as the Herdr plugin in tui/ (herdr plugin link, a user step). Rust 1.99.1 is pinned in mise.toml; pnpm tui:fetch and pnpm tui:build build it, and pnpm verify and CI run its cargo checks offline in a bounded unit. Upgrade: mise install, pnpm tui:fetch, then pnpm tui:build.
+- Remote MCP (MP-73): `mypi serve` also answers MCP over Streamable HTTP at /mcp (stateless, JSON responses) with the same bearer tokens, for agents on other machines. Read tokens get task_list, task_show, journal, context_read and projects list/flow; write tokens also get task_create, task_update without artifacts, note kind journal and send_message from the token's sender. Text inputs are {text} only; sessions, inbox, warmup, memory, open_session and maintenance stay local. The server now runs as its own entry, dist/src/http/main.js, which `mypi serve` starts as a child process, so other CLI commands no longer load it.
+
+### Changed
+
+- The full test profile's working budget is 55 s instead of 50 s (MP-71): with the HTTP API boundary test the profile took 49.4–50.4 s locally with fail 0. The test unit (scripts/check.sh) and the CI build unit mypi-ci-build (scripts/ci.sh) both get RuntimeMaxSec 58 s and TimeoutStopSec 2 s, still 60 s in total, so the external 60 s deadline and all other limits stay unchanged; speeding up boundary is a separate task.
+- The main chat's role (MP-76) administers project setup on the user's request:
+  clones (a partial clone when a full one fails and the user agrees), remotes and
+  forks, branches and worktrees, registrations, and whatever keeps a project or
+  task tab from starting. Product work stays in project and task chats;
+  destructive actions and external writes need the user's current request and an
+  inspection first.
+
 ## [0.10.0] - 2026-11-03
 
 Upgrading from v0.9.0: `git pull --ff-only`, install the locked dependencies and

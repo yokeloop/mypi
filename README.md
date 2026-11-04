@@ -5,7 +5,7 @@ A project-centered memory and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API (maintenance is CLI-only, including undoing a mistaken project or organization registration).
+scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -54,6 +54,7 @@ live in an independent `home/` Git.
 Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
 version 1.0.4 (manually checked). Linux is the currently verified platform. No
 global agent configuration is installed or changed.
+Rust for the optional terminal UI is pinned in mise.toml and installed by mise install (rustup).
 
 ```bash
 git clone https://github.com/yokeloop/mypi.git
@@ -277,7 +278,7 @@ database first).
 The installed engine is not a development checkout; contribute through the
 [common project workflow](AGENTS.md#common-project-workflow). Once changes have
 been merged, update a clean installation on `main` with `git pull --ff-only`
-(to stop at a release, `git pull --ff-only origin v<version>`), install the locked dependencies, build, then reload/restart Pi.
+(to stop at a release, `git pull --ff-only origin v<version>`), install the locked dependencies (`mise install`, `mise exec -- pnpm install --frozen-lockfile`, `mise exec -- pnpm tui:fetch`), build (`mise exec -- pnpm build`, `mise exec -- pnpm tui:build`), then reload/restart Pi and reopen TUI tabs.
 Updates replace built-in resources only; they never regenerate personal settings or
 rerun bootstrap. Data-format migrations require a separate explicit operation. The
 first update to a version with the tracked `.pi/` directory needs the move described
@@ -356,6 +357,32 @@ session keeps the old code until it is restarted: in Claude use `/mcp` → `mypi
 Reconnect (or restart the session); the new warmup text arrives at the next
 `/clear`, `/compact` or restart. In Pi use `/reload` or restart the session.
 
+## HTTP API
+
+`mypi serve` runs an optional REST/JSON API over the same commands, in the foreground.
+Create a token first with `mypi token create <name> --permission read|write`; it is
+printed once and stored hashed in `$XDG_CONFIG_HOME/mypi/api-tokens.json`. Then start
+`mypi serve`: it listens on `127.0.0.1:8737`, and `--listen <IP>` (for example a
+Tailscale IP) is the only way to expose it. Routes, tokens, change streams and an
+example systemd user unit: [docs/HTTP-API.md](docs/HTTP-API.md).
+`mypi serve` also answers MCP at `/mcp` for agents on other machines (a read or write subset by token; [docs/MCP.md](docs/MCP.md#remote-mcp-over-http)).
+
+Web UI: open `http://127.0.0.1:8737/` (or the `--listen` address) in a browser and
+paste a token. The interface only reads: projects, tasks, events and the journal,
+refreshed live. It is built into `dist/ui` by `pnpm build`; details in
+[docs/HTTP-API.md](docs/HTTP-API.md#web-ui).
+
+## Terminal UI
+
+`tui/bin/mypi-tui` browses the same data in a terminal (also over ssh from a phone)
+or as a Herdr plugin tab, and opens session tabs with `mypi open` inside Herdr.
+Build it with `mise exec -- pnpm tui:fetch` (network, once per checkout) and
+`mise exec -- pnpm tui:build`. Put a read token from `mypi token create tui
+--permission read` into `$XDG_CONFIG_HOME/mypi/tui-token` (0600) or `MYPI_API_TOKEN`,
+then run `tui/bin/mypi-tui [--url http://HOST:PORT]`. As a Herdr plugin:
+`herdr plugin link <engine>/tui` (your step; the engine never links it). Details:
+[docs/TUI.md](docs/TUI.md).
+
 ## Develop and verify
 
 For an explicitly requested clean test stand, acceptance checklist and real Claude
@@ -364,6 +391,8 @@ Code, Pi and MCP checks through Herdr, follow the
 
 TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
+The web UI in web/ (a pnpm workspace package) uses React, Mantine and Vite with Feature-Sliced Design; pnpm build typechecks it and bundles it into dist/ui.
+The terminal UI in tui/ is Rust (ratatui); pnpm verify runs its cargo fmt, clippy, test and build offline in a bounded sandbox (docs/TUI.md).
 Versions are pinned in mise.toml, package.json and the lockfile.
 
 Releases go through a release PR like any other change. In a task worktree the
@@ -388,6 +417,7 @@ From the engine project's task worktree (not the installed workspace):
 ```bash
 timeout --kill-after=5s 295s mise install
 timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
+timeout --kill-after=5s 295s mise exec -- pnpm tui:fetch
 mise exec -- pnpm build
 mise exec -- pnpm verify
 ```
