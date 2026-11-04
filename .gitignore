@@ -11,6 +11,10 @@
 node_modules/
 dist/
 
+# Rust TUI: build output, per-checkout crate cache and the built binary
+/tui/target/
+/tui/bin/
+
 # Never store runtime databases or snapshots in the engine repository
 *.sqlite3
 *.sqlite3-*
