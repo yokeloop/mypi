@@ -15,6 +15,7 @@ import { API_VERSION, createApi } from './api.js';
 import { readSessionCookie } from './session.js';
 import { readWebAssets, webResponse } from './web.js';
 import { requestUrl } from './validate.js';
+import { createRemoteMcp } from '../mcp/remote.js';
 
 export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
 
@@ -59,6 +60,9 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
     info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
     log: options.log });
+  const remoteMcp = createRemoteMcp({ token: v => verifyApiToken(options.tokensFile, v),
+    execute: c => executeCommand(c, options.filename, undefined, eventTransports), runtime: options.env['XDG_RUNTIME_DIR'], version,
+    log: options.log });
   const streams = new Map<ServerResponse, string>();
   const change = () => 'id: ' + feed.changeId() + '\nevent: change\ndata: ' + JSON.stringify({ changeId: feed.changeId() }) + '\n\n';
 
@@ -84,6 +88,25 @@ export async function serve(options: { filename: string; tokensFile: string; lis
     res.writeHead(result.status, json).end(JSON.stringify(result.body));
   }
 
+  async function mcp(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> {
+    if (url.pathname !== '/mcp') { error(res, 404, 'not_found', 'Unknown path: ' + url.pathname); return; }
+    let body = '';
+    if (req.method === 'POST') {
+      const read = await readBody(req);
+      if (read === undefined) { error(res, 413, 'payload_too_large', 'Body exceeds ' + MAX_BODY + ' bytes'); req.destroy(); return; }
+      body = read;
+    }
+    const headers = new Headers();
+    for (const name of ['authorization', 'accept', 'content-type', 'mcp-protocol-version']) {
+      const value = req.headers[name];
+      if (typeof value === 'string') headers.set(name, value);
+    }
+    const result = await remoteMcp(new Request('http://localhost/mcp', { method: req.method ?? 'GET', headers, ...(req.method === 'POST' ? { body } : {}) }));
+    if (result.token !== undefined) token(result.token);
+    res.writeHead(result.response.status, { ...Object.fromEntries(result.response.headers), 'cache-control': 'no-store' });
+    res.end(Buffer.from(await result.response.arrayBuffer()));
+  }
+
   async function web(req: IncomingMessage, res: ServerResponse, url: URL): Promise<void> {
     const r = webResponse(assets, req.method ?? 'GET', url.pathname);
     res.writeHead(r.status, r.headers);
@@ -92,6 +115,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
 
   const mounts: { prefix: string; handle(req: IncomingMessage, res: ServerResponse, url: URL, token: (name: string) => void): Promise<void> }[] = [
     { prefix: '/v1/', handle: v1 },
+    { prefix: '/mcp', handle: mcp },
     { prefix: '/', handle: web },
   ];
   const server = createServer((req, res) => {

@@ -2,10 +2,10 @@
 import { PartialError } from '../shared/context.js';
 import { CancelledError } from '../shared/errors.js';
 import { homedir } from 'node:os';
+import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { resolveStatePath } from '../app/create-app.js';
 import { eventTransports } from '../app/event-transports.js';
-import { resolveApiTokensPath } from '../app/api-tokens.js';
-import { DEFAULT_PORT, serve } from '../http/serve.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
@@ -13,13 +13,14 @@ let stoppedBy: 'SIGINT' | 'SIGTERM' | undefined;
 try {
   const command = parseCommand(process.argv.slice(2));
   if (command.type === 'workspace' && command.name === 'serve') {
-    const controller = new AbortController();
-    for (const sig of ['SIGINT', 'SIGTERM'] as const) process.once(sig, () => controller.abort());
-    await serve({ filename: resolveStatePath(process.env, homedir()), tokensFile: resolveApiTokensPath(process.env),
-      listen: typeof command.options['listen'] === 'string' ? command.options['listen'] : '127.0.0.1',
-      port: typeof command.options['port'] === 'string' ? command.options['port'] : String(DEFAULT_PORT),
-      env: process.env, signal: controller.signal,
-      out: line => process.stdout.write(line + '\n'), log: line => process.stderr.write(line + '\n') });
+    const args = (['listen', 'port'] as const).flatMap(name =>
+      typeof command.options[name] === 'string' ? ['--' + name, command.options[name]] : []);
+    const child = spawn(process.execPath, [fileURLToPath(new URL('../http/main.js', import.meta.url)), ...args], { stdio: 'inherit' });
+    for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => child.kill(sig));
+    process.exitCode = await new Promise<number>((resolve, reject) => {
+      child.once('error', reject);
+      child.once('exit', code => resolve(code ?? 0));
+    });
   } else {
     const cancellable = command.type === 'workspace' && command.name === 'open';
     let context = {};
