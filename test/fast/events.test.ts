@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { frame, isMilestone, isParentMessage, parentFrame, startedByParent, startFrame } from '../../src/modules/events/public.js';
+import { frame, isMilestone, isParentMessage, parentFrame, parentSender, startedByParent, startFrame } from '../../src/modules/events/public.js';
 import { notificationInput, stopInput } from '../../src/app/session-input.js';
 import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
 import { appCommand } from '../../src/cli/app-command.js';
@@ -51,9 +51,9 @@ function fixture(t: TestContext) {
 
 test('emit from a task chat writes one event addressed to its project', t => {
   const { e, rows } = fixture(t);
-  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'turn_end', message: 'готово' })), { event: 1 });
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'turn_end', message: 'готово' })), { event: 1, to: 'MP' });
   assert.deepEqual(rows(), [{ id: 1, fromKey: 'MP-12', toKey: 'MP', kind: 'turn_end', message: 'готово', createdAt: at, deliveredAt: null }]);
-  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'waiting', message: '' })), { event: 2 });
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'waiting', message: '' })), { event: 2, to: 'MP' });
   assert.equal(rows().length, 2);
 });
 
@@ -65,21 +65,55 @@ test('send writes one message row from the parent and refuses anyone else', t =>
     { id: 1, fromKey: 'MP', toKey: 'MP-12', kind: 'message', message: 'сделай шаг', createdAt: at, deliveredAt: null },
     { id: 2, fromKey: 'global', toKey: 'MP', kind: 'message', message: 'веди задачи', createdAt: at, deliveredAt: null },
   ]);
-  assert.throws(() => e(x => x.send({ from: 'global', to: 'MP-12', message: 'x' })), /Only MP may send messages to MP-12; this session is global/);
-  assert.throws(() => e(x => x.send({ from: 'MP', to: 'OT-3', message: 'x' })), /Only OT may send messages to OT-3; this session is MP/);
-  assert.throws(() => e(x => x.send({ from: 'MP-7', to: 'MP-12', message: 'x' })), /Only MP may send messages to MP-12; this session is MP-7/);
-  for (const from of ['MP', 'MP-12', 'global']) {
+  assert.throws(() => e(x => x.send({ from: 'global', to: 'MP-12', message: 'x' })), /Only MP or one may send messages to MP-12; this session is global/);
+  assert.throws(() => e(x => x.send({ from: 'MP', to: 'OT-3', message: 'x' })), /Only OT or two may send messages to OT-3; this session is MP/);
+  assert.throws(() => e(x => x.send({ from: 'MP-7', to: 'MP-12', message: 'x' })), /Only MP or one may send messages to MP-12; this session is MP-7/);
+  for (const from of ['MP', 'MP-12', 'global', 'one']) {
     assert.throws(() => e(x => x.send({ from, to: 'global', message: 'x' })), /global has no parent session/);
   }
   assert.throws(() => e(x => x.send({ from: 'MP', to: 'MP-99', message: 'x' })), /Unknown task: MP-99/);
   assert.throws(() => e(x => x.send({ from: 'MP', to: 'MP-12', message: ' \n' })), /Message text is empty/);
   assert.equal(rows().length, 2);
+  assert.equal(e(x => x.send({ from: 'one', to: 'MP-12', message: 'из организации' })), 3);
+  assert.equal(e(x => x.send({ from: 'global', to: 'one', message: 'веди проекты' })), 4);
+  assert.throws(() => e(x => x.send({ from: 'one', to: 'OT-3', message: 'x' })), /Only OT or two may send messages to OT-3; this session is one/);
+  assert.throws(() => e(x => x.send({ from: 'one', to: 'MP', message: 'x' })), /Only global may send messages to MP; this session is one/);
+  assert.throws(() => e(x => x.send({ from: 'MP', to: 'one', message: 'x' })), /Only global may send messages to one; this session is MP/);
+  assert.deepEqual((rows() as { fromKey: string; toKey: string }[]).slice(2).map(r => [r.fromKey, r.toKey]), [['one', 'MP-12'], ['global', 'one']]);
+});
+
+test('emit addresses the sender of the starting message when it is a parent of the task, else the project', t => {
+  const { e, rows } = fixture(t);
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'turn_end', message: 'a', to: 'one' })), { event: 1, to: 'one' });
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'waiting', message: 'b', to: 'MP' })), { event: 2, to: 'MP' });
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'turn_end', message: 'c', to: 'two' })), { event: 3, to: 'MP' });
+  assert.deepEqual(e(x => x.emit({ from: 'MP-12', kind: 'turn_end', message: 'd', to: 'global' })), { event: 4, to: 'MP' });
+  assert.deepEqual(e(x => x.emit({ from: 'one', kind: 'turn_end', message: 'e' })), { event: null, to: null });
+  assert.deepEqual((rows() as { toKey: string }[]).map(r => r.toKey), ['one', 'MP', 'MP', 'MP']);
+  assert.equal(e(x => x.milestoneRecipient('MP-12')), 'MP');
+  e(x => x.send({ from: 'one', to: 'MP-12', message: 'go' }));
+  assert.equal(e(x => x.milestoneRecipient('MP-12')), 'one');
+  e(x => x.send({ from: 'MP', to: 'MP-12', message: 'go' }));
+  assert.equal(e(x => x.milestoneRecipient('MP-12')), 'MP');
+  assert.equal(e(x => x.milestoneRecipient('MP-7')), 'MP');
+  assert.equal(e(x => x.milestone({ from: 'MP-12', to: 'one', message: 'new → review: ready' })), 7);
+  assert.equal((rows() as { toKey: string }[])[6]!.toKey, 'one');
+});
+
+test('parentSender takes the sender of the last parent frame', () => {
+  assert.equal(parentSender(parentFrame('MP', 'MP-12', 'go')), 'MP');
+  assert.equal(parentSender(parentFrame('one', 'MP-12', 'go')), 'one');
+  assert.equal(parentSender(parentFrame('MP', 'MP-12', 'a') + '\n' + parentFrame('one', 'MP-12', 'b')), 'one');
+  assert.equal(parentSender('Another Claude session sent a message:\n' + parentFrame('tb-ff', 'MP-12', 'go')), 'tb-ff');
+  assert.equal(parentSender(parentFrame('global', 'MP', 'go')), undefined);
+  assert.equal(parentSender('see ' + parentFrame('one', 'MP-12', 'go')), undefined);
+  assert.equal(parentSender('go'), undefined);
 });
 
 test('emit from a project or global scope writes nothing, an unknown or invalid key fails', t => {
   const { e, rows } = fixture(t);
-  assert.deepEqual(e(x => x.emit({ from: 'MP', kind: 'turn_end', message: 'x' })), { event: null });
-  assert.deepEqual(e(x => x.emit({ from: 'global', kind: 'waiting', message: 'x' })), { event: null });
+  assert.deepEqual(e(x => x.emit({ from: 'MP', kind: 'turn_end', message: 'x' })), { event: null, to: null });
+  assert.deepEqual(e(x => x.emit({ from: 'global', kind: 'waiting', message: 'x' })), { event: null, to: null });
   assert.throws(() => e(x => x.emit({ from: 'MP-99', kind: 'turn_end', message: 'x' })), /Unknown task: MP-99/);
   assert.throws(() => e(x => x.emit({ from: 'REQ-1', kind: 'turn_end', message: 'x' })), /has no project/);
   assert.throws(() => e(x => x.emit({ from: 'mp 12', kind: 'turn_end', message: 'x' })), /Invalid session key/);
@@ -101,6 +135,8 @@ test('frame names the sender, the time and the event number above the text', () 
   assert.equal(frame(message, '14:05'), parentFrame('MP', 'MP-12', 'сделай шаг'));
   assert.equal(isParentMessage(frame(message, '14:05')), true);
   assert.equal(isParentMessage(frame({ ...message, fromKey: 'global', toKey: 'MP' }, '14:05')), false);
+  assert.equal(isParentMessage(parentFrame('one', 'MP-12', 'go')), true);
+  assert.equal(isParentMessage(parentFrame('global', 'one', 'go')), false);
 });
 
 test('parentFrame is recognised at the start of a line and startedByParent needs peer origin and the frame', () => {
@@ -150,7 +186,7 @@ test('pending, lastDelivered and deliver follow delivered_at per addressee', t =
   assert.throws(() => e(x => x.pending('XX')), /Unknown project: XX/);
   assert.throws(() => e(x => x.pending('MP-99')), /Unknown task: MP-99/);
   assert.deepEqual(e(x => x.pending('global')), []);
-  const milestone = e(x => x.milestone({ from: 'MP-12', message: 'new → review: ready' }));
+  const milestone = e(x => x.milestone({ from: 'MP-12', to: 'MP', message: 'new → review: ready' }));
   e(x => x.deliver([milestone]), () => '2026-10-28T17:00:00.000Z');
   assert.deepEqual(e(x => x.lastDelivered('MP')).map(r => [r.id, r.fromKey, r.kind]), [[2, 'MP-7', 'turn_end'], [3, 'MP-12', 'turn_end']]);
 });

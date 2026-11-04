@@ -74,7 +74,7 @@ test('a milestone is never sent to a live parent and stays pending', async t => 
   const { filename, register, delivered, calls, transport, emit } = fixture(t);
   register(101, '/s/MP.sock');
   const app = createApp(filename, false);
-  try { assert.equal(app.events.milestone({ from: 'MP-12', message: 'new → review: ready' }), 1); } finally { app.close(); }
+  try { assert.equal(app.events.milestone({ from: 'MP-12', to: 'MP', message: 'new → review: ready' }), 1); } finally { app.close(); }
   assert.deepEqual(await emit({ pi: transport(ids => ids), claude: transport(ids => ids) }), { event: 2, delivered: [2] });
   assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
   assert.deepEqual(delivered(), [[1, false], [2, true]]);
@@ -277,8 +277,8 @@ test('send to a closed child queues the message', async t => {
 test('send from a session that is not the parent writes nothing', async t => {
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  for (const [envScope, error] of [['global', /Only MP may send messages to MP-12; this session is global/],
-    ['MP-7', /Only MP may send messages to MP-12; this session is MP-7/]] as const) {
+  for (const [envScope, error] of [['global', /Only MP or one may send messages to MP-12; this session is global/],
+    ['MP-7', /Only MP or one may send messages to MP-12; this session is MP-7/]] as const) {
     await assert.rejects(sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
       { pi: transport(ids => ids) }, proc), error);
   }

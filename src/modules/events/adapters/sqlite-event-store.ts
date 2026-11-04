@@ -11,6 +11,8 @@ export function sqliteEventStore(db: Database): EventStore {
       : db.prepare(select + ' WHERE delivered_at IS NULL AND to_key = ? ORDER BY id').all(toKey)) as EventRow[],
     lastDelivered: toKey => db.prepare(select + ` WHERE id IN (SELECT max(id) FROM events WHERE to_key = ? AND delivered_at IS NOT NULL
       AND kind = 'turn_end' GROUP BY from_key) ORDER BY id`).all(toKey) as EventRow[],
+    lastMessageSender: toKey => (db.prepare(`SELECT from_key AS fromKey FROM events WHERE to_key = ? AND kind = 'message'
+      ORDER BY id DESC LIMIT 1`).get(toKey) as { fromKey: string } | undefined)?.fromKey,
     deliver(ids, at) {
       const update = db.prepare('UPDATE events SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL');
       for (const id of ids) update.run(at, id);

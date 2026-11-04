@@ -228,7 +228,7 @@ test('real CLI send queues a message for a closed child and inbox of the child r
   assert.equal(ok(['send', 'MP-1', '--file', join(dir, 'step.txt')], { MYPI_SCOPE: 'MP' }), '{"message":1,"delivered":false}\n');
   const refused = run(['send', 'MP-1', 'x']);
   assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /Only MP may send messages to MP-1; this session is global/);
+  assert.match(refused.stderr, /Only MP or one may send messages to MP-1; this session is global/);
   const db = openDatabase(filename, true);
   try {
     assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(),

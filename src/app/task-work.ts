@@ -72,7 +72,7 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
           statusChanged ? 'status_changed' : 'note'));
         if (statusChanged && result.after.projectId !== null && isMilestone(result.after.status, result.after.isTerminal)
           && caller !== parentKey(key(result.after))) {
-          core.events.milestone({ from: key(result.after), message: result.before.status + ' → ' + result.after.status + ': ' + reason });
+          core.events.milestone({ from: key(result.after), to: parentKey(key(result.after))!, message: result.before.status + ' → ' + result.after.status + ': ' + reason });
         }
         return result.after;
       });

@@ -58,6 +58,17 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }
     throw new InputError('Invalid session key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
   };
+  const orgOf = (code: string): string | undefined => projects.list().find(p => p.code === code)?.org;
+  const parents = (key: string): string[] => {
+    const task = /^([A-Z]+)-[1-9][0-9]*$/.exec(key);
+    if (task) {
+      const org = orgOf(task[1]!);
+      return org === undefined ? [task[1]!] : [task[1]!, org];
+    }
+    if (/^[A-Z]+$/.test(key)) return ['global'];
+    if (key !== 'global' && key !== 'all' && validSlug(key)) return ['global'];
+    return [];
+  };
   return {
     readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),
     serialize: <T>(fn: () => T): T => { if (readonly) throw new Error('Readonly application'); return db.transaction(fn).immediate(); },
@@ -69,7 +80,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     projects,
     journalStore: sqliteJournalStore(db),
     sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, clock),
-    events: createEvents(sqliteEventStore(db), sessionScope, clock),
+    events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     close: () => db.close(),
   };
 }

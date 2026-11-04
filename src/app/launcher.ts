@@ -11,7 +11,7 @@ import { startMessage } from './start-message.js';
 import { prepareCheckouts } from './project-checkout.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { HerdrError, herdrCli } from '../infrastructure/herdr/herdr.js';
-import { assertParent, startFrame } from '../modules/events/public.js';
+import { startFrame } from '../modules/events/public.js';
 import { noRepositoryError } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Agent } from '../modules/sessions/public.js';
@@ -66,7 +66,8 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     if (keys.length !== 1) throw new InputError('--message takes exactly one key');
     caller = callerKey(filename, c);
     if (caller === undefined) throw new InputError('The calling session key could not be resolved');
-    assertParent(caller, keys[0]!);
+    const check = createApp(filename, true);
+    try { check.events.assertParent(caller, keys[0]!); } finally { check.close(); }
     if (c.message.trim() === '') throw new InputError('Message text is empty');
   }
   const enqueue = (key: string): number | null => {

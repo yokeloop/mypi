@@ -49,7 +49,7 @@ test('project start message groups open tasks by status and counts undelivered e
   try {
     app.events.emit({ from: 'MP-7', kind: 'turn_end', message: 'one' });
     app.events.emit({ from: 'MP-12', kind: 'waiting', message: 'two' });
-    app.events.milestone({ from: 'MP-3', message: 'new → review: ready' });
+    app.events.milestone({ from: 'MP-3', to: 'MP', message: 'new → review: ready' });
     app.events.emit({ from: 'OT-1', kind: 'turn_end', message: 'foreign' });
     app.events.send({ from: 'global', to: 'MP', message: 'веди задачи' });
     app.events.deliver([1]);

@@ -346,7 +346,7 @@ test('open with a message focuses a live child and sends it live', async t => {
 test('open with a message from a non-parent or for two keys opens nothing', t => {
   const { failed, calls, rows, events, worktreePaths, worktree } = fixture(t);
   assert.match(failed(['open', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'global' }).message,
-    /Only MP may send messages to MP-1; this session is global/);
+    /Only MP or one may send messages to MP-1; this session is global/);
   assert.match(failed(['open', 'MP', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'MP' }).message, /--message takes exactly one key/);
   assert.match(failed(['open', 'MP-1', '--message', ' '], { MYPI_SCOPE: 'MP' }).message, /Message text is empty/);
   assert.deepEqual(calls(), []);
