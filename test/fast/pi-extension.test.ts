@@ -166,7 +166,8 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   install(pi.api, root, serve, run);
   pi.state.key = 'MP-12';
   await pi.start('startup');
-  const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
+  const emitTo = (to: string, ...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', '--to', to, ...args], { cwd: root, timeout: 5000 }];
+  const emit = (...args: string[]) => emitTo('MP', ...args);
   const end = (...messages: { role: string; content?: unknown }[]) => pi.handlers.get('agent_end')!({ messages }, pi.ctx);
   const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
   const prompt = (event: { kind: string; title?: string }) => pi.handlers.get('ui_prompt_start')!(event, pi.ctx);
@@ -249,6 +250,19 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   await parent();
   await prompt({ kind: 'confirm' });
   await settle();
+  pi.state.result = result;
+  await batch(parentFrame('one', 'MP-12', 'go'));
+  await prompt({ kind: 'input' });
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--waiting'));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'org' }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--message=org'));
+  await batch(parentFrame('MP', 'MP-12', 'a') + '\n' + parentFrame('one', 'MP-12', 'b'));
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--message='));
+  await parent();
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('MP', '--message='));
 });
 
 test('pi extension emits no events without a registered key', async () => {
