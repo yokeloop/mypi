@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { TestContext } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -491,6 +491,16 @@ test('pi extension injects a batch as one follow-up, waits for the turn to start
   await settled();
   assert.deepEqual(pi.sent.slice(2), [['d', follow], ['e', follow]]);
   assert.deepEqual(acked, [[4], [5]]);
+});
+
+test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
+  const literal = (path: string, prefix: string) => {
+    const line = readFileSync(join(root, path), 'utf8').split('\n').find(l => l.startsWith(prefix));
+    assert.ok(line !== undefined, path);
+    return line.slice(prefix.length);
+  };
+  assert.equal(literal('.pi/extensions/mypi-lib/install.ts', 'const PARENT_MESSAGE = '),
+    literal('src/modules/events/public.ts', 'export const PARENT_MESSAGE = '));
 });
 
 test('pi extension refuses an unbuilt engine', () => {
