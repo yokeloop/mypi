@@ -365,6 +365,11 @@ printed once and stored hashed in `$XDG_CONFIG_HOME/mypi/api-tokens.json`. Then 
 Tailscale IP) is the only way to expose it. Routes, tokens, change streams and an
 example systemd user unit: [docs/HTTP-API.md](docs/HTTP-API.md).
 
+Web UI: open `http://127.0.0.1:8737/` (or the `--listen` address) in a browser and
+paste a token. The interface only reads: projects, tasks, events and the journal,
+refreshed live. It is built into `dist/ui` by `pnpm build`; details in
+[docs/HTTP-API.md](docs/HTTP-API.md#web-ui).
+
 ## Develop and verify
 
 For an explicitly requested clean test stand, acceptance checklist and real Claude
@@ -373,6 +378,7 @@ Code, Pi and MCP checks through Herdr, follow the
 
 TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations
 without ORM; node:test + node:assert/strict. Modular monolith with Ports & Adapters.
+The web UI in web/ (a pnpm workspace package) uses React, Mantine and Vite with Feature-Sliced Design; pnpm build typechecks it and bundles it into dist/ui.
 Versions are pinned in mise.toml, package.json and the lockfile.
 
 Releases go through a release PR like any other change. In a task worktree the

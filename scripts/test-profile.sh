@@ -6,6 +6,7 @@ read -r quota period </limits/cpu.max
 node scripts/build-state.mjs check
 node node_modules/dependency-cruiser/bin/dependency-cruiser.mjs --config .dependency-cruiser.cjs --output-type json src test > /tmp/dependencies.json || { node scripts/admission.mjs /tmp/dependencies.json; exit 1; }
 node scripts/admission.mjs /tmp/dependencies.json
+node node_modules/dependency-cruiser/bin/dependency-cruiser.mjs --config .dependency-cruiser.web.cjs --output-type err web/src
 start_fast="$(date +%s%N)"
 node --permission --allow-fs-read=* --allow-fs-write=* --allow-addons \
   --test-isolation=none --test --test-concurrency=1 --test-reporter=spec dist/test/fast/*.test.js

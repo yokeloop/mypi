@@ -103,6 +103,7 @@ not a mislabeled fast profile.
 - test/support holds shared helpers and the unix socket server fixture that boundary tests start as
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
 - The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
+- Pure web UI logic lives in web/src/shared/lib/ (no React, DOM or Node APIs), is compiled by the root tsc and tested in fast; the UI is typechecked and bundled into dist/ui by pnpm build, its layers checked by .dependency-cruiser.web.cjs in verify, and its behavior accepted on the stand. There is no browser test runner.
 - Do not move a mandatory check into opt-in to weaken verification.
 - No empty system/evals/future-unit suites in M1. Add profiles with real functionality
   and a separate cost decision.
@@ -127,6 +128,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 | Project flow | Parsing and validation of flow.json; MCP/CLI translation; the warmup's flow block | `project flow` on a temp clone: defaults, the file, refusals |
 | CLI/bootstrap | In-process parsing/dispatch of every command | Launcher, exit/stdout/stderr and required save→reread path without Python |
 | HTTP API | Pure handler: auth, routing, validation, cursor paging, response shapes; keyset pages of tasks, events and journal; data_version feed; token file | One loopback serve subprocess: 401/403, a cursor read, a write, changeId and SSE after it, access log without secrets |
+| Web UI | Envelope unwrapping, screen filters and API paths, generic field display, change tracking; session cookie rules in the pure handler; static asset resolution | The same loopback serve subprocess: index, asset and SPA fallback, cookie login with HttpOnly/SameSite/Secure, read-only cookie, an SSE stream over the cookie, revocation ends it |
 
 Cover useful commands without replicating the complete error matrix at every level.
 A domain test and boundary canary may overlap when they catch different failures:

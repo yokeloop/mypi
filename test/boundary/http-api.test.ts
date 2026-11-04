@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets', async t => {
+test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = '/work/dist/src/cli/main.js';
@@ -64,9 +64,40 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const { schemaVersion, version: served, changeId: c0 } = info.body.data as { schemaVersion: number; version: string; changeId: number };
   assert.deepEqual([schemaVersion, served], [12, version]);
 
+  const page = await fetch(url + '/');
+  const html = await page.text();
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-type') ?? '', /^text\/html/);
+  assert.ok(html.includes('<div id="root"></div>'));
+  const script = /\/assets\/[^"]+\.js/.exec(html)?.[0];
+  assert.ok(script !== undefined);
+  const asset = await fetch(url + script);
+  assert.equal(asset.status, 200);
+  assert.match(asset.headers.get('content-type') ?? '', /^text\/javascript/);
+  await asset.arrayBuffer();
+  assert.equal(await (await fetch(url + '/tasks')).text(), html);
+
+  const login = async (value: string, extra: Record<string, string> = {}) => {
+    const response = await fetch(url + '/v1/session', { method: 'POST', headers: { 'content-type': 'application/json', ...extra }, body: JSON.stringify({ token: value }) });
+    assert.equal(response.status, 200);
+    await response.json();
+    return response.headers.get('set-cookie') ?? '';
+  };
+  const session = await login(reader);
+  assert.match(session, /HttpOnly/);
+  assert.match(session, /SameSite=Strict/);
+  assert.doesNotMatch(session, /Secure/);
+  assert.match(await login(reader, { 'x-forwarded-proto': 'https' }), /; Secure/);
+  const pair = (header: string) => ({ cookie: header.split(';')[0]! });
+  const readerCookie = pair(session), writerCookie = pair(await login(writer)), viewerCookie = pair(await login(viewer));
+  assert.equal((await fetch(url + '/v1/info', { headers: readerCookie })).status, 200);
+  const cookieWrite = await fetch(url + '/v1/messages', { method: 'POST', headers: { ...writerCookie, 'content-type': 'application/json' },
+    body: JSON.stringify({ to: 'FX', text: 'x' }) });
+  assert.deepEqual([cookieWrite.status, ((await cookieWrite.json()) as { error: { code: string } }).error.code], [403, 'forbidden']);
+
   const controller = new AbortController();
-  const changes = async (value: string) => {
-    const sse = await fetch(url + '/v1/changes', { headers: auth(value), signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+  const changes = async (headers: Record<string, string>) => {
+    const sse = await fetch(url + '/v1/changes', { headers, signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
     assert.equal(sse.status, 200);
     const stream = sse.body!.getReader(), decoder = new TextDecoder();
     let buffer = '';
@@ -80,9 +111,10 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
       }
     };
   };
-  const nextChange = await changes(reader), nextViewed = await changes(viewer);
+  const nextChange = await changes(auth(reader)), nextViewed = await changes(auth(viewer)), nextCookie = await changes(readerCookie);
   assert.equal(await nextChange(), c0);
   assert.equal(await nextViewed(), c0);
+  assert.equal(await nextCookie(), c0);
 
   const refused = await post('/v1/messages', reader, { to: 'FX', text: 'один' });
   assert.deepEqual([refused.status, refused.body.error.code], [403, 'forbidden']);
@@ -95,8 +127,13 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(revoked.status, 0, revoked.stderr);
   const started = Date.now();
   assert.ok(await nextChange() > c0);
+  assert.ok(await nextCookie() > c0);
   await assert.rejects(nextViewed(), /SSE ended/);
   assert.equal((await get('/v1/info', viewer)).status, 401);
+  const stale = await fetch(url + '/v1/info', { headers: viewerCookie });
+  assert.equal(stale.status, 401);
+  assert.match(stale.headers.get('set-cookie') ?? '', /Max-Age=0/);
+  await stale.json();
   assert.ok(Date.now() - started < 5000);
   assert.ok((await get('/v1/info')).body.data['changeId'] > c0);
 
@@ -112,5 +149,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
   assert.match(stderr, / \/v1\/messages 201 writer/);
+  assert.match(stderr, / \/ 200 -/);
+  assert.match(stderr, / \/v1\/session 200 reader/);
   for (const secret of [reader, writer, viewer, 'один', 'два']) assert.equal(stderr.includes(secret), false, secret);
 });

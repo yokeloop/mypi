@@ -9,6 +9,7 @@ match the GitHub releases.
 ### Added
 
 - HTTP API (MP-71): `mypi serve` runs a foreground REST/JSON server under /v1 on 127.0.0.1:8737 (another address only with --listen, e.g. a Tailscale IP; no TLS in process) with bearer tokens from `mypi token create|list|revoke` kept hashed in $XDG_CONFIG_HOME/mypi/api-tokens.json. It reads projects, tasks, events (without marking them delivered) and the journal with filters, search and cursor pages, sessions and context files; it writes task create/update, journal notes and parent messages from the token's sender. /v1/info carries changeId, which also streams over SSE /v1/changes. A documented systemd user unit is an example, not installed. Restart the server after an engine update or migration.
+- Web UI (MP-72): `mypi serve` also serves a read-only browser interface at / (projects, tasks, events and the journal with filters, search, cursor "Load more", live refresh over /v1/changes and a Refresh button; phone-width layout). Sign in by pasting an API token: POST /v1/session sets an HttpOnly, SameSite=Strict cookie (Secure behind an HTTPS proxy) that authenticates reads only; DELETE /v1/session signs out, and revoking the token ends the session. Built from the web/ pnpm workspace package (React, Mantine, Vite) into dist/ui by pnpm build; restart the server after a rebuild.
 
 ### Changed
 

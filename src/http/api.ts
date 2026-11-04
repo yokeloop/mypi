@@ -4,22 +4,25 @@ import { InputError } from '../shared/errors.js';
 import { PartialError } from '../shared/context.js';
 import { ApiError, decodeCursor, encodeCursor, fields, jsonBody, limit, literalTrue, query, str } from './validate.js';
 import * as shape from './shape.js';
+import { clearSessionCookie, readSessionCookie, sessionCookie } from './session.js';
 
 export const API_VERSION = 1;
 export type ApiToken = { name: string; permission: 'read' | 'write'; sender: string | null };
 export type ApiRequest = { method: string; path: string; query: URLSearchParams;
-  authorization: string | undefined; contentType: string | undefined; body: string };
-export type ApiResult = { status: number; body: unknown; token?: string } | { status: 200; stream: 'changes'; token: string };
+  authorization: string | undefined; contentType: string | undefined; body: string;
+  cookie: string | undefined; forwardedProto: string | undefined };
+export type ApiResult = { status: number; body: unknown; token?: string; setCookie?: string } | { status: 200; stream: 'changes'; token: string };
 export type ApiInfo = { version: string; schemaVersion: number; changeId: number; instance: string };
 export type ApiDeps = { token(value: string): ApiToken | undefined; execute(command: AppCommand): Promise<unknown>;
   info(): ApiInfo; runtime: string | undefined; log(line: string): void };
 
+type Caller = ApiToken & { via: 'bearer' | 'cookie' };
 type Reply = { status?: number; data: unknown } | { stream: 'changes' };
 type Route = { method: string; pattern: RegExp; permission: 'read' | 'write';
-  run(match: RegExpExecArray, request: ApiRequest, token: ApiToken): Promise<Reply> };
+  run(match: RegExpExecArray, request: ApiRequest, token: Caller): Promise<Reply> };
 type Page = { items: unknown[]; next: number | null };
 
-const KEY = '([A-Z]+-[1-9][0-9]*)', CODE = '([A-Z]+)';
+const KEY = '([A-Z]+-[1-9][0-9]*)', CODE = '([A-Z]+)', TOKEN = /^[A-Za-z0-9_-]+$/;
 
 export function bearer(authorization: string | undefined): string | undefined {
   return /^Bearer ([A-Za-z0-9_-]+)$/.exec(authorization ?? '')?.[1];
@@ -64,6 +67,10 @@ function failure(error: unknown): { status: number; body: unknown } {
 export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiResult> {
   const routes: Route[] = [
     { method: 'GET', pattern: /^\/v1\/info$/, permission: 'read', run: async (_, r) => { query(r.query, []); return { data: deps.info() }; } },
+    { method: 'GET', pattern: /^\/v1\/session$/, permission: 'read', run: async (_, r, token) => {
+      query(r.query, []);
+      return { data: { name: token.name, permission: token.permission, via: token.via } };
+    } },
     { method: 'GET', pattern: /^\/v1\/changes$/, permission: 'read', run: async (_, r) => { query(r.query, []); return { stream: 'changes' }; } },
     { method: 'GET', pattern: /^\/v1\/projects$/, permission: 'read', run: async (_, r) => {
       const q = query(r.query, ['org']);
@@ -147,19 +154,53 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
       return { data: shape.context(await deps.execute({ name: 'context_read', path: q['path'], ...optional('revision', q['revision']) }) as never) };
     } },
   ];
-  return async request => {
-    const presented = bearer(request.authorization);
-    let token: ApiToken | undefined;
-    try { token = presented === undefined ? undefined : deps.token(presented); } catch (error) {
+  const lookup = (value: string): { token: ApiToken | undefined } | { error: ApiResult } => {
+    try { return { token: deps.token(value) }; } catch (error) {
       deps.log(error instanceof Error ? error.message : String(error));
-      return { status: 500, body: { apiVersion: API_VERSION, error: { code: 'internal', message: 'API token file is unreadable' } } };
+      return { error: { status: 500, body: { apiVersion: API_VERSION, error: { code: 'internal', message: 'API token file is unreadable' } } } };
     }
-    if (token === undefined) return failure(new ApiError(401, 'unauthorized', 'Missing or unknown bearer token'));
+  };
+  return async request => {
+    const secure = request.forwardedProto === 'https';
+    if (request.path === '/v1/session' && request.method === 'POST') {
+      let value: string;
+      try { value = str(body(request, ['token'], []), 'token')!; } catch (error) { return failure(error); }
+      const found = TOKEN.test(value) ? lookup(value) : { token: undefined };
+      if ('error' in found) return found.error;
+      if (found.token === undefined) return failure(new ApiError(401, 'unauthorized', 'Unknown token'));
+      return { status: 200, body: { apiVersion: API_VERSION, data: { name: found.token.name, permission: found.token.permission } },
+        token: found.token.name, setCookie: sessionCookie(value, secure) };
+    }
+    if (request.path === '/v1/session' && request.method === 'DELETE') {
+      if ((request.contentType ?? '').split(';')[0]!.trim().toLowerCase() !== 'application/json') {
+        return failure(new ApiError(415, 'unsupported_media_type', 'Content-Type must be application/json'));
+      }
+      return { status: 200, body: { apiVersion: API_VERSION, data: { loggedOut: true } }, setCookie: clearSessionCookie(secure) };
+    }
+    const unauthorized = failure(new ApiError(401, 'unauthorized', 'Missing or unknown bearer token'));
+    let token: Caller;
+    if (request.authorization !== undefined) {
+      const presented = bearer(request.authorization);
+      const found = presented === undefined ? { token: undefined } : lookup(presented);
+      if ('error' in found) return found.error;
+      if (found.token === undefined) return unauthorized;
+      token = { ...found.token, via: 'bearer' };
+    } else {
+      const presented = readSessionCookie(request.cookie);
+      if (presented === undefined) return unauthorized;
+      const found = TOKEN.test(presented) ? lookup(presented) : { token: undefined };
+      if ('error' in found) return found.error;
+      if (found.token === undefined) return { ...unauthorized, setCookie: clearSessionCookie(secure) };
+      token = { ...found.token, via: 'cookie' };
+    }
     try {
       const matching = routes.map(route => ({ route, match: route.pattern.exec(request.path) })).filter(x => x.match !== null);
       if (matching.length === 0) throw new ApiError(404, 'not_found', 'Unknown path: ' + request.path);
       const found = matching.find(x => x.route.method === request.method);
       if (found === undefined) throw new ApiError(405, 'method_not_allowed', 'Method not allowed: ' + request.method);
+      if (found.route.permission === 'write' && token.via === 'cookie') {
+        throw new ApiError(403, 'forbidden', 'Browser sessions are read-only; use a bearer token for writes');
+      }
       if (found.route.permission === 'write' && token.permission !== 'write') throw new ApiError(403, 'forbidden', 'This token is read-only');
       const reply = await found.route.run(found.match!, request, token);
       if ('stream' in reply) return { status: 200, stream: 'changes', token: token.name };
