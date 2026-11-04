@@ -38,18 +38,18 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
   const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory, canonicalAbsoluteDirectory });
   const sessionScope = (key: string): SessionScope => {
-    if (key === 'global') return { scopeType: 'global', projectId: null, taskId: null };
+    if (key === 'global') return { scopeType: 'global', orgId: null, projectId: null, taskId: null };
     if (/^[A-Z]+$/.test(key)) {
       const project = projects.list().find(p => p.code === key);
       if (!project) throw new InputError('Unknown project: ' + key);
-      return { scopeType: 'project', projectId: project.id, taskId: null };
+      return { scopeType: 'project', orgId: null, projectId: project.id, taskId: null };
     }
     if (/^[A-Z]+-[1-9][0-9]*$/.test(key)) {
       const list = projects.list();
       const card = sqliteTaskStore(db).list().find(c => (c.projectId === null ? 'REQ' : list.find(p => p.id === c.projectId)!.code) + '-' + c.number === key);
       if (!card) throw new InputError('Unknown task: ' + key);
       if (card.projectId === null) throw new InputError('Task ' + key + ' has no project; sessions need a task of a registered project');
-      return { scopeType: 'task', projectId: card.projectId, taskId: card.id };
+      return { scopeType: 'task', orgId: null, projectId: card.projectId, taskId: card.id };
     }
     throw new InputError('Invalid session key: ' + key + '; use global, a project code (MP) or a task key (MP-12)');
   };

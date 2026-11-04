@@ -56,6 +56,13 @@ export function sqliteProjectStore(db: Database): ProjectStore {
     removeOrganization: db.transaction((slug: string) => {
       const org = db.prepare('SELECT id FROM organizations WHERE slug = ?').get(slug) as { id: number } | undefined;
       if (!org) throw new InputError('Unknown organization');
+      const counts = db.prepare(`SELECT
+        (SELECT count(*) FROM sessions WHERE org_id = @id) AS sessions,
+        (SELECT count(*) FROM events WHERE to_key = @slug OR from_key = @slug) AS events`)
+        .get({ id: org.id, slug }) as Record<'sessions' | 'events', number>;
+      const parts = ([['sessions', counts.sessions], ['events', counts.events]] as const)
+        .filter(([, n]) => n > 0).map(([label, n]) => label + ' ' + n);
+      if (parts.length > 0) throw new InputError('Organization ' + slug + ' is referenced by: ' + parts.join(', '));
       const { n } = db.prepare('SELECT count(*) AS n FROM projects WHERE org_id = ?').get(org.id) as { n: number };
       if (n > 0) throw new InputError('Organization ' + slug + ' has projects: ' + n);
       db.prepare('DELETE FROM organizations WHERE id = ?').run(org.id);

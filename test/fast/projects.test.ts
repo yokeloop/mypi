@@ -210,6 +210,14 @@ test('org remove deletes only an organization without projects', t => {
     assert.throws(() => app.projects.removeOrganization('absent'), /Unknown organization/);
     assert.throws(() => app.projects.removeOrganization('Bad'), /Invalid organization slug/);
     app.projects.remove('one/project', 'MP');
+    seed(filename, [[`INSERT INTO sessions(key, scope_type, org_id, agent, native_id, created_at)
+      VALUES ('one', 'org', (SELECT id FROM organizations WHERE slug = 'one'), 'claude', 'c1', ?)`, [at]]]);
+    assert.throws(() => app.projects.removeOrganization('one'), /Organization one is referenced by: sessions 1$/);
+    seed(filename, [[`DELETE FROM sessions WHERE key = 'one'`, []],
+      [`INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('one', 'MP-1', 'message', 'Go', ?)`, [at]],
+      [`INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP-1', 'one', 'turn_end', 'Done', ?)`, [at]]]);
+    assert.throws(() => app.projects.removeOrganization('one'), /Organization one is referenced by: events 2$/);
+    seed(filename, [[`DELETE FROM events`, []]]);
     assert.equal(app.projects.removeOrganization('one'), 'one');
     assert.throws(() => app.projects.resolveScope('one'), /Unknown organization/);
   } finally { app.close(); }
