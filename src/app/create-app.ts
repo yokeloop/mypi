@@ -79,7 +79,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, clock),
+    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock),
     events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     close: () => db.close(),
   };

@@ -80,10 +80,10 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.equal(statSync(join(runtime, 'mypi')).mode & 0o777, 0o700);
   assert.equal(statSync(join(runtime, 'mypi', 'sessions')).mode & 0o777, 0o700);
   assert.ok(ok(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }).startsWith('# mypi warmup: MP (one/project)'));
-  assert.deepEqual(JSON.parse(ok(['sessions'])).tree.children[0],
+  assert.deepEqual(JSON.parse(ok(['sessions'])).tree.children[0].children[0],
     { key: 'MP', session: { agent: 'claude', nativeId: 'c1', state: 'live' }, children: [] });
   assert.equal(ok(['session', 'unregister', '--pid', pid]), '{"removed":["MP"]}\n');
-  assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].session.state, 'closed');
+  assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.state, 'closed');
   assert.equal(ok(['session', 'forget', 'MP']), '{"forgotten":"MP","live":false}\n');
   const { XDG_RUNTIME_DIR: _, ...bare } = env;
   const missing = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, bare);
