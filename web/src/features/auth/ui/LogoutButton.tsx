@@ -11,8 +11,8 @@ export function LogoutButton() {
     setError(null);
     try {
       await apiSend('DELETE', '/v1/session', {});
-      client.clear();
       client.setQueryData(SESSION_KEY, null);
+      client.removeQueries({ predicate: query => query.queryKey[0] !== SESSION_KEY[0] });
     } catch (failure) {
       setError(failure instanceof Error ? failure.message : String(failure));
     }
