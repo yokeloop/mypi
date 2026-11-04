@@ -111,6 +111,7 @@ pub struct App {
     pub opening: Option<String>,
     pub changes: ChangeState,
     pub quit: bool,
+    pub url: String,
     effects: Vec<Effect>,
 }
 
@@ -135,6 +136,7 @@ impl App {
             opening: None,
             changes: ChangeState::default(),
             quit: false,
+            url: String::new(),
             effects: vec![Effect::Info],
         };
         app.load(Section::Tasks, LoadKind::Replace);
