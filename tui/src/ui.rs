@@ -268,19 +268,11 @@ fn detail(frame: &mut Frame, app: &mut App, hits: &mut HitMap, area: Rect) {
             lines.push(Line::from(format!("  {rest}")));
         }
     }
-    let width = usize::from(inner.width.max(1));
-    let total: usize = lines
-        .iter()
-        .map(|line| line.width().div_ceil(width).max(1))
-        .sum();
+    let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false });
+    let total = paragraph.line_count(inner.width);
     let most = u16::try_from(total.saturating_sub(usize::from(inner.height))).unwrap_or(u16::MAX);
     list.detail_scroll = list.detail_scroll.min(most);
-    frame.render_widget(
-        Paragraph::new(lines)
-            .wrap(Wrap { trim: false })
-            .scroll((list.detail_scroll, 0)),
-        inner,
-    );
+    frame.render_widget(paragraph.scroll((list.detail_scroll, 0)), inner);
 }
 
 fn buttons(frame: &mut Frame, app: &App, hits: &mut HitMap, area: Rect, mode: Mode) {
@@ -440,6 +432,37 @@ mod tests {
             .map(|(x, y)| hits.at(x, y))
             .collect();
         (rows, targets, hits)
+    }
+
+    #[test]
+    fn end_scrolls_word_wrapped_details_to_the_last_line() {
+        let mut app = App::new(false);
+        app.take_effects();
+        let title = format!("{}ENDMARK", "abcdefghijklmnopqrstuvwxyzabc ".repeat(30));
+        app.apply(Msg::Loaded {
+            section: Section::Tasks,
+            generation: 1,
+            kind: LoadKind::Replace,
+            result: Ok(Page {
+                items: vec![
+                    json!({"key": "MP-1", "title": title})
+                        .as_object()
+                        .unwrap()
+                        .clone(),
+                ],
+                next: None,
+            }),
+        });
+        app.action(Action::Activate);
+        let (rows, _, _) = render(&mut app, 100, 20);
+        assert!(!rows.join("\n").contains("ENDMARK"));
+        app.action(Action::End);
+        let (rows, _, _) = render(&mut app, 100, 20);
+        assert!(rows.join("\n").contains("ENDMARK"));
+        let scrolled = app.list().detail_scroll;
+        app.action(Action::Down);
+        render(&mut app, 100, 20);
+        assert_eq!(app.list().detail_scroll, scrolled);
     }
 
     #[test]
