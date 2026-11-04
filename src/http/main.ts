@@ -9,7 +9,7 @@ try {
   const { values } = parseArgs({ args: process.argv.slice(2), strict: true, allowPositionals: false,
     options: { listen: { type: 'string' }, port: { type: 'string' } } });
   const controller = new AbortController();
-  for (const sig of ['SIGINT', 'SIGTERM'] as const) process.once(sig, () => controller.abort());
+  for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => controller.abort());
   await serve({ filename: resolveStatePath(process.env, homedir()), tokensFile: resolveApiTokensPath(process.env),
     listen: values.listen ?? '127.0.0.1', port: values.port ?? String(DEFAULT_PORT),
     env: process.env, signal: controller.signal,

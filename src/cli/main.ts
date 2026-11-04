@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { PartialError } from '../shared/context.js';
 import { CancelledError } from '../shared/errors.js';
-import { homedir } from 'node:os';
+import { constants, homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveStatePath } from '../app/create-app.js';
@@ -19,7 +19,7 @@ try {
     for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => child.kill(sig));
     process.exitCode = await new Promise<number>((resolve, reject) => {
       child.once('error', reject);
-      child.once('exit', code => resolve(code ?? 0));
+      child.once('exit', (code, signal) => resolve(code ?? 128 + constants.signals[signal!]));
     });
   } else {
     const cancellable = command.type === 'workspace' && command.name === 'open';

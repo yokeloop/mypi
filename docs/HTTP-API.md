@@ -18,7 +18,9 @@ mypi serve [--listen <IP>] [--port <n>]
   the port is released.
 - `mypi serve` validates its arguments and runs the server as a child process,
   `node dist/src/http/main.js`, so other CLI commands never load the HTTP server or
-  the MCP SDK. SIGINT and SIGTERM are forwarded to it; the CLI exits with its code.
+  the MCP SDK. SIGINT and SIGTERM are forwarded to it, and
+  a second delivery (Ctrl+C reaches the whole process group) is harmless. The CLI exits
+  with the child's exit code; a child killed by a signal gives 128 + the signal number.
 - It refuses to start without any API token, without an initialized database, or
   with a database schema other than the one the engine expects (12).
 

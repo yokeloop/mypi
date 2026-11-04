@@ -32,8 +32,8 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   };
   const reader = token('reader', 'read'), writer = token('writer', 'write'), viewer = token('viewer', 'read');
 
-  const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
-  t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
+  const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
+  t.after(() => { if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid!, 'SIGKILL'); });
   let stdout = '', stderr = '';
   child.stderr.setEncoding('utf8').on('data', (chunk: string) => { stderr += chunk; });
   const exited = new Promise<number | null>(resolve => child.once('exit', code => resolve(code)));
@@ -175,7 +175,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal((await call(writer, 'note', { kind: 'journal', scope: fx, text: 'Удалённая' })).structuredContent.status, 'ok');
   assert.match(JSON.stringify((await call(reader, 'journal', { scope: fx })).structuredContent.data), /Удалённая/);
 
-  child.kill('SIGTERM');
+  process.kill(-child.pid!, 'SIGINT');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
   assert.match(stderr, / \/v1\/messages 201 writer/);
