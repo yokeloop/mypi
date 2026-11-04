@@ -6,7 +6,7 @@ A project-centered memory and task system for explicit user-directed work.
 
 **Implemented:** local memory, organizations/projects, DB task cards/statuses,
 scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
-`mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits to their project chat as events (`/inbox`). No task registration, automatic logging or separate Herdr tab is required.
+`mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, an organization, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits as events (`/inbox`) to the parent chat, project or organization, whose message started the turn. No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
 **Future:** units, project flows and runtime enforcement.
@@ -168,20 +168,22 @@ native id, name, socket, start permission mode). The key is resolved in one
 order: the row for this native id, the live record of the same process,
 `MYPI_SCOPE`, `global`. A newer live session under a key becomes canonical and
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
-`MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
-`mypi session forget <key>` drops a row on the user's request. Without
-`XDG_RUNTIME_DIR` or an initialized schema 12 database registration fails and the
-warmup still runs.
+`MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree
+global → org → project → task; `mypi session forget <key>` drops a row on the
+user's request. Without `XDG_RUNTIME_DIR` or an initialized schema 13 database
+registration fails and the warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
 `mypi open`) needs a running Herdr server. In Pi, typing the arguments of /open
 suggests keys: the session's project and its open tasks in a project or task chat,
-all projects and open tasks in the main chat; choosing one inserts the key and a
-space. For each key — a project code, CODE-N,
+the organization's projects and their open tasks in an organization chat, all
+projects and open tasks in the main chat; choosing one inserts the key and a
+space. For each key — an organization slug (`tb-ff`), a project code, CODE-N,
 org/project or org/project#N — it focuses the live session's Herdr tab or opens a
 new tab in its project's Herdr workspace (label `org/project`, created when
-missing; a task gets its tab there without starting the project session) in the
-engine root with `MYPI_SCOPE` and starts the agent there; an existing session
+missing; a task gets its tab there without starting the project session; an
+organization gets the tab `org-<slug>` in the workspace `<slug>`, with no clone or
+worktree) in the engine root with `MYPI_SCOPE` and starts the agent there; an existing session
 continues with its own agent. A project without a clone is first cloned from its
 registered `repository` (`local`: `git init`) into `projects/<org>/<project>`,
 verified and registered, with `clone prepared: …` in `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
@@ -190,10 +192,12 @@ total time limit but stopped after 5 minutes without progress, and the result
 appears under projects/<org>/<project> only complete; Esc in Pi, cancelling the
 MCP call or SIGINT/SIGTERM of the CLI stops git, removes the partial clone and
 registers nothing, so the next /open prepares it again; without a
-`repository` it is refused before anything opens. A new session (not a resumed or focused one) gets
+`repository` it is refused before anything opens. `global`, `all`, an unknown
+organization and an organization without registered projects are refused. A new session (not a resumed or focused one) gets
 one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through
-the same socket as events: for a project its open tasks by status and the number
-of undelivered events, for a task its status, worktree and the last journal
+the same socket as events: for an organization the open tasks of each of its
+projects by status and the number of its undelivered events, for a project its
+open tasks by status and the number of undelivered events, for a task its status, worktree and the last journal
 entries with their artifacts. It is state, not an instruction, and creates no
 events. If it cannot be delivered, `/open` still succeeds and the key's `notes`
 say `start message not delivered: <reason>`; for Claude in `bypassPermissions`
@@ -203,27 +207,31 @@ instruction: queued after the focus or start, sent live to a focused session,
 after a resume, or in the same message as the start text; `opened[].message` is
 its id.
 
-A task chat (`MP-12`) reports to its parent key (`MP`) through rows in the `events`
-table, only when the parent needs to act on them:
+A task chat (`MP-12`) reports to a parent key, its project (`MP`) or its
+organization (`one`), through rows in the `events` table, only when the parent
+needs to act on them. `turn_end` and `waiting` go to the sender of the message that
+started the turn when it is a parent of the task, else to the project:
 
 - `turn_end`: a turn that a parent message started ends. Claude's Stop hook runs
   `mypi turn end`; it records the event only when the transcript entry that opened
   the turn has `turnOrigin` `peer` and carries the mypi parent-message frame
   (`[mypi: сообщение родительской сессии MP для MP-12. …`). The Pi extension runs
-  `mypi event emit` on `agent_settled` with the last reply only when a message with
-  that frame started the turn through its socket. A turn a person started records
+  `mypi event emit --to <sender>` on `agent_settled` with the last reply only when a
+  message with that frame started the turn through its socket. A turn a person started records
   nothing; an unreadable transcript or a missing mark records nothing.
 - `waiting`: in such a parent-started turn, Claude's Notification hook for
   `permission_prompt` and `elicitation_dialog` (`mypi event emit --waiting --hook`)
   or Pi's `ui_prompt_start`. `idle_prompt` never creates an event.
 - `milestone`: a task's status changes to `review`, `blocked`, `merged` or a terminal
-  status, unless the project chat itself makes the change (`task_update`,
+  status; one event for the parent that last sent the task a message, else the
+  project chat, unless that recipient itself makes the change (`task_update`,
   `mypi task status`).
 
 A parent writes the parent-message frame itself: send_message (MCP), `mypi send
 <key> (text | --file source)` or `/open <key> --message <text>` store an `events`
 row of kind `message` from the parent to its direct child (project chat → its
-task, main chat → a project; any other caller is refused). A live child gets it
+task, organization chat → a task of its organization, main chat → a project or an
+organization; any other caller is refused). A live child gets it
 at once through the same socket as events, as a new turn; a closed child gets its
 queued messages exactly once at the next `/open`, in one message with the start
 text. The warmup does not show them; the child's own `/inbox` returns and marks
@@ -233,11 +241,11 @@ message as a `queued_command` inside its current turn without a `turn_end` of it
 own; Pi takes it as a `followUp` after the run. An instruction never carries the
 engineer's authorization: steps such as /do, /ship, merge, release, migration or
 an engine update still need the engineer's word in the child's tab.
-Project and global chats emit nothing. The project chat receives the undelivered
+Organization, project and global chats emit nothing. A parent chat receives the undelivered
 events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
 runs the `inbox` skill as `/skill:inbox`; MCP `inbox`, CLI `mypi inbox`) and in its warmup under
 «Новые события», even if it was closed when they arose; shown events are marked
-delivered. Milestones arrive only there, never live. The project warmup also lists
+delivered. Milestones arrive only there, never live. The project and organization warmups also list
 «Последние доклады»: the last delivered `turn_end` of each open task, as history.
 Delivery is at-least-once; the event number in the frame tells a repeat.
 
@@ -272,6 +280,9 @@ command that opens the database, including warmup, asks for it.
 
 Upgrading to schema 12: run `mypi db init` once after updating (back up the
 database first).
+
+Upgrading to schema 13: run `mypi db init` once after updating (back up the
+database first); it rebuilds `sessions` for organization sessions and keeps its rows.
 
 ### Updating without overwriting customizations
 
@@ -486,7 +497,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, project or task session (without -s it uses the session's registered key, else MYPI_SCOPE, else global); over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|org|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, organization, project or task session (without -s it uses the session's registered key, else MYPI_SCOPE, else global); over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

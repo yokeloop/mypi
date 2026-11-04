@@ -6,6 +6,20 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+Upgrading: schema 13, run `mypi db init` once after the update (back up the database
+first); reload or restart Claude Code and Pi sessions so the new roles and the Pi
+extension take effect.
+
+### Added
+
+- Organization scope and chat (MP-78): the bare organization slug (`tb-ff`) is a session key. `/open tb-ff` (MCP `open_session`, CLI `mypi open`) opens, focuses or resumes the organization chat in the Herdr tab `org-tb-ff` of the workspace `tb-ff`, in the engine root, with no clone or worktree; `global`, `all`, an unknown organization and an organization without registered projects are refused. The organization chat leads the tasks of all registered projects of its organization: it opens their task chats and sends them parent messages directly. Its warmup (role `org`) carries global and organization memory, one line per project and the events addressed to it; its start message lists each project's open tasks by status. Pi completes `/open` with the organization's projects and their open tasks; the pipeline skills accept the organization scope (`mp-task scope` adds `org` and `codes`).
+
+### Changed
+
+- Event routing (MP-78): a task has two parents, its project chat and its organization chat. `turn_end` and `waiting` go to the sender of the parent message that started the turn (`mypi event emit --to`), else to the project; a milestone goes to the parent that last sent the task a message, else to the project, unless that recipient makes the change. Refusals of a non-parent sender name both parents.
+- Sessions tree (MP-78): `mypi sessions` (MCP `sessions`) shows global → org → project → task.
+- Schema 13 (MP-78): `sessions` gains the scope `org` and the column `org_id`; `mypi db init` is required. `mypi org remove` refuses while an organization session or an event with its slug exists.
+
 ## [0.11.0] - 2026-11-04
 
 Upgrading from v0.10.0: `git pull --ff-only`, `mise install` (now also installs the
