@@ -54,7 +54,8 @@ export function createRemoteMcp(deps: RemoteDeps): (request: Request) => Promise
       const transport = new WebStandardStreamableHTTPServerTransport({ enableJsonResponse: true });
       await server.connect(transport);
       try { return { response: await transport.handleRequest(request), token: caller.name }; } finally { await server.close(); }
-    } catch {
+    } catch (error) {
+      deps.log(error instanceof Error ? error.message : String(error));
       return { response: rpcError(500, -32603, 'Internal error'), token: caller.name };
     }
   };
