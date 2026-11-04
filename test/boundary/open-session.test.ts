@@ -32,7 +32,8 @@ case "$1 $2" in
   'agent start')
     sleep 1000 < /dev/null > /dev/null 2>&1 &
     echo "$!" >> "$HERDR_CHILDREN"
-    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "fake-$3" --pid "$!" \\
+    case "$3" in org-*) scope="\${3#org-}" ;; *) scope="\${3^^}" ;; esac
+    MYPI_SCOPE="$scope" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "fake-$3" --pid "$!" \\
       \${HERDR_FAKE_SOCKET:+--socket "$HERDR_FAKE_SOCKET"} > /dev/null
     echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
   'agent focus')
@@ -131,7 +132,7 @@ function fixture(t: TestContext) {
   };
   const received = () => existsSync(serverLog) ? readFileSync(serverLog, 'utf8').split('\n').filter(line => line !== '').map(line => JSON.parse(line)) : [];
   const pid = String(process.pid);
-  return { env, cli, ok, failed, calls, reset, rows, worktreePaths, events, quit, listen, received, sock, pid,
+  return { env, filename, cli, ok, failed, calls, reset, rows, worktreePaths, events, quit, listen, received, sock, pid,
     worktree: realpathSync(clone) + '--MP-1-open' };
 }
 
@@ -354,4 +355,65 @@ test('open with a message from a non-parent or for two keys opens nothing', t =>
   assert.deepEqual(worktreePaths(), [null]);
   assert.deepEqual(rows(), []);
   assert.deepEqual(events(), []);
+});
+
+test('open of an organization starts tab org-<slug> in workspace <slug> without clones or worktrees and focuses it on the next open', t => {
+  const { env, ok, calls, reset, rows, worktreePaths, quit } = fixture(t);
+  const result = ok(['open', 'one']);
+  assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.worktreePath]), [['one', 'claude', 'started', null]]);
+  const log = calls();
+  assert.deepEqual(log.map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
+    ['workspace', 'list'],
+    workspace('one', 'one', env['XDG_STATE_HOME']!),
+    ['tab', 'rename', 't-one', 'org-one'],
+    ['agent', 'start', 'org-one', '--kind', 'claude', '--pane', 'p-one'],
+  ]);
+  assert.deepEqual(log[3]!.slice(10, 12), ['--name', 'one']);
+  assert.deepEqual(rows(), ['one']);
+  assert.deepEqual(worktreePaths(), [null]);
+  for (const slug of ['noclone', 'fromurl']) assert.equal(existsSync(join(root, 'projects', 'one', slug)), false);
+  reset();
+  assert.deepEqual(ok(['open', 'one']).opened.map(o => [o.key, o.action]), [['one', 'focused']]);
+  assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'org-one']]);
+  quit();
+  reset();
+  assert.deepEqual(ok(['open', 'one']).opened.map(o => [o.key, o.action]), [['one', 'resumed']]);
+  assert.deepEqual(calls().at(-1), ['agent', 'start', 'org-one', '--kind', 'claude', '--pane', 'p-one', '--', '--resume', 'fake-org-one',
+    '--settings', accept]);
+});
+
+test('open refuses an unknown organization, all, global and an organization without projects, leaving no tab or rows', t => {
+  const { cli, failed, calls, rows } = fixture(t);
+  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO']).status, 0);
+  assert.equal(cli(['project', 'remove', 'empty/gone', '--expected-code', 'GO']).status, 0);
+  assert.match(failed(['open', 'nope']).message, /Unknown organization/);
+  assert.match(failed(['open', 'one', 'nope']).message, /Unknown organization/);
+  assert.equal(failed(['open', 'all']).message, 'all is reserved for /inbox all; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
+  assert.equal(failed(['open', 'global']).message,
+    'global is the main chat, started by hand; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
+  assert.equal(failed(['open', 'empty']).message, 'Organization empty has no registered projects; /open empty opens organizations with at least one');
+  assert.deepEqual(calls(), []);
+  assert.deepEqual(rows(), []);
+});
+
+test('the organization chat opens a task of its organization with a message; a task of another organization is refused', async t => {
+  const { filename, ok, failed, calls, reset, listen, received, sock } = fixture(t);
+  const app = createApp(filename, false);
+  try {
+    app.tasks.create({ projectId: app.projects.list().find(p => p.code === 'OT')!.id, slug: 'other', title: 'other', status: 'new' }, () => {});
+  } finally { app.close(); }
+  await listen('claude');
+  const result = ok(['open', 'MP-1', '--message', 'сделай шаг'], { HERDR_FAKE_SOCKET: sock, MYPI_SCOPE: 'one' });
+  assert.deepEqual(result.opened.map(o => [o.key, o.action, o.message]), [['MP-1', 'started', 1]]);
+  assert.deepEqual(calls().filter(c => c[0] === 'agent').map(c => c.slice(0, 3)), [['agent', 'start', 'mp-1']]);
+  const content = received()[0].message.content as string;
+  assert.ok(content.endsWith('[mypi: сообщение родительской сессии one для MP-1. Ниже — поручение родительской сессии]\nсделай шаг'), content);
+  reset();
+  assert.match(failed(['open', 'OT-1', '--message', 'go'], { MYPI_SCOPE: 'one' }).message,
+    /Only OT or two may send messages to OT-1; this session is one/);
+  assert.deepEqual(calls(), []);
+  const db = openDatabase(filename, true);
+  try {
+    assert.deepEqual(db.prepare('SELECT from_key, to_key, kind FROM events').raw().all(), [['one', 'MP-1', 'message']]);
+  } finally { db.close(); }
 });

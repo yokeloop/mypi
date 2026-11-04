@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
+import { agentName, callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
 import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -17,11 +17,17 @@ test('parseOpenKey accepts project codes, task keys and identities and refuses g
   assert.deepEqual(parseOpenKey('MP-12'), { kind: 'task', code: 'MP', number: 12 });
   assert.deepEqual(parseOpenKey('one/project'), { kind: 'identity', org: 'one', slug: 'project' });
   assert.deepEqual(parseOpenKey('one/project#3'), { kind: 'identity', org: 'one', slug: 'project', number: 3 });
-  refused(() => parseOpenKey('global'), 'global is the main chat, started by hand; /open opens project (MP) and task (MP-12) sessions');
+  assert.deepEqual(parseOpenKey('tb-ff'), { kind: 'org', slug: 'tb-ff' });
+  assert.deepEqual(parseOpenKey('one'), { kind: 'org', slug: 'one' });
+  refused(() => parseOpenKey('global'), 'global is the main chat, started by hand; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
+  refused(() => parseOpenKey('all'), 'all is reserved for /inbox all; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
   for (const key of ['REQ', 'REQ-1']) refused(() => parseOpenKey(key), 'REQ tasks have no project; /open opens sessions of registered projects');
-  for (const key of ['mp-12', 'MP-0', 'one/project#0', 'one/Project', '']) {
-    refused(() => parseOpenKey(key), 'Invalid key: ' + key + '; use a project code (MP), CODE-N (MP-12), org/project or org/project#N');
+  for (const key of ['Mp-12', 'MP-0', 'one/project#0', 'one/Project', 'tb--ff', '-tb', '']) {
+    refused(() => parseOpenKey(key), 'Invalid key: ' + key + '; use an organization slug (tb-ff), a project code (MP), CODE-N (MP-12), org/project or org/project#N');
   }
+  assert.equal(agentName('tb-ff', 'org'), 'org-tb-ff');
+  assert.equal(agentName('MP-12', 'task'), 'mp-12');
+  assert.equal(agentName('MP', 'project'), 'mp');
 });
 
 test('defaultAgent reads home/settings.json and falls back to claude', () => {
