@@ -21,16 +21,19 @@ The Session with the `global` Scope. Started from the engine root; administers a
 The Session with a `project` Scope. Exactly one per Project. Works in the context of the whole Project, opens and manages its Task chats, receives their Events.
 
 ## Task chat
-The Session with a `task` Scope. Bound to one Task; works only in that Task's context, in its own worktree. Manages nothing.
+The Session with a `task` Scope. Bound to one Task; works only in that Task's context, in its own worktree. Manages nothing except the pipeline skills the engineer types in it, which may run its Task and its Subtasks (docs/PIPELINE.md «Session scope»).
 
 ## Task
 The unit of work recorded in the database (formerly "request"). A Task belongs to a Project. A Task chat exists only for an existing Task.
+
+## Parent task / Subtask
+A Task may name one Parent task of the same Project (`parent`); Subtasks form a tree of any depth. Not the Parent of a Session: a Subtask's Task chat still has the Project chat as its Parent, and its Events and Milestones go there.
 
 ## Project / Organization
 A registered Project belongs to one Organization. Organization is a grouping and a context source only; it has no Session of its own.
 
 ## Parent
-The structural owner of a Session: Task chat → Project chat → Main chat. Parenthood never changes and does not depend on who opened the Session.
+The structural owner of a Session: Task chat → Project chat → Main chat. Parenthood never changes and does not depend on who opened the Session. For Tasks see Parent task / Subtask.
 
 ## Event
 A record created when a child Session's turn that a Parent message started stops, carrying the final message of that turn (`turn_end`), or stops mid-turn waiting for a human (`waiting`), and when a Task reaches a Milestone (`milestone`). Events flow only from a Task chat to its Project chat; the Main chat receives none. Parent messages are kept in the same table as kind `message` and go down, from a Parent to its child.

@@ -48,6 +48,8 @@ test('remote tools reuse local definitions, translate like the local server and 
     { name: 'task_status', key: 'MP-1', status: 'done', reason: 'ok', envScope: 'MP' },
     { name: 'task_progress', key: 'MP-1', text: 'p', artifacts: [] },
   ]);
+  assert.deepEqual(remoteToolCommand('task_update', { key: 'MP-1', parent: null, reason: 'r' }, projectWriter, undefined),
+    [{ name: 'task_parent', key: 'MP-1', parent: null, reason: 'r' }]);
   assert.deepEqual(remoteToolCommand('send_message', { key: 'MP', text: 'go' }, writer, '/run/u'),
     [{ name: 'message_send', key: 'MP', body: { text: 'go' }, envScope: 'global', runtime: '/run/u' }]);
   assert.deepEqual(remoteToolCommand('send_message', { key: 'MP', text: 'go' }, writer, undefined),

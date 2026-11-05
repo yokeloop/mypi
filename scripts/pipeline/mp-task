@@ -22,6 +22,7 @@ usage: mp-task scope                           session scope as JSON
        mp-task board <CODE> [all]              board rows of a project as JSON lines;
                                                terminal statuses only with "all"
        mp-task flow <CODE|KEY>                 the project's flow as JSON (mypi project flow)
+       mp-task subtasks <KEY>                  descendants of a task as JSON lines, subtasks before their parent
 EOF
   exit 2
 }
@@ -107,6 +108,29 @@ import sys,json
 mode,home=sys.argv[1],sys.argv[2]
 rows=[r for r in json.load(sys.stdin) if mode=="all" or not r["isTerminal"]]
 for r in sorted(rows,key=lambda r:r["number"]):
-    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"]},ensure_ascii=False))' "${2:-}" "$HOME_DIR" ;;
+    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"parent":r["parent"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"]},ensure_ascii=False))' "${2:-}" "$HOME_DIR" ;;
+  subtasks) [[ $# -eq 1 ]] || usage
+    proj=$("$self" project "$1")
+    name=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["project"])' <<<"$proj")
+    cli task list --project "$name" | python3 -c '
+import sys,json
+key,home=sys.argv[1],sys.argv[2]
+rows=json.load(sys.stdin)
+if not any(r["key"]==key for r in rows):
+    print(json.dumps({"error":"unknown task "+key}),file=sys.stderr)
+    sys.exit(1)
+children={}
+for r in sorted(rows,key=lambda r:r["number"]):
+    if r["parent"] is not None:
+        children.setdefault(r["parent"],[]).append(r)
+seen={key}
+def walk(parent,depth):
+    for r in children.get(parent,[]):
+        if r["key"] in seen:
+            continue
+        seen.add(r["key"])
+        walk(r["key"],depth+1)
+        print(json.dumps({"key":r["key"],"parent":r["parent"],"depth":depth,"status":r["status"],"isTerminal":r["isTerminal"],"title":r["title"],"dir":home+"/"+r["contextDir"]},ensure_ascii=False))
+walk(key,1)' "$1" "$HOME_DIR" ;;
   *) usage ;;
 esac

@@ -23,12 +23,13 @@ reads.
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
 `/flow`: `global` — continue when every key has the same code (keys of several
 projects get the «mixes projects» text); `P` — continue when every key has the code
-`P`; `P-N` — refused; an argument that is not a key (other than the run name), a
-malformed session key or a non-zero exit — refused. A refusal prints its text from
+`P`; `P-N` — continue when every key is `P-N` or its subtask by
+`$BIN/mp-task subtasks P-N`; an argument that is not a key (other than the run
+name), a malformed session key or a non-zero exit — refused. A refusal prints its text from
 `docs/PIPELINE.md` and stops. This step runs before «Preconditions», before
 `git fetch`, before the flow branch is created or pushed and before the flow score
 is written. The nested plan and do runs go in this same session and pass their
-own Step 0 with the same key.
+own Step 0 with the same key; the subtasks of `P-N` pass it by the same rule.
 
 ## Preconditions
 
@@ -41,14 +42,29 @@ own Step 0 with the same key.
 - `$BIN/mp-task flow <first KEY>` gives the project's `integration` and `prTarget`;
   a non-zero exit → print its error and stop before any write.
 
+## Subtasks
+
+Before the flow score is written, run `$BIN/mp-task subtasks <KEY>` for every typed
+key. The run list: for each typed key, in the typed order, its descendants in the
+order of the `subtasks` output, then the key itself; a repeated key is dropped and
+its first occurrence stays. The status of each subtask decides by «Subtasks» of
+`docs/PIPELINE.md`: skipped, taken like a typed key, or one question — header
+`Подзадача`, options «Пропустить (рекомендую)» and «Включить», the reason from
+`$BIN/mp-task show <KEY>` in the question text. An included subtask gets
+`$BIN/mp-task status <KEY> planning "в потоке <name>: включена инженером"`.
+
 ## Order
 
-Before any write, compute the order of the keys: first the dependencies from the
-«Связи» section of each `source.md` (a key goes after the keys of this run it
-depends on); then the files each card names — tasks touching the same files go
-one after another, the one the others build on first; otherwise the order typed.
-Announce it in the chat: the keys in order, one line of reasoning per key. Then go
-on without waiting for a confirmation. A dependency outside the run that is not
+Before any write, compute the order of the keys. The base is the run list
+(subtasks before their parent). Then the dependencies from the «Связи» section of
+each `source.md` (a key goes after the keys of this run it depends on): a stable
+topological reordering that never puts a parent before its subtasks. Then the files
+each card names — tasks touching the same files go one after another, the one the
+others build on first — where those constraints allow it. A cycle between the tree
+and «Связи» is a question to the engineer. Announce it in the chat: the keys in
+order, a mark `подзадача <parent>` on each subtask, one line of reasoning per key,
+then on a line of its own the skipped subtasks with their status. Then go on
+without waiting for a confirmation. A dependency outside the run that is not
 `review`, `merged` or `done` is a question to the engineer before the start
 (wait for it, or go on and record it as `/do --force` does).
 
@@ -63,7 +79,8 @@ on without waiting for a confirmation. A dependency outside the run that is not
    (`git -C <base clone> worktree add <path> flow/<name>` when missing). Merges
    happen there; never in the base clone.
 3. Flow score: `<project home>/flows/<name>.md` — the branch with its base SHA, the
-   worktree, the announced order with a checkbox per key, later the PR URL. Commit
+   worktree, the announced order expanded with subtasks with a checkbox per key,
+   the list of skipped subtasks, later the PR URL. Commit
    with `$BIN/mp-home-commit <CODE> "<message>"` (it stages `flows` too).
 
 ## Reconnaissance up front
@@ -113,8 +130,8 @@ key is recorded in the flow score.
    <KEY> merged"`. Then shut the key's teammate down (`SendMessage` «shut down»;
    `TaskStop` if it does not answer).
 
-Re-typing the same command resumes: keys already in `review` for this flow are
-skipped.
+Re-typing the same command resumes: it expands the subtasks again, and keys
+already in `review` for this flow are skipped.
 
 ## Questions
 

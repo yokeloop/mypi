@@ -30,7 +30,7 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
    Nothing runs before a refusal except `mp-task scope`, `mp-task project` and
    `project list`.
 1. `$BIN/mp-task board <P>` (with `all` when typed) — JSON lines with `key`,
-   `status`, `title`, `dir`, `worktreePath`. The project's `checkoutPath` and
+   `status`, `title`, `parent`, `dir`, `worktreePath`. The project's `checkoutPath` and
    `home` come from the `mp-task project <P>` output of step 0.
 2. For each row, the files in `dir`, only those that exist: `derive.json` (plan
    URL), `pr.md` (PR), `progress.md` (stage). For each task with a `derive.json`
@@ -40,7 +40,7 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
    `checkoutPath` is not `null`, the entry of `git -C <checkoutPath> worktree list`
    whose path equals `<checkoutPath>--<basename dir>`; otherwise —. Run
    `git worktree list` once per project.
-4. Print one table: key, title, status, plan (URL or —), open threads, PR,
+4. Print one table: key, title, parent (key or —), status, plan (URL or —), open threads, PR,
    worktree, next. The next column, for any project: `/plan` for `new`; `/do` for
    `planning` with no open threads; `/plan` again when threads are open;
    «ручная проверка → /ship» for `review`; — for `merged`/`done`; the reason for
