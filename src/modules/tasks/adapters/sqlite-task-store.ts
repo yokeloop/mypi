@@ -3,7 +3,7 @@ import { InputError } from '../../../shared/errors.js';
 import type { Card, TaskStore, Status } from '../ports.js';
 const select = `SELECT r.id, r.project_id AS projectId, r.number, r.title, r.status_id AS statusId,
  s.code AS status, s.is_terminal AS isTerminal, r.context_dir AS contextDir, r.worktree_path AS worktreePath,
- r.created_at AS createdAt, r.updated_at AS updatedAt FROM tasks r JOIN task_statuses s ON s.id=r.status_id`;
+ r.parent_id AS parentId, r.created_at AS createdAt, r.updated_at AS updatedAt FROM tasks r JOIN task_statuses s ON s.id=r.status_id`;
 function card(row: unknown): Card {
   if (!row) throw new InputError('Unknown task');
   const value = row as Card; return { ...value, isTerminal: Boolean(value.isTerminal) };
@@ -23,8 +23,8 @@ export function sqliteTaskStore(db: Database): TaskStore {
     removeStatus(code) { db.prepare('DELETE FROM task_statuses WHERE code=?').run(code); },
     nextNumber(projectId) { return (db.prepare('SELECT COALESCE(MAX(number),0)+1 AS n FROM tasks WHERE project_id IS ?').get(projectId) as { n: number }).n; },
     insert(input) {
-      const row = db.prepare(`INSERT INTO tasks(project_id,number,title,status_id,context_dir,created_at,updated_at)
-        VALUES (?,?,?,?,?,?,?)`).run(input.projectId,input.number,input.title,input.statusId,input.contextDir,input.createdAt,input.updatedAt);
+      const row = db.prepare(`INSERT INTO tasks(project_id,number,title,status_id,context_dir,parent_id,created_at,updated_at)
+        VALUES (?,?,?,?,?,?,?,?)`).run(input.projectId,input.number,input.title,input.statusId,input.contextDir,input.parentId,input.createdAt,input.updatedAt);
       return get(Number(row.lastInsertRowid));
     },
     list: () => db.prepare(select + ' ORDER BY r.id').all().map(card),
@@ -39,6 +39,10 @@ export function sqliteTaskStore(db: Database): TaskStore {
     },
     setWorktree(id, worktreePath) {
       db.prepare('UPDATE tasks SET worktree_path=? WHERE id=?').run(worktreePath, id);
+      return get(id);
+    },
+    setParent(id, parentId, at) {
+      db.prepare('UPDATE tasks SET parent_id=?, updated_at=? WHERE id=?').run(parentId, at, id);
       return get(id);
     },
   };

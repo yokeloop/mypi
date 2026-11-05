@@ -8,8 +8,8 @@ import { sessionTools } from './tools/sessions.js';
 
 export type RemoteToken = { name: string; permission: 'read' | 'write'; sender: string | null };
 
-const REMOTE_TASK_CREATE = 'Call only when the user explicitly asks to register a task, one task per independent problem: creates a task of a registered org/project with an explicit status code, slug and the exact source text ({text}). When the request names several problems, register only the one asked for and ask about the rest; keep the user\'s wording and scope in the title and source. Does not plan or execute the work and creates no branch or worktree. Not idempotent: never repeat it blindly after an unknown outcome.';
-const REMOTE_TASK_UPDATE = 'Call to change a task in one call: status and/or title with a reason, progress text, or touch:true alone to mark activity. Applies status, then title, then progress; if a later part fails after an earlier one saved, the result is partial with the saved and missing parts. Does not reopen terminal tasks, retry, or create branches or worktrees; the same status is a no-op. The change is made as this API token\'s sender key; a status change to review, blocked, merged or a terminal status queues a milestone event for the project chat (inbox, warmup) unless the sender is that project.';
+const REMOTE_TASK_CREATE = 'Call only when the user explicitly asks to register a task, one task per independent problem: creates a task of a registered org/project with an explicit status code, slug and the exact source text ({text}); parent (optional) is the key of a parent task of the same project. When the request names several problems, register only the one asked for and ask about the rest; keep the user\'s wording and scope in the title and source. Does not plan or execute the work and creates no branch or worktree. Not idempotent: never repeat it blindly after an unknown outcome.';
+const REMOTE_TASK_UPDATE = 'Call to change a task in one call: status, title and/or parent (a task key of the same project, or null to clear) with a reason, progress text, or touch:true alone to mark activity. Applies status, then title, then parent, then progress; if a later part fails after an earlier one saved, the result is partial with the saved and missing parts. Does not reopen terminal tasks, retry, or create branches or worktrees; the same status is a no-op; parent is refused for another project, the task itself or a cycle. The change is made as this API token\'s sender key; a status change to review, blocked, merged or a terminal status queues a milestone event for the project chat (inbox, warmup) unless the sender is that project.';
 const REMOTE_NOTE = 'Call to record a factual outcome when the user asks or the work requires it: kind journal with scope (global, org, project or task) and text, stored in the SQLite journal. Never creates or executes a task; not idempotent: do not blindly retry.';
 const REMOTE_PROJECTS = 'Call to read project registrations: action list (optional org) returns the registered projects with code, checkout path and repository; flow (project: a code or org/project) returns the project\'s branch flow from home/projects/<org>/<project>/flow.json with defaults and source file|default. Read-only.';
 const REMOTE_SEND_MESSAGE = 'Call when the user asks to give a session its next instruction: the text arrives in the child session as a new turn framed [mypi: сообщение родительской сессии …], at once to a live child, or exactly once at the next /open of a closed one. The sender is this API token\'s sender key (global unless the token names a project code): global may message only projects (CODE), a project only its own tasks (CODE-N); anything else is refused and nothing is written. An instruction never stands in for the user\'s word for /do, /ship, merge, release, migration or an engine update. Returns { message, delivered }.';
@@ -26,23 +26,24 @@ export const remoteTools = {
         case 'flow': return [{ name: 'project_flow', project: a.project! }];
       }
     }),
-  task_create: tool(z.strictObject({ project: text, title: text, status: text, slug: text, source: z.strictObject({ text }) }),
+  task_create: tool(z.strictObject({ project: text, title: text, status: text, slug: text, source: z.strictObject({ text }), parent: text.optional() }),
     REMOTE_TASK_CREATE, a => [{ name: 'task_create', ...a } as AppCommand]),
-  task_update: tool(z.strictObject({ key: text, status: text.optional(), title: text.optional(), reason: text.optional(),
+  task_update: tool(z.strictObject({ key: text, status: text.optional(), title: text.optional(), parent: text.nullable().optional(), reason: text.optional(),
     progress: text.optional(), touch: z.literal(true).optional() }).superRefine((value, ctx) => {
-    const change = value.status !== undefined || value.title !== undefined;
+    const change = value.status !== undefined || value.title !== undefined || value.parent !== undefined;
     if (!change && value.progress === undefined && value.touch === undefined)
-      ctx.addIssue({ code: 'custom', path: [], message: 'task_update needs status, title, progress or touch' });
+      ctx.addIssue({ code: 'custom', path: [], message: 'task_update needs status, title, parent, progress or touch' });
     if (change && value.reason === undefined)
-      ctx.addIssue({ code: 'custom', path: ['reason'], message: 'reason is required with status or title' });
+      ctx.addIssue({ code: 'custom', path: ['reason'], message: 'reason is required with status, title or parent' });
     if (!change && value.reason !== undefined)
-      ctx.addIssue({ code: 'custom', path: ['reason'], message: 'reason is allowed only with status or title' });
+      ctx.addIssue({ code: 'custom', path: ['reason'], message: 'reason is allowed only with status, title or parent' });
     if (value.touch !== undefined && (change || value.progress !== undefined))
       ctx.addIssue({ code: 'custom', path: ['touch'], message: 'touch is allowed only alone' });
-  }), REMOTE_TASK_UPDATE, ({ key, status, title, reason, progress, touch }) => {
+  }), REMOTE_TASK_UPDATE, ({ key, status, title, parent, reason, progress, touch }) => {
     const commands: AppCommand[] = [];
     if (status !== undefined) commands.push({ name: 'task_status', key, status, reason: reason! });
     if (title !== undefined) commands.push({ name: 'task_title', key, title, reason: reason! });
+    if (parent !== undefined) commands.push({ name: 'task_parent', key, parent, reason: reason! });
     if (progress !== undefined) commands.push({ name: 'task_progress', key, text: progress, artifacts: [] });
     if (touch) commands.push({ name: 'task_touch', key });
     return commands;

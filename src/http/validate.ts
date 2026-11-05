@@ -61,6 +61,12 @@ export function str(body: Record<string, unknown>, key: string): string | undefi
   return value;
 }
 
+export function nullableStr(body: Record<string, unknown>, key: string): string | null | undefined {
+  const value = body[key];
+  if (value !== undefined && value !== null && typeof value !== 'string') throw invalid('Field must be a string or null: ' + key);
+  return value;
+}
+
 export function literalTrue(body: Record<string, unknown>, key: string): true | undefined {
   const value = body[key];
   if (value !== undefined && value !== true) throw invalid('Field must be true: ' + key);

@@ -7,9 +7,9 @@ import { decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.
 import { InputError } from '../../src/shared/errors.js';
 import { PartialError } from '../../src/shared/context.js';
 
-const card = { id: 3, projectId: 1, number: 1, title: 'Задача', statusId: 2, status: 'new', isTerminal: false,
+const card = { id: 3, projectId: 1, number: 1, title: 'Задача', parent: 'MP-7', statusId: 2, status: 'new', isTerminal: false,
   contextDir: 'projects/one/project/tasks/MP-1-task', worktreePath: null, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z' };
-const taskShape = { key: 'MP-1', project: 'MP', number: 1, title: 'Задача', status: 'new', isTerminal: false,
+const taskShape = { key: 'MP-1', project: 'MP', number: 1, title: 'Задача', parent: 'MP-7', status: 'new', isTerminal: false,
   contextDir: 'projects/one/project/tasks/MP-1-task', worktreePath: null, createdAt: '2026-11-01T00:00:00.000Z', updatedAt: '2026-11-02T00:00:00.000Z' };
 const info = { version: '0.10.0', schemaVersion: 12, changeId: 4, instance: 'instance' };
 
@@ -123,7 +123,10 @@ test("writes translate with the token's sender, strict JSON bodies and the task_
   assert.equal(patched.status, 200);
   assert.deepEqual(commands, [{ name: 'task_status', key: 'MP-1', status: 'done', reason: 'ok', envScope: 'global' }, { name: 'task_show', key: 'MP-1' }]);
   commands.length = 0;
-  for (const body of [{ reason: 'x' }, { touch: true, progress: 'p' }, { artifacts: [] }, { touch: false }]) {
+  assert.equal((await call('PATCH', '/v1/tasks/MP-1', { token: 'w-token', body: { parent: null, reason: 'r' } })).status, 200);
+  assert.deepEqual(commands, [{ name: 'task_parent', key: 'MP-1', parent: null, reason: 'r' }, { name: 'task_show', key: 'MP-1' }]);
+  commands.length = 0;
+  for (const body of [{ reason: 'x' }, { touch: true, progress: 'p' }, { artifacts: [] }, { touch: false }, { parent: 'MP-2' }, { parent: 5, reason: 'r' }]) {
     assert.equal((await call('PATCH', '/v1/tasks/MP-1', { token: 'w-token', body })).status, 400);
   }
   assert.equal((await call('POST', '/v1/tasks', { token: 'w-token', body: { project: 'MP', title: 't', status: 'new', slug: 's', source: { file: '/etc/passwd' } } })).status, 400);
@@ -135,6 +138,8 @@ test("writes translate with the token's sender, strict JSON bodies and the task_
   const created = await call('POST', '/v1/tasks', { token: 'w-token', body: { project: 'MP', title: 't', status: 'new', slug: 's', source: 'text' } });
   assert.deepEqual([created.status, created.body.data], [201, taskShape]);
   assert.deepEqual(commands.at(-1), { name: 'task_create', project: 'MP', title: 't', status: 'new', slug: 's', source: { text: 'text' } });
+  await call('POST', '/v1/tasks', { token: 'w-token', body: { project: 'MP', title: 't', status: 'new', slug: 's', source: 'text', parent: 'MP-7' } });
+  assert.deepEqual(commands.at(-1), { name: 'task_create', project: 'MP', title: 't', status: 'new', slug: 's', source: { text: 'text' }, parent: 'MP-7' });
   const note = await call('POST', '/v1/journal', { token: 'w-token', body: { scope: 'MP', text: 'n' } });
   assert.deepEqual([note.status, note.body.data], [201, { id: 12 }]);
   assert.deepEqual(commands.at(-1), { name: 'journal_add', scope: { reference: 'MP' }, text: 'n' });

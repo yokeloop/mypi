@@ -51,7 +51,7 @@ test('readonly connection observes committed rows in an active writer WAL withou
       assert.equal(reader.pragma('journal_mode', { simple: true }), 'wal');
       assert.deepEqual(reader.prepare('SELECT slug FROM organizations WHERE slug = ?').get('visible'), { slug: 'visible' });
       assert.throws(() => reader.prepare("INSERT INTO organizations(slug) VALUES ('forbidden')").run(), /readonly/i);
-      assert.equal((reader.pragma('user_version', { simple: true }) as number), 12);
+      assert.equal((reader.pragma('user_version', { simple: true }) as number), 13);
     } finally { reader.close(); }
   } finally { writer.close(); }
 });
@@ -71,8 +71,8 @@ test('initialization is a no-op on a current database and rejects a newer schema
   db = openDatabase(filename);
   try {
     assert.deepEqual(db.prepare('SELECT * FROM task_statuses ORDER BY id').all(), expected);
-    assert.equal(db.pragma('user_version', { simple: true }), 12);
-    db.pragma('user_version = 13');
+    assert.equal(db.pragma('user_version', { simple: true }), 13);
+    db.pragma('user_version = 14');
     assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
@@ -80,7 +80,7 @@ test('initialization is a no-op on a current database and rejects a newer schema
   const unsupported = new Database(filename, { readonly: true, fileMustExist: true });
   try {
     assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
-    assert.equal(unsupported.pragma('user_version', { simple: true }), 13);
+    assert.equal(unsupported.pragma('user_version', { simple: true }), 14);
   } finally { unsupported.close(); }
 });
 
@@ -139,7 +139,7 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   t.diagnostic('migrations 006+007 on 50 tasks and ' + seed.length + ' journal rows: ' + Math.round(performance.now() - started) + ' ms');
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 12);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 13);
     const names = (upgraded.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
     for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'used_status_terminality', 'used_project_code',
       'preserve_task_numbers', 'knowledge_journal', 'knowledge_journal_order']) assert.ok(names.includes(name), name);
@@ -171,11 +171,11 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   assert.equal(existsSync(join(dir, 'snapshot.sqlite3')), true);
 });
 
-test('empty database initializes at schema 12 with the tasks, sessions and events tables', t => {
+test('empty database initializes at schema 13 with the tasks, sessions and events tables', t => {
   const { filename } = state(t);
   const db = openDatabase(filename);
   try {
-    assert.equal(db.pragma('user_version', { simple: true }), 12);
+    assert.equal(db.pragma('user_version', { simple: true }), 13);
     const names = (db.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
     for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'preserve_task_numbers', 'sessions', 'events']) assert.ok(names.includes(name), name);
     for (const name of ['requests', 'request_statuses', 'requests_unassigned_number', 'preserve_request_numbers']) assert.ok(!names.includes(name), name);
@@ -208,7 +208,7 @@ test('schema 9 upgrades a schema 8 database and keeps its events', t => {
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 12);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 13);
     assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before);
     upgraded.prepare("INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP-1', 'MP', 'milestone', 'review', '2026-10-30T00:00:00.000Z')").run();
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
@@ -237,7 +237,7 @@ test('schema 10 upgrades a schema 9 database and keeps its events', t => {
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 12);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 13);
     assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before);
     upgraded.prepare("INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP', 'MP-1', 'message', 'go', '2026-10-31T00:00:00.000Z')").run();
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
@@ -263,10 +263,41 @@ test('schema 12 adds projects.repository and keeps the projects of a schema 11 d
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 12);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 13);
     assert.deepEqual(upgraded.prepare('SELECT * FROM projects').all(),
       [{ id: 2, org_id: 1, slug: 'project', code: 'MP', checkout_path: '/srv/one/project', repository: null }]);
     assert.throws(() => upgraded.prepare("INSERT INTO projects(org_id, slug, code, repository) VALUES (1, 'blank', 'BL', ' ')").run(), /CHECK constraint failed/);
+    assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
+  } finally { upgraded.close(); }
+});
+
+test('schema 13 adds tasks.parent_id and keeps the tasks of a schema 12 database', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const filename = join(dir, 'v12.sqlite3');
+  const db = new Database(filename);
+  db.pragma('foreign_keys = ON');
+  for (const migration of ['001-initial.sql', '002-knowledge-journal.sql', '003-work-chats.sql',
+    '004-work-chat-auth-pending.sql', '005-work-chat-process-origin.sql', '006-drop-work-chats.sql',
+    '007-rename-requests-tasks.sql', '008-sessions-events.sql', '009-milestone-events.sql',
+    '010-parent-messages.sql', '011-artifact-version-refs.sql', '012-project-repository.sql']) {
+    db.exec(readFileSync(new URL('../../src/infrastructure/database/migrations/' + migration, import.meta.url), 'utf8'));
+  }
+  db.pragma('user_version = 12');
+  db.prepare("INSERT INTO organizations(id, slug) VALUES (1, 'one')").run();
+  db.prepare("INSERT INTO projects(id, org_id, slug, code, checkout_path) VALUES (2, 1, 'project', 'MP', '/srv/one/project')").run();
+  db.prepare(`INSERT INTO tasks(id, project_id, number, title, status_id, context_dir, created_at, updated_at)
+    VALUES (3, 2, 1, 'First', (SELECT id FROM task_statuses WHERE code = 'new'),
+    'projects/one/project/tasks/MP-1-first', '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z')`).run();
+  db.close();
+  initializeDatabase(filename);
+  const upgraded = openDatabase(filename);
+  try {
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 13);
+    assert.deepEqual(upgraded.prepare('SELECT id, parent_id FROM tasks').all(), [{ id: 3, parent_id: null }]);
+    assert.throws(() => upgraded.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, created_at, updated_at, parent_id)
+      VALUES (2, 2, 'Orphan', (SELECT id FROM task_statuses WHERE code = 'new'), 'projects/one/project/tasks/MP-2-orphan',
+      '2026-11-01T00:00:00.000Z', '2026-11-01T00:00:00.000Z', 999)`).run(), /FOREIGN KEY constraint failed/);
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
   } finally { upgraded.close(); }
 });
