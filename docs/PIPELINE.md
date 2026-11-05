@@ -79,8 +79,9 @@ The rule:
   `/ship flow/<name>` take the keys of one project.
 - `P` (any project): every typed key has the code `P`; a flow holds keys of `P`,
   `/ship flow/<name>` takes a flow of project `P`.
-- `P-N`: `/plan` and `/do` only when every typed key equals `P-N`; `/ship` only when
-  every typed argument equals `P-N`; `/flow` and `/ship flow/<name>` are refused.
+- `P-N`: `/plan`, `/do`, `/flow` and `/ship` take P-N and its subtasks — every task
+  whose chain of parents reaches P-N (`mp-task subtasks P-N`); `/ship flow/<name>` —
+  when every key of the flow score `<home of P>/flows/<name>.md` is P-N or its subtask.
 - A typed argument that is not a key `CODE-N` (other than `flow/<name>` of `/ship`
   and the run name of `/flow`), a malformed session key (`project` is `null` and
   the key is not `global`) or a non-zero exit of `mp-task scope`: refused.
@@ -92,20 +93,51 @@ The rule:
 A refusal prints its text and stops. Nothing runs before it except `mp-task scope`:
 no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
 `mp-home-commit`, no derive calls, no subagents (`/board` also runs `mp-task project`
-and `project list`). The texts (`<cmd>`, the typed
+and `project list`). In a `P-N` session `mp-task subtasks P-N` may run too, and for
+`/ship flow/<name>` also `mp-task project P` and reading the flow score. The texts (`<cmd>`, the typed
 arguments and `<key>` substituted):
 
 - `/board` with another project's code: `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
 - `/board` with a malformed key: `The board cannot tell this session's project (scope <key>). Open the main chat with /open global.`
 - `/board` with an unknown code: `Unknown project code <P>; registered codes: <codes>.`
 - a changing skill with another project's key: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. This chat runs tasks of <P> only; run it in that task's or project's chat (/open <CODE>) or in the main chat (/open global).`
-  (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan P-N, /do P-N and /ship P-N only.`
+  (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan, /do, /flow and /ship for P-N and its subtasks (<keys>|none) only.`
+- a non-zero exit of `mp-task subtasks`: `/<cmd> cannot read the subtasks of <key>: <output>; nothing was written.`
+- `/ship flow/<name>` in a `P-N` chat without the flow score: `/ship flow/<name>: no flow score <path>; nothing was written.`
 - a changing skill with a malformed session key or a non-zero `mp-task scope`: `/<cmd> cannot tell this session's project (scope <key>); nothing was written. Run it in the main chat (/open global).`
 - a changing skill with an argument that is not a key: `/<cmd>: <arg> is not a task key (CODE-N); nothing was written.`
 - `/flow` in `global` with keys of several projects: `/flow <args> mixes projects <codes>; a flow holds tasks of one project; nothing was written.`
 
 This is an instruction for the agent, not access control: the scripts still work
 from any session.
+
+## Subtasks
+
+A task may name one parent task of the same project; the relation is stored in mypi
+(`parent` of a task card), set with `mypi task create --parent <KEY>` and changed or
+cleared with `mypi task parent <KEY> <parent-key|none> --reason …`. Subtasks form a
+tree of any depth. `mp-task subtasks <KEY>` prints the recursive descendants of a
+task as JSON lines, subtasks before their parent.
+
+`/flow` expands every typed key into its subtasks and runs them in the same cycle
+as the typed keys (`.claude/skills/flow/SKILL.md`, «Subtasks»). The status of a
+subtask decides:
+
+- `merged` or a terminal status: skipped, named in the announced order;
+- `new`, `planning`, `in_progress`, or `review` with `pr.md` of this flow: runs
+  like a typed key;
+- `review` not of this flow: skipped, named; it has its own PR or flow already;
+- `blocked` or any other non-terminal status (`research`, `paused`, a custom one):
+  one `AskUserQuestion` «include or skip». An included subtask gets
+  `mp-task status <KEY> planning "в потоке <name>: включена инженером"` and goes on
+  as `planning`.
+
+The order: subtasks before their parent, then the «Связи» dependencies and shared
+files on top of it. While the flow runs a subtask that has a live tab of its own,
+`/do` is not run in that tab (one writer per worktree); no code enforces it.
+Milestones of subtasks whose status the epic's tab changes go to the project chat as
+always (`src/app/task-work.ts`). The events of a task's session still go to its
+Parent session, the project chat.
 
 ## Temporary scripts
 
@@ -187,6 +219,10 @@ place; `blocked` only when the engineer answers so.
   CI red only on the test budget with `fail 0` is reported with the measurements,
   never rerun in a loop;
 - an exceeded budget, a change of scope, a new task found on the way;
+- a subtask in `blocked` or another status that is not taken as it is (include or
+  skip);
+- a cycle between the subtask tree and the «Связи» dependencies (the tree's order,
+  or stop);
 - red checks on the assembled flow branch before the PR.
 
 Cheap review advice inside the plan's scope is fixed by the executor, followed
