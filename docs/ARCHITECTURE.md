@@ -67,7 +67,7 @@ organizations(id, slug)
 projects(id, org_id, slug, code, checkout_path)
 task_statuses(id, code, is_terminal)
 tasks(id, project_id, number, title, status_id,
-      context_dir, worktree_path, created_at, updated_at)
+      context_dir, worktree_path, parent_id, created_at, updated_at)
 sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
 events(id, from_key, to_key, kind, message, created_at, delivered_at)
 ```

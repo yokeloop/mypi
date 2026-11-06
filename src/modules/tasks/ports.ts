@@ -1,7 +1,7 @@
 export interface Status { id: number; code: string; isTerminal: boolean }
 export interface Card {
   id: number; projectId: number | null; number: number; title: string; statusId: number;
-  status: string; isTerminal: boolean; contextDir: string; worktreePath: string | null; createdAt: string; updatedAt: string;
+  status: string; isTerminal: boolean; contextDir: string; worktreePath: string | null; parentId: number | null; createdAt: string; updatedAt: string;
 }
 export interface TaskStore {
   transaction<T>(fn: () => T): T;
@@ -17,4 +17,5 @@ export interface TaskStore {
   update(id: number, title: string, statusId: number, at: string): Card;
   relocate(id: number, contextDir: string): Card;
   setWorktree(id: number, worktreePath: string): Card;
+  setParent(id: number, parentId: number | null, at: string): Card;
 }

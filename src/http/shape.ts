@@ -1,7 +1,7 @@
 type ProjectRow = { code: string; org: string; slug: string; repository: string | null; checkoutPath: string | null };
 type FlowRow = { project: string; code: string; source: string; integration: string; taskBranch: string; prTarget: string;
   mergeMethod: string; release: unknown };
-type CardRow = { projectId: number | null; number: number; title: string; status: string; isTerminal: boolean; contextDir: string;
+type CardRow = { projectId: number | null; number: number; title: string; parent: string | null; status: string; isTerminal: boolean; contextDir: string;
   worktreePath: string | null; createdAt: string; updatedAt: string };
 type EventRow = { id: number; fromKey: string; toKey: string; kind: string; message: string; createdAt: string; deliveredAt: string | null };
 type JournalRow = { id: number; entry: { at: string; scope: { type: 'global' } | { type: string; key: string }; event_type: string; text: string;
@@ -20,7 +20,7 @@ export function flow(f: FlowRow) {
 
 export function task(c: CardRow, key: string) {
   return { key, project: c.projectId === null ? null : key.slice(0, key.indexOf('-')), number: c.number, title: c.title,
-    status: c.status, isTerminal: c.isTerminal, contextDir: c.contextDir, worktreePath: c.worktreePath,
+    parent: c.parent, status: c.status, isTerminal: c.isTerminal, contextDir: c.contextDir, worktreePath: c.worktreePath,
     createdAt: c.createdAt, updatedAt: c.updatedAt };
 }
 

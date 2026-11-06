@@ -18,8 +18,8 @@ order typed.
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
 `/plan` and every typed key: `global` — any key; an organization (`org` is not
 `null`) — continue only when every typed key has a code in `codes`; `P` — continue
-only when every typed key has the code `P`; `P-N` — continue only when every typed key equals
-`P-N`; anything else (an argument that is not a key, a malformed session key, a
+only when every typed key has the code `P`; `P-N` — continue only when every typed key is `P-N`
+or its subtask by `$BIN/mp-task subtasks P-N`; anything else (an argument that is not a key, a malformed session key, a
 non-zero exit) — print the refusal text from `docs/PIPELINE.md` and stop. This step
 runs before the status check in «Input», before `$BIN/mp-task show` and before any
 derive call or subagent, so `/plan MP-41` in a TBA chat stops on the scope, not on

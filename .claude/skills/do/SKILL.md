@@ -16,7 +16,8 @@ teammate.
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
 `/do <KEY>`: `global` — any key; an organization (`org` is not `null`) — continue
 only when the key's code is in `codes`; `P` — continue only when the key has the code `P`;
-`P-N` — continue only for `/do P-N`; anything else (an argument that is not a key, a
+`P-N` — continue only when the key is `P-N` or its subtask by
+`$BIN/mp-task subtasks P-N`; anything else (an argument that is not a key, a
 malformed session key, a non-zero exit) — print the refusal text from
 `docs/PIPELINE.md` and stop. This step runs before «Preconditions»: no
 `$BIN/mp-task show`, no `catch_up`, no `mp-worktree` before it.

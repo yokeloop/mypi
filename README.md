@@ -170,7 +170,7 @@ order: the row for this native id, the live record of the same process,
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree
 global → org → project → task; `mypi session forget <key>` drops a row on the
-user's request. Without `XDG_RUNTIME_DIR` or an initialized schema 13 database
+user's request. Without `XDG_RUNTIME_DIR` or an initialized schema 14 database
 registration fails and the warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
@@ -282,6 +282,9 @@ Upgrading to schema 12: run `mypi db init` once after updating (back up the
 database first).
 
 Upgrading to schema 13: run `mypi db init` once after updating (back up the
+database first).
+
+Upgrading to schema 14: run `mypi db init` once after updating (back up the
 database first); it rebuilds `sessions` for organization sessions and keeps its rows.
 
 ### Updating without overwriting customizations

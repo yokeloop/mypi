@@ -100,7 +100,7 @@ A task key is `CODE-N` (`MP-12`), a project code is `CODE` (`MP`).
 | `GET /v1/tasks?project&status&q&cursor&limit` | read | `task_page` | `{ items: task[], next }` |
 | `GET /v1/tasks/{KEY}` | read | `task_show` | `task` |
 | `POST /v1/tasks` | write | `task_create` | `task`, status 201 |
-| `PATCH /v1/tasks/{KEY}` | write | `task_status`, `task_title`, `task_progress`, `task_touch`, then `task_show` | `task` |
+| `PATCH /v1/tasks/{KEY}` | write | `task_status`, `task_title`, `task_parent`, `task_progress`, `task_touch`, then `task_show` | `task` |
 | `GET /v1/events?to&from&kind&delivered&q&cursor&limit` | read | `event_list` | `{ items: event[], next }` |
 | `GET /v1/journal?scope&from&to&type&q&cursor&limit` | read | `journal_page` | `{ items: journal[], next }` |
 | `POST /v1/journal` | write | `journal_add` | `{ id }`, status 201 |
@@ -128,11 +128,13 @@ Bodies are JSON objects; every field is a string unless noted, unknown fields ar
 refused:
 
 - `POST /v1/tasks`: `project`, `title`, `status`, `slug`, `source` (the exact source
-  text). No file sources, no `adoptSource`.
-- `PATCH /v1/tasks/{KEY}`: `status`, `title`, `reason`, `progress`, `touch` (only
-  `true`). At least one of status, title, progress, touch; `reason` is required with
-  status or title and refused without them; `touch` only alone. Parts apply in the
-  order status, title, progress, touch; progress carries no artifacts.
+  text), optional `parent` (the key of a parent task of the same project). No file
+  sources, no `adoptSource`.
+- `PATCH /v1/tasks/{KEY}`: `status`, `title`, `parent` (a task key or `null` to
+  clear), `reason`, `progress`, `touch` (only `true`). At least one of status, title,
+  parent, progress, touch; `reason` is required with status, title or parent and
+  refused without them; `touch` only alone. Parts apply in the order status, title,
+  parent, progress, touch; progress carries no artifacts.
 - `POST /v1/journal`: `scope`, `text` (a note). `scope` takes the same references
   as the journal query (`global`, an org slug, `org/project`, `project:FX`,
   `task:FX-1`).
@@ -142,7 +144,8 @@ Response shapes:
 
 - `project`: `{ code, org, slug, identity, repository, checkoutPath }`
 - `flow`: `{ project, code, source, integration, taskBranch, prTarget, mergeMethod, release }`
-- `task`: `{ key, project, number, title, status, isTerminal, contextDir, worktreePath, createdAt, updatedAt }`
+- `task`: `{ key, project, number, title, parent, status, isTerminal, contextDir, worktreePath, createdAt, updatedAt }`
+  (`parent` is the key of the parent task or `null`)
 - `event`: `{ id, from, to, kind, text, createdAt, deliveredAt }`
 - `journal`: `{ id, at, scope: { type, key? }, type, text, artifacts: [{ path, commit }] }`
   (`commit` is `null` for historical path-only artifacts)
@@ -187,7 +190,7 @@ field or route needs `/v2`.
 
 ## Engine updates and migrations
 
-The server opens a database of schema 13 and keeps its code in memory. After an
+The server opens a database of schema 14 and keeps its code in memory. After an
 engine update or a migration, restart it.
 
 ## Access log

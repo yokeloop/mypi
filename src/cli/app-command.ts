@@ -54,7 +54,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       ...(opt('type') === undefined ? {} : { eventType: opt('type') as 'note' | 'task_created' | 'status_changed' }),
       ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }) };
     case 'task create': return { name: 'task_create', title: required('title'), status: required('status'),
-      slug: required('slug'), source: source(0), project: required('project'), adoptSource: Boolean(o['adopt-source']) };
+      slug: required('slug'), source: source(0), project: required('project'), adoptSource: Boolean(o['adopt-source']),
+      ...(opt('parent') === undefined ? {} : { parent: opt('parent')! }) };
     case 'task list': return { name: 'task_list',
       ...(opt('project') === undefined ? {} : { project: opt('project')! }),
       ...(opt('status') === undefined ? {} : { status: opt('status')! }) };
@@ -67,6 +68,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }) };
     }
     case 'task title': return { name: 'task_title', key: a[0]!, title: a[1]!, reason: required('reason') };
+    case 'task parent': return { name: 'task_parent', key: a[0]!, parent: a[1] === 'none' ? null : a[1]!, reason: required('reason') };
     case 'task progress': {
       const artifacts: unknown = opt('artifacts') ? JSON.parse(readInputFile(required('artifacts'))) : [];
       if (!Array.isArray(artifacts) || artifacts.some(a => !a || typeof a !== 'object'
