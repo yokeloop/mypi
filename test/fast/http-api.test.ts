@@ -92,6 +92,8 @@ test('query parameters translate to AppCommands with defaults and invalid ones a
   assert.deepEqual(last(), { name: 'journal_page', scope: 'all', limit: 50 });
   await call('GET', '/v1/journal?scope=MP', { token: 'r-token' });
   assert.deepEqual(last(), { name: 'journal_page', scope: { reference: 'MP' }, limit: 50 });
+  await call('GET', '/v1/journal?type=session_opened', { token: 'r-token' });
+  assert.deepEqual(last(), { name: 'journal_page', scope: 'all', eventType: 'session_opened', limit: 50 });
   await call('GET', '/v1/events?to=MP&delivered=false', { token: 'r-token' });
   assert.deepEqual(last(), { name: 'event_list', to: 'MP', delivered: false, limit: 50 });
   await call('GET', '/v1/sessions', { token: 'r-token' });

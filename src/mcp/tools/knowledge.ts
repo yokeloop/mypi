@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import type { AppCommand } from '../../app/commands.js';
+import { EVENT_TYPES } from '../../app/commands.js';
 import { text, scope, contextScope, textInput, tool, actions } from '../schemas.js';
 export const knowledge = {
   warmup: tool(z.strictObject({ scope: text.optional() }), 'Call at session start or to reload context: returns the scoped startup context as Markdown (personal instructions, role, how to work in mypi, zone memory, then the project list, open tasks with new events and last reports, or the task card with its worktree). scope: global, an organization slug, a project code (MP) or a task key (MP-12); default: this session\'s registered key, else MYPI_SCOPE of the server, else global. In a project scope it includes the undelivered events of the project\'s tasks and marks the shown ones delivered, plus the last reports as history; in an organization scope it shows the organization\'s projects and the events addressed to the organization and marks the shown ones delivered; it writes nothing else and registers no session.',
@@ -31,7 +32,7 @@ export const knowledge = {
     }
   }),
   journal: tool(z.strictObject({ scope: z.union([scope, z.literal('all')]), from: text.optional(),
-    to: text.optional(), eventType: z.enum(['note', 'task_created', 'status_changed']).optional(),
+    to: text.optional(), eventType: z.enum(EVENT_TYPES).optional(),
     limit: z.number().int().positive().optional() }), 'Call to read scoped history: scope (global means global entries only; "all" is explicit), optional from/to (UTC), eventType and limit. Prefer a limit; read artifacts with context_read: a {path, commit} artifact with revision = commit, a plain path as is. Read-only; outcomes are recorded with note kind journal.',
   a => [{ name: 'journal_read', ...a } as AppCommand]),
   context_read: tool(z.strictObject({ path: text, revision: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/).optional() }), 'Call to read a UTF-8 file by home-relative path (a task card is source.md in its task folder); revision (full home commit SHA) reads that version, e.g. a journal artifact {path, commit}. Read-only, subject to path guards; not arbitrary filesystem access.',
