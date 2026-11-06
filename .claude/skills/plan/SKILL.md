@@ -110,15 +110,14 @@ the status.
       for the plan.
 
 7. **Record.**
-   1. Fresh plan:
-      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan.md`.
-      Rework:
-      `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>; переработка: <что изменилось>" plan.md`.
+   1. `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan.md`.
       `<version>` from `derive.json`.
-   2. `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`.
-      On rework the status is already `planning`: this call writes nothing to the
-      journal (`changed: false`) and its reason is lost, so the rework reason
-      lives in the `progress` entry of item 1.
+   2. Fresh plan:
+      `$BIN/mp-task status <KEY> planning "план опубликован, ждёт согласования: <url>"`.
+      Rework:
+      `$BIN/mp-task status <KEY> planning "план v<version> переработан: <что изменилось>; ждёт согласования: <url>"`.
+      On rework the status is already `planning`: the call leaves the note
+      `planning (unchanged). план v<version> переработан: …` in the task journal.
    3. `$BIN/mp-home-commit <KEY> "<KEY>: plan v<version>"`.
 
 8. **Report** one line per key: the key, the derive URL, «ждёт согласования —

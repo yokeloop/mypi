@@ -293,8 +293,8 @@ else `<checkoutPath>/CLAUDE.md`.
   folder; commit home after each change. Artifacts are the task folder's files
   named in `progress`; each entry points at the home commit `progress` made. Never
   rewrite or force-push home history: the references live in it. A repeated `status` with the
-  same value writes nothing to the journal, so a rework reason goes into
-  `progress`.
+  same value changes nothing on the card but leaves a `note` `<status> (unchanged).
+  <reason>` in the task journal, so a rework reason goes into that status call.
 - A stage is passed by its named condition with the command output as evidence,
   never by "looks done". A check still red after three fix attempts is an open
   point, not a fourth attempt. Never a weakened check.
