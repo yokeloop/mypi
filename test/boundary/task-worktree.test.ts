@@ -123,9 +123,11 @@ test('a local project gets task worktrees from its local main without origin', a
   const path = clone + '--LO-1-local';
   assert.deepEqual(await worktree(filename, 'LO-1'), { key: 'LO-1', branch: 'task/LO-1-local', worktreePath: path, created: true, createdBranch: true });
   assert.equal(git('-C', path, 'rev-parse', 'HEAD'), git('-C', clone, 'rev-parse', 'main'));
-  assert.deepEqual(journal(filename), [['LO-1', 'worktree_created', 'worktree ' + path + ', branch task/LO-1-local, base main']]);
+  const expected = [['LO', 'clone_prepared', 'clone prepared: initialized ' + clone],
+    ['LO-1', 'worktree_created', 'worktree ' + path + ', branch task/LO-1-local, base main']];
+  assert.deepEqual(journal(filename), expected);
   assert.equal((await worktree(filename, 'LO-1') as { created: boolean }).created, false);
-  assert.deepEqual(journal(filename), [['LO-1', 'worktree_created', 'worktree ' + path + ', branch task/LO-1-local, base main']]);
+  assert.deepEqual(journal(filename), expected);
 });
 
 test('task worktree refuses unknown and projectless tasks, projects without a clone, an occupied branch and a foreign directory, recording nothing', async t => {
