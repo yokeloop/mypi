@@ -116,6 +116,9 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
   assert.equal(history.length, 1);
   await call('task_update', { key: task.key, touch: true });
   await call('task_update', { key: task.key, status: 'accepted', reason: 'no-op' });
+  const repeated = (await call('journal', { scope: { type: 'task', key: task.key } })).at(-1);
+  assert.equal(repeated.event_type, 'note');
+  assert.equal(repeated.text, 'accepted (unchanged). no-op');
   assert.equal((await call('journal', { scope: { type: 'task', key: task.key }, eventType: 'status_changed' })).length, 1);
   const reopen = await client.callTool({ name: 'task_update', arguments: { key: task.key, status: 'new', reason: 'reopen' } });
   assert.equal(reopen.isError, true);

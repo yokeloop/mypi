@@ -71,7 +71,11 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       const card = find(publicKey);
       return core.serialize(() => {
         const result = core.tasks.change(card.id, input, reason);
-        if (!result.changed) return result.after;
+        if (!result.changed) {
+          if (input.status !== undefined) journal.append(journal.record({ type: 'task', key: key(result.after) },
+            result.after.status + ' (unchanged). ' + reason, 'note'));
+          return result.after;
+        }
         const statusChanged = result.before.statusId !== result.after.statusId;
         const titleChanged = result.before.title !== result.after.title;
         const parts = [];
