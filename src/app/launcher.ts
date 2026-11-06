@@ -7,7 +7,7 @@ import { deliverOnOpen, deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
 import { agentName, callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
 import { callerKey } from './sessions.js';
-import { sendParentMessage } from './journal-facts.js';
+import { appendFact, keyScope, sendParentMessage } from './journal-facts.js';
 import { startMessage } from './start-message.js';
 import { prepareCheckouts } from './project-checkout.js';
 import { openTaskWorktree } from './task-worktree.js';
@@ -148,6 +148,11 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
         paneId = created.paneId;
       }
       herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
+      const writer = createApp(filename, false);
+      try {
+        appendFact(writer, keyScope(key), 'session_opened', (decision.action === 'resume' ? 'resumed ' : 'started ') + decision.agent
+          + (worktreePath === null ? '' : ', worktree ' + worktreePath));
+      } finally { writer.close(); }
       const message = enqueue(key);
       const { rows, failure } = await deliverOnOpen(filename, key, text, transports, c.runtime, proc);
       if (decision.action === 'start') {
