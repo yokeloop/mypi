@@ -1,13 +1,14 @@
 import type { Scope } from '../../shared/scope.js';
 import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
-import { entryValue, utc } from './model.js';
+import { entryValue, utc, EVENT_TYPES } from './model.js';
 import type { ArtifactRef, Entry, EventType } from './model.js';
 import type { JournalBrowseStore, JournalStore } from './ports.js';
 import { matchesQuery, takePage } from '../../shared/page.js';
 import type { Page } from '../../shared/page.js';
 export { createNotes } from './notes.js';
 export type { ArtifactRef, Entry, EventType } from './model.js';
+export { EVENT_TYPES } from './model.js';
 export { artifactRefPath } from './model.js';
 export { sqliteJournalStore } from './adapters/sqlite-journal.js';
 export type { FileFingerprint, JournalImport } from './adapters/sqlite-journal.js';
@@ -22,7 +23,7 @@ function historyFilter(options: { from?: string; to?: string; type?: EventType; 
   const from = options.from === undefined ? -Infinity : utc(options.from);
   const to = options.to === undefined ? Infinity : utc(options.to);
   if (from > to || (options.limit !== undefined && (!Number.isSafeInteger(options.limit) || options.limit < 1))
-    || (options.type !== undefined && !['note', 'task_created', 'status_changed'].includes(options.type))) {
+    || (options.type !== undefined && !(EVENT_TYPES as readonly string[]).includes(options.type))) {
     throw new InputError('Invalid history filters');
   }
   return { from, to };
