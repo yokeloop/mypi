@@ -10,4 +10,8 @@ test('journal facts map a key to its scope and keep the first message line withi
   assert.equal(messageText(2, 'one', 'первая\r\nвторая'), 'message 2 from one: первая');
   assert.equal(messageText(3, 'MP', 'a'.repeat(130) + '\nnext'), 'message 3 from MP: ' + 'a'.repeat(120) + '…');
   assert.equal(messageText(4, 'MP', 'a'.repeat(120)), 'message 4 from MP: ' + 'a'.repeat(120));
+  const emoji = messageText(5, 'MP', 'a'.repeat(119) + '😀' + 'b');
+  assert.equal(emoji, 'message 5 from MP: ' + 'a'.repeat(119) + '😀…');
+  assert.equal([...emoji.slice('message 5 from MP: '.length)].length, 121);
+  assert.doesNotMatch(emoji, /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/);
 });

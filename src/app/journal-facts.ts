@@ -14,7 +14,8 @@ export function appendFact(app: Pick<ReturnType<typeof createApp>, 'journalStore
 
 export function messageText(id: number, from: string, message: string): string {
   const line = message.split(/\r?\n/, 1)[0]!;
-  return 'message ' + id + ' from ' + from + ': ' + (line.length > 120 ? line.slice(0, 120) + '…' : line);
+  const chars = [...line];
+  return 'message ' + id + ' from ' + from + ': ' + (chars.length > 120 ? chars.slice(0, 120).join('') + '…' : line);
 }
 
 export function sendParentMessage(app: ReturnType<typeof createApp>, input: { from: string; to: string; message: string }): number {
