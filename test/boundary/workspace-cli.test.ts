@@ -80,6 +80,7 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
   rmSync(join(root, 'home/.git/index.lock'));
   await cli('context', 'commit', task.contextDir + '/source.md', task.contextDir + '/artifacts/proof.md', '--message', 'Publish files for backup');
   assert.equal((await cli('journal', 'read', '-s', 'task:MP-1', '--type', 'status_changed')).length, 1);
+  assert.equal((await cli('journal', 'read', '-s', 'task:MP-1', '--type', 'title_changed')).length, 1);
   const warm = text(['warmup']);
   assert.match(warm, /^# mypi warmup: global\n/); assert(warm.includes('## Role: global')); assert(!warm.includes('original'));
   assert.match(text(['warmup', '-s', 'MP'], {}, 1), /"status":"error","message":"Project one\/project \(MP\) has no clone/);

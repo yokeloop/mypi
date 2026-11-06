@@ -63,7 +63,7 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     const beforeRename = app.tasks.get(b.key);
     app.tasks.change(b.key, { title: 'Renamed task' }, 'clarification');
     const renamed = app.history({ type: 'task', key: b.key }).at(-1)!;
-    assert.equal(renamed.event_type, 'note');
+    assert.equal(renamed.event_type, 'title_changed');
     assert.match(renamed.text, /Title.*Task.*Renamed task.*clarification/);
     assert.equal(app.tasks.get(b.key).contextDir, beforeRename.contextDir);
     assert.equal(app.tasks.get(b.key).status, beforeRename.status);
@@ -117,12 +117,14 @@ test('local task and journal saves never require a context Git repository', t =>
     app.projects.add('one/project', 'MP');
     const card = app.tasks.create({ project: 'one/project', title: 'No Git', status: 'new', slug: 'local', source: 'exact\r\n' });
     app.tasks.change(card.key, { status: 'planning' }, 'working');
+    app.tasks.change(card.key, { title: 'Renamed' }, 'clarified');
     app.tasks.progress(card.key, 'result');
     app.journal({ type: 'global' }, 'another entry');
     assert.equal(app.read(card.contextDir + '/source.md'), 'exact\r\n');
     assert.deepEqual(app.history({ type: 'task', key: card.key }).map(x => x.event_type),
-      ['task_created', 'status_changed', 'note']);
-    assert.equal(app.history('all').length, 4);
+      ['task_created', 'status_changed', 'title_changed', 'note']);
+    assert.equal(app.history('all').length, 5);
+    assert.equal(app.history({ type: 'task', key: card.key })[2]!.text, 'Title: "No Git" → "Renamed". clarified');
   } finally { app.close(); }
 });
 
