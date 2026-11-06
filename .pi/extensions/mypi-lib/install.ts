@@ -1,6 +1,6 @@
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
-import { completionSource, openCompletions, scopeCode } from './open-completions.js';
+import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
 interface ExtensionContext {
@@ -41,7 +41,7 @@ export type ServeEvents = (path: string, onBatch: (events: { id: number; text: s
 const SECTION = 'mypi_context';
 export const CODEMODE_GUIDELINE = 'In codemode scripts `searchTools()`, `describeTool()` and `describeNamespace()` return Promises, like `tools.*` calls: `await` them before iterating or printing, e.g. `const hits = await searchTools("mcp__mypi open_session")`.';
 const MESSAGE_LIMIT = 32000;
-const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии [A-Z]+ для [A-Z]+-[1-9][0-9]*\. /;
+const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии ([A-Z]+|[a-z0-9]+(?:[._-][a-z0-9]+)*) для [A-Z]+-[1-9][0-9]*\. /;
 
 const unavailable: RunCli = async () => ({ code: null, signal: null, stdout: '', stderr: 'mypi open needs the CLI runner' });
 
@@ -93,12 +93,18 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   let started: (() => void) | undefined;
   const injected = new Set<number>();
   let parentTurn = false;
+  let parentFrom: string | undefined;
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
     const ids = events.map(e => e.id);
     const fresh = events.filter(e => !injected.has(e.id));
     if (fresh.length === 0) return ids;
     const text = fresh.map(e => e.text).join('\n\n');
-    if (fresh.some(e => PARENT_MESSAGE.test(e.text))) parentTurn = true;
+    for (const e of fresh) {
+      for (const match of e.text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) {
+        parentTurn = true;
+        parentFrom = match[1];
+      }
+    }
     if (starting !== undefined) {
       await starting;
       pi.sendUserMessage(text, { deliverAs: 'followUp' });
@@ -174,14 +180,17 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       .map(part => part.text).join('\n');
   });
   pi.on('agent_settled', async () => {
-    const report = parentTurn, reply = last;
+    const report = parentTurn, reply = last, to = parentFrom;
     parentTurn = false;
+    parentFrom = undefined;
     last = '';
-    if (key !== undefined && report) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--message=' + clip(reply)], { cwd: root, timeout: 5000 })
+    if (key !== undefined && report) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(to === undefined ? [] : ['--to', to]),
+      '--message=' + clip(reply)], { cwd: root, timeout: 5000 })
       .catch(() => undefined);
   });
   pi.on('ui_prompt_start', async event => {
-    if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
+    if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(parentFrom === undefined ? [] : ['--to', parentFrom]),
+      '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
@@ -202,7 +211,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]',
     getArgumentCompletions: async prefix => {
       const data = await catalog();
-      return data === undefined ? null : openCompletions(prefix, data, scopeCode(key));
+      return data === undefined ? null : openCompletions(prefix, data, scopeCodes(key, data.projects));
     },
     handler: async (args, ctx) => {
       const marker = /(?:^|\s)--message(?:\s|$)/.exec(args);
@@ -245,7 +254,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     },
   });
   pi.registerCommand('inbox', {
-    description: 'Show incoming events from task chats: /inbox [CODE|all]',
+    description: 'Show incoming events from task chats: /inbox [org|CODE|all]',
     handler: async args => {
       pi.sendUserMessage(('/skill:inbox ' + args.trim()).trim(), { expandPromptTemplates: true });
     },

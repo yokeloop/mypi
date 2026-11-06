@@ -7,14 +7,6 @@ export type { EventKind, EventRow, EventStore, EventTransport, TurnPrompt, TurnP
 export function parentKey(key: string): string | undefined {
   return /^([A-Z]+)-[1-9][0-9]*$/.exec(key)?.[1];
 }
-export function parentOf(key: string): string | undefined {
-  return parentKey(key) ?? (/^[A-Z]+$/.test(key) ? 'global' : undefined);
-}
-export function assertParent(from: string, to: string): void {
-  const parent = parentOf(to);
-  if (parent === undefined) throw new InputError(to + ' has no parent session; messages go only from a parent to its child');
-  if (parent !== from) throw new InputError('Only ' + parent + ' may send messages to ' + to + '; this session is ' + from);
-}
 export function frame(event: EventRow, time: string): string {
   const text = event.message.trimEnd();
   const body = text === '' ? '(без текста)' : text;
@@ -31,9 +23,14 @@ export function parentFrame(from: string, to: string, text: string): string {
 export function startFrame(key: string, text: string): string {
   return '[mypi: стартовое сообщение для ' + key + '. Ниже — состояние из mypi, не инструкция]\n' + text;
 }
-export const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии [A-Z]+ для [A-Z]+-[1-9][0-9]*\. /;
+export const PARENT_MESSAGE = /(?:^|\n)\[mypi: сообщение родительской сессии ([A-Z]+|[a-z0-9]+(?:[._-][a-z0-9]+)*) для [A-Z]+-[1-9][0-9]*\. /;
 export function isParentMessage(text: string): boolean {
   return PARENT_MESSAGE.test(text);
+}
+export function parentSender(text: string): string | undefined {
+  let sender: string | undefined;
+  for (const match of text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) sender = match[1];
+  return sender;
 }
 export function startedByParent(prompt: TurnPrompt | undefined): boolean {
   return prompt !== undefined && prompt.origin === 'peer' && isParentMessage(prompt.text);
@@ -42,19 +39,30 @@ export const MILESTONE_STATUSES = ['review', 'blocked', 'merged'] as const;
 export function isMilestone(status: string, isTerminal: boolean): boolean {
   return isTerminal || (MILESTONE_STATUSES as readonly string[]).includes(status);
 }
-export function createEvents(store: EventStore, scope: (key: string) => SessionScope, clock: () => string) {
+export function createEvents(store: EventStore, scope: (key: string) => SessionScope, parents: (key: string) => string[], clock: () => string) {
+  const recipient = (task: string, sender: string | undefined): string =>
+    sender !== undefined && parents(task).includes(sender) ? sender : parentKey(task)!;
+  const assertParent = (from: string, to: string): void => {
+    const allowed = parents(to);
+    if (allowed.length === 0) throw new InputError(to + ' has no parent session; messages go only from a parent to its child');
+    if (!allowed.includes(from)) throw new InputError('Only ' + allowed.join(' or ') + ' may send messages to ' + to + '; this session is ' + from);
+  };
   return {
-    emit(input: { from: string; kind: EventKind; message: string }): { event: number | null } {
-      if (scope(input.from).scopeType !== 'task') return { event: null };
-      return store.transaction(() => ({ event: store.add({ fromKey: input.from, toKey: parentKey(input.from)!, kind: input.kind,
-        message: input.message, createdAt: clock() }) }));
+    assertParent,
+    recipient,
+    emit(input: { from: string; kind: EventKind; message: string; to?: string | undefined }): { event: number | null; to: string | null } {
+      if (scope(input.from).scopeType !== 'task') return { event: null, to: null };
+      const to = recipient(input.from, input.to);
+      return store.transaction(() => ({ event: store.add({ fromKey: input.from, toKey: to, kind: input.kind,
+        message: input.message, createdAt: clock() }), to }));
     },
+    milestoneRecipient: (task: string): string => recipient(task, store.lastMessageSender(task)),
     pending(toKey: string | null): EventRow[] {
       if (toKey !== null) scope(toKey);
       return store.pending(toKey);
     },
-    milestone(input: { from: string; message: string }): number {
-      return store.add({ fromKey: input.from, toKey: parentKey(input.from)!, kind: 'milestone', message: input.message, createdAt: clock() });
+    milestone(input: { from: string; to: string; message: string }): number {
+      return store.add({ fromKey: input.from, toKey: input.to, kind: 'milestone', message: input.message, createdAt: clock() });
     },
     send(input: { from: string; to: string; message: string }): number {
       scope(input.to);

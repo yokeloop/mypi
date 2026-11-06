@@ -112,6 +112,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       const envScope = env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] };
       if (o['hook']) {
         if (opt('from') !== undefined || opt('message') !== undefined) throw new InputError('Use --hook or --from, not both');
+        if (opt('to') !== undefined) throw new InputError('Use --hook or --to, not both');
         if (!o['waiting']) throw new InputError('--hook requires --waiting');
         const pid = Number(required('pid'));
         const input = notificationInput(readInputFile(0));
@@ -119,7 +120,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
           session: { agent: 'claude', nativeId: input.nativeId, pid, ...runtime }, ...envScope,
           ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
       }
-      return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from'), ...runtime };
+      return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from'),
+        ...(opt('to') === undefined ? {} : { to: opt('to')! }), ...runtime };
     }
     case 'turn end': {
       const pid = Number(required('pid'));

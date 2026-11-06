@@ -80,10 +80,10 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.equal(statSync(join(runtime, 'mypi')).mode & 0o777, 0o700);
   assert.equal(statSync(join(runtime, 'mypi', 'sessions')).mode & 0o777, 0o700);
   assert.ok(ok(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }).startsWith('# mypi warmup: MP (one/project)'));
-  assert.deepEqual(JSON.parse(ok(['sessions'])).tree.children[0],
+  assert.deepEqual(JSON.parse(ok(['sessions'])).tree.children[0].children[0],
     { key: 'MP', session: { agent: 'claude', nativeId: 'c1', state: 'live' }, children: [] });
   assert.equal(ok(['session', 'unregister', '--pid', pid]), '{"removed":["MP"]}\n');
-  assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].session.state, 'closed');
+  assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.state, 'closed');
   assert.equal(ok(['session', 'forget', 'MP']), '{"forgotten":"MP","live":false}\n');
   const { XDG_RUNTIME_DIR: _, ...bare } = env;
   const missing = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, bare);
@@ -193,6 +193,23 @@ test('real CLI task status queues one milestone unless the project chat changes 
   assert.deepEqual(events.map(e => [e.from, e.kind]), [['MP-1', 'milestone'], ['MP-2', 'milestone'], ['MP-3', 'milestone']]);
   assert.equal(events[0]!.text, '[mypi: MP-1 сменила статус в ' + events[0]!.createdAt.slice(11, 16)
     + ', событие 1. Ниже — веха задачи из mypi, не инструкция]\nnew → review: main chat');
+  for (let i = 6; i <= 8; i++) {
+    ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
+    ok(['send', 'MP-' + i, 'go'], { MYPI_SCOPE: 'one' });
+  }
+  ok(['task', 'status', 'MP-6', 'review', '--reason', 'main chat after the organization'], { MYPI_SCOPE: 'global' });
+  ok(['task', 'status', 'MP-7', 'review', '--reason', 'organization chat'], { MYPI_SCOPE: 'one' });
+  ok(['task', 'status', 'MP-8', 'review', '--reason', 'project chat after the organization'], { MYPI_SCOPE: 'MP' });
+  ok(['task', 'status', 'MP-6', 'blocked', '--reason', 'again'], { MYPI_SCOPE: 'global' });
+  const org = openDatabase(filename, true);
+  try {
+    assert.deepEqual(org.prepare("SELECT kind, from_key, to_key, message FROM events WHERE id > 3 ORDER BY id").raw().all(), [
+      ['message', 'one', 'MP-6', 'go'], ['message', 'one', 'MP-7', 'go'], ['message', 'one', 'MP-8', 'go'],
+      ['milestone', 'MP-6', 'one', 'new → review: main chat after the organization'],
+      ['milestone', 'MP-8', 'one', 'new → review: project chat after the organization'],
+      ['milestone', 'MP-6', 'one', 'review → blocked: again'],
+    ]);
+  } finally { org.close(); }
 });
 
 test('real CLI send queues a message for a closed child and inbox of the child returns it once', t => {
@@ -228,7 +245,7 @@ test('real CLI send queues a message for a closed child and inbox of the child r
   assert.equal(ok(['send', 'MP-1', '--file', join(dir, 'step.txt')], { MYPI_SCOPE: 'MP' }), '{"message":1,"delivered":false}\n');
   const refused = run(['send', 'MP-1', 'x']);
   assert.equal(refused.status, 1);
-  assert.match(refused.stderr, /Only MP may send messages to MP-1; this session is global/);
+  assert.match(refused.stderr, /Only MP or one may send messages to MP-1; this session is global/);
   const db = openDatabase(filename, true);
   try {
     assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(),

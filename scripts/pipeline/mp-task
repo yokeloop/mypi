@@ -10,7 +10,7 @@ cli() { (cd "$ENGINE" && mise exec -- node dist/src/cli/main.js "$@"); }
 self="$0"
 usage() {
   cat >&2 <<EOF
-usage: mp-task scope                           session scope as JSON
+usage: mp-task scope                           session scope as JSON (key, project, org, codes, source)
        mp-task project <CODE|KEY>              project record as JSON
        mp-task show <KEY>                      task card as JSON
        mp-task dir <KEY>                       absolute task folder in home
@@ -28,7 +28,7 @@ EOF
 }
 cmd=${1:-}; [[ -n "$cmd" ]] || usage; shift
 case "$cmd" in
-  scope) [[ $# -eq 0 ]] || usage; cli sessions | python3 -c '
+  scope) [[ $# -eq 0 ]] || usage; projects=$(cli project list); cli sessions | python3 -c '
 import os,re,sys,json
 nid=os.environ.get("CLAUDE_CODE_SESSION_ID","")
 agent="claude" if nid else None
@@ -53,7 +53,12 @@ elif os.environ.get("MYPI_SCOPE",""):
 else:
     key,source="global","default"
 m=re.fullmatch(r"([A-Z]+)(-[0-9]+)?",key)
-print(json.dumps({"key":key,"project":m.group(1) if m else None,"source":source}))' ;;
+projects=json.loads(sys.argv[1])["projects"]
+codes=sorted(p["code"] for p in projects if p["org"]==key)
+org=None
+if m is None and key not in ("global","all") and re.fullmatch(r"[a-z0-9]+(?:[._-][a-z0-9]+)*",key) and codes:
+    org=key
+print(json.dumps({"key":key,"project":m.group(1) if m else None,"org":org,"codes":codes if org else None,"source":source}))' "$projects" ;;
   project) [[ $# -eq 1 ]] || usage; cli project list | python3 -c '
 import os,re,subprocess,sys,json
 projects=json.load(sys.stdin)["projects"]

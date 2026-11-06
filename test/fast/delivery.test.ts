@@ -74,7 +74,7 @@ test('a milestone is never sent to a live parent and stays pending', async t => 
   const { filename, register, delivered, calls, transport, emit } = fixture(t);
   register(101, '/s/MP.sock');
   const app = createApp(filename, false);
-  try { assert.equal(app.events.milestone({ from: 'MP-12', message: 'new → review: ready' }), 1); } finally { app.close(); }
+  try { assert.equal(app.events.milestone({ from: 'MP-12', to: 'MP', message: 'new → review: ready' }), 1); } finally { app.close(); }
   assert.deepEqual(await emit({ pi: transport(ids => ids), claude: transport(ids => ids) }), { event: 2, delivered: [2] });
   assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
   assert.deepEqual(delivered(), [[1, false], [2, true]]);
@@ -168,6 +168,21 @@ test('turn end in a project scope sends nothing to a live Claude parent', async 
     { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
+});
+
+test('turn end of a turn the organization chat started goes to the live organization session', async t => {
+  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  register(201, '/s/one.sock', 'claude', 'c201', 'one');
+  register(202, '/s/MP.sock', 'claude', 'c202', 'MP');
+  register(101, null, 'claude', 'c1', 'MP-12');
+  const transcript = join(run, 'org.jsonl');
+  writeFileSync(transcript, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
+    content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
+  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
+    { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1] });
+  assert.deepEqual(calls.map(c => [c.socket, c.events.map(e => e.id)]), [['/s/one.sock', [1]]]);
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events, []);
 });
 
 const wait = { deadlineMs: 100, pollMs: 10 };
@@ -277,8 +292,8 @@ test('send to a closed child queues the message', async t => {
 test('send from a session that is not the parent writes nothing', async t => {
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  for (const [envScope, error] of [['global', /Only MP may send messages to MP-12; this session is global/],
-    ['MP-7', /Only MP may send messages to MP-12; this session is MP-7/]] as const) {
+  for (const [envScope, error] of [['global', /Only MP or one may send messages to MP-12; this session is global/],
+    ['MP-7', /Only MP or one may send messages to MP-12; this session is MP-7/]] as const) {
     await assert.rejects(sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
       { pi: transport(ids => ids) }, proc), error);
   }

@@ -46,7 +46,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'session register': [0, 0, ['agent', 'pid', 'native-id', 'name', 'socket'], ['hook', 'fork']],
   'session unregister': [0, 0, ['pid'], []],
   'session forget': [1, 1, [], []],
-  'event emit': [0, 0, ['from', 'message', 'pid'], ['waiting', 'hook']],
+  'event emit': [0, 0, ['from', 'to', 'message', 'pid'], ['waiting', 'hook']],
   'turn end': [0, 0, ['pid'], []],
   inbox: [0, 1, [], []],
   send: [1, 2, ['file'], []],

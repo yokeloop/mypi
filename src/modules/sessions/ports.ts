@@ -1,5 +1,5 @@
 export type Agent = 'claude' | 'pi';
-export interface SessionScope { scopeType: 'global' | 'project' | 'task'; projectId: number | null; taskId: number | null }
+export interface SessionScope { scopeType: 'global' | 'org' | 'project' | 'task'; orgId: number | null; projectId: number | null; taskId: number | null }
 export interface SessionRow extends SessionScope { key: string; agent: Agent; nativeId: string; createdAt: string }
 export interface SessionStore {
   transaction<T>(fn: () => T): T;

@@ -60,11 +60,13 @@ flow is the project's branch and merge settings (`flow.json`, `mp-task flow`).
 
 ## Session scope
 
-Every session (the main chat, a project chat, a task chat) starts in the engine root
+Every session (the main chat, an organization chat, a project chat, a task chat) starts in the engine root
 and sees the pipeline skills. Each of the five skills checks the session scope as its
 Step 0.
 
-The key: `scripts/pipeline/mp-task scope` prints `{"key", "project", "source"}`. It
+The key: `scripts/pipeline/mp-task scope` prints `{"key", "project", "org", "codes", "source"}`.
+`org` is the key when it is the slug of a registered organization with at least one
+project, and `codes` the sorted codes of its projects; otherwise both are `null`. It
 takes the `sessions` row with this conversation's agent and native id
 (`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`; it is set inside subagents too and
 is the parent chat's id), else `MYPI_SCOPE` (set by `/open`), else `global`. This is
@@ -77,16 +79,21 @@ The rule:
 
 - `global`: `/plan`, `/do` and `/ship` take tasks of any project; `/flow` and
   `/ship flow/<name>` take the keys of one project.
+- `O` (an organization): `/plan`, `/do` and `/ship` take keys whose code is in
+  `codes`; `/flow` and `/ship flow/<name>` take the keys of one project from `codes`
+  (the flow score lives in that project's home).
 - `P` (any project): every typed key has the code `P`; a flow holds keys of `P`,
   `/ship flow/<name>` takes a flow of project `P`.
 - `P-N`: `/plan`, `/do`, `/flow` and `/ship` take P-N and its subtasks — every task
   whose chain of parents reaches P-N (`mp-task subtasks P-N`); `/ship flow/<name>` —
   when every key of the flow score `<home of P>/flows/<name>.md` is P-N or its subtask.
 - A typed argument that is not a key `CODE-N` (other than `flow/<name>` of `/ship`
-  and the run name of `/flow`), a malformed session key (`project` is `null` and
-  the key is not `global`) or a non-zero exit of `mp-task scope`: refused.
+  and the run name of `/flow`), a malformed session key (`project` and `org` are both
+  `null` and the key is not `global`) or a non-zero exit of `mp-task scope`: refused.
 - `/board`: in a session of project P or its task P-N — the board of P; a typed CODE
-  must equal P. In global — the typed CODE, MP by default. A malformed key, an unknown
+  must equal P. In an organization `O` — a typed CODE must be in `codes`; without a
+  CODE the boards of all `codes`, one after another. In global — the typed CODE, MP
+  by default. A malformed key, an unknown
   code or a non-zero exit of mp-task scope — refused.
 - A non-zero exit of `mp-task scope`: refused, with its output.
 
@@ -98,10 +105,12 @@ and `project list`). In a `P-N` session `mp-task subtasks P-N` may run too, and 
 arguments and `<key>` substituted):
 
 - `/board` with another project's code: `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
+- `/board` in an organization with a code outside `codes`: `/board <CODE> is not allowed in session scope <key>; this chat shows the boards of <codes> only. Use /board here or /open global for another project.`
 - `/board` with a malformed key: `The board cannot tell this session's project (scope <key>). Open the main chat with /open global.`
 - `/board` with an unknown code: `Unknown project code <P>; registered codes: <codes>.`
 - a changing skill with another project's key: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. This chat runs tasks of <P> only; run it in that task's or project's chat (/open <CODE>) or in the main chat (/open global).`
   (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan, /do, /flow and /ship for P-N and its subtasks (<keys>|none) only.`
+- a changing skill in an organization with a key outside `codes`: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. This chat runs tasks of <codes> only; run it in the main chat (/open global).`
 - a non-zero exit of `mp-task subtasks`: `/<cmd> cannot read the subtasks of <key>: <output>; nothing was written.`
 - `/ship flow/<name>` in a `P-N` chat without the flow score: `/ship flow/<name>: no flow score <path>; nothing was written.`
 - a changing skill with a malformed session key or a non-zero `mp-task scope`: `/<cmd> cannot tell this session's project (scope <key>); nothing was written. Run it in the main chat (/open global).`
@@ -135,9 +144,10 @@ subtask decides:
 The order: subtasks before their parent, then the «Связи» dependencies and shared
 files on top of it. While the flow runs a subtask that has a live tab of its own,
 `/do` is not run in that tab (one writer per worktree); no code enforces it.
-Milestones of subtasks whose status the epic's tab changes go to the project chat as
-always (`src/app/task-work.ts`). The events of a task's session still go to its
-Parent session, the project chat.
+Milestones of subtasks whose status the epic's tab changes go, as always, to the
+parent that last sent the subtask a message, else the project chat
+(`src/app/task-work.ts`). The events of a task's session still go to the Parent
+whose message started the turn, else the project chat.
 
 ## Temporary scripts
 

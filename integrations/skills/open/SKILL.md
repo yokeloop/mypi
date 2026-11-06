@@ -1,6 +1,6 @@
 ---
 name: open
-description: Open or focus mypi sessions in Herdr tabs — "/open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]". Keys are a project code (MP), CODE-N (MP-12), org/project or org/project#N.
+description: Open or focus mypi sessions in Herdr tabs — "/open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]". Keys are an organization slug (tb-ff), a project code (MP), CODE-N (MP-12), org/project or org/project#N.
 ---
 
 The user asked to open sessions. Call the mypi tool `open_session` once with

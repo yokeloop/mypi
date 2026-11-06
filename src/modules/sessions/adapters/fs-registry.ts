@@ -2,7 +2,7 @@ import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, r
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Registry, RegistryRecord } from '../ports.js';
-const fileName = /^(global|[A-Z]+|[A-Z]+-[1-9][0-9]*)(~[1-9][0-9]*)?\.json$/;
+const fileName = /^(global|[A-Z]+|[A-Z]+-[1-9][0-9]*|[a-z0-9]+(?:[._-][a-z0-9]+)*)(~[1-9][0-9]*)?\.json$/;
 function missing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }

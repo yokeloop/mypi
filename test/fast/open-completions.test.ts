@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { COMPLETION_LIMIT, completionSource, openCompletions, scopeCode } from '../../.pi/extensions/mypi-lib/open-completions.js';
+import { COMPLETION_LIMIT, completionSource, openCompletions, scopeCodes } from '../../.pi/extensions/mypi-lib/open-completions.js';
 import type { OpenCatalog } from '../../.pi/extensions/mypi-lib/open-completions.js';
 
 const title = 'Подсказки проектов и задач для /open в Pi';
@@ -17,20 +17,28 @@ const catalog: OpenCatalog = {
 const labels = (items: { label: string }[] | null) => items?.map(item => item.label) ?? null;
 
 test('open completions list the project and its open tasks in a project chat', () => {
-  const items = openCompletions('', catalog, 'MP');
+  const items = openCompletions('', catalog, ['MP']);
   assert.deepEqual(labels(items), ['MP', 'MP-74', 'MP-75']);
   assert.deepEqual(items!.map(item => item.value), ['MP ', 'MP-74 ', 'MP-75 ']);
   assert.equal(items![0]!.description, 'yokeloop/mypi');
   assert.equal(items![1]!.description, `planning · ${title}`);
-  assert.equal(scopeCode('MP-74'), 'MP');
-  assert.deepEqual(openCompletions('', catalog, scopeCode('MP-74')), items);
+  assert.deepEqual(scopeCodes('MP-74', catalog.projects), ['MP']);
+  assert.deepEqual(openCompletions('', catalog, scopeCodes('MP-74', catalog.projects)), items);
 });
 
 test('open completions list all projects and open tasks in the main chat', () => {
   const all = ['MP', 'SH', 'MP-74', 'MP-75', 'SH-3'];
-  assert.equal(scopeCode('global'), undefined);
-  assert.equal(scopeCode(undefined), undefined);
-  for (const scope of [undefined, scopeCode('global'), 'ZZ']) assert.deepEqual(labels(openCompletions('', catalog, scope)), all);
+  assert.equal(scopeCodes('global', catalog.projects), undefined);
+  assert.equal(scopeCodes(undefined, catalog.projects), undefined);
+  for (const scope of [undefined, scopeCodes('global', catalog.projects), ['ZZ']]) assert.deepEqual(labels(openCompletions('', catalog, scope)), all);
+});
+
+test('open completions list the organization\'s projects and their open tasks in an organization chat', () => {
+  const projects = [...catalog.projects, { id: 3, org: 'acme', slug: 'api', code: 'AP' }];
+  const tasks = [...catalog.tasks, { projectId: 3, number: 1, title: 'Auth', status: 'new', isTerminal: false, key: 'AP-1' }];
+  assert.deepEqual(scopeCodes('acme', projects), ['AP', 'SH']);
+  assert.deepEqual(labels(openCompletions('', { projects, tasks }, scopeCodes('acme', projects))), ['AP', 'SH', 'AP-1', 'SH-3']);
+  assert.deepEqual(labels(openCompletions('mp', { projects, tasks }, scopeCodes('acme', projects))), null);
 });
 
 test('open completions filter by the typed token', () => {
@@ -56,7 +64,7 @@ test('open completions stay silent for flags and after --message', () => {
 
 test('open completions cap the list', () => {
   const tasks = Array.from({ length: 60 }, (_, i) => ({ projectId: 1, number: i + 1, title: 't', status: 'open', isTerminal: false, key: `MP-${i + 1}` }));
-  assert.equal(openCompletions('', { projects: [catalog.projects[1]!], tasks }, 'MP')!.length, COMPLETION_LIMIT);
+  assert.equal(openCompletions('', { projects: [catalog.projects[1]!], tasks }, ['MP'])!.length, COMPLETION_LIMIT);
   assert.equal(COMPLETION_LIMIT, 50);
 });
 

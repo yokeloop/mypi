@@ -57,8 +57,11 @@ mypi token revoke <name>
 - `read` tokens only read; `write` tokens also write. A write token has a `sender`
   (default `global`): the session key on whose behalf `POST /v1/messages` and status
   changes run. The parent rule applies as everywhere: `global` may send only to
-  projects, a project only to its own tasks. A status change made with a project's
-  sender queues no milestone for that project, as in its project chat.
+  projects and organizations, a project only to its own tasks. A status change
+  queues a milestone for the parent that last sent the task a message, else the
+  project chat, unless the sender is that recipient: a project's sender queues none
+  for its own task unless the organization wrote to the task last, in which case
+  the milestone goes to the organization.
 
 ## Envelope and errors
 
@@ -187,7 +190,7 @@ field or route needs `/v2`.
 
 ## Engine updates and migrations
 
-The server opens a database of schema 13 and keeps its code in memory. After an
+The server opens a database of schema 14 and keeps its code in memory. After an
 engine update or a migration, restart it.
 
 ## Access log

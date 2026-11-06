@@ -117,12 +117,14 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   It also registers the /open command (`/open <key...> [--message text]`, the
   rest of the line after --message is the text), which runs mypi open
   and suggests keys while its arguments are typed (the session's project and its
-  open tasks in a project or task chat, all projects and open tasks in the main
-  chat; loaded through the CLI and reused for 15 s; none for flags or after
+  open tasks in a project or task chat, the organization's projects and their open
+  tasks in an organization chat, all projects and open tasks in the main chat; loaded through the CLI and reused for 15 s; none for flags or after
   --message), and the /inbox command, which runs the inbox skill as /skill:inbox. On `agent_settled`
   (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
-  `mypi event emit` with the registered key, only in a turn that a message in
-  the mypi parent-message frame started through its socket. From `session_start` to
+  `mypi event emit` with the registered key and `--to` the sender of that frame,
+  only in a turn that a message in the mypi parent-message frame started through
+  its socket; the event goes to that sender when it is a parent of the task, else
+  to the task's project. From `session_start` to
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
   one socket per Pi process so a displaced session never removes the new one's,
   and registers its path; `mypi event emit` then sends all undelivered events of the
@@ -137,13 +139,15 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   missed server close repeats events, an event over 1 MiB is resent with every
   send and stays in /inbox and the warmup, and a message held in bypass and then
   rejected, or one the parent never handled, is lost after it was marked delivered.
-  A status change to review, blocked, merged or a terminal status queues a
-  milestone event for the project chat unless the project chat makes it;
+  A status change to review, blocked, merged or a terminal status queues one
+  milestone event for the parent that last sent the task a message, else the
+  project chat, unless that recipient makes the change;
   milestones wait for /inbox and the warmup and are never sent live.
-  Down go parent messages: a direct parent (project chat → its task, main chat →
-  a project; the sender key is resolved like the warmup's — registered key, else
-  `MYPI_SCOPE`, else `global`, so an unresolved caller counts as global and may
-  send only to projects; any other sender is refused) writes an `events` row of
+  Down go parent messages: a direct parent (project chat → its task, organization
+  chat → a task of its organization, main chat → a project or an organization; the
+  sender key is resolved like the warmup's — registered key, else `MYPI_SCOPE`,
+  else `global`, so an unresolved caller counts as global and may send only to
+  projects and organizations; any other sender is refused) writes an `events` row of
   kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
   It goes through the same channels with the same at-least-once semantics as a
   new turn in the parent-message frame; a closed child gets its queue once at the
@@ -202,11 +206,13 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the older record moves to `<key>~<pid>.json`. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 13 database registration fails and the
+  `XDG_RUNTIME_DIR` or an initialized schema 14 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
   session's Herdr tab or opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
-  the project session) in the engine root with MYPI_SCOPE and starts or resumes
+  the project session; an organization key, the bare slug `tb-ff`, gets the tab
+  `org-<slug>` in the workspace `<slug>`, with no clone or worktree, and an
+  organization without registered projects is refused) in the engine root with MYPI_SCOPE and starts or resumes
   the agent; it writes no session rows. A project without a clone is first cloned
   from its registered `repository` (`local`: `git init`) into
   `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
@@ -217,8 +223,10 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   MCP call or SIGINT/SIGTERM of the CLI stops git, removes the partial clone and
   registers nothing, so the next /open prepares it again; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
   or focused one) gets one start message in the frame `[mypi: стартовое сообщение
-  для <key>. …]` through the same socket as events: for a project its open tasks
-  by status and the number of undelivered events, for a task its status, worktree
+  для <key>. …]` through the same socket as events: for an organization the open
+  tasks of each of its projects by status and the number of its undelivered
+  events, for a project its open tasks by status and the number of undelivered
+  events, for a task its status, worktree
   and the last journal entries with their artifacts. It is state, not an
   instruction, and creates no events. If it cannot be delivered, /open still
   succeeds with `start message not delivered: <reason>` in `notes`; for Claude in

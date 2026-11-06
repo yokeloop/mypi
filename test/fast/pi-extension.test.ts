@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import type { TestContext } from 'node:test';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -166,7 +166,8 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   install(pi.api, root, serve, run);
   pi.state.key = 'MP-12';
   await pi.start('startup');
-  const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', ...args], { cwd: root, timeout: 5000 }];
+  const emitTo = (to: string, ...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', '--to', to, ...args], { cwd: root, timeout: 5000 }];
+  const emit = (...args: string[]) => emitTo('MP', ...args);
   const end = (...messages: { role: string; content?: unknown }[]) => pi.handlers.get('agent_end')!({ messages }, pi.ctx);
   const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
   const prompt = (event: { kind: string; title?: string }) => pi.handlers.get('ui_prompt_start')!(event, pi.ctx);
@@ -249,6 +250,19 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   await parent();
   await prompt({ kind: 'confirm' });
   await settle();
+  pi.state.result = result;
+  await batch(parentFrame('one', 'MP-12', 'go'));
+  await prompt({ kind: 'input' });
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--waiting'));
+  end({ role: 'assistant', content: [{ type: 'text', text: 'org' }] });
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--message=org'));
+  await batch(parentFrame('MP', 'MP-12', 'a') + '\n' + parentFrame('one', 'MP-12', 'b'));
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('one', '--message='));
+  await parent();
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), emitTo('MP', '--message='));
 });
 
 test('pi extension emits no events without a registered key', async () => {
@@ -477,6 +491,16 @@ test('pi extension injects a batch as one follow-up, waits for the turn to start
   await settled();
   assert.deepEqual(pi.sent.slice(2), [['d', follow], ['e', follow]]);
   assert.deepEqual(acked, [[4], [5]]);
+});
+
+test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
+  const literal = (path: string, prefix: string) => {
+    const line = readFileSync(join(root, path), 'utf8').split('\n').find(l => l.startsWith(prefix));
+    assert.ok(line !== undefined, path);
+    return line.slice(prefix.length);
+  };
+  assert.equal(literal('.pi/extensions/mypi-lib/install.ts', 'const PARENT_MESSAGE = '),
+    literal('src/modules/events/public.ts', 'export const PARENT_MESSAGE = '));
 });
 
 test('pi extension refuses an unbuilt engine', () => {

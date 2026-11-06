@@ -72,7 +72,7 @@ test('registry files are owner-only, liveness needs pid and start, dead and malf
   writeFileSync(join(sessionsDir, 'OT.json'), 'not json');
   writeFileSync(join(sessionsDir, 'notes.txt'), 'keep');
   const tree = s(x => x.tree());
-  assert.deepEqual(tree.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' }, children: [] });
+  assert.deepEqual(tree.children[0]!.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' }, children: [] });
   assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), undefined);
   assert.deepEqual(files(), ['MP-12.json', 'OT.json', 'notes.txt']);
   alive(102);
@@ -118,7 +118,7 @@ test('the registry refuses an unsafe directory and a missing XDG_RUNTIME_DIR', t
 });
 
 test('register validates the process, the native id and the key', t => {
-  const { alive, s, rows, files, claude } = fixture(t);
+  const { filename, alive, s, rows, files, record, claude } = fixture(t);
   alive(101);
   const cases: [ReturnType<typeof claude>, RegExp][] = [
     [claude('c1', 999), /Process 999 is not running/],
@@ -126,13 +126,26 @@ test('register validates the process, the native id and the key', t => {
     [claude('c1', 101, { envScope: 'XX' }), /Unknown project: XX/],
     [claude('c1', 101, { envScope: 'MP-99' }), /Unknown task: MP-99/],
     [claude('c1', 101, { envScope: 'REQ-1' }), /has no project/],
-    [claude('c1', 101, { envScope: 'mp' }), /Invalid session key/],
+    [claude('c1', 101, { envScope: 'Mp' }), /Invalid session key: Mp; use global, an organization slug \(tb-ff\), a project code \(MP\) or a task key \(MP-12\)/],
+    [claude('c1', 101, { envScope: 'nope' }), /Unknown organization/],
+    [claude('c1', 101, { envScope: 'all' }), /all is reserved for \/inbox all and is not a session key/],
   ];
   for (const [input, error] of cases) {
     assert.throws(() => s(x => x.register(input)), error);
     assert.deepEqual(rows(), []);
     assert.deepEqual(files(), []);
   }
+  assert.deepEqual(s(x => x.register(claude('c1', 101, { envScope: 'one' }))), { key: 'one', registered: true, displaced: null });
+  const db = openDatabase(filename, true);
+  try {
+    assert.deepEqual(db.prepare('SELECT key, scope_type AS scopeType, org_id AS orgId, project_id AS projectId, task_id AS taskId FROM sessions').all(),
+      [{ key: 'one', scopeType: 'org', orgId: (db.prepare("SELECT id FROM organizations WHERE slug = 'one'").get() as { id: number }).id,
+        projectId: null, taskId: null }]);
+  } finally { db.close(); }
+  assert.deepEqual(files(), ['one.json']);
+  assert.equal(record('one.json')['key'], 'one');
+  assert.equal(s(x => x.lookup('one')).live!.pid, 101);
+  assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), 'one');
 });
 
 test("unregister removes only the caller's own records and keeps the row", t => {
@@ -143,7 +156,7 @@ test("unregister removes only the caller's own records and keeps the row", t => 
   assert.deepEqual(s(x => x.unregister(101)), { removed: ['MP-12'] });
   assert.deepEqual(files(), ['global.json']);
   assert.deepEqual(rows().map(r => r.key), ['MP-12', 'global']);
-  assert.equal(s(x => x.tree()).children[0]!.children[0]!.session!.state, 'closed');
+  assert.equal(s(x => x.tree()).children[0]!.children[0]!.children[0]!.session!.state, 'closed');
   assert.deepEqual(s(x => x.unregister(101)), { removed: [] });
   die(101);
   assert.deepEqual(s(x => x.unregister(101)), { removed: [] });
@@ -190,19 +203,26 @@ test('lookup returns the saved row and only the canonical live record', t => {
   assert.equal(closed.row!.nativeId, 'c2');
 });
 
-test('sessions tree is global → project → task with live and closed', t => {
+test('sessions tree is global → org → project → task with live and closed', t => {
   const { alive, die, s, claude } = fixture(t);
-  alive(201); alive(301); alive(101); alive(401);
+  alive(201); alive(301); alive(101); alive(401); alive(501);
   s(x => x.register(claude('g1', 201)));
   s(x => x.register({ agent: 'pi', nativeId: 'p12', pid: 301, name: null, socket: null, fork: false, envScope: 'MP-12' }));
   die(301);
   s(x => x.register(claude('c7', 101, { envScope: 'MP-7' })));
   s(x => x.register({ agent: 'pi', nativeId: 'pot', pid: 401, name: null, socket: null, fork: false, envScope: 'OT' }));
+  s(x => x.register(claude('c2', 501, { envScope: 'two' })));
+  const mp = { key: 'MP', session: null, children: [
+    { key: 'MP-7', session: { agent: 'claude', nativeId: 'c7', state: 'live' }, children: [] },
+    { key: 'MP-12', session: { agent: 'pi', nativeId: 'p12', state: 'closed' }, children: [] }] };
+  const ot = { key: 'OT', session: { agent: 'pi', nativeId: 'pot', state: 'live' }, children: [] };
   assert.deepEqual(s(x => x.tree()), { key: 'global', session: { agent: 'claude', nativeId: 'g1', state: 'live' }, children: [
-    { key: 'MP', session: null, children: [
-      { key: 'MP-7', session: { agent: 'claude', nativeId: 'c7', state: 'live' }, children: [] },
-      { key: 'MP-12', session: { agent: 'pi', nativeId: 'p12', state: 'closed' }, children: [] }] },
-    { key: 'OT', session: { agent: 'pi', nativeId: 'pot', state: 'live' }, children: [] }] });
+    { key: 'one', session: null, children: [mp] },
+    { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'live' }, children: [ot] }] });
+  die(501);
+  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'closed' }, children: [ot] });
+  s(x => x.forget('OT'));
+  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'closed' }, children: [] });
   const empty = fixture(t);
   assert.deepEqual(empty.s(x => x.tree()), { key: 'global', session: null, children: [] });
 });

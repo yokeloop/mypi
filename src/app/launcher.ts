@@ -5,13 +5,13 @@ import type { AppCommand, RunContext } from './commands.js';
 import { createApp, engineRoot } from './create-app.js';
 import { deliverOnOpen, deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
-import { callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
+import { agentName, callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
 import { callerKey } from './sessions.js';
 import { startMessage } from './start-message.js';
 import { prepareCheckouts } from './project-checkout.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { HerdrError, herdrCli } from '../infrastructure/herdr/herdr.js';
-import { assertParent, startFrame } from '../modules/events/public.js';
+import { startFrame } from '../modules/events/public.js';
 import { noRepositoryError } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Agent } from '../modules/sessions/public.js';
@@ -37,11 +37,18 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
   }
   const parsed = c.keys.map(parseOpenKey);
   const read = createApp(filename, true);
-  const { keys, labels, chosen, mode, missing } = (() => {
+  const { keys, entries, chosen, mode, missing } = (() => {
     try {
       return read.readSnapshot(() => {
         const projects = read.projects.list(), cards = read.tasks.list();
         const resolved = parsed.map(key => {
+          if (key.kind === 'org') {
+            const list = read.projects.list(key.slug);
+            if (list.length === 0) {
+              throw new InputError('Organization ' + key.slug + ' has no registered projects; /open ' + key.slug + ' opens organizations with at least one');
+            }
+            return { key: key.slug, label: key.slug, kind: 'org' as const, code: null, project: null };
+          }
           const project = key.kind === 'identity' ? projects.find(p => p.org === key.org && p.slug === key.slug)
             : projects.find(p => p.code === key.code);
           if (!project) throw new InputError('Unknown project: ' + (key.kind === 'identity' ? key.org + '/' + key.slug : key.code));
@@ -50,14 +57,15 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
             throw new InputError('Unknown task: ' + project.code + '-' + number);
           }
           if (project.checkoutPath === null && project.repository === null) throw noRepositoryError(project);
-          return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug, project };
+          return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug,
+            kind: number === undefined ? 'project' as const : 'task' as const, code: project.code, project };
         });
         const chosen = c.agent ?? defaultAgent(readSettings(root));
         const mode = c.permissionMode ?? callerMode(read.sessions(c.runtime, proc), c.session) ?? null;
-        const labels = new Map<string, string>();
-        for (const { key, label } of resolved) if (!labels.has(key)) labels.set(key, label);
-        const missing: Project[] = resolved.map(r => r.project).filter(p => p.checkoutPath === null);
-        return { keys: [...labels.keys()], labels, chosen, mode, missing };
+        const entries = new Map<string, typeof resolved[number]>();
+        for (const entry of resolved) if (!entries.has(entry.key)) entries.set(entry.key, entry);
+        const missing: Project[] = resolved.map(r => r.project).filter((p): p is Project => p !== null && p.checkoutPath === null);
+        return { keys: [...entries.keys()], entries, chosen, mode, missing };
       });
     } finally { read.close(); }
   })();
@@ -66,7 +74,8 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     if (keys.length !== 1) throw new InputError('--message takes exactly one key');
     caller = callerKey(filename, c);
     if (caller === undefined) throw new InputError('The calling session key could not be resolved');
-    assertParent(caller, keys[0]!);
+    const check = createApp(filename, true);
+    try { check.events.assertParent(caller, keys[0]!); } finally { check.close(); }
     if (c.message.trim() === '') throw new InputError('Message text is empty');
   }
   const enqueue = (key: string): number | null => {
@@ -93,9 +102,10 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       const found = (() => { try { return app.sessions(c.runtime, proc).lookup(key); } finally { app.close(); } })();
       const decision = decideOpen(found, chosen);
       const notes: string[] = [];
-      const note = prepared.get(key.split('-')[0]!);
+      const entry = entries.get(key)!;
+      const note = entry.code === null ? undefined : prepared.get(entry.code);
       if (note !== undefined) notes.push(note);
-      const name = key.toLowerCase();
+      const name = agentName(key, entry.kind);
       if (c.agent !== undefined && c.agent !== decision.agent) {
         notes.push(key + ' continues with its agent ' + decision.agent + '; --agent ' + c.agent + ' applies only to new sessions');
       }
@@ -114,12 +124,12 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
         opened.push({ key, agent: decision.agent, action: 'focused', workspaceId: null, tabId: null, worktreePath: null, notes, message });
         continue;
       }
-      const worktreePath = key.includes('-') ? openTaskWorktree(filename, root, key).worktreePath : null;
+      const worktreePath = entry.kind === 'task' ? openTaskWorktree(filename, root, key).worktreePath : null;
       let text: string | null = null, reason: string | null = null;
       if (decision.action === 'start') {
         try { text = startFrame(key, startMessage(filename, key, worktreePath)); } catch (error) { reason = (error as Error).message; }
       }
-      const label = labels.get(key)!;
+      const label = entry.label;
       const env = { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };
       const existing = byLabel.get(label);
       let workspaceId: string, tabId: string, paneId: string;

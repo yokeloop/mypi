@@ -2,7 +2,8 @@ import { InputError } from '../../shared/errors.js';
 import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, SessionStore } from './ports.js';
 export type { Agent, RegistryRecord, SessionRow, SessionScope } from './ports.js';
 export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null; children: SessionNode[] };
-export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope, clock: () => string) {
+export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
+  orgOf: (code: string) => string | undefined, clock: () => string) {
   const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;
   const canonical = (records: RegistryRecord[], key: string) => records.find(r => r.key === key && r.displacedAt === undefined);
   return {
@@ -61,11 +62,17 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
       };
       const root = node('global');
       const codes = [...new Set(rows.map(r => /^[A-Z]+/.exec(r.key)?.[0]).filter((code): code is string => code !== undefined))].sort();
-      for (const code of codes) {
-        const project = node(code);
-        project.children = rows.map(r => r.key).filter(key => key.startsWith(code + '-'))
-          .sort((a, b) => Number(a.slice(code.length + 1)) - Number(b.slice(code.length + 1))).map(node);
-        root.children.push(project);
+      const orgs = [...new Set([...rows.filter(r => r.scopeType === 'org').map(r => r.key),
+        ...codes.map(orgOf).filter((slug): slug is string => slug !== undefined)])].sort();
+      for (const slug of orgs) {
+        const org = node(slug);
+        for (const code of codes.filter(c => orgOf(c) === slug)) {
+          const project = node(code);
+          project.children = rows.map(r => r.key).filter(key => key.startsWith(code + '-'))
+            .sort((a, b) => Number(a.slice(code.length + 1)) - Number(b.slice(code.length + 1))).map(node);
+          org.children.push(project);
+        }
+        root.children.push(org);
       }
       return root;
     },

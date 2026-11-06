@@ -5,6 +5,7 @@ export interface EventStore {
   add(row: Omit<EventRow, 'id' | 'deliveredAt'>): number;
   pending(toKey: string | null): EventRow[];
   lastDelivered(toKey: string): EventRow[];
+  lastMessageSender(toKey: string): string | undefined;
   deliver(ids: number[], at: string): void;
   browse(filter: { to?: string; from?: string; kind?: EventKind; delivered?: boolean; before?: number }): Iterable<EventRow>;
 }

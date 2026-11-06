@@ -1,6 +1,7 @@
 import type { createApp } from './create-app.js';
 import type { SessionHint } from './session-input.js';
 import type { Agent, RegistryRecord, SessionRow } from '../modules/sessions/public.js';
+import { validSlug } from '../modules/projects/public.js';
 import { InputError } from '../shared/errors.js';
 
 type Sessions = ReturnType<ReturnType<typeof createApp>['sessions']>;
@@ -8,12 +9,12 @@ type Sessions = ReturnType<ReturnType<typeof createApp>['sessions']>;
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'auto', 'bypassPermissions', 'dontAsk', 'plan'] as const;
 
 export type OpenKey = { kind: 'project'; code: string } | { kind: 'task'; code: string; number: number }
-  | { kind: 'identity'; org: string; slug: string; number?: number };
+  | { kind: 'identity'; org: string; slug: string; number?: number } | { kind: 'org'; slug: string };
 
 const noProject = () => new InputError('REQ tasks have no project; /open opens sessions of registered projects');
 
 export function parseOpenKey(text: string): OpenKey {
-  if (text === 'global') throw new InputError('global is the main chat, started by hand; /open opens project (MP) and task (MP-12) sessions');
+  if (text === 'global') throw new InputError('global is the main chat, started by hand; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
   if (/^[A-Z]+$/.test(text)) {
     if (text === 'REQ') throw noProject();
     return { kind: 'project', code: text };
@@ -25,7 +26,13 @@ export function parseOpenKey(text: string): OpenKey {
   }
   const identity = /^([a-z0-9]+(?:[._-][a-z0-9]+)*)\/([a-z0-9]+(?:[._-][a-z0-9]+)*)(?:#([1-9][0-9]*))?$/.exec(text);
   if (identity) return { kind: 'identity', org: identity[1]!, slug: identity[2]!, ...(identity[3] === undefined ? {} : { number: Number(identity[3]) }) };
-  throw new InputError('Invalid key: ' + text + '; use a project code (MP), CODE-N (MP-12), org/project or org/project#N');
+  if (text === 'all') throw new InputError('all is reserved for /inbox all; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
+  if (validSlug(text)) return { kind: 'org', slug: text };
+  throw new InputError('Invalid key: ' + text + '; use an organization slug (tb-ff), a project code (MP), CODE-N (MP-12), org/project or org/project#N');
+}
+
+export function agentName(key: string, kind: OpenKey['kind']): string {
+  return kind === 'org' ? 'org-' + key : key.toLowerCase();
 }
 
 export function defaultAgent(settings: string | undefined): Agent {

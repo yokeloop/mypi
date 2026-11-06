@@ -1,6 +1,6 @@
 ---
 name: inbox
-description: Show incoming events from task chats — "/inbox [CODE|all]". Marks the shown events delivered.
+description: Show incoming events from task chats — "/inbox [org|CODE|all]". Marks the shown events delivered.
 ---
 
 The user asked for incoming events. Call the mypi tool `inbox` once, with `key`

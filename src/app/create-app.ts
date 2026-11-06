@@ -6,7 +6,7 @@ import { canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalD
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
-import { createProjects } from '../modules/projects/public.js';
+import { createProjects, validSlug } from '../modules/projects/public.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
 import { createSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
@@ -38,20 +38,36 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
   const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory, canonicalAbsoluteDirectory });
   const sessionScope = (key: string): SessionScope => {
-    if (key === 'global') return { scopeType: 'global', projectId: null, taskId: null };
+    if (key === 'global') return { scopeType: 'global', orgId: null, projectId: null, taskId: null };
     if (/^[A-Z]+$/.test(key)) {
       const project = projects.list().find(p => p.code === key);
       if (!project) throw new InputError('Unknown project: ' + key);
-      return { scopeType: 'project', projectId: project.id, taskId: null };
+      return { scopeType: 'project', orgId: null, projectId: project.id, taskId: null };
     }
     if (/^[A-Z]+-[1-9][0-9]*$/.test(key)) {
       const list = projects.list();
       const card = sqliteTaskStore(db).list().find(c => (c.projectId === null ? 'REQ' : list.find(p => p.id === c.projectId)!.code) + '-' + c.number === key);
       if (!card) throw new InputError('Unknown task: ' + key);
       if (card.projectId === null) throw new InputError('Task ' + key + ' has no project; sessions need a task of a registered project');
-      return { scopeType: 'task', projectId: card.projectId, taskId: card.id };
+      return { scopeType: 'task', orgId: null, projectId: card.projectId, taskId: card.id };
     }
-    throw new InputError('Invalid session key: ' + key + '; use global, a project code (MP) or a task key (MP-12)');
+    if (key === 'all') throw new InputError('all is reserved for /inbox all and is not a session key');
+    if (validSlug(key)) {
+      const scope = projects.resolveScope(key);
+      return { scopeType: 'org', orgId: scope.type === 'org' ? scope.id : null, projectId: null, taskId: null };
+    }
+    throw new InputError('Invalid session key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
+  };
+  const orgOf = (code: string): string | undefined => projects.list().find(p => p.code === code)?.org;
+  const parents = (key: string): string[] => {
+    const task = /^([A-Z]+)-[1-9][0-9]*$/.exec(key);
+    if (task) {
+      const org = orgOf(task[1]!);
+      return org === undefined ? [task[1]!] : [task[1]!, org];
+    }
+    if (/^[A-Z]+$/.test(key)) return ['global'];
+    if (key !== 'global' && key !== 'all' && validSlug(key)) return ['global'];
+    return [];
   };
   return {
     readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),
@@ -63,8 +79,8 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, clock),
-    events: createEvents(sqliteEventStore(db), sessionScope, clock),
+    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock),
+    events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     close: () => db.close(),
   };
 }

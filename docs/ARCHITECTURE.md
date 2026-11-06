@@ -72,7 +72,7 @@ sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
 events(id, from_key, to_key, kind, message, created_at, delivered_at)
 ```
 
-`events` rows are addressed from a task key to its project key, except `message` rows, which go down from a parent key to its direct child (project → task, `global` → project) through `sendMessage` (`src/app/events.ts`) and `/open --message`; `deliverOnOpen` (`src/app/delivery.ts`) sends a child's queued messages once when `/open` starts or resumes it, in one message with the start text, and the warmup skips them. The Claude Stop and Notification hooks (`mypi turn end`, `mypi event emit --waiting --hook`) and the Pi extension (`mypi event emit`) add `turn_end` and `waiting` rows only in a turn a parent message started (Claude: the transcript entry that opened the turn has `turnOrigin` `peer` and the mypi parent-message frame; Pi: a batch with that frame arrived through its socket); `idle_prompt` adds nothing. A task status change to `review`, `blocked`, `merged` or a terminal status adds a `milestone` row in the same transaction, unless the caller is the project chat. After recording, `deliverPending` (`src/app/delivery.ts`) sends the parent's undelivered events except milestones, which wait for `/inbox` and the warmup, through the `EventTransport` port of the events module chosen by the agent of the parent's canonical live record; two transports, the Pi socket client and the Claude inbox client, both in `src/infrastructure/socket/`, are wired in from `src/cli/main.ts` and `src/mcp/main.ts`, and acknowledged events are marked delivered. `deliverToStarted` (`src/app/delivery.ts`) sends the start message of a session `/open` started through the same `EventTransport` once its live record appears (up to 10 s), and writes nothing to the database. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
+`events` rows are addressed from a task key to a parent key — the sender of the parent message that started the turn when it is a parent of the task (its project or its organization), else its project; a milestone to the parent that last sent the task a message, else its project — except `message` rows, which go down from a parent key to its direct child (project or organization → task, `global` → project or organization) through `sendMessage` (`src/app/events.ts`) and `/open --message`; `deliverOnOpen` (`src/app/delivery.ts`) sends a child's queued messages once when `/open` starts or resumes it, in one message with the start text, and the warmup skips them. The Claude Stop and Notification hooks (`mypi turn end`, `mypi event emit --waiting --hook`) and the Pi extension (`mypi event emit`) add `turn_end` and `waiting` rows only in a turn a parent message started (Claude: the transcript entry that opened the turn has `turnOrigin` `peer` and the mypi parent-message frame; Pi: a batch with that frame arrived through its socket); `idle_prompt` adds nothing. A task status change to `review`, `blocked`, `merged` or a terminal status adds a `milestone` row in the same transaction, unless the caller is its recipient. After recording, `deliverPending` (`src/app/delivery.ts`) sends the parent's undelivered events except milestones, which wait for `/inbox` and the warmup, through the `EventTransport` port of the events module chosen by the agent of the parent's canonical live record; two transports, the Pi socket client and the Claude inbox client, both in `src/infrastructure/socket/`, are wired in from `src/cli/main.ts` and `src/mcp/main.ts`, and acknowledged events are marked delivered. `deliverToStarted` (`src/app/delivery.ts`) sends the start message of a session `/open` started through the same `EventTransport` once its live record appears (up to 10 s), and writes nothing to the database. Six STRICT tables, INTEGER PK, FK/unique/check/triggers, transactional SQL migrations
 with user_version. Statuses are seeded once. Future unknown schemas are rejected;
 readonly opens do not create missing DBs. Explicit `db init` enables WAL outside the
 schema transaction; ordinary opens do not change journal mode. SQLite may create its
@@ -153,18 +153,20 @@ tasks; task only itself; all is explicit. Relations resolve through DB; relevant
 months are selected and filtered before the overall sort/limit.
 Warmup (`mypi warmup`, MCP `warmup`) prints a session's starting context as Markdown in
 a fixed order: personal instructions (`home/USER-INSTRUCTIONS.md`, omitted when absent),
-the scope's role (`integrations/prompts/global.md`, `project.md` or `task.md`), how to
+the scope's role (`integrations/prompts/global.md`, `org.md`, `project.md` or `task.md`), how to
 work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`;
-project: organization and project `MEMORY.md`; task: project `MEMORY.md`), then the
-project list (global), the open tasks (project) or the task card with its worktree
-(task). A project warmup then adds «Новые события» — the undelivered events of the
-project's tasks, each in its frame — and «Последние доклады» — the last `turn_end` of each
-open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, `CODE`
-and `CODE-N`. Unknown keys, legacy REQ tasks and projects without a clone are errors.
+organization: global and organization `MEMORY.md`, no project memory; project:
+organization and project `MEMORY.md`; task: project `MEMORY.md`), then the project
+list (global), one line per project of the organization with its clone or `no clone`
+and its open tasks counted by status (organization), the open tasks (project) or the
+task card with its worktree (task). A project or organization warmup then adds «Новые
+события» — the undelivered events addressed to that key, each in its frame — and «Последние доклады» — the last `turn_end` of each
+open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, an organization slug, `CODE`
+and `CODE-N` (`all` is not a key). Unknown keys, legacy REQ tasks and projects without a clone are errors.
 Embedded files are inserted as written, except that their ATX headings outside fenced code
 blocks are demoted below the enclosing warmup heading (by two levels under a section, by
 three under a memory file's path, at most to level six).
-Warmup creates no rows, files or Git state; a project warmup sets `delivered_at` of the events it shows in full. Scope is not an ACL.
+Warmup creates no rows, files or Git state; a project or organization warmup sets `delivered_at` of the events it shows in full. Scope is not an ACL.
 
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845

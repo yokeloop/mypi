@@ -8,7 +8,7 @@ import type { EventTransports } from './delivery.js';
 import { inputText } from './input-text.js';
 import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
-import { frame, parentKey, startedByParent } from '../modules/events/public.js';
+import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
 import type { TurnPromptReader } from '../modules/events/public.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
@@ -18,14 +18,17 @@ export async function emitEvent(filename: string, c: Of<'event_emit'>, transport
   if (c.notification !== undefined && !(WAITING_NOTIFICATIONS as readonly string[]).includes(c.notification)) return { event: null, delivered: [] };
   const key = warmupScope(c.from, c.envScope, c.from === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
   const hooked = c.from === undefined && c.session !== undefined;
-  if (hooked && (parentKey(key) === undefined || !startedByParent(c.transcript === undefined ? undefined : readPrompt(c.transcript)))) {
-    return { event: null, delivered: [] };
+  let to = c.to;
+  if (hooked) {
+    const prompt = c.transcript === undefined ? undefined : readPrompt(c.transcript);
+    if (parentKey(key) === undefined || !startedByParent(prompt)) return { event: null, delivered: [] };
+    to = parentSender(prompt!.text);
   }
   const app = createApp(filename, false);
   try {
-    const { event } = app.events.emit({ from: key, kind: c.kind, message: c.message });
-    if (event === null) return { event, delivered: [] };
-    return { event, delivered: await deliverPending(app, parentKey(key)!, c.runtime ?? c.session?.runtime, transports, proc) };
+    const result = app.events.emit({ from: key, kind: c.kind, message: c.message, to });
+    if (result.event === null) return { event: null, delivered: [] };
+    return { event: result.event, delivered: await deliverPending(app, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
   } finally { app.close(); }
 }
 
