@@ -6,7 +6,7 @@ match the GitHub releases.
 
 ## [Unreleased]
 
-Upgrading: schema 14, run `mypi db init` once after the update (back up the database
+Upgrading: schema 15, run `mypi db init` once after the update (back up the database
 first); reload or restart Claude Code and Pi sessions so the new roles and the Pi
 extension take effect.
 
