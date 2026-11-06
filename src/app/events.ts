@@ -6,6 +6,7 @@ import { localTime, warmupScope } from './warmup.js';
 import { deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
 import { inputText } from './input-text.js';
+import { sendParentMessage } from './journal-facts.js';
 import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
 import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
@@ -66,7 +67,7 @@ export async function sendMessage(filename: string, c: Of<'message_send'>, trans
   if (from === undefined) throw new InputError('The calling session key could not be resolved');
   const app = createApp(filename, false);
   try {
-    const id = app.events.send({ from, to: c.key, message: text });
+    const id = sendParentMessage(app, { from, to: c.key, message: text });
     const acked = await deliverPending(app, c.key, c.runtime ?? c.session?.runtime, transports, proc);
     return { message: id, delivered: acked.includes(id) };
   } finally { app.close(); }

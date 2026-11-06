@@ -47,6 +47,10 @@ function fixture(t: TestContext) {
         .map(r => [r.id, r.deliveredAt !== null]);
     } finally { db.close(); }
   };
+  const journal = () => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT scope_type, scope_key, event_type, text FROM knowledge_journal ORDER BY id').raw().all(); } finally { db.close(); }
+  };
   const calls: { socket: string; events: { id: number; text: string }[] }[] = [];
   const transport = (answer: (ids: number[]) => number[]): EventTransport => async (socket, events) => {
     calls.push({ socket, events });
@@ -55,7 +59,7 @@ function fixture(t: TestContext) {
   const emit = (transports: { pi?: EventTransport; claude?: EventTransport }, from = 'MP-12', runtime: string | null = run) =>
     emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
       transports, proc);
-  return { filename, run, proc, die, register, delivered, calls, transport, emit };
+  return { filename, run, proc, die, register, delivered, journal, calls, transport, emit };
 }
 
 test('an acknowledged event is marked delivered and the transport gets the socket and the framed text', async t => {
@@ -273,24 +277,30 @@ test('deliverOnOpen leaves the rows queued when the session does not acknowledge
 });
 
 test('send delivers a message live to the child, marks it and starts with the parent frame', async t => {
-  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  const { filename, run, proc, register, delivered, journal, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
   assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: true });
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go') }] }]);
   assert.deepEqual(delivered(), [[1, true]]);
+  assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go']]);
 });
 
 test('send to a closed child queues the message', async t => {
-  const { filename, run, proc, delivered, calls, transport } = fixture(t);
+  const { filename, run, proc, delivered, journal, calls, transport } = fixture(t);
   assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: false });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), [[1, false]]);
+  assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go']]);
+  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'a'.repeat(130) + '\nnext' }, envScope: 'MP', runtime: run },
+    { pi: transport(ids => ids) }, proc), { message: 2, delivered: false });
+  assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go'],
+    ['task', 'MP-12', 'message_sent', 'message 2 from MP: ' + 'a'.repeat(120) + '…']]);
 });
 
 test('send from a session that is not the parent writes nothing', async t => {
-  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  const { filename, run, proc, register, delivered, journal, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
   for (const [envScope, error] of [['global', /Only MP or one may send messages to MP-12; this session is global/],
     ['MP-7', /Only MP or one may send messages to MP-12; this session is MP-7/]] as const) {
@@ -299,4 +309,5 @@ test('send from a session that is not the parent writes nothing', async t => {
   }
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
+  assert.deepEqual(journal(), []);
 });
