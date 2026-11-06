@@ -103,12 +103,14 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         title: c.title, status: c.status, slug: c.slug, source: inputText(c.source),
         project: c.project,
         ...(c.adoptSource === undefined ? {} : { adoptSource: c.adoptSource }),
+        ...(c.parent === undefined ? {} : { parent: c.parent }),
       });
       case 'task_list': return app.tasks.list(c);
       case 'task_page': return app.tasks.page(c);
       case 'task_show': return app.tasks.get(c.key);
       case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason, callerKey(filename, c));
       case 'task_title': return app.tasks.change(c.key, { title: c.title }, c.reason);
+      case 'task_parent': return app.tasks.setParent(c.key, c.parent, c.reason);
       case 'task_touch': return app.tasks.touch(c.key);
       case 'task_progress': return app.tasks.progress(c.key, c.text, c.artifacts);
       case 'context_read': {

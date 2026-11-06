@@ -96,6 +96,15 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     assert.equal(app.read(sourcePath), interrupted.source);
     app.tasks.create({ ...interrupted, adoptSource: true });
     assert.equal(app.tasks.list().length, rows + 1);
+    const c = app.tasks.create({ project: 'one/project', title: 'Child', status: 'new', slug: 'child', source: 'child', parent: a.key });
+    assert.equal(c.parent, 'MP-1');
+    assert.equal(app.tasks.get(c.key).parent, 'MP-1');
+    assert(app.history({ type: 'task', key: c.key }).some(e => e.text === 'Task registered. Parent: MP-1.'));
+    assert.equal(app.tasks.setParent(c.key, null, 'detach').parent, null);
+    assert.equal(app.history({ type: 'task', key: c.key }).at(-1)!.text, 'Parent: MP-1 → none. detach');
+    assert.equal(app.tasks.list({ project: 'one/project' }).find(card => card.key === c.key)!.parent, null);
+    assert.throws(() => app.tasks.setParent(c.key, b.key, 'x'), /same project/);
+    assert.throws(() => app.tasks.setParent(c.key, 'MP-999', 'x'), /Unknown task key/);
   } finally { app.close(); }
 });
 

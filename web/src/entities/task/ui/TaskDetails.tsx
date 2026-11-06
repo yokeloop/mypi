@@ -4,7 +4,7 @@ import { FieldList } from '../../../shared/ui';
 import { display, extraFields, text } from '../../../shared/lib';
 import type { Rec } from '../../../shared/lib';
 
-const KNOWN = ['key', 'project', 'number', 'title', 'status', 'isTerminal', 'contextDir', 'worktreePath', 'createdAt', 'updatedAt'];
+const KNOWN = ['key', 'project', 'number', 'title', 'parent', 'status', 'isTerminal', 'contextDir', 'worktreePath', 'createdAt', 'updatedAt'];
 
 export function TaskDetails({ task }: { task: Rec }) {
   const key = text(task, 'key');

@@ -27,9 +27,10 @@ export type AppCommand =
   | { name: 'task_list'; project?: string; status?: string }
   | { name: 'task_page'; project?: string; status?: string; q?: string; before?: number; limit: number }
   | { name: 'task_show' | 'task_touch' | 'task_worktree'; key: string }
-  | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean }
+  | { name: 'task_create'; project: string; title: string; status: string; slug: string; source: TextInput; adoptSource?: boolean; parent?: string }
   | { name: 'task_status'; key: string; status: string; reason: string; session?: SessionHint; envScope?: string }
   | { name: 'task_title'; key: string; title: string; reason: string }
+  | { name: 'task_parent'; key: string; parent: string | null; reason: string }
   | { name: 'task_progress'; key: string; text: string; artifacts?: Artifact[] }
   | { name: 'status_add' | 'status_terminal'; code: string; terminal: boolean }
   | { name: 'status_rename'; code: string; newCode: string }

@@ -16,14 +16,19 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
     if (!result) throw new InputError('Unknown task key');
     return result;
   }
+  function parents() { return new Map(core.tasks.list().map(card => [card.id, card])); }
+  function view(card: Card, byId: Map<number, Card>) {
+    return { ...card, parent: card.parentId === null ? null : key(byId.get(card.parentId)!) };
+  }
   return {
-    get: find,
+    get: (publicKey: string) => view(find(publicKey), parents()),
     list(options: { project?: string | undefined; status?: string | undefined } = {}) {
       const scope = options.project === undefined ? undefined : core.projects.resolveScope(options.project);
       if (scope && scope.type !== 'project') throw new InputError('Project identity required');
       if (options.status !== undefined && !core.tasks.statuses().some(s => s.code === options.status)) throw new InputError('Unknown status');
-      return core.tasks.list().filter(c => (!scope || (scope.type === 'project' && c.projectId === scope.project.id))
-        && (options.status === undefined || c.status === options.status)).map(card => ({ ...card, key: key(card) }));
+      const cards = core.tasks.list(), byId = new Map(cards.map(card => [card.id, card]));
+      return cards.filter(c => (!scope || (scope.type === 'project' && c.projectId === scope.project.id))
+        && (options.status === undefined || c.status === options.status)).map(card => ({ ...view(card, byId), key: key(card) }));
     },
     page(options: { project?: string; status?: string; q?: string; before?: number; limit: number }) {
       let project = options.project;
@@ -34,7 +39,7 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       }
       return pageTasks(this.list({ project, status: options.status }), { q: options.q, before: options.before, limit: options.limit });
     },
-    create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean }) {
+    create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean; parent?: string }) {
       if (typeof input.source !== 'string') throw new InputError('Source text required');
       if (typeof input.project !== 'string') throw new InputError('Project identity required');
       const scope = core.projects.resolveScope(input.project);
@@ -42,18 +47,21 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       const project = scope.project;
       let path: string | undefined, saved = false;
       try {
+        const parent = input.parent ?? null;
         const card = core.serialize(() => {
-          const result = core.tasks.create({ projectId: project.id, slug: input.slug, title: input.title, status: input.status }, dir => {
+          const parentId = parent === null ? null : find(parent).id;
+          const result = core.tasks.create({ projectId: project.id, slug: input.slug, title: input.title, status: input.status, parentId }, dir => {
             path = dir + '/source.md';
             if (input.adoptSource) {
               if (files.read(path) !== input.source) throw new InputError('Existing source differs/missing; inspect before adoption');
             } else files.create(path, input.source);
             saved = true;
           });
-          journal.append(journal.record({ type: 'task', key: key(result) }, 'Task registered.', 'task_created'));
+          journal.append(journal.record({ type: 'task', key: key(result) },
+            parent === null ? 'Task registered.' : 'Task registered. Parent: ' + parent + '.', 'task_created'));
           return result;
         });
-        return { ...card, key: key(card) };
+        return { ...card, key: key(card), parent };
       } catch (e) {
         if (path) throw new PartialError(String(e), saved ? ['source'] : [], ['inspect source', 'database', 'journal'], [path]);
         throw e;
@@ -75,6 +83,17 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
           core.events.milestone({ from: key(result.after), message: result.before.status + ' → ' + result.after.status + ': ' + reason });
         }
         return result.after;
+      });
+    },
+    setParent(publicKey: string, parent: string | null, reason: string) {
+      const card = find(publicKey);
+      return core.serialize(() => {
+        const parentId = parent === null ? null : find(parent).id;
+        const result = core.tasks.setParent(card.id, parentId, reason);
+        const name = (id: number | null) => id === null ? 'none' : key(core.tasks.get(id));
+        if (result.changed) journal.append(journal.record({ type: 'task', key: key(result.after) },
+          'Parent: ' + name(result.before.parentId) + ' → ' + name(result.after.parentId) + '. ' + reason, 'note'));
+        return view(result.after, parents());
       });
     },
     progress(publicKey: string, text: string, artifacts: { path: string; text?: string }[] = []) {

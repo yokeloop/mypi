@@ -3,7 +3,7 @@ import { runSequence } from '../app/task-sequence.js';
 import { InputError } from '../shared/errors.js';
 import { bearer } from '../shared/bearer.js';
 import { PartialError } from '../shared/context.js';
-import { ApiError, decodeCursor, encodeCursor, fields, jsonBody, limit, literalTrue, query, str } from './validate.js';
+import { ApiError, decodeCursor, encodeCursor, fields, jsonBody, limit, literalTrue, nullableStr, query, str } from './validate.js';
 import * as shape from './shape.js';
 import { clearSessionCookie, readSessionCookie, sessionCookie } from './session.js';
 
@@ -85,9 +85,11 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
     } },
     { method: 'POST', pattern: /^\/v1\/tasks$/, permission: 'write', run: async (_, r) => {
       query(r.query, []);
-      const b = body(r, ['project', 'title', 'status', 'slug', 'source'], []);
+      const b = body(r, ['project', 'title', 'status', 'slug', 'source'], ['parent']);
       const [project, title, status, slug, source] = ['project', 'title', 'status', 'slug', 'source'].map(key => str(b, key)!) as [string, string, string, string, string];
-      const card = await deps.execute({ name: 'task_create', project, title, status, slug, source: { text: source } }) as { key: string };
+      const parent = str(b, 'parent');
+      const card = await deps.execute({ name: 'task_create', project, title, status, slug, source: { text: source },
+        ...(parent === undefined ? {} : { parent }) }) as { key: string };
       return { status: 201, data: shape.task(card as never, card.key) };
     } },
     { method: 'GET', pattern: new RegExp('^/v1/tasks/' + KEY + '$'), permission: 'read', run: async (m, r) => {
@@ -96,16 +98,17 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
     } },
     { method: 'PATCH', pattern: new RegExp('^/v1/tasks/' + KEY + '$'), permission: 'write', run: async (m, r, token) => {
       query(r.query, []);
-      const key = m[1]!, b = body(r, [], ['status', 'title', 'reason', 'progress', 'touch']);
-      const status = str(b, 'status'), title = str(b, 'title'), reason = str(b, 'reason'), progress = str(b, 'progress'), touch = literalTrue(b, 'touch');
-      const change = status !== undefined || title !== undefined;
-      if (!change && progress === undefined && touch === undefined) throw invalid('PATCH needs status, title, progress or touch');
-      if (change && reason === undefined) throw invalid('reason is required with status or title');
-      if (!change && reason !== undefined) throw invalid('reason is allowed only with status or title');
+      const key = m[1]!, b = body(r, [], ['status', 'title', 'parent', 'reason', 'progress', 'touch']);
+      const status = str(b, 'status'), title = str(b, 'title'), parent = nullableStr(b, 'parent'), reason = str(b, 'reason'), progress = str(b, 'progress'), touch = literalTrue(b, 'touch');
+      const change = status !== undefined || title !== undefined || parent !== undefined;
+      if (!change && progress === undefined && touch === undefined) throw invalid('PATCH needs status, title, parent, progress or touch');
+      if (change && reason === undefined) throw invalid('reason is required with status, title or parent');
+      if (!change && reason !== undefined) throw invalid('reason is allowed only with status, title or parent');
       if (touch !== undefined && (change || progress !== undefined)) throw invalid('touch is allowed only alone');
       const commands: AppCommand[] = [];
       if (status !== undefined) commands.push({ name: 'task_status', key, status, reason: reason!, envScope: token.sender! });
       if (title !== undefined) commands.push({ name: 'task_title', key, title, reason: reason! });
+      if (parent !== undefined) commands.push({ name: 'task_parent', key, parent, reason: reason! });
       if (progress !== undefined) commands.push({ name: 'task_progress', key, text: progress, artifacts: [] });
       if (touch) commands.push({ name: 'task_touch', key });
       await runSequence(commands, deps.execute);

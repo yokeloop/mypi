@@ -59,7 +59,7 @@ and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest fa
 the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
 in parentheses, `memory show -s …`. `--max-chars n` (1–21845) applies the same cut at n characters instead; the Claude Code hook uses 9500. `journal read` global remains global-only.
 Task cards from task show and task list include worktreePath (null until a worktree is
-recorded).
+recorded) and parent (the key of the parent task, or null).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
@@ -78,11 +78,14 @@ the remaining folder or null.
 
 ```text
 task create --project org/project --title "Title" --status research --slug short-slug --file /path/to/source
+task create --project org/project --title "Subtask" --status new --slug subtask --parent MP-1 --file /path/to/source
 task list [--project org/project] [--status code]
 task show MP-1
 task worktree MP-1
 task status MP-1 review --reason "ready for review"
 task title MP-1 "Better title" --reason "clarification"
+task parent MP-2 MP-1 --reason "part of the epic"
+task parent MP-2 none --reason "split out"
 task progress MP-1 "actual outcome" [--artifacts /path/to/artifacts.json]
 status list
 status add accepted --terminal
@@ -96,7 +99,7 @@ journal read --all --type status_changed
 ```
 
 These are independent syntax examples, not a mandatory sequence. `task status` to `review`, `blocked`, `merged` or a terminal status also queues a `milestone` event for the project chat (inbox, warmup), unless the caller is the project chat itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones are never sent live. Tasks belong to a
-registered project; existing standalone REQ records remain readable.
+registered project; existing standalone REQ records remain readable. A parent task is a task of the same project, never the task itself and never one of its own subtasks (no cycles); `task parent` writes a `note` `Parent: <old|none> → <new|none>. <reason>` to the task's journal.
 
 `project flow MP` (or `org/project`) prints the project's branch flow from
 `home/projects/<org>/<project>/flow.json`:

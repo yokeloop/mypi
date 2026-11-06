@@ -51,6 +51,7 @@ impl Section {
                 "project",
                 "number",
                 "title",
+                "parent",
                 "status",
                 "isTerminal",
                 "contextDir",
