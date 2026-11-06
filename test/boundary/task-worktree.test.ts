@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import { state } from '../support/state.js';
 import { legacyTask } from '../support/legacy-task.js';
 import { createApp } from '../../src/app/create-app.js';
+import { createJournal } from '../../src/modules/knowledge/public.js';
+import { sameScope } from '../../src/shared/scope.js';
 import { prepareCheckout } from '../../src/app/project-checkout.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
@@ -64,6 +66,13 @@ function paths(filename: string): (string | null)[] {
   try { return app.tasks.list().map(card => card.worktreePath); } finally { app.close(); }
 }
 
+function journal(filename: string): (string | null)[][] {
+  const app = createApp(filename, true);
+  try {
+    return createJournal(app.journalStore, () => {}, sameScope, () => '').read('all').map(e => [e.scope.type === 'global' ? null : e.scope.key, e.event_type, e.text]);
+  } finally { app.close(); }
+}
+
 function untouched(clone: string, branch = 'main'): void {
   assert.equal(git('-C', clone, 'branch', '--show-current'), branch);
   assert.equal(git('-C', clone, 'status', '--porcelain'), '');
@@ -79,6 +88,7 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   const list = git('-C', clone, 'worktree', 'list', '--porcelain');
   assert.match(list, new RegExp('worktree ' + path + '\\nHEAD [0-9a-f]+\\nbranch refs/heads/task/MP-1-task-worktree'));
   assert.deepEqual(paths(filename), [path]);
+  assert.deepEqual(journal(filename), [['MP-1', 'worktree_created', 'worktree ' + path + ', branch task/MP-1-task-worktree, base main']]);
   assert.equal(git('-C', clone, 'rev-parse', 'main'), head);
   assert.equal(git('-C', clone, 'rev-parse', 'origin/main'), head);
   assert.equal(git('-C', path, 'rev-parse', 'HEAD'), head);
@@ -86,6 +96,7 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   const count = (text: string) => text.split('\n').filter(line => line.startsWith('worktree ')).length;
   assert.deepEqual(await worktree(filename, 'MP-1'), { key: 'MP-1', branch: 'task/MP-1-task-worktree', worktreePath: path, created: false, createdBranch: false });
   assert.equal(count(git('-C', clone, 'worktree', 'list', '--porcelain')), count(list));
+  assert.deepEqual(journal(filename), [['MP-1', 'worktree_created', 'worktree ' + path + ', branch task/MP-1-task-worktree, base main']]);
 
   git('-C', clone, 'switch', '--quiet', '-c', 'side');
   const app = createApp(filename, false);
@@ -96,6 +107,8 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
   assert.deepEqual(await worktree(filename, 'MP-2'), { key: 'MP-2', branch: 'task/MP-2-second', worktreePath: second, created: true, createdBranch: true });
   assert.equal(git('-C', clone, 'rev-parse', 'main'), next);
   assert.equal(git('-C', second, 'rev-parse', 'HEAD'), next);
+  assert.deepEqual(journal(filename), [['MP-1', 'worktree_created', 'worktree ' + path + ', branch task/MP-1-task-worktree, base main'],
+    ['MP-2', 'worktree_created', 'worktree ' + second + ', branch task/MP-2-second, base main']]);
   untouched(clone, 'side');
   git('-C', clone, 'switch', '--quiet', 'main');
 });
@@ -110,7 +123,11 @@ test('a local project gets task worktrees from its local main without origin', a
   const path = clone + '--LO-1-local';
   assert.deepEqual(await worktree(filename, 'LO-1'), { key: 'LO-1', branch: 'task/LO-1-local', worktreePath: path, created: true, createdBranch: true });
   assert.equal(git('-C', path, 'rev-parse', 'HEAD'), git('-C', clone, 'rev-parse', 'main'));
+  const expected = [['LO', 'clone_prepared', 'clone prepared: initialized ' + clone],
+    ['LO-1', 'worktree_created', 'worktree ' + path + ', branch task/LO-1-local, base main']];
+  assert.deepEqual(journal(filename), expected);
   assert.equal((await worktree(filename, 'LO-1') as { created: boolean }).created, false);
+  assert.deepEqual(journal(filename), expected);
 });
 
 test('task worktree refuses unknown and projectless tasks, projects without a clone, an occupied branch and a foreign directory, recording nothing', async t => {
@@ -134,6 +151,7 @@ test('task worktree refuses unknown and projectless tasks, projects without a cl
   await assert.rejects(worktree(filename, 'MP-3'), /Worktree path exists and is not the worktree of task\/MP-3-/);
   assert.deepEqual(paths(filename), [null, null, null, null, null]);
   untouched(clone);
+  assert.deepEqual(journal(filename), []);
 });
 
 test('a main branch that cannot be updated refuses the worktree and records nothing', async t => {
@@ -154,6 +172,7 @@ test('a main branch that cannot be updated refuses the worktree and records noth
   assert.equal(git('-C', clone, 'rev-parse', 'HEAD'), local);
   untouched(clone);
   absent();
+  assert.deepEqual(journal(filename), []);
 });
 
 test('a develop flow creates feature/<KEY>-<slug> from origin/develop', async t => {
@@ -170,6 +189,7 @@ test('a develop flow creates feature/<KEY>-<slug> from origin/develop', async t 
   assert.equal(git('-C', path, 'rev-parse', 'HEAD'), develop);
   assert.equal(git('-C', clone, 'rev-parse', 'origin/develop'), develop);
   assert.deepEqual(paths(filename), [path]);
+  assert.deepEqual(journal(filename), [['MP-1', 'worktree_created', 'worktree ' + path + ', branch feature/MP-1-gitflow, base develop']]);
   untouched(clone);
 });
 
@@ -183,6 +203,7 @@ test('an invalid flow refuses the worktree and records nothing', async t => {
     assert.deepEqual(paths(filename), [null]);
   }
   untouched(clone);
+  assert.deepEqual(journal(filename), []);
 });
 
 test('a recorded worktree is returned after the flow changed', async t => {

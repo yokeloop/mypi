@@ -142,7 +142,10 @@ Notes have unique paths; errors append rather than rewrite.
 
 Journal: ordered append-only SQLite rows in the task database, with required
 at/scope/event_type/text and optional home-relative artifacts. Types:
-note/task_created/status_changed. Events do not launch flow. Existing monthly
+note/task_created/status_changed/title_changed/worktree_created/session_opened/message_sent/clone_prepared.
+A type other than note is allowed only in the scopes of its fact: task facts in a
+task, `clone_prepared` in a project, `session_opened` and `message_sent` in a task,
+project or organization. Events do not launch flow. Existing monthly
 JSONL files are read only by explicit `journal import`; originals remain untouched.
 Stop old writers before cutover. Import rejects changed or corrupt input and retains
 legitimate duplicate entries. Imported plain-path artifacts keep fingerprints that

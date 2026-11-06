@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { basename } from 'node:path';
 import { createApp } from './create-app.js';
+import { appendFact } from './journal-facts.js';
 import { noCloneError } from './warmup.js';
 import { flowFile, readProjectFlow } from './project-flow.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
@@ -78,11 +79,15 @@ export function openTaskWorktree(filename: string, root: string, key: string): {
       throw new InputError('Integration branch cannot be determined in ' + clone + ': origin/HEAD and origin/main are missing; set integration in '
         + files.path(flowFile(project)));
     }
+    const base = main;
     let createdBranch = false;
     if (git.hasRef(ref)) git.addWorktree(expected, branch, { existing: true });
     else if (git.hasRef('refs/remotes/origin/' + branch)) git.addWorktree(expected, branch, { track: 'origin/' + branch });
     else { git.addWorktree(expected, branch, { from: main }); createdBranch = true; }
-    app.serialize(() => app.tasks.recordWorktree(card.id, expected));
+    app.serialize(() => {
+      app.tasks.recordWorktree(card.id, expected);
+      appendFact(app, { type: 'task', key }, 'worktree_created', 'worktree ' + expected + ', branch ' + branch + ', base ' + base);
+    });
     return { key, branch, worktreePath: expected, created: true, createdBranch };
   } finally { app.close(); }
 }

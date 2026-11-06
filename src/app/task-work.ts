@@ -73,11 +73,12 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         const result = core.tasks.change(card.id, input, reason);
         if (!result.changed) return result.after;
         const statusChanged = result.before.statusId !== result.after.statusId;
+        const titleChanged = result.before.title !== result.after.title;
         const parts = [];
         if (statusChanged) parts.push(result.before.status + ' → ' + result.after.status);
-        if (result.before.title !== result.after.title) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
+        if (titleChanged) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
         journal.append(journal.record({ type: 'task', key: key(result.after) }, parts.join('. ') + '. ' + reason,
-          statusChanged ? 'status_changed' : 'note'));
+          statusChanged ? 'status_changed' : titleChanged ? 'title_changed' : 'note'));
         if (statusChanged && result.after.projectId !== null && isMilestone(result.after.status, result.after.isTerminal)) {
           const task = key(result.after);
           const to = core.events.milestoneRecipient(task);

@@ -7,6 +7,8 @@ import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { inspectCheckout, prepareCheckout, prepareCheckouts } from '../../src/app/project-checkout.js';
 import { planCheckout } from '../../src/modules/projects/public.js';
+import { createJournal } from '../../src/modules/knowledge/public.js';
+import { sameScope } from '../../src/shared/scope.js';
 
 function git(...args: string[]): string {
   const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args],
@@ -35,6 +37,13 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   const checkout = (code: string) => {
     const read = createApp(filename, true);
     try { return read.projects.list().find(p => p.code === code)!.checkoutPath; } finally { read.close(); }
+  };
+  const journal = () => {
+    const read = createApp(filename, true);
+    try {
+      return createJournal(read.journalStore, () => {}, sameScope, () => '').read('all').filter(e => e.event_type === 'clone_prepared')
+        .map(e => [e.scope.type === 'global' ? null : e.scope.key, e.text]);
+    } finally { read.close(); }
   };
 
   assert.deepEqual(await prepareCheckouts(filename, [remote, remote], root), [{ code: 'RE', checkoutPath: join(root, 'one', 'remote'), action: 'cloned' }]);
@@ -112,4 +121,13 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   assert.equal(existsSync(join(root, 'one', 'cancelled')), false);
   assert.deepEqual(readdirSync(join(root, 'one')).filter(name => name.startsWith('.cancelled.mypi-clone-')), []);
   assert.equal(checkout('CA'), null);
+  assert.deepEqual(journal(), [
+    ['RE', 'clone prepared: cloned ' + join(root, 'one', 'remote') + ' from ' + url],
+    ['AD', 'clone prepared: adopted ' + join(root, 'one', 'adopted')],
+    ['EM', 'clone prepared: cloned ' + join(root, 'one', 'empty') + ' from ' + url],
+    ['LO', 'clone prepared: initialized ' + join(root, 'one', 'local')],
+    ['SE', 'clone prepared: initialized ' + join(root, 'one', 'second')],
+    ['PR', 'clone prepared: cloned ' + join(root, 'one', 'progress') + ' from ' + url],
+    ['LE', 'clone prepared: cloned ' + join(root, 'one', 'leftover') + ' from ' + url],
+  ]);
 });

@@ -127,8 +127,9 @@ now, without fetching. An invalid flow is refused before anything is created or
 recorded. It refuses tasks without a project, projects without a clone, an
 integration branch that cannot be fetched or fast-forwarded, a branch checked out in
 another worktree and a foreign directory at the path. It installs no
-dependencies, writes no journal entry and has no MCP tool; removing worktrees and
-branches stays manual.
+dependencies and has no MCP tool; a created worktree leaves one `worktree_created`
+journal entry in the task scope (`worktree <path>, branch <branch>, base
+<integration>`), a repeated call none; removing worktrees and branches stays manual.
 
 Progress artifacts: JSON array `[{"path":"research/result.md","text":"new content"}]`;
 omit text to reference an existing file. Paths are relative to the task directory.

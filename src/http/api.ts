@@ -1,4 +1,5 @@
 import type { AppCommand } from '../app/commands.js';
+import { EVENT_TYPES } from '../app/commands.js';
 import { runSequence } from '../app/task-sequence.js';
 import { InputError } from '../shared/errors.js';
 import { bearer } from '../shared/bearer.js';
@@ -126,7 +127,7 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
       const q = query(r.query, ['scope', 'from', 'to', 'type', 'q', 'cursor', 'limit']);
       const result = await deps.execute({ name: 'journal_page', scope: q['scope'] === undefined ? 'all' : { reference: q['scope'] },
         ...optional('from', q['from']), ...optional('to', q['to']),
-        ...optional('eventType', oneOf(q['type'], ['note', 'task_created', 'status_changed'] as const, 'type')), ...paging(q) });
+        ...optional('eventType', oneOf(q['type'], EVENT_TYPES, 'type')), ...paging(q) });
       return { data: page(result, shape.journal) };
     } },
     { method: 'POST', pattern: /^\/v1\/journal$/, permission: 'write', run: async (_, r) => {

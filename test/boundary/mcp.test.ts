@@ -105,6 +105,7 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
   assert.equal(task.key, 'MP-1');
   assert.equal(readFileSync(join(home, task.contextDir, 'source.md'), 'utf8'), source);
   await call('task_update', { key: task.key, title: 'Renamed', reason: 'clarified' });
+  assert.equal((await call('journal', { scope: { type: 'task', key: task.key }, eventType: 'title_changed' })).length, 1);
   await call('task_update', { key: task.key, progress: 'proof saved', artifacts: [{ path: 'proof.md', text: 'proof' }] });
   assert.equal((await call('task_list', { project: 'one/project' }))[0].title, 'Renamed');
   writeFileSync(join(home, '.git/index.lock'), 'busy');

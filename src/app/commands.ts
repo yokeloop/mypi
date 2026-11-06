@@ -1,5 +1,8 @@
 import type { Scope } from '../shared/scope.js';
 import type { SessionHint } from './session-input.js';
+import type { EventType } from '../modules/knowledge/public.js';
+export { EVENT_TYPES } from '../modules/knowledge/public.js';
+export type { EventType } from '../modules/knowledge/public.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
@@ -22,8 +25,8 @@ export type AppCommand =
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
   | { name: 'error_add'; project: string; text: string }
-  | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; limit?: number }
-  | { name: 'journal_page'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: 'note' | 'task_created' | 'status_changed'; q?: string; before?: number; limit: number }
+  | { name: 'journal_read'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: EventType; limit?: number }
+  | { name: 'journal_page'; scope: ScopeInput | 'all'; from?: string; to?: string; eventType?: EventType; q?: string; before?: number; limit: number }
   | { name: 'task_list'; project?: string; status?: string }
   | { name: 'task_page'; project?: string; status?: string; q?: string; before?: number; limit: number }
   | { name: 'task_show' | 'task_touch' | 'task_worktree'; key: string }

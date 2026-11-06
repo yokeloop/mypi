@@ -51,6 +51,7 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['note', { kind: 'error', project: 'one/project', text: 'dead end' }, [['error', 'one/project', 'dead end']]],
     ['note', { kind: 'capture', source: { text: '\ufeff x\r\n' } }, [['capture', '\ufeff x\r\n']]],
     ['journal', { scope: 'all', eventType: 'note', limit: 2 }, [['journal', 'read', '--all', '--type', 'note', '--limit', '2']]],
+    ['journal', { scope: 'all', eventType: 'worktree_created', limit: 2 }, [['journal', 'read', '--all', '--type', 'worktree_created', '--limit', '2']]],
     ['task_list', { project: 'one/project', status: 'custom' }, [['task', 'list', '--project', 'one/project', '--status', 'custom']]],
     ['task_show', { key: 'MP-1' }, [['task', 'show', 'MP-1']]],
     ['task_create', { project: 'one/project', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, adoptSource: false },
