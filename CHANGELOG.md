@@ -18,7 +18,7 @@ extension take effect.
 
 - Event routing (MP-78): a task has two parents, its project chat and its organization chat. `turn_end` and `waiting` go to the sender of the parent message that started the turn (`mypi event emit --to`), else to the project; a milestone goes to the parent that last sent the task a message, else to the project, unless that recipient makes the change. Refusals of a non-parent sender name both parents.
 - Sessions tree (MP-78): `mypi sessions` (MCP `sessions`) shows global → org → project → task.
-- Schema 13 (MP-78): `sessions` gains the scope `org` and the column `org_id`; `mypi db init` is required. `mypi org remove` refuses while an organization session or an event with its slug exists.
+- Schema 14 (MP-78): `sessions` gains the scope `org` and the column `org_id`; `mypi db init` is required. `mypi org remove` refuses while an organization session or an event with its slug exists.
 
 ## [0.11.0] - 2026-11-04
 

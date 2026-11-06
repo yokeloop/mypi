@@ -35,13 +35,13 @@ chat: the work went through each project chat in turn.
    writes to a project chat; turns it starts create no events.
 6. `events` is not migrated: rows keep their `from_key` and `to_key`, so nothing is
    lost or duplicated when the hierarchy is read differently.
-7. Migration 013 rebuilds `sessions` with the scope `org` and the column `org_id`
+7. Migration 014 rebuilds `sessions` with the scope `org` and the column `org_id`
    (an organization row has `org_id` and no project or task) and recreates the
    trigger `used_project_code`.
 
 ## Consequences
 
-- Schema 13: the installed engine needs `mypi db init` once after the update.
+- Schema 14: the installed engine needs `mypi db init` once after the update.
 - `mypi sessions` shows the tree global → org → project → task; an organization
   without its own row is a node with no session.
 - `org remove` refuses while an organization session or an event with its slug
