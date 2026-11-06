@@ -129,7 +129,9 @@ project; the API does not reassign one.
 
 Initial status is explicit. DB dictionary, not fixed code enum/pipeline, determines
 validity/terminality. Used statuses cannot be deleted or have terminality changed;
-renaming preserves stable IDs and is not task progress. Same status is a no-op.
+renaming preserves stable IDs and is not task progress. A repeated status changes
+nothing on the card and leaves a `note` `<status> (unchanged). <reason>` in the task
+journal; a repeated title writes nothing.
 Terminal tasks do not reopen; continuation is a new explicitly linked record.
 [M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history of the request era.
 
