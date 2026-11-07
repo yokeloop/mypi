@@ -432,4 +432,8 @@ test('over budget a task warmup clips the end of its card after memory facts and
   const fenced = readWarmup(filename, root, 'MP-12', 9500);
   assert(fenced.length <= 9500);
   assert(/\necho long[^\n]*\n```\n\n> The card is clipped/.test(fenced));
+  write(path, '# Card\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
+  const tilde = readWarmup(filename, root, 'MP-12', 9500);
+  assert(tilde.length <= 9500);
+  assert(/\necho long[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
 });

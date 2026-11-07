@@ -54,15 +54,22 @@ export function noCloneError(project: { org: string; slug: string; code: string 
     + ' --expected-unset --path <checkout>)');
 }
 
+function fenceStep(fence: string | undefined, line: string): string | undefined {
+  const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+  if (fence === undefined) return open ? open[1] : undefined;
+  return open && open[1]![0] === fence[0] && open[1]!.length >= fence.length && line.slice(open[0].length).trim() === '' ? undefined : fence;
+}
+
+function openFence(text: string): string | undefined {
+  return text.split('\n').reduce<string | undefined>(fenceStep, undefined);
+}
+
 function demote(text: string, by: number): string {
   let fence: string | undefined;
   return text.split('\n').map(line => {
-    const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence !== undefined) {
-      if (open && open[1]![0] === fence[0] && open[1]!.length >= fence.length && line.slice(open[0].length).trim() === '') fence = undefined;
-      return line;
-    }
-    if (open) { fence = open[1]; return line; }
+    const inside = fence !== undefined;
+    fence = fenceStep(fence, line);
+    if (inside || fence !== undefined) return line;
     return line.replace(/^( {0,3})(#{1,6})(?=[ \t\r]|$)/, (_, indent: string, marks: string) => indent + '#'.repeat(Math.min(6, marks.length + by)));
   }).join('\n');
 }
@@ -204,8 +211,8 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         + body!.path + '"} (CLI: mypi context read ' + body!.path + ')';
       const clippedBody = () => {
         const kept = points.slice(0, points.length - shortened).join('').trimEnd();
-        const fences = kept.split('\n').filter(line => /^\s*(```|~~~)/.test(line)).length;
-        return kept + (fences % 2 === 1 ? '\n```' : '') + '\n\n' + clipNote();
+        const fence = openFence(kept);
+        return kept + (fence === undefined ? '' : '\n' + fence) + '\n\n' + clipNote();
       };
       const withBody = () => body === undefined ? tail : [tail[0] + '\n\n' + (shortened === 0 ? body.text : clippedBody()), ...tail.slice(1)];
       const report = (event: EventRow) => {
@@ -255,7 +262,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         if (next !== -1) hidden[next]!++;
         else if (cut < fresh.length) cut++;
         else if (shortened < points.length) {
-          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 6 : 0));
+          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 2 + (openFence(body!.text) === undefined ? 0 : 1 + limit.size(openFence(body!.text)!)) : 0));
         } else { out = render(hidden, true); break; }
         out = render(hidden, false);
       }
