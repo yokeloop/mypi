@@ -11,6 +11,7 @@ import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { frame } from '../modules/events/public.js';
 import type { EventRow } from '../modules/events/public.js';
+import type { Entry } from '../modules/knowledge/public.js';
 import { InputError } from '../shared/errors.js';
 
 export const WARMUP_LIMIT = 64 * 1024;
@@ -30,6 +31,13 @@ export function localTime(iso: string): string {
 export function localDate(iso: string): string {
   const date = new Date(iso);
   return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+
+export function entryLines(entry: Entry): string[] {
+  const text = entry.text.replace(/\r?\n/g, ' ');
+  const line = '- ' + localDate(entry.at) + ' ' + localTime(entry.at) + ' ' + entry.event_type + ': '
+    + (text.length > 300 ? text.slice(0, 300) + '…' : text);
+  return entry.artifacts === undefined ? [line] : [line, '  Артефакты: ' + entry.artifacts.map(a => typeof a === 'string' ? a : a.path + '@' + a.commit.slice(0, 7)).join(', ')];
 }
 
 interface Zone { path: string; scope: string; cli: string; text: string | undefined; facts: number[] }
@@ -119,6 +127,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const orgZone = (org: string) => zone('projects/' + org + '/MEMORY.md', { type: 'org', key: org }, ' -s ' + org);
       let header: string, role: string, zones: Zone[], tail: string[];
       let fresh: EventRow[] = [], history: EventRow[] = [];
+      let journal: Entry[] | undefined;
       if (key === 'global') {
         header = '# mypi warmup: global';
         role = 'global';
@@ -180,13 +189,14 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
               + expectedBranch(files, project, key, card)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
+        journal = app.journalStore.last({ type: 'task', key }, 5);
       } else {
         throw new InputError('Invalid scope key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
       const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
-      let clipped = false, dropped = 0, cut = 0;
+      let clipped = false, dropped = 0, cut = 0, trimmed = 0;
       const report = (event: EventRow) => {
         const text = event.message.trimEnd(), short = clipped && text.length > 280 ? text.slice(0, 280) + '…' : text;
         return '### ' + event.fromKey + ', событие ' + event.id + ', ' + localTime(event.createdAt) + '\n\n' + (short === '' ? '(без текста)' : demote(short, 3));
@@ -200,10 +210,17 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
             + kept.map(report).join('\n\n')]),
         ];
       };
+      const journalSection = () => {
+        if (journal === undefined) return [];
+        const shown = journal.slice(trimmed);
+        return ['## Журнал\n\n' + (journal.length === 0 ? 'Записей в журнале задачи нет.'
+          : 'Последние записи журнала задачи (' + shown.length + '):' + shown.flatMap(entryLines).map(line => '\n' + line).join(''))
+          + '\nЧитать: journal {"scope":{"type":"task","key":"' + key + '"},"limit":20} (CLI: mypi journal read -s task:' + key + ' --limit 20)'];
+      };
       const render = (hidden: number[], note: boolean) => [...head,
         '## Memory\n\n' + (note ? '> This warmup exceeds the ' + limit.label + ' limit even without memory facts; all facts are hidden.\n\n' : '')
           + zones.map((z, i) => '### ' + z.path + '\n\n' + memoryText(z, hidden[i]!, limit.label)).join('\n\n'),
-        ...tail, ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
+        ...tail, ...journalSection(), ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
       const lines = zones.map(z => { const all = (z.text ?? '').split('\n'); return z.facts.map(line => limit.size(all[line]!) + 1); });
       const hidden = zones.map(() => 0);
       const over = () => limit.size(render(hidden, false)) > limit.max;

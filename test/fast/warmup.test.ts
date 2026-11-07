@@ -341,7 +341,7 @@ test('over budget the last reports shrink first, then memory facts, then new eve
 });
 
 test('project warmup counts the journal of the project and all its tasks and names the newest date; foreign and global rows do not count', t => {
-  const { filename, root, journal } = fixture(t);
+  const { dir, filename, root, journal } = fixture(t);
   const task = { type: 'task' as const, key: 'MP-12' };
   const folder = 'projects/one/project/tasks/MP-12-scoped-warmup/';
   const long = 'line one\nline two ' + 'y'.repeat(400);
@@ -364,5 +364,19 @@ test('project warmup counts the journal of the project and all its tasks and nam
   assert(readWarmup(filename, root, 'MP').includes('## Open tasks\n\n- MP-3 [new] Draft the API\n- MP-7 [in_progress] Started work\n- MP-12 [planning] Scoped warmup\n\n'
     + '## Журнал\n\n' + line + '\nЧитать: journal {"scope":{"type":"project","key":"MP"},"limit":20} (CLI: mypi journal read -s project:MP --limit 20)\n'));
   assert(readWarmup(filename, root, 'MP', 9500).includes(line));
+  assert(readWarmup(filename, root, 'MP-12').endsWith('## Worktree\n\nNot created yet. Expected path: ' + join(dir, 'clone--MP-12-scoped-warmup')
+    + '\nBase clone: ' + join(dir, 'clone') + '\n\n## Журнал\n\nПоследние записи журнала задачи (5):\n'
+    + '- 2026-10-30 11:00 note: first note\n'
+    + '- 2026-10-30 12:00 status_changed: new → research\n'
+    + '- 2026-10-30 13:00 note: ' + long.replace('\n', ' ').slice(0, 300) + '…\n'
+    + '- 2026-10-30 13:30 note: derive\n'
+    + '  Артефакты: ' + folder + 'plan-v1.md, ' + folder + 'derive.json\n'
+    + '- 2026-10-30 14:04 status_changed: research → planning. plan published\n'
+    + '  Артефакты: ' + folder + 'plan.md@bbbbbbb\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-12"},"limit":20} (CLI: mypi journal read -s task:MP-12 --limit 20)\n'));
+  assert(readWarmup(filename, root, 'MP-7').includes('## Журнал\n\nПоследние записи журнала задачи (1):\n- 2026-10-30 12:30 note: foreign\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-7"},"limit":20} (CLI: mypi journal read -s task:MP-7 --limit 20)\n'));
+  assert(readWarmup(filename, root, 'MP-3').endsWith('## Журнал\n\nЗаписей в журнале задачи нет.\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-3"},"limit":20} (CLI: mypi journal read -s task:MP-3 --limit 20)\n'));
   assert.deepEqual(readFileSync(filename), before);
 });
