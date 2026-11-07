@@ -236,7 +236,8 @@ One writer per fact; nothing is written twice.
   status reason carries the relevant link («Statuses in mypi»); a reason set by
   `/flow` itself or by `/do` stage 1 in flow mode starts with `в потоке <name>`.
   `/flow` writes no `progress` of its own: its record is the flow score.
-- A chat writes one `note` in the project scope (`note` kind `journal`, scope
+- The project chat, or the organization chat for a project of its organization,
+  writes one `note` in the project scope (`note` kind `journal`, scope
   `{"type":"project","key":"<CODE>"}`) per release, engine update or decision
   taken in conversation: what was decided or shipped, the task keys and the key
   of the session it was decided in; the entry's time is its timestamp. The
