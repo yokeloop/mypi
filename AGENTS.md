@@ -188,7 +188,13 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
   event only when the current turn was started by a parent message (`turnOrigin`
   `peer` with the mypi parent-message frame in the transcript), and discard their
-  output.
+  output. A second Stop command and the SessionEnd hook (every reason, including
+  /clear and exit) run `mypi archive capture --agent claude --hook`: it reads
+  `session_id` and `transcript_path` from stdin and records that transcript file
+  into the conversation archive from its saved offset, so an answer the file had
+  not yet written at Stop arrives on the next Stop or at SessionEnd. Without a
+  transcript it writes nothing; its output is discarded, and its failure (exit 1,
+  never 2) blocks neither Stop nor exit.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project
