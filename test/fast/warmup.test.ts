@@ -414,3 +414,18 @@ test('over budget a task warmup drops its journal entries oldest first before me
     assert(readWarmup(filename, root, 'MP', 9500).includes('Записей журнала проекта: 5, последняя 2026-10-30.'));
   }
 });
+
+test('over budget a task warmup clips the end of its card after memory facts and names the call that reads it in full', t => {
+  const { filename, root, write } = fixture(t);
+  const path = 'projects/one/project/tasks/MP-12-scoped-warmup/source.md';
+  write('projects/one/project/MEMORY.md', facts('project', 'Project', 3));
+  write(path, '# Card\n\nCard start.\n\n' + 'Long card line ж.\n'.repeat(700) + 'Card end.\n');
+  const out = readWarmup(filename, root, 'MP-12', 9500);
+  assert(out.length <= 9500);
+  assert(out.includes('### Card\n\nCard start.') && !out.includes('Card end.'));
+  assert(out.includes('\n\n> The card is clipped to fit the 9500-character warmup limit. Read in full: context_read {"path":"' + path
+    + '"} (CLI: mypi context read ' + path + ')\n\n## Worktree\n\n'));
+  assert(out.includes('older facts hidden from projects/one/project/MEMORY.md') && !out.includes('even without memory facts'));
+  assert(out.includes('## Журнал\n\nЗаписей в журнале задачи нет.\n'));
+  assert(!readWarmup(filename, root, 'MP-12').includes('The card is clipped'));
+});

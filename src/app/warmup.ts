@@ -128,6 +128,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       let header: string, role: string, zones: Zone[], tail: string[];
       let fresh: EventRow[] = [], history: EventRow[] = [];
       let journal: Entry[] | undefined;
+      let body: { text: string, path: string } | undefined;
       if (key === 'global') {
         header = '# mypi warmup: global';
         role = 'global';
@@ -181,9 +182,10 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         role = 'task';
         zones = [projectZone(project)];
         const source = files.read(card.contextDir + '/source.md');
+        body = { text: source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2),
+          path: card.contextDir + '/source.md' };
         tail = [
-          '## Task card\n\nKey: ' + key + '\nTitle: ' + card.title + '\nStatus: ' + card.status + '\nContext: ' + card.contextDir
-            + '\n\n' + (source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2)),
+          '## Task card\n\nKey: ' + key + '\nTitle: ' + card.title + '\nStatus: ' + card.status + '\nContext: ' + card.contextDir,
           '## Worktree\n\n' + (card.worktreePath === null
             ? 'Not created yet. Expected path: ' + project.checkoutPath + '--' + basename(card.contextDir)
               + expectedBranch(files, project, key, card)
@@ -196,7 +198,12 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const personal = files.read('USER-INSTRUCTIONS.md');
       const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
-      let clipped = false, dropped = 0, cut = 0, trimmed = 0;
+      let clipped = false, dropped = 0, cut = 0, trimmed = 0, shortened = 0;
+      const points = body === undefined ? [] : [...body.text];
+      const clipNote = () => '> The card is clipped to fit the ' + limit.label + ' warmup limit. Read in full: context_read {"path":"'
+        + body!.path + '"} (CLI: mypi context read ' + body!.path + ')';
+      const withBody = () => body === undefined ? tail : [tail[0] + '\n\n' + (shortened === 0 ? body.text
+        : points.slice(0, points.length - shortened).join('').trimEnd() + '\n\n' + clipNote()), ...tail.slice(1)];
       const report = (event: EventRow) => {
         const text = event.message.trimEnd(), short = clipped && text.length > 280 ? text.slice(0, 280) + '…' : text;
         return '### ' + event.fromKey + ', событие ' + event.id + ', ' + localTime(event.createdAt) + '\n\n' + (short === '' ? '(без текста)' : demote(short, 3));
@@ -220,7 +227,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const render = (hidden: number[], note: boolean) => [...head,
         '## Memory\n\n' + (note ? '> This warmup exceeds the ' + limit.label + ' limit even without memory facts; all facts are hidden.\n\n' : '')
           + zones.map((z, i) => '### ' + z.path + '\n\n' + memoryText(z, hidden[i]!, limit.label)).join('\n\n'),
-        ...tail, ...journalSection(), ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
+        ...withBody(), ...journalSection(), ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
       const lines = zones.map(z => { const all = (z.text ?? '').split('\n'); return z.facts.map(line => limit.size(all[line]!) + 1); });
       const hidden = zones.map(() => 0);
       const over = () => limit.size(render(hidden, false)) > limit.max;
@@ -243,7 +250,9 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         const next = zones.findIndex((_, i) => hidden[i]! < lines[i]!.length);
         if (next !== -1) hidden[next]!++;
         else if (cut < fresh.length) cut++;
-        else { out = render(hidden, true); break; }
+        else if (shortened < points.length) {
+          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 2 : 0));
+        } else { out = render(hidden, true); break; }
         out = render(hidden, false);
       }
       if (delivers) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));

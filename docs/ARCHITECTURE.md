@@ -189,7 +189,7 @@ the limit. A project warmup over the limit cuts in this order: the texts of the 
 reports to 280 characters, then the last reports one by one from the oldest, then
 memory facts as above, then new events from the newest, which stay undelivered and
 are counted in a line pointing to `/inbox`; only then the note above.
-A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then the note.
+A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then clips the end of the card (`source.md`) with a line naming the `context_read` call (and its CLI command) that reads it in full; only then the note.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible
