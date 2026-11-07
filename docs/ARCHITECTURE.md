@@ -178,7 +178,7 @@ Warmup creates no rows, files or Git state; a project or organization warmup set
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
 characters always fit 64 KiB. Both limits cut the same way.
-Memory facts and, in a task scope, the shown journal entries are cut: never the personal instructions, role, how-to, project list, task list, task card, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
+Memory facts and, in a task scope, the shown journal entries and then the end of the task card (`source.md`) are cut: never the personal instructions, role, how-to, project list, task list, the task card's key, title, status and context lines, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
 The farthest zone
 loses facts first (global, then organization, then project); within a file the
 oldest facts go first. In their place a line states how many facts were hidden, from
@@ -189,7 +189,7 @@ the limit. A project warmup over the limit cuts in this order: the texts of the 
 reports to 280 characters, then the last reports one by one from the oldest, then
 memory facts as above, then new events from the newest, which stay undelivered and
 are counted in a line pointing to `/inbox`; only then the note above.
-A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then the note.
+A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then clips the end of the card (`source.md`) with a line naming the `context_read` call (and its CLI command) that reads it in full; only then the note.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible
