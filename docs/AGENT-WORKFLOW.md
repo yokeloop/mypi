@@ -8,7 +8,7 @@ logging and separate Herdr tabs are not prerequisites for agent work. `mypi warm
 prints scoped context; the tracked Pi extension loads it at every Pi session start.
 Neither registers tasks, logs outcomes or authorizes work. Approved mypi engine
 features follow the
-[engine feature-development workflow](../AGENTS.md#engine-feature-development-workflow),
+[engine feature-development workflow](agents/engine-development.md#engine-feature-development-workflow),
 not the withdrawn universal task/session automation.
 
 Current source-development rules are maintained separately in the

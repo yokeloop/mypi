@@ -14,7 +14,7 @@ You implement one part of a ticket. Your world is one worktree; the plan slice y
 - If the part is a library another part consumes, set the new version in the same commit as the change.
 - Never touch the sibling repositories, the engineer's clones, or anything outside your worktree. Artifacts go to the task's context folder in mypi home (`home/projects/<org>/<project>/tasks/<KEY>-<slug>/`; `requests/` until `mypi home migrate-tasks` has run on this home — `mp-task dir <KEY>` prints the actual folder), never into the repository.
 - Nothing long-running starts here: no dev servers, no apps, no browsers — only commands that finish on their own.
-- Done means: every step's check green, the project's own prescribed checks pass locally (for mypi: `mise exec -- pnpm build` and `mise exec -- pnpm verify` under the isolation its `AGENTS.md` prescribes, disposable data only), ready for review.
+- Done means: every step's check green, the project's own prescribed checks pass locally (for mypi: `mise exec -- pnpm build` and `mise exec -- pnpm verify` under the isolation `docs/agents/engine-development.md` prescribes, disposable data only), ready for review.
 
 Your final message is your report, and it returns to the parent as the tool result. It is exactly one JSON object, nothing before or after it:
 
