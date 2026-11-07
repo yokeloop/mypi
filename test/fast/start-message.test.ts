@@ -43,7 +43,7 @@ function fixture(t: TestContext) {
   return { dir, filename, journal };
 }
 
-test('project start message groups open tasks by status and counts undelivered events without delivering them', t => {
+test('project start message names the project and the next step and delivers no events', t => {
   const { filename } = fixture(t);
   const app = createApp(filename, false);
   try {
@@ -54,22 +54,13 @@ test('project start message groups open tasks by status and counts undelivered e
     app.events.send({ from: 'global', to: 'MP', message: 'веди задачи' });
     app.events.deliver([1]);
   } finally { app.close(); }
-  assert.equal(startMessage(filename, 'MP', null), 'Проект MP (one/project).\n\n'
-    + 'Открытые задачи по статусам:\n'
-    + 'new (2):\n- MP-3 Draft the API\n- MP-4 Other\n'
-    + 'planning (1):\n- MP-12 Scoped warmup\n'
-    + 'in_progress (1):\n- MP-7 Started work\n\n'
-    + 'Недоставленных событий от задач на момент открытия: 2.\n\n'
-    + 'Дождись указаний или предложи следующий шаг.');
+  assert.equal(startMessage(filename, 'MP'), 'Проект MP (one/project).\n\nДождись указаний или предложи следующий шаг.');
   const read = createApp(filename, true);
   try { assert.deepEqual(read.events.pending('MP').map(e => e.id), [2, 3, 5]); } finally { read.close(); }
-  assert.equal(startMessage(filename, 'OT', null), 'Проект OT (two/other).\n\n'
-    + 'Открытые задачи по статусам:\nnew (1):\n- OT-1 Foreign task\n\n'
-    + 'Недоставленных событий от задач на момент открытия: 1.\n\n'
-    + 'Дождись указаний или предложи следующий шаг.');
+  assert.equal(startMessage(filename, 'OT'), 'Проект OT (two/other).\n\nДождись указаний или предложи следующий шаг.');
 });
 
-test('organization start message lists each project\'s open tasks by status and counts the organization\'s undelivered events without delivering them', t => {
+test('organization start message lists each project\'s open tasks by status without an event count and delivers no events', t => {
   const { filename } = fixture(t);
   const app = createApp(filename, false);
   try {
@@ -79,19 +70,18 @@ test('organization start message lists each project\'s open tasks by status and 
     app.events.milestone({ from: 'MP-3', to: 'one', message: 'new → review: ready' });
     app.events.send({ from: 'global', to: 'one', message: 'веди проекты' });
   } finally { app.close(); }
-  assert.equal(startMessage(filename, 'one', null), 'Организация one, проектов 2.\n\n'
+  assert.equal(startMessage(filename, 'one'), 'Организация one, проектов 2.\n\n'
     + 'Проект AB (one/second): Открытых задач нет.\n\n'
     + 'Проект MP (one/project): Открытые задачи по статусам:\n'
     + 'new (2):\n- MP-3 Draft the API\n- MP-4 Other\n'
     + 'planning (1):\n- MP-12 Scoped warmup\n'
     + 'in_progress (1):\n- MP-7 Started work\n\n'
-    + 'Недоставленных событий от задач на момент открытия: 2.\n\n'
     + 'Дождись указаний или предложи следующий шаг.');
   const read = createApp(filename, true);
   try { assert.deepEqual(read.events.pending('one').map(e => e.id), [1, 3, 4]); } finally { read.close(); }
 });
 
-test('task start message shows status, worktree and the last five journal entries with their artifacts', t => {
+test('task start message names the task and its title only', t => {
   const { filename, journal } = fixture(t);
   const task = { type: 'task' as const, key: 'MP-12' };
   const folder = 'projects/one/project/tasks/MP-12-scoped-warmup/';
@@ -106,26 +96,11 @@ test('task start message shows status, worktree and the last five journal entrie
     { at: '2026-10-30T14:04:00.000Z', scope: task, event_type: 'status_changed', text: 'research → planning. plan published',
       artifacts: [{ path: folder + 'plan.md', commit: 'b'.repeat(40) }] },
   );
-  assert.equal(startMessage(filename, 'MP-12', '/abs/clone--MP-12-scoped-warmup'),
-    'Задача MP-12 «Scoped warmup», статус planning.\n'
-    + 'Worktree: /abs/clone--MP-12-scoped-warmup\n\n'
-    + 'Последние записи журнала задачи:\n'
-    + '- 2026-10-30 11:00 note: first note\n'
-    + '- 2026-10-30 12:00 status_changed: new → research\n'
-    + '- 2026-10-30 13:00 note: ' + long.replace('\n', ' ').slice(0, 300) + '…\n'
-    + '- 2026-10-30 13:30 note: derive\n'
-    + '  Артефакты: ' + folder + 'plan-v1.md, ' + folder + 'derive.json\n'
-    + '- 2026-10-30 14:04 status_changed: research → planning. plan published\n'
-    + '  Артефакты: ' + folder + 'plan.md@bbbbbbb\n\n'
-    + 'Дождись указаний или предложи следующий шаг.');
+  assert.equal(startMessage(filename, 'MP-12'), 'Задача MP-12 «Scoped warmup».\n\nДождись указаний или предложи следующий шаг.');
 });
 
-test('task start message without journal and without worktree says so', t => {
-  const { dir, filename } = fixture(t);
-  assert.equal(startMessage(filename, 'MP-3', null), 'Задача MP-3 «Draft the API», статус new.\n'
-    + 'Worktree: не создан\n\n'
-    + 'Записей в журнале задачи нет.\n\n'
-    + 'Дождись указаний или предложи следующий шаг.');
-  assert.ok(startMessage(filename, 'MP-7', null).startsWith('Задача MP-7 «Started work», статус in_progress.\n'
-    + 'Worktree: ' + join(dir, 'clone--MP-7-started') + '\n'));
+test('task start message is the same without journal and worktree', t => {
+  const { filename } = fixture(t);
+  assert.equal(startMessage(filename, 'MP-3'), 'Задача MP-3 «Draft the API».\n\nДождись указаний или предложи следующий шаг.');
+  assert.equal(startMessage(filename, 'MP-7'), 'Задача MP-7 «Started work».\n\nДождись указаний или предложи следующий шаг.');
 });
