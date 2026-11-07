@@ -92,5 +92,16 @@ export function sqliteArchiveStore(db: Database): ArchiveStore {
         .get(agent, nativeId) as { total: number };
       return { messages, total };
     },
+    forget(filter) {
+      const parts: string[] = [], params: unknown[] = [];
+      if (filter.nativeId !== undefined) { parts.push('s.native_id = ?'); params.push(filter.nativeId); }
+      if (filter.key !== undefined) { parts.push('s.key = ?'); params.push(filter.key); }
+      if (filter.before !== undefined) { parts.push('m.at < ?'); params.push(filter.before); }
+      if (parts.length === 0) throw new Error('Archive forget needs a filter');
+      const w = parts.join(' AND ');
+      const { n } = db.prepare(`SELECT count(DISTINCT s.id) AS n FROM archive_messages m ${joined} WHERE ${w}`).get(...params) as { n: number };
+      const { changes } = db.prepare(`DELETE FROM archive_messages WHERE id IN (SELECT m.id FROM archive_messages m ${joined} WHERE ${w})`).run(...params);
+      return { sessions: n, messages: changes };
+    },
   };
 }

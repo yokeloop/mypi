@@ -55,6 +55,7 @@ export type AppCommand =
   | { name: 'archive_capture'; agent: 'claude' | 'pi'; file?: string; nativeId?: string }
   | { name: 'archive_search'; q?: string; scope?: string; agent?: 'claude' | 'pi'; from?: string; to?: string; includePeer?: boolean; limit?: number }
   | { name: 'archive_show'; id?: number; before?: number; after?: number; session?: string; agent?: 'claude' | 'pi'; offset?: number; limit?: number; includePeer?: boolean }
+  | { name: 'archive_forget'; session?: string; key?: string; before?: string }
   | { name: 'event_emit'; kind: 'turn_end' | 'waiting'; message: string; from?: string; to?: string; notification?: string;
       session?: SessionHint; envScope?: string; runtime?: string; transcript?: string }
   | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;

@@ -16,6 +16,7 @@ export interface ArchiveHit { id: number; agent: ArchiveAgent; key: string | nul
 export interface ArchiveSessionHits { agent: ArchiveAgent; session: string; key: string | null; firstAt: string; lastAt: string; messages: number }
 export interface ArchiveMessage { id: number; at: string; role: ArchiveRole; origin: ArchiveOrigin; text: string }
 export interface ArchiveAnchor extends ArchiveMessage { agent: ArchiveAgent; session: string }
+export interface ArchiveForget { nativeId?: string; key?: string; before?: string }
 export interface ArchiveStore {
   transaction<T>(fn: () => T): T;
   session(agent: ArchiveAgent, nativeId: string): ArchiveSession | undefined;
@@ -28,6 +29,7 @@ export interface ArchiveStore {
   around(anchor: ArchiveAnchor, before: number, after: number, includePeer: boolean): { before: ArchiveMessage[]; after: ArchiveMessage[] };
   agentsOf(nativeId: string): ArchiveAgent[];
   page(agent: ArchiveAgent, nativeId: string, offset: number, limit: number, includePeer: boolean): { messages: ArchiveMessage[]; total: number };
+  forget(filter: ArchiveForget): { sessions: number; messages: number };
 }
 export interface KeyLookup {
   byNative(agent: ArchiveAgent, nativeId: string): string | undefined;

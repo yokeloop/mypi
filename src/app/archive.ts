@@ -2,7 +2,7 @@ import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { AppCommand } from './commands.js';
 import { archivePath, createApp, createArchiveApp, engineRoot } from './create-app.js';
-import { claudeFolderName, createImport, emptyCounts, piFolderName } from '../modules/archive/public.js';
+import { claudeFolderName, createImport, emptyCounts, forgetFilter, piFolderName } from '../modules/archive/public.js';
 import type { ArchiveFolder, ArchiveKeys } from '../modules/archive/public.js';
 import { claudeArchive } from '../infrastructure/transcript/claude-archive.js';
 import { piArchive } from '../infrastructure/transcript/pi-archive.js';
@@ -44,6 +44,17 @@ export function archiveStatus(filename: string) {
   const { archive, close } = createArchiveApp(filename, true);
   try {
     return { path, exists: true, bytes: statSync(path).size, ...archive.counts() };
+  } finally { close(); }
+}
+
+export function forgetArchive(filename: string, c: Of<'archive_forget'>) {
+  const { name: _name, ...input } = c;
+  forgetFilter(input);
+  const path = archivePath(filename);
+  if (!existsSync(path)) return { archive: path, sessions: 0, messages: 0 };
+  const { archive, close } = createArchiveApp(filename, false);
+  try {
+    return { archive: path, ...archive.forget(input) };
   } finally { close(); }
 }
 

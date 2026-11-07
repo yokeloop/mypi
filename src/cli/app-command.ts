@@ -162,6 +162,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       }
       return { name: 'archive_capture', agent, file: required('file') };
     }
+    case 'archive forget': return { name: 'archive_forget', ...(opt('session') === undefined ? {} : { session: opt('session')! }),
+      ...(opt('key') === undefined ? {} : { key: opt('key')! }), ...(opt('before') === undefined ? {} : { before: opt('before')! }) };
     case 'inbox': {
       const hint = sessionHint(env, parentPid);
       return { name: 'inbox', ...(a[0] === undefined ? {} : { key: a[0] }), ...(hint === undefined ? {} : { session: hint }),
