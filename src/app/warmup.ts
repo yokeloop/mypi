@@ -27,6 +27,11 @@ export function localTime(iso: string): string {
   return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
 }
 
+export function localDate(iso: string): string {
+  const date = new Date(iso);
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+
 interface Zone { path: string; scope: string; cli: string; text: string | undefined; facts: number[] }
 
 function prompt(name: string): string {
@@ -129,8 +134,13 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         role = 'project';
         zones = [orgZone(project.org), projectZone(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
+        const own = cards.filter(card => card.projectId === project.id);
+        const stats = app.journalStore.stats(key, own.map(taskKey));
         tail = ['## Open tasks\n\n' + (open.length === 0 ? '(none)'
-          : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n'))];
+          : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n')),
+          '## Журнал\n\n' + (stats.count === 0 ? 'Записей в журнале проекта нет.'
+            : 'Записей журнала проекта: ' + stats.count + ', последняя ' + localDate(stats.lastAt!) + '.')
+            + '\nЧитать: journal {"scope":{"type":"project","key":"' + key + '"},"limit":20} (CLI: mypi journal read -s project:' + key + ' --limit 20)'];
         fresh = app.events.pending(key).filter(event => event.kind !== 'message');
         const openKeys = new Set(open.map(taskKey));
         history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));

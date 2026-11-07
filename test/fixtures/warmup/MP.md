@@ -73,3 +73,8 @@ Project conventions by hand.
 - MP-3 [new] Draft the API
 - MP-7 [in_progress] Started work
 - MP-12 [planning] Scoped warmup
+
+## Журнал
+
+Записей в журнале проекта нет.
+Читать: journal {"scope":{"type":"project","key":"MP"},"limit":20} (CLI: mypi journal read -s project:MP --limit 20)
