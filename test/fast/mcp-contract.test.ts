@@ -10,18 +10,17 @@ import type { AppCommand } from '../../src/app/commands.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { parseCommand } from '../../src/cli/command.js';
 
-const scope = { type: 'project', key: 'MP' };
-const g = { type: 'global' }, rev = 'a'.repeat(64);
+const g = { type: 'global' };
 const cli = (argv: string[]) => {
   const parsed = parseCommand(argv);
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
 test('MCP lists exactly seventeen agent tools; maintenance and replaced names are unknown tools', () => {
-  assert.deepEqual(Object.keys(tools).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
+  assert.deepEqual(Object.keys(tools).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
     'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
-  assert.deepEqual([...readOnly].sort(), ['archive_search', 'archive_show', 'context_read', 'journal', 'sessions', 'task_list', 'task_show']);
-  for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
+  assert.deepEqual([...readOnly].sort(), ['archive_search', 'archive_show', 'context_read', 'events', 'journal', 'sessions', 'task_list', 'task_show']);
+  for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
@@ -42,10 +41,6 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
       [['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new', '--expected-repository', 'local', '--repository', '/srv/r.git']]],
     ['projects', { action: 'resolve', path: '/tmp' }, [['project', 'resolve', '/tmp']]],
     ['projects', { action: 'flow', project: 'MP' }, [['project', 'flow', 'MP']]],
-    ['memory', { action: 'show', scope: g }, [['memory', 'show']]],
-    ['memory', { action: 'add', scope: g, text: 'fact' }, [['memory', 'add', 'fact']]],
-    ['memory', { action: 'remove', scope: g, number: 1, expectedRevision: rev }, [['memory', 'remove', '1', '--expected-revision', rev]]],
-    ['memory', { action: 'show', scope: { type: 'project', key: 'MP' } }, [['memory', 'show', '-s', 'one/project']], { scope: { type: 'project', key: 'MP' } }],
     ['note', { kind: 'note', scope: g, title: 'T', body: { text: 'body' } }, [['note', 'T', 'body']]],
     ['note', { kind: 'journal', scope: g, text: 'outcome' }, [['journal', 'add', 'outcome']]],
     ['note', { kind: 'error', project: 'one/project', text: 'dead end' }, [['error', 'one/project', 'dead end']]],
@@ -66,9 +61,9 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['task_update', { key: 'MP-1', touch: true }, [['task', 'touch', 'MP-1']]],
     ['task_update', { key: 'MP-1', status: 'done', title: 'new', reason: 'verified', progress: 'done' },
       [['task', 'status', 'MP-1', 'done', '--reason', 'verified'], ['task', 'title', 'MP-1', 'new', '--reason', 'verified'], ['task', 'progress', 'MP-1', 'done']]],
-    ['context_read', { path: 'MEMORY.md' }, [['context', 'read', 'MEMORY.md']]],
-    ['context_read', { path: 'MEMORY.md', revision: 'a'.repeat(40) }, [['context', 'read', 'MEMORY.md', '--revision', 'a'.repeat(40)]]],
-    ['context_write', { paths: ['MEMORY.md'], message: 'reconciled' }, [['context', 'commit', 'MEMORY.md', '--message', 'reconciled']]],
+    ['context_read', { path: 'INDEX.md' }, [['context', 'read', 'INDEX.md']]],
+    ['context_read', { path: 'INDEX.md', revision: 'a'.repeat(40) }, [['context', 'read', 'INDEX.md', '--revision', 'a'.repeat(40)]]],
+    ['context_write', { paths: ['INDEX.md'], message: 'reconciled' }, [['context', 'commit', 'INDEX.md', '--message', 'reconciled']]],
     ['sessions', {}, [['sessions']]],
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
@@ -82,6 +77,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
       [['archive', 'show', '--session', 'c1', '--agent', 'pi', '--offset', '20', '--limit', '20', '--include-peer']]],
     ['inbox', { key: 'MP' }, [['inbox', 'MP']]],
     ['inbox', {}, [['inbox']]],
+    ['events', { to: 'MP', kind: 'turn_end', delivered: true }, [['event', 'list', '--to', 'MP', '--kind', 'turn_end', '--delivered', 'true']]],
+    ['events', { from: 'MP-12', q: 'x', before: 7, limit: 2 }, [['event', 'list', '--from', 'MP-12', '--q', 'x', '--before', '7', '--limit', '2']]],
   ];
   for (const [tool, args, argvs, patch] of rows) {
     assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));
@@ -93,12 +90,6 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
 });
 test('action tools and task_update reject missing, foreign and malformed fields', () => {
   for (const [name, args, re] of [
-    ['memory', { action: 'add', text: 'no scope' }, /scope is required for action add/],
-    ['memory', { action: 'show', scope: g, text: 'x' }, /text is not allowed for action show/],
-    ['memory', { action: 'remove', scope: g, number: 1 }, /expectedRevision is required/],
-    ['memory', { action: 'remove', scope: g, number: '1', expectedRevision: rev }, /number/],
-    ['memory', { action: 'add', scope: { type: 'task', key: 'MP-1' }, text: 'x' }, /Context scope cannot be task/],
-    ['memory', { action: 'drop', scope: g }, /action/],
     ['note', { kind: 'capture', source: { text: 'x', file: '/tmp/x' } }, /source/],
     ['note', { kind: 'capture', source: { file: 'relative' } }, /Absolute path/],
     ['note', { kind: 'capture', source: { text: 'x' }, scope: g }, /scope is not allowed for kind capture/],
@@ -129,8 +120,10 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['warmup', { scope: 7 }, /scope/],
     ['warmup', { maxChars: 9500 }, /Unrecognized/],
     ['journal', { scope: g, limit: 0 }, /limit/],
-    ['context_read', { path: 'MEMORY.md', revision: 'abc' }, /revision/],
+    ['context_read', { path: 'INDEX.md', revision: 'abc' }, /revision/],
     ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }, /project/],
+    ['events', { kind: 'other' }, /kind/],
+    ['events', { delivered: 'true' }, /delivered/],
   ] as const) assert.throws(() => toolCommand(name, args), re);
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
@@ -143,7 +136,6 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
   assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500 });
   assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), [{ name: 'warmup', envScope: 'MP-12' }]);
-  assert.deepEqual(toolCommand('memory', { action: 'show', scope }, { MYPI_SCOPE: 'MP' }), [{ name: 'memory_show', scope }]);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
   assert.deepEqual(translate(['journal', 'read', '--all', '--type', 'note', '--limit', '2']),
@@ -164,10 +156,6 @@ test('CLI translates to the same subject commands without changing text or defau
     { name: 'project_update', identity: 'one/project', expectedRepository: 'local', repository: '/srv/r.git' });
   assert.throws(() => translate(['project', 'update', 'one/project']), /--path or --repository/);
   assert.throws(() => translate(['project', 'update', 'one/project', '--repository', 'local']), /exactly one of --expected-repository/);
-  assert.deepEqual(translate(['memory', 'remove', '1', '--expected-revision', 'a'.repeat(64)]),
-    { name: 'memory_remove', scope: { type: 'global' }, number: 1, expectedRevision: 'a'.repeat(64) });
-  assert.throws(() => translate(['memory', 'remove', '1']), /expected-revision/);
-  assert.deepEqual(translate(['memory', 'add', 'fact']), { name: 'memory_add', scope: { type: 'global' }, text: 'fact' });
   assert.deepEqual(translate(['task', 'create', 's', '--project', 'one/project', '--title', 'T', '--status', 'custom', '--slug', 'task']),
     { name: 'task_create', title: 'T', status: 'custom', slug: 'task', source: { text: 's' }, project: 'one/project', adoptSource: false });
   assert.throws(() => translate(['task', 'create', 's', '--title', 'T', '--status', 'custom', '--slug', 'task']), /--project required/);
@@ -182,6 +170,9 @@ test('CLI translates to the same subject commands without changing text or defau
     ['backup', '/tmp/snapshot', '--file', 'x'], ['restore', '--repository', '/tmp/clone'],
     ['restore', '/tmp/snapshot', '--commit', 'a'.repeat(40)]]) assert.throws(() => translate(args));
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
+  assert.throws(() => translate(['event', 'list', '--kind', 'other']), /--kind must be/);
+  assert.throws(() => translate(['event', 'list', '--delivered', 'yes']), /--delivered must be/);
+  assert.throws(() => translate(['event', 'list', '--before', 'x']), /--before must be/);
   assert.deepEqual(translate(['session', 'register', '--agent', 'pi', '--pid', '42', '--native-id', 'p1', '--name', 'n', '--fork'],
     { MYPI_SCOPE: 'MP-12', XDG_RUNTIME_DIR: '/run/user/1' }),
   { name: 'session_register', agent: 'pi', pid: 42, nativeId: 'p1', sessionName: 'n', fork: true, envScope: 'MP-12', runtime: '/run/user/1' });

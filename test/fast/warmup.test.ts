@@ -20,10 +20,10 @@ function fixture(t: TestContext, personal?: string) {
     writeFileSync(join(root, path), text);
   };
   if (personal !== undefined) write('USER-INSTRUCTIONS.md', personal);
-  write('MEMORY.md', '# Memory\n\nGlobal notes written by hand.\n\n- "global fact one"\n- "global fact two"\n');
-  write('projects/one/MEMORY.md', '# Memory\n\n- "org fact"\n');
-  write('projects/one/project/MEMORY.md', '# Memory\n\nProject conventions by hand.\n\n```\n# not a heading\n```\n\n- "project fact"\n');
-  write('projects/two/other/MEMORY.md', '# Memory\n\n- "foreign fact"\n');
+  write('INDEX.md', '# Global entry\n\nThe main chat keeps this map.\n');
+  write('projects/one/INDEX.md', '# Organization one\n\nOrganization rules: rules.md.\n');
+  write('projects/one/project/INDEX.md', '# Project entry\n\nProject conventions by hand.\n\n```\n# not a heading\n```\n\nReleases only by RELEASE.md.\n');
+  write('projects/two/other/INDEX.md', '# Other\n\nforeign entry\n');
   const app = createApp(filename, false);
   try {
     app.projects.add('one/project', 'MP', clone);
@@ -61,16 +61,20 @@ function fixture(t: TestContext, personal?: string) {
 }
 
 const normal = (dir: string, out: string) => out.replaceAll(realpathSync(dir), '<TMP>').replaceAll(dir, '<TMP>');
-const facts = (zone: string, title: string, count: number, filler = 'x') => '# Memory\n\n' + title + ' conventions by hand.\n\n'
-  + Array.from({ length: count }, (_, i) => '- ' + JSON.stringify(zone + ' fact ' + String(i).padStart(3, '0') + ' ' + filler.repeat(150)) + '\n').join('');
-const fact = (zone: string, i: number) => zone + ' fact ' + String(i).padStart(3, '0') + ' ';
+const line = (title: string, i: number) => title + ' line ' + String(i).padStart(3, '0') + ' ';
+const big = (title: string, count: number, filler = 'x') => '# ' + title + '\n\n'
+  + Array.from({ length: count }, (_, i) => line(title, i) + filler.repeat(150) + '\n').join('');
+const clipLine = (path: string, label: string) => '> ' + path + ' is clipped to fit the ' + label + ' warmup limit. Read in full: context_read {"path":"'
+  + path + '"} (CLI: mypi context read ' + path + ')';
 
 test('global, one, MP and MP-12 warmups match the golden files and read nothing but files and the DB', t => {
   const { dir, filename, root } = fixture(t, '# Personal instructions\n\n## Developer preferences\n\nPersonal rule: answer in English.\n');
   const before = readFileSync(filename);
   for (const key of ['global', 'one', 'MP', 'MP-12']) {
-    assert.equal(normal(dir, readWarmup(filename, root, key)),
-      readFileSync(new URL('../../../test/fixtures/warmup/' + key + '.md', import.meta.url), 'utf8'), key);
+    const out = readWarmup(filename, root, key);
+    assert.equal(normal(dir, out), readFileSync(new URL('../../../test/fixtures/warmup/' + key + '.md', import.meta.url), 'utf8'), key);
+    assert(!out.includes('foreign entry') && !out.includes('## Memory'), key);
+    assert.ok(out.includes('Knowledge in mypi is kept by progressive disclosure.'), key);
   }
   assert.deepEqual(readFileSync(filename), before);
   assert.equal(existsSync(join(root, '.git')), false);
@@ -126,89 +130,72 @@ test('unknown keys, tasks without a project and projects without a clone fail wi
   }
 });
 
-test('memory over 64 KiB hides the oldest facts of the farthest zone first, keeps hand-written text and says what it hid', t => {
-  const orgMarker = /^> (\d+) older facts hidden from projects\/one\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"org","key":"one"\}\} \(CLI: mypi memory show -s one\)$/m;
-  const projectMarker = /^> (\d+) older facts hidden from projects\/one\/project\/MEMORY\.md to fit the 64 KiB warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"project","key":"MP"\}\} \(CLI: mypi memory show -s one\/project\)$/m;
+test('entries over 64 KiB clip the farthest entry first from its end, close an open fence and name the context_read call', t => {
+  const globalLine = clipLine('INDEX.md', '64 KiB'), orgLine = clipLine('projects/one/INDEX.md', '64 KiB');
+  const projectLine = clipLine('projects/one/project/INDEX.md', '64 KiB');
   {
     const { filename, root, write } = fixture(t);
-    write('projects/one/MEMORY.md', facts('org', 'Org', 400));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 100));
+    write('INDEX.md', big('Global', 600));
+    write('projects/one/INDEX.md', big('Org', 100));
     const out = readWarmup(filename, root, 'MP');
     assert(Buffer.byteLength(out) <= WARMUP_LIMIT);
-    assert(out.includes('Org conventions by hand.'));
-    const hidden = Number(orgMarker.exec(out)![1]);
-    assert(hidden > 0 && hidden < 400);
-    for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
-    assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 399)));
-    for (let i = 0; i < 100; i++) assert(out.includes(fact('project', i)));
-    assert(!projectMarker.test(out));
+    assert(out.includes(line('Global', 0)) && !out.includes(line('Global', 599)));
+    assert(out.includes('\n\n' + globalLine + '\n\n### projects/one/INDEX.md\n\n#### Org\n'));
+    assert(out.includes(line('Org', 99)) && !out.includes(orgLine));
+    assert(out.includes('Releases only by RELEASE.md.') && !out.includes(projectLine));
   }
   {
     const { filename, root, write } = fixture(t);
-    write('projects/one/MEMORY.md', facts('org', 'Org', 10));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 500));
+    write('INDEX.md', big('Global', 50));
+    write('projects/one/INDEX.md', big('Org', 600));
     const out = readWarmup(filename, root, 'MP');
     assert(Buffer.byteLength(out) <= WARMUP_LIMIT);
-    assert.equal(Number(orgMarker.exec(out)![1]), 10);
-    const hidden = Number(projectMarker.exec(out)![1]);
-    assert(hidden > 0 && hidden < 500);
-    assert(out.includes(fact('project', 499)));
-    assert(out.includes('Project conventions by hand.'));
+    assert(out.includes('### INDEX.md\n\n' + globalLine + '\n\n### projects/one/INDEX.md\n\n#### Org\n'));
+    assert(out.includes(line('Org', 0)) && !out.includes(line('Org', 599)) && out.includes(orgLine));
+    assert(out.includes('Releases only by RELEASE.md.') && !out.includes(projectLine));
   }
   {
     const { filename, root, write } = fixture(t);
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 500));
+    write('INDEX.md', '# Global\n\n```sh\n' + 'echo long entry line\n'.repeat(5000) + '```\n');
     const out = readWarmup(filename, root, 'MP-12');
     assert(Buffer.byteLength(out) <= WARMUP_LIMIT);
-    assert(projectMarker.test(out));
-    assert(out.includes(fact('project', 499)));
-    assert(out.includes('## Task card\n\nKey: MP-12\nTitle: Scoped warmup\nStatus: planning\n'));
-    assert(out.includes('Task card text.\n\nDone when the goldens match.'));
-    assert(out.includes('## Worktree\n\nNot created yet. Expected path: '));
+    assert(/\necho long entry line\n[^\n]*\n```\n\n> INDEX\.md is clipped/.test(out));
+    assert(out.includes('Releases only by RELEASE.md.') && out.includes('Task card text.'));
   }
   {
     const { filename, root } = fixture(t, 'p'.repeat(70_000));
     const out = readWarmup(filename, root, 'MP');
     assert(Buffer.byteLength(out) > WARMUP_LIMIT);
     assert(out.includes('p'.repeat(70_000)));
-    assert(out.includes('## Memory\n\n> This warmup exceeds the 64 KiB limit even without memory facts; all facts are hidden.\n'));
-    assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md'));
-    assert(out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md'));
-    assert(out.includes('Project conventions by hand.'));
-    assert(!out.includes('org fact') && !out.includes('project fact'));
+    assert(out.includes('## Knowledge entries\n\n> This warmup exceeds the 64 KiB limit even with every knowledge entry clipped.\n\n'
+      + '### INDEX.md\n\n' + globalLine + '\n\n### projects/one/INDEX.md\n\n' + orgLine + '\n\n### projects/one/project/INDEX.md\n\n' + projectLine + '\n'));
+    assert(!out.includes('Project conventions by hand.'));
     assert(out.includes('## Open tasks'));
   }
 });
 
-test('a character budget cuts memory by the same rules, counts characters as Claude Code does and names the budget', t => {
-  const orgMarker = /^> (\d+) older facts hidden from projects\/one\/MEMORY\.md to fit the 9500-character warmup limit\. Read in full: memory \{"action":"show","scope":\{"type":"org","key":"one"\}\} \(CLI: mypi memory show -s one\)$/m;
+test('a character budget clips entries by the same rules, counts characters as Claude Code does and names the budget', t => {
+  const globalLine = clipLine('INDEX.md', '9500-character');
   {
     const { filename, root, write } = fixture(t);
-    write('projects/one/MEMORY.md', facts('org', 'Org', 60, 'ж'));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 4, 'ж'));
+    write('INDEX.md', big('Global', 60, 'ж'));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(Buffer.byteLength(out) > 9500);
-    assert(out.includes('Org conventions by hand.'));
-    const hidden = Number(orgMarker.exec(out)![1]);
-    assert(hidden > 0 && hidden < 60);
-    for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
-    assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 59)));
-    for (let i = 0; i < 4; i++) assert(out.includes(fact('project', i)));
-    assert(!out.includes('older facts hidden from projects/one/project/MEMORY.md'));
+    assert(out.includes(line('Global', 0)) && !out.includes(line('Global', 59)) && out.includes(globalLine));
     const full = readWarmup(filename, root, 'MP');
-    assert(!full.includes('older facts hidden'));
-    assert(full.includes(fact('org', 0)));
+    assert(!full.includes('is clipped'));
+    assert(full.includes(line('Global', 59)));
   }
   {
     const { filename, root } = fixture(t, 'п'.repeat(10_000));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length > 9500);
     assert(out.includes('п'.repeat(10_000)));
-    assert(out.includes('## Memory\n\n> This warmup exceeds the 9500-character limit even without memory facts; all facts are hidden.\n'));
-    assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md to fit the 9500-character warmup limit'));
-    assert(out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md to fit the 9500-character warmup limit'));
-    assert(out.includes('Project conventions by hand.'));
+    assert(out.includes('## Knowledge entries\n\n> This warmup exceeds the 9500-character limit even with every knowledge entry clipped.\n\n'
+      + '### INDEX.md\n\n' + globalLine + '\n'));
+    assert(out.includes(clipLine('projects/one/INDEX.md', '9500-character')));
+    assert(out.includes(clipLine('projects/one/project/INDEX.md', '9500-character')));
     assert(out.includes('## Open tasks'));
   }
   {
@@ -219,6 +206,18 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
     assert.equal(WARMUP_MAX_CHARS, 21845);
     assert.equal(readWarmup(filename, root, 'global', WARMUP_MAX_CHARS), readWarmup(filename, root, 'global'));
   }
+});
+
+test('a level without an entry or with a whitespace-only one shows an invitation naming its path and its owner chat', t => {
+  const { filename, root, write } = fixture(t);
+  assert(readWarmup(filename, root, 'two').includes('### projects/two/INDEX.md\n\n> No entry yet. Create projects/two/INDEX.md'
+    + ' (owner: the organization chat two): a short map of what this level is and where its knowledge lives.\n'));
+  write('INDEX.md', '  \n\n');
+  write('projects/one/project/INDEX.md', '');
+  assert(readWarmup(filename, root, 'global').includes('## Knowledge entries\n\n### INDEX.md\n\n> No entry yet. Create INDEX.md'
+    + ' (owner: the main chat): a short map of what this level is and where its knowledge lives.\n'));
+  assert(readWarmup(filename, root, 'MP').includes('### projects/one/project/INDEX.md\n\n> No entry yet. Create projects/one/project/INDEX.md'
+    + ' (owner: the project chat MP): a short map of what this level is and where its knowledge lives.\n'));
 });
 
 const emit = (filename: string, from: string, kind: 'turn_end' | 'waiting', message: string, at = '2026-10-28T14:02:00.000Z') => {
@@ -299,7 +298,7 @@ test('warmup neither shows nor marks parent messages', t => {
   assert.deepEqual(delivered(filename), [{ id: 1, at: null }, { id: 2, at: null }]);
 });
 
-test('over budget the last reports shrink first, then memory facts, then new events stay undelivered', t => {
+test('over budget the last reports shrink first, then drop with a line naming the events call, then entries are clipped, then new events stay undelivered', t => {
   {
     const { filename, root } = fixture(t);
     const base = readWarmup(filename, root, 'MP').length;
@@ -311,17 +310,21 @@ test('over budget the last reports shrink first, then memory facts, then new eve
     const clipped = readWarmup(filename, root, 'MP', base + 1500);
     assert(clipped.length <= base + 1500);
     assert(clipped.includes('### MP-7, событие 1, 14:02\n\n' + 'a'.repeat(280) + '…\n\n### MP-12, событие 2, 14:02\n\n' + 'b'.repeat(280) + '…\n'));
-    assert(!clipped.includes('older facts hidden') && clipped.includes('"org fact"') && clipped.includes('"project fact"'));
+    assert(!clipped.includes('is clipped') && clipped.includes('Releases only by RELEASE.md.'));
     assert(clipped.includes('событие 3.') && clipped.includes('new seven') && clipped.includes('событие 4.') && clipped.includes('new twelve'));
     undeliver(filename, [3, 4]);
     const dropped = readWarmup(filename, root, 'MP', clipped.length - 50);
     assert(dropped.length <= clipped.length - 50);
     assert(!dropped.includes('### MP-7, событие 1') && dropped.includes('### MP-12, событие 2, 14:02\n\n' + 'b'.repeat(280) + '…\n'));
-    assert(!dropped.includes('older facts hidden') && dropped.includes('new seven') && dropped.includes('new twelve'));
+    assert(!dropped.includes('is clipped') && dropped.includes('Releases only by RELEASE.md.') && dropped.includes('new seven') && dropped.includes('new twelve'));
+    const call = 'Они уже доставлены; читать: events {"to":"MP","kind":"turn_end","delivered":true} (CLI: mypi event list --to MP --kind turn_end'
+      + ' --delivered true), по одной задаче — с "from":"<ключ задачи>" (--from <ключ задачи>).';
+    assert(dropped.endsWith('b'.repeat(280) + '…\n\n> Ещё 1 докладов не поместились: MP-7. ' + call + '\n'), dropped);
     undeliver(filename, [3, 4]);
-    const gone = readWarmup(filename, root, 'MP', base + 400);
-    assert(gone.length <= base + 400);
-    assert(!gone.includes('## Последние доклады') && !gone.includes('older facts hidden') && gone.includes('new twelve'));
+    const gone = readWarmup(filename, root, 'MP', base + 600);
+    assert(gone.length <= base + 600);
+    assert(gone.endsWith('## Последние доклады\n\n> Ещё 2 докладов не поместились: MP-7, MP-12. ' + call + '\n'), gone);
+    assert(!gone.includes('> История') && !gone.includes('is clipped') && gone.includes('new twelve'));
   }
   {
     const { filename, root } = fixture(t);
@@ -329,7 +332,8 @@ test('over budget the last reports shrink first, then memory facts, then new eve
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(out.includes('## Журнал\n\nЗаписей в журнале проекта нет.\nЧитать: journal {"scope":{"type":"project","key":"MP"},"limit":20} (CLI: mypi journal read -s project:MP --limit 20)\n'));
-    assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md') && out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md'));
+    for (const path of ['INDEX.md', 'projects/one/INDEX.md', 'projects/one/project/INDEX.md'])
+      assert(out.includes('### ' + path + '\n\n' + clipLine(path, '9500-character') + '\n'), path);
     const shown = [...out.matchAll(/^\[mypi: MP-12 завершил ход в 14:02, событие (\d+)\. /gm)].map(m => Number(m[1]));
     assert(shown.length > 0 && shown.length < 40);
     assert.deepEqual(shown, Array.from({ length: shown.length }, (_, i) => i + 1));
@@ -381,11 +385,11 @@ test('project warmup counts the journal of the project and all its tasks and nam
   assert.deepEqual(readFileSync(filename), before);
 });
 
-test('over budget a task warmup drops its journal entries oldest first before memory facts and keeps the heading, the count and the loader', t => {
+test('over budget a task warmup drops its journal entries oldest first before clipping entries and keeps the heading, the count and the loader', t => {
   const loader = 'Читать: journal {"scope":{"type":"task","key":"MP-12"},"limit":20} (CLI: mypi journal read -s task:MP-12 --limit 20)\n';
   {
     const { filename, root, write, journal } = fixture(t);
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5));
+    write('projects/one/project/INDEX.md', big('Project', 5));
     journal(...Array.from({ length: 6 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
       event_type: 'note', text: 'entry ' + i + ' ' + 'x'.repeat(280) })));
     const full = readWarmup(filename, root, 'MP-12');
@@ -393,18 +397,18 @@ test('over budget a task warmup drops its journal entries oldest first before me
     const one = readWarmup(filename, root, 'MP-12', full.length - 100);
     assert(one.length <= full.length - 100);
     assert(one.includes('Последние записи журнала задачи (4):\n- 2026-10-30 12:00 note: entry 2 ') && one.includes('entry 5 '));
-    assert(!one.includes('entry 1 ') && !one.includes('older facts hidden'));
-    for (let i = 0; i < 5; i++) assert(one.includes(fact('project', i)));
+    assert(!one.includes('entry 1 ') && !one.includes('is clipped'));
+    for (let i = 0; i < 5; i++) assert(one.includes(line('Project', i)));
     assert(one.includes(loader));
     const none = readWarmup(filename, root, 'MP-12', full.length - 1700);
     assert(none.length <= full.length - 1700);
     assert(none.includes('## Журнал\n\nПоследние записи журнала задачи (0):\n' + loader));
-    assert(!none.includes('entry '));
-    assert(none.includes('older facts hidden from projects/one/project/MEMORY.md') && none.includes('Project conventions by hand.'));
+    assert(!/note: entry \d/.test(none));
+    assert(none.includes('### INDEX.md\n\n' + clipLine('INDEX.md', (full.length - 1700) + '-character') + '\n'));
   }
   {
     const { filename, root, write, journal } = fixture(t);
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 60, 'ж'));
+    write('projects/one/project/INDEX.md', big('Project', 60, 'ж'));
     journal(...Array.from({ length: 5 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
       event_type: 'note', text: 'entry ' + i + ' ' + 'ж'.repeat(280) })));
     const out = readWarmup(filename, root, 'MP-12', 9500);
@@ -415,25 +419,26 @@ test('over budget a task warmup drops its journal entries oldest first before me
   }
 });
 
-test('over budget a task warmup clips the end of its card after memory facts and names the call that reads it in full', t => {
+test('over budget a task warmup clips the end of its card after the entries and names the call that reads it in full', t => {
   const { filename, root, write } = fixture(t);
   const path = 'projects/one/project/tasks/MP-12-scoped-warmup/source.md';
-  write('projects/one/project/MEMORY.md', facts('project', 'Project', 3));
+  write('projects/one/project/INDEX.md', big('Project', 3));
   write(path, '# Card\n\nCard start.\n\n' + 'Long card line ж.\n'.repeat(700) + 'Card end.\n');
   const out = readWarmup(filename, root, 'MP-12', 9500);
   assert(out.length <= 9500);
   assert(out.includes('### Card\n\nCard start.') && !out.includes('Card end.'));
   assert(out.includes('\n\n> The card is clipped to fit the 9500-character warmup limit. Read in full: context_read {"path":"' + path
     + '"} (CLI: mypi context read ' + path + ')\n\n## Worktree\n\n'));
-  assert(out.includes('older facts hidden from projects/one/project/MEMORY.md') && !out.includes('even without memory facts'));
+  assert(out.includes('### projects/one/project/INDEX.md\n\n' + clipLine('projects/one/project/INDEX.md', '9500-character') + '\n')
+    && !out.includes('even with every knowledge entry clipped'));
   assert(out.includes('## Журнал\n\nЗаписей в журнале задачи нет.\n'));
   assert(!readWarmup(filename, root, 'MP-12').includes('The card is clipped'));
   write(path, '# Card\n\n```sh\n' + 'echo long card line ж\n'.repeat(700) + '```\n');
   const fenced = readWarmup(filename, root, 'MP-12', 9500);
   assert(fenced.length <= 9500);
-  assert(/\necho long[^\n]*\n```\n\n> The card is clipped/.test(fenced));
-  write(path, '# Card\n\nTilde fence.\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
+  assert(/\necho long card line ж\n[^\n]*\n```\n\n> The card is clipped/.test(fenced));
+  write(path, '# Card\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
   const tilde = readWarmup(filename, root, 'MP-12', 9500);
   assert(tilde.length <= 9500);
-  assert(/\necho long[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
+  assert(/\necho long card line ж\n[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
 });

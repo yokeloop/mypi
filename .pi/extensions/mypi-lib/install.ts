@@ -122,7 +122,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       if (registered !== undefined) pi.unregisterMcpServer('mypi');
       pi.registerMcpServer('mypi', {
         command: 'node', args: [server], cwd: root, env: { PI_SESSION_ID: session },
-        description: 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.',
+        description: 'Local mypi tools for projects, tasks, history and knowledge. No automatic initialization or writes.',
         exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct', archive_search: 'direct' },
       });
       registered = session;

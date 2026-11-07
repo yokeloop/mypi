@@ -14,7 +14,7 @@ Seven lenses, in this order:
 3. **Interactions.** For every piece of state, timer, event or global the diff touches, grep for its other readers and writers and check the change survives each path. Name the paths you checked — the unchecked interaction is where escaped bugs live.
 4. **Silent failures.** Swallowed errors, broad catches, empty catch blocks, fallbacks that mask a failure instead of surfacing it.
 5. **Needless complexity.** Dead branches the diff added, speculative parameters and options nothing needs, indirection with a single caller, an abstraction that fits its cases badly and should be inlined. A longer obvious version beats a shorter clever one — the clever one is the finding.
-6. **Docs and public contracts.** Statements in the repository's own docs — README, docs/, a changelog it keeps — that the diff made false or incomplete; a renamed or reshaped public export whose consumers or docs were not updated.
+6. **Docs and public contracts.** Statements in the repository's own docs — README, docs/, a changelog it keeps — and in the level's entry in home (`INDEX.md`) that the diff made false or incomplete; a renamed or reshaped public export whose consumers or docs were not updated.
 7. **Weakened checks.** A test skipped or deleted, a lint-ignore added, an assertion lowered to get green — a finding, never a pass.
 
 Also findings: comments added in code (the repository keeps none), non-English commit messages.

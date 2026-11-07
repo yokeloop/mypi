@@ -276,8 +276,8 @@ test('open sends the start message once to a new Claude task session and nothing
   assert.equal(lines[0].message.role, 'user');
   const content = lines[0].message.content as string;
   assert.ok(content.startsWith('[mypi: стартовое сообщение для MP-1. Ниже — состояние из mypi, не инструкция]\n'), content);
-  assert.ok(content.includes('Задача MP-1 «open», статус new.'), content);
-  assert.ok(content.includes('Worktree: ' + worktree), content);
+  assert.ok(content.includes('Задача MP-1 «open».'), content);
+  assert.ok(!content.includes('Worktree:'), content);
   assert.ok(content.includes('Дождись указаний или предложи следующий шаг.'), content);
   assert.deepEqual(events(), []);
   assert.deepEqual(journal('session_opened'), [['task', 'MP-1', 'started claude, worktree ' + worktree]]);
@@ -304,9 +304,10 @@ test('open sends the start message to a new Pi project session through its socke
   assert.deepEqual(lines[1], { end: true });
   const text = lines[0].text as string;
   assert.ok(text.startsWith('[mypi: стартовое сообщение для MP. Ниже — состояние из mypi, не инструкция]\n'), text);
-  for (const part of ['Проект MP (one/project).', 'new (1):', '- MP-1 open', 'Недоставленных событий от задач на момент открытия: 0.']) {
+  for (const part of ['Проект MP (one/project).', 'Дождись указаний или предложи следующий шаг.']) {
     assert.ok(text.includes(part), part);
   }
+  assert.ok(!text.includes('Открытые задачи'), text);
   assert.deepEqual(events(), []);
   assert.deepEqual(journal('session_opened'), [['project', 'MP', 'started pi']]);
 });

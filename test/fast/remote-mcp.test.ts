@@ -18,7 +18,7 @@ const readNames = ['context_read', 'journal', 'projects', 'task_list', 'task_sho
 test('remote MCP offers five read tools to read tokens and nine to write tokens; local-only tools are unknown', () => {
   assert.deepEqual(remoteToolNames('read').sort(), readNames);
   assert.deepEqual(remoteToolNames('write').sort(), [...readNames, 'note', 'send_message', 'task_create', 'task_update'].sort());
-  for (const name of ['open_session', 'sessions', 'inbox', 'warmup', 'memory', 'context_write', 'capture', 'note_add',
+  for (const name of ['open_session', 'sessions', 'inbox', 'events', 'warmup', 'memory', 'context_write', 'capture', 'note_add',
     'project_add', 'db_init', 'backup', '__proto__']) {
     assert.throws(() => remoteToolCommand(name, {}, writer, undefined), /Unknown tool/, name);
   }

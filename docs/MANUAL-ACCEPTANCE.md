@@ -3,7 +3,7 @@
 Use this guide when the operator asks for live acceptance of a mypi candidate on a
 disposable stand: real Claude Code and Pi sessions in a separate Herdr session,
 driven by an agent and checked against the stand's own state. The
-[engine feature-development workflow](../AGENTS.md#engine-feature-development-workflow)
+[engine feature-development workflow](agents/engine-development.md#engine-feature-development-workflow)
 authorizes clean, recoverable acceptance of an approved feature on its designated
 stand. It does not authorize arbitrary resets, control of unrelated sessions or
 merge.
@@ -45,7 +45,7 @@ testing policy requires the Claude Code and Pi versions of every manual stand ru
 - Do not change global settings: `~/.claude/settings.json`, `~/.pi/agent/`,
   `mise use -g`. Do not call wrappers that rewrite them (for example a `pi` wrapper
   that runs `mise use -g`); call the absolute binaries.
-- `pnpm verify` on the candidate runs only within the `AGENTS.md` limits: 2 CPU,
+- `pnpm verify` on the candidate runs only within the limits of `docs/agents/engine-development.md`: 2 CPU,
   1 GiB, 64 tasks, 60 seconds, one suite run on the machine at a time. The live run
   does not replace `verify`, CI or review and does not prove OS isolation.
 - Path separation is not a sandbox: global tools and credentials stay reachable
@@ -58,7 +58,7 @@ testing policy requires the Claude Code and Pi versions of every manual stand ru
 
 Place the stand outside the `projects/` folder of a working installation: Pi applies
 the closest saved trust decision, so a checkout under the installation would inherit
-its trust (`AGENTS.md`, «Protect the installed engine»).
+its trust (`docs/agents/engine-development.md`, «Candidate checkouts and Pi trust»).
 
 | Path | Role |
 |---|---|

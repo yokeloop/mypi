@@ -22,7 +22,7 @@ function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
 }
 
-const reads = new Set(['memory_show', 'journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
+const reads = new Set(['journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
@@ -93,9 +93,6 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       case 'capture': return { path: app.capture(inputText(c.source)) };
       case 'note_add': return { path: app.note(c.title, inputText(c.body), contextScope(c.scope, app.projects)) };
       case 'error_add': return { path: app.error(c.project, c.text) };
-      case 'memory_show': return app.memory.show(contextScope(c.scope, app.projects));
-      case 'memory_add': return { path: app.memory.add(c.text, contextScope(c.scope, app.projects)) };
-      case 'memory_remove': return { removed: app.memory.remove(c.number, c.expectedRevision, contextScope(c.scope, app.projects)) };
       case 'journal_add': return { saved: app.journal(resolveScope(c.scope, app.projects), c.text) };
       case 'journal_import': return app.importJournal();
       case 'journal_read': return app.history(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {

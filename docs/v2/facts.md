@@ -18,6 +18,7 @@ documentation. Session ids in the excerpts are stand ids.
 | 5 | `herdr tab create` from outside Herdr: which workspace, is a flag needed? | how: the focused workspace; fails with `no active workspace` when the session has none; `--env` and `--cwd` reach the pane | [Fact 5](#fact-5-herdr-tab-create-outside-herdr) | launcher always passes `--workspace <id>` and creates a workspace when none exists |
 | 6 | Does `claude agents --json` see sessions started in Herdr tabs? | yes | [Fact 6](#fact-6-claude-agents---json-and-herdr-tabs) | — |
 | 7 | What opens a Claude turn in the transcript, and how does a parent's socket message look there? | how: a `type:"user"` entry with a string `turnOrigin` (`human`, `peer`, `task_notification`); a socket message is `turnOrigin:"peer"` and starts with `Another Claude session sent a message:\n` | [Fact 7](#fact-7-what-opens-a-claude-turn-in-the-transcript) | no mark — no Event |
+| 8 | Does Pi keep the mypi context after /compact and /new? | how: `/compact` fires no `session_start` and `mypi_context` stays; `/new` fires `session_start` with `reason: new` and a new session id, the warmup runs again, and the key stays `ACME`, pointing at the new native id | [Fact 8](#fact-8-pi-context-after-compact-and-new) | — |
 
 ## Stand
 
@@ -551,7 +552,7 @@ Answer: how — `ui_prompt_start` when an extension's `ctx.ui` prompt opens and
 arrive while the prompt is open; it comes after the run ends (here the dialog
 stayed open 19.5 minutes: `ui_prompt_start` 11:39:39, `ui_prompt_end` 11:59:09,
 `agent_settled` 11:59:12). Pi 1.0.4 does not ask for approval before tool calls
-(`docs/security.md` of the Pi package); a wait for permission or an answer is an
+(`security.md` in the Pi package's docs); a wait for permission or an answer is an
 extension's `ctx.ui` call, so these two events cover it. Herdr does not help here: with the
 prompt open, `hs agent explain` reported the Pi pane as `idle`
 (`fallback_reason: default_known_agent_idle_fallback`) and `hs agent list`
@@ -726,3 +727,41 @@ starting `Another Claude session sent a message:\n[mypi: сообщение ро
 
 Fallback: no mark — no Event (`claudeTurnPrompt` returns nothing, and the hooks
 create no `turn_end` or `waiting`). Used by MP-54.
+
+### Fact 8: Pi context after compact and new
+
+Question: does a Pi session keep the `mypi_context` system-prompt section after
+`/compact` and after `/new`, and which key does the new session get? Observed
+with Pi 1.0.4, Herdr 0.9.5 (MP-105); only lengths and first lines are recorded
+here.
+
+Answer:
+
+- Start: `session_start` with `reason=startup`; every turn's `before_agent_start`
+  sees `mypi_context` of length 4497 with the first line
+  `# mypi warmup: ACME (acme/site)`.
+- `/compact` is refused with «Compaction failed: Nothing to compact (session too
+  small)» until the session is large; after two turns reading a 68 KB file it
+  compacted from 41,715 tokens. No `session_start` follows; the next turn still
+  has `mypi_context` of length 4497 with the same first line.
+- `/new` fires `session_start` with `reason=new` and a new session id; the
+  warmup runs again and the next turn has `mypi_context` of length 4497 with the
+  same first line (the current `mp warmup -s ACME` is also 4497). `mp sessions`
+  shows the key `ACME` pointing at the new native id (the sessions row is
+  updated from the old one); the live record stays
+  `$XDG_RUNTIME_DIR/mypi/sessions/ACME.json` and the socket
+  `$XDG_RUNTIME_DIR/mypi/ACME-<pid>.sock` of the same pid. The Pi footer loses
+  the session name «• ACME».
+
+Reproduce: the stand-only probe `$STAND/engine/.pi/extensions/zz-probe.ts`,
+loaded after `mypi.ts`, logs `reason` and `ctx.sessionManager.getSessionId()` on
+`session_start`, and the length and first line of
+`event.systemPromptOptions.sections.mypi_context` on `before_agent_start`. In a
+Pi `ACME` session: a turn «Ответь одним словом: ок.», `/compact`, the same turn,
+`/new`, the same turn. The code is the `session_start` handler
+(`.pi/extensions/mypi-lib/install.ts:119`), which registers the MCP server and
+runs the warmup, and the `before_agent_start` handler
+(`.pi/extensions/mypi-lib/install.ts:169`), which sets the section on every turn.
+Model on the stand: openai-codex/gpt-6-luna (thinking low).
+
+Fallback: —. Used by MP-105.

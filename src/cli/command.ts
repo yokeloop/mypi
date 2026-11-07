@@ -27,6 +27,7 @@ mypi archive search [query] [-s global|org|CODE|CODE-N] [--agent claude|pi] [--f
 mypi archive capture --agent claude --hook | --agent claude|pi --file <transcript> (records one transcript file into the conversation archive from its saved offset; --hook reads Claude's Stop or SessionEnd input from stdin; without a transcript it writes nothing; errors exit 1, never 2)
 mypi archive forget [--session <native-id>] [--key <key>] [--before date|UTC] (deletes the matching messages from the conversation archive; at least one option, all given ones must match, --key is exact; session rows and their read offsets stay, so import and capture do not bring the text back; only on the user's explicit request)
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
+mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n] (events newest first, read-only; never marks them delivered)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
@@ -34,7 +35,6 @@ mypi open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
 mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
 mypi capture [text | --file source]
-mypi memory add <text> | show | remove <number> --expected-revision SHA256 [-s scope]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
 mypi journal add <text> [-s scope] | read [-s scope | --all] [--from UTC --to UTC --type type --limit n] | import

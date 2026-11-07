@@ -8,6 +8,7 @@ import { spawnSync, spawn } from 'node:child_process';
 import { state } from '../support/state.js';
 import { initializeWorkspace, createWorkspace } from '../../src/app/create-workspace.js';
 import { publishBackup } from '../../src/app/backup.js';
+import { contextFiles } from '../../src/infrastructure/filesystem/context-files.js';
 import { backupGit } from '../../src/infrastructure/git/backup-git.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
@@ -43,7 +44,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   git('-C', home, 'remote', 'add', 'origin', bare);
   git('-C', home, 'config', 'user.name', 'Fixture'); git('-C', home, 'config', 'user.email', 'fixture@example.test');
   const app = createWorkspace(filename, false, home);
-  app.memory.add('committed');
+  contextFiles(home).create('INDEX.md', 'committed\n'); app.complete(['INDEX.md'], 'Add the global entry');
   app.projects.add('sample/engine', 'SAMPLE');
   app.statuses.addStatus('checking', false);
   app.journal({ type: 'global' }, 'duplicate'); app.journal({ type: 'global' }, 'duplicate');
@@ -52,7 +53,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   app.tasks.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
   app.tasks.create({ title: 'Project', status: 'checking', slug: 'project', source: 'project source', project: 'sample/engine' });
   app.close();
-  writeFileSync(join(home, 'MEMORY.md'), 'unselected edit\n');
+  writeFileSync(join(home, 'INDEX.md'), 'unselected edit\n');
   const chosen = Buffer.from('selected exact bytes\r\n' + 'z'.repeat(1_100_000) + '\r\n');
   writeFileSync(join(home, 'chosen.md'), chosen);
   writeFileSync(join(home, '.gitattributes'), 'chosen.md text eol=lf\n*.md ident filter=uppercase working-tree-encoding=UTF-8\n');
@@ -78,7 +79,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   const preview = await run(parseCommand(['backup', '--publish', '--dry-run']), filename, home) as Awaited<ReturnType<typeof publishBackup>>;
   assert.equal(preview.status, 'preview');
   assert.equal(preview.snapshotSaved, false);
-  assert.ok(preview.excludedPaths.includes('MEMORY.md'));
+  assert.ok(preview.excludedPaths.includes('INDEX.md'));
   assert.ok(preview.excludedPaths.includes('old name.md'));
   assert.ok(preview.excludedPaths.includes('new name.md'));
   assert.ok(preview.selectedPaths.includes(card.contextDir + '/source.md'));
@@ -94,8 +95,8 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   assert.deepEqual(backupGit(home).read(result.commit!, 'chosen.md'), chosen);
   assert.notDeepEqual(spawnSync('git', ['-C', home, 'show', ':chosen.md'], { encoding: 'buffer' }).stdout, chosen);
   assert.ok(backupGit(home).read(result.commit!, '.mypi-backup/state.sqlite3').length > 1024 * 1024);
-  assert.equal(readFileSync(join(home, 'MEMORY.md'), 'utf8'), 'unselected edit\n');
-  assert.equal(git('-C', bare, 'show', result.commit + ':MEMORY.md').includes('unselected edit'), false);
+  assert.equal(readFileSync(join(home, 'INDEX.md'), 'utf8'), 'unselected edit\n');
+  assert.equal(git('-C', bare, 'show', result.commit + ':INDEX.md').includes('unselected edit'), false);
   assert.equal(git('-C', bare, 'ls-tree', '-r', '--name-only', result.commit!).includes('.cache/work'), false);
   const clone = join(dir, 'fresh'); git('clone', '--quiet', bare, clone);
   const restoredDb = join(dir, 'restored.sqlite3'), restoredHome = join(dir, 'restored');
@@ -104,7 +105,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   try {
     assert.equal(restored.read(card.contextDir + '/source.md'), 'source\r\n');
     assert.equal(restored.read(card.contextDir + '/artifacts/result.md'), 'evidence');
-    assert.equal(restored.memory.show().items[0]?.text, 'committed');
+    assert.equal(restored.read('INDEX.md'), 'committed\n');
   } finally { restored.close(); }
   assert.equal(existsSync(join(restoredHome, 'unrelated.md')), false);
   assert.deepEqual(readFileSync(join(restoredHome, 'chosen.md')), chosen);
@@ -134,7 +135,7 @@ test('push rejection retains exact local commit; required excluded files refuse,
   git('-C', home, 'remote', 'add', 'origin', bare);
   git('-C', home, 'config', 'user.name', 'Fixture'); git('-C', home, 'config', 'user.email', 'fixture@example.test');
   const app = createWorkspace(filename, false, home);
-  app.memory.add('keep');
+  contextFiles(home).create('INDEX.md', 'keep\n'); app.complete(['INDEX.md'], 'Add the global entry');
   app.projects.add('sample/engine', 'SAMPLE');
   const card = app.tasks.create({ project: 'sample/engine', title: 'Required', status: 'new', slug: 'required', source: 'required' });
   app.close();
@@ -169,7 +170,7 @@ test('push rejection retains exact local commit; required excluded files refuse,
 test('push releases writer lock, pushes captured commit despite HEAD advance, inspects accepted-but-errored push', async t => {
   const { dir, filename } = state(t), home = join(dir, 'home'), bare = join(dir, 'remote.git');
   initializeWorkspace(filename, home);
-  const app = createWorkspace(filename, false, home); app.memory.add('baseline'); app.close();
+  const app = createWorkspace(filename, false, home); contextFiles(home).create('INDEX.md', 'baseline\n'); app.complete(['INDEX.md'], 'Add the global entry'); app.close();
   git('init', '--bare', '--quiet', bare); git('-C', bare, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   git('-C', home, 'remote', 'add', 'origin', bare);
   const realGit = '/usr/bin/git';
@@ -215,7 +216,7 @@ test('push releases writer lock, pushes captured commit despite HEAD advance, in
 test('cooperating writer at snapshot boundary yields honest refusal rather than mixed success', async t => {
   const { dir, filename } = state(t), home = join(dir, 'home'), bare = join(dir, 'remote.git');
   initializeWorkspace(filename, home);
-  const app = createWorkspace(filename, false, home); app.memory.add('baseline'); app.close();
+  const app = createWorkspace(filename, false, home); contextFiles(home).create('INDEX.md', 'baseline\n'); app.complete(['INDEX.md'], 'Add the global entry'); app.close();
   git('init', '--bare', '--quiet', bare); git('-C', bare, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   git('-C', home, 'remote', 'add', 'origin', bare);
   const ready = join(dir, 'writer-ready'), helper = join(dir, 'lock.mjs');
@@ -243,7 +244,7 @@ test('failed local ref update retains snapshot and two backup callers cannot bot
   initializeWorkspace(filename, home);
   git('init', '--bare', '--quiet', bare); git('-C', bare, 'symbolic-ref', 'HEAD', 'refs/heads/main');
   git('-C', home, 'remote', 'add', 'origin', bare);
-  const app = createWorkspace(filename, false, home); app.memory.add('entry'); app.close();
+  const app = createWorkspace(filename, false, home); contextFiles(home).create('INDEX.md', 'entry\n'); app.complete(['INDEX.md'], 'Add the global entry'); app.close();
   writeFileSync(join(home, '.git/refs/heads/main.lock'), 'locked');
   const failed = await publishBackup({ filename, root: home });
   assert.equal(failed.status, 'partial'); assert.equal(failed.snapshotSaved, true);

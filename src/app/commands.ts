@@ -18,10 +18,8 @@ export type AppCommand =
   | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
-  | { name: 'memory_show'; scope: ScopeInput }
   | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint }
-  | { name: 'memory_add' | 'journal_add'; scope: ScopeInput; text: string }
-  | { name: 'memory_remove'; scope: ScopeInput; number: number; expectedRevision: string }
+  | { name: 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
   | { name: 'error_add'; project: string; text: string }

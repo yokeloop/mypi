@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair, backup and restore into a fresh installation', async t => {
+test('complete Node CLI dispatch: context/task lifecycle, partial repair, backup and restore into a fresh installation', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-all-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function installation(name: string) {
@@ -45,14 +45,17 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
   run(root, ['bootstrap']);
   run(root, ['context', 'read', 'missing.md'], 1);
   run(root, ['project', 'add', 'one/project', '--code', 'MP']);
-  await cli('memory', 'add', 'global\nline');
+  writeFileSync(join(root, 'home/INDEX.md'), 'global\nline\n');
   run(root, ['project', 'add', 'global/project', '--code', 'GL']);
-  await cli('memory', 'add', 'org-only', '-s', 'global');
-  assert.equal((await cli('memory', 'show', '-s', 'global')).items[0].text, 'org-only');
-  assert.equal((await cli('memory', 'show')).items.length, 1, 'organization global is not global scope');
-  await assert.rejects(cli('memory', 'add', 'invalid scope', '--scope', ''), /Invalid organization/);
-  await cli('memory', 'add', 'scoped', '-s', 'one/project');
-  assert.equal((await cli('memory', 'show', '-s', 'one/project')).items[0].text, 'scoped');
+  mkdirSync(join(root, 'home/projects/global'), { recursive: true });
+  writeFileSync(join(root, 'home/projects/global/INDEX.md'), 'org-only\n');
+  await assert.rejects(cli('note', 'Invalid', 'invalid scope', '--scope', ''), /Invalid organization/);
+  mkdirSync(join(root, 'home/projects/one/project'), { recursive: true });
+  writeFileSync(join(root, 'home/projects/one/project/INDEX.md'), 'scoped\n');
+  assert.match((await cli('context', 'commit', 'INDEX.md', 'projects/global/INDEX.md', 'projects/one/project/INDEX.md',
+    '--message', 'Add knowledge entries')).commit, /^[0-9a-f]{40}$/);
+  assert.equal((await cli('context', 'read', 'projects/global/INDEX.md')).text, 'org-only\n');
+  assert.equal((await cli('context', 'read', 'INDEX.md')).text, 'global\nline\n');
   const source = join(dir, 'source.md'); writeFileSync(source, '\ufeff  original\r\n');
   const capture = (await cli('capture', '--file', source)).path;
   assert.equal((await cli('context', 'read', capture)).text, '\ufeff  original\r\n');
@@ -86,16 +89,10 @@ test('complete Node CLI dispatch: memory/context/task lifecycle, partial repair,
   assert.match(text(['warmup', '-s', 'MP'], {}, 1), /"status":"error","message":"Project one\/project \(MP\) has no clone/);
   assert.match(text(['warmup'], { MYPI_SCOPE: 'MP' }, 1), /has no clone/);
   assert.match(text(['warmup', '--scope', 'global'], { MYPI_SCOPE: 'MP' }), /^# mypi warmup: global\n/);
-  const beforeRemoval = await cli('memory', 'show');
-  await assert.rejects(cli('memory', 'remove', '1'), /expected-revision/);
-  assert.deepEqual(await cli('memory', 'show'), beforeRemoval);
-  const stale = run(root, ['memory', 'remove', '1', '--expected-revision', '0'.repeat(64)], 1);
-  assert.match(JSON.stringify(stale), /revision/);
-  assert.deepEqual(await cli('memory', 'show'), beforeRemoval);
-  await cli('memory', 'remove', '1', '--expected-revision', beforeRemoval.revision);
   const snapshot = join(dir, 'snapshot'); await cli('backup', snapshot);
   const restored = installation('restored');
   run(restored, ['restore', snapshot]);
   assert.equal(run(restored, ['task', 'show', task.key]).status, 'verified');
+  assert.equal(run(restored, ['context', 'read', 'projects/one/project/INDEX.md']).text, 'scoped\n');
   run(restored, ['restore', snapshot], 1);
 });

@@ -1,24 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
-import { existsSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { state } from '../support/state.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { legacyTask } from '../support/legacy-task.js';
 
-test('memory, notes, errors and capture preserve originals, parent context and read-only behavior', t => {
+test('notes, errors and capture preserve originals, parent context and read-only behavior', t => {
   const { dir, filename } = state(t), root = join(dir, 'home');
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
     app.projects.add('one/project', 'MP'); app.projects.add('two/project', 'YM');
-    assert.deepEqual(app.memory.show('one/project').items, []);
     assert.equal(existsSync(join(root, 'projects')), false);
-    app.memory.add('global fact\nline');
-    app.memory.add('org fact', 'one');
-    app.memory.add('project fact', 'one/project');
-    app.memory.add('foreign secret', 'two/project');
     const capture = app.capture('  draft\r\nexact\n');
     assert.equal(app.read(capture), '  draft\r\nexact\n');
     const first = app.note('same', '  one\n', 'one/project');
@@ -27,11 +22,6 @@ test('memory, notes, errors and capture preserve originals, parent context and r
     app.error('one/project', 'error\ntrace');
     assert.throws(() => app.error('one', 'wrong'), /project scope/);
     app.journal({ type: 'project', key: 'MP' }, 'result');
-    assert.equal(app.memory.remove(1, app.memory.show().revision), 'global fact\nline');
-    app.memory.add('keep');
-    writeFileSync(join(root, 'MEMORY.md'), '# Memory\n\n- "uncommitted preimage"\n');
-    assert.throws(() => app.memory.remove(1, app.memory.show().revision), /uncommitted/);
-    assert(app.read('MEMORY.md')?.includes('uncommitted preimage'));
     assert.throws(() => app.capture('\ud800'), /Invalid Unicode/);
     assert.equal(readdirSync(join(root, 'inbox')).length, 1);
   } finally { app.close(); }

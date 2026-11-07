@@ -10,7 +10,6 @@ const keyedScope = z.strictObject({ type: z.enum(['org', 'project', 'task']), ke
 export const scope = z.union([globalScope, keyedScope]).refine(value => {
   try { scopeValue(value); return true; } catch { return false; }
 }, 'Invalid scope');
-export const contextScope = scope.refine(value => value.type !== 'task', 'Context scope cannot be task');
 export const textInput = z.union([z.strictObject({ text }), z.strictObject({ file: externalPath })]);
 export const artifact = z.strictObject({ path: text, text: text.optional() });
 // The envelope is stable; data retains the existing operation-specific CLI JSON.

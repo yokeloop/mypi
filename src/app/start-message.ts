@@ -1,10 +1,7 @@
 import { createApp } from './create-app.js';
-import { entryLines } from './warmup.js';
-import { createJournal } from '../modules/knowledge/public.js';
 import { validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
-import { sameScope } from '../shared/scope.js';
 
 const NEXT = 'Дождись указаний или предложи следующий шаг.';
 
@@ -17,7 +14,7 @@ function openTasks(project: Project, cards: Card[]): string {
     + [...groups].map(([status, lines]) => status + ' (' + lines.length + '):\n' + lines.join('\n')).join('\n');
 }
 
-export function startMessage(filename: string, key: string, worktreePath: string | null): string {
+export function startMessage(filename: string, key: string): string {
   const app = createApp(filename, true);
   try {
     return app.readSnapshot(() => {
@@ -25,24 +22,16 @@ export function startMessage(filename: string, key: string, worktreePath: string
       if (validSlug(key) && !/^[A-Z]/.test(key)) {
         const own = projects.filter(p => p.org === key).sort((a, b) => a.code.localeCompare(b.code));
         return 'Организация ' + key + ', проектов ' + own.length + '.\n\n'
-          + own.map(p => 'Проект ' + p.code + ' (' + p.org + '/' + p.slug + '): ' + openTasks(p, cards)).join('\n\n')
-          + '\n\nНедоставленных событий от задач на момент открытия: ' + app.events.pending(key).filter(e => e.kind !== 'message').length + '.\n\n' + NEXT;
+          + own.map(p => 'Проект ' + p.code + ' (' + p.org + '/' + p.slug + '): ' + openTasks(p, cards)).join('\n\n') + '\n\n' + NEXT;
       }
       if (/^[A-Z]+$/.test(key)) {
         const project = projects.find(p => p.code === key)!;
-        return 'Проект ' + key + ' (' + project.org + '/' + project.slug + ').\n\n' + openTasks(project, cards) + '\n\n'
-          + 'Недоставленных событий от задач на момент открытия: ' + app.events.pending(key).filter(e => e.kind !== 'message').length + '.\n\n' + NEXT;
+        return 'Проект ' + key + ' (' + project.org + '/' + project.slug + ').\n\n' + NEXT;
       }
       const [code, number] = key.split('-');
       const project = projects.find(p => p.code === code)!;
       const card = cards.find(c => c.projectId === project.id && c.number === Number(number))!;
-      const entries = createJournal(app.journalStore, () => {}, sameScope, () => new Date().toISOString())
-        .read({ type: 'task', key }, { limit: 5 });
-      const path = worktreePath ?? card.worktreePath;
-      return 'Задача ' + key + ' «' + card.title + '», статус ' + card.status + '.\n'
-        + 'Worktree: ' + (path ?? 'не создан') + '\n\n'
-        + (entries.length === 0 ? 'Записей в журнале задачи нет.' : 'Последние записи журнала задачи:\n' + entries.flatMap(entryLines).join('\n'))
-        + '\n\n' + NEXT;
+      return 'Задача ' + key + ' «' + card.title + '».\n\n' + NEXT;
     });
   } finally { app.close(); }
 }
