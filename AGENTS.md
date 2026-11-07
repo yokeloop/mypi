@@ -2,392 +2,129 @@
 
 ## Scope
 
-mypi provides local memory, projects, task records, CLI and stdio MCP tools.
-Pi starts from this checkout as one workspace for all managed projects. These
-workspace rules apply to user-directed work here; engine-development rules below
-apply only when changing mypi itself, not the code in managed project checkouts.
-The former mandatory memory/task/session workflow has been withdrawn. `mypi warmup`
-prints scoped context; the tracked Pi extension (`.pi/extensions/mypi.ts`) loads it
-into every Pi session started in this checkout. Neither registers tasks, logs
-outcomes or authorizes work. No manual warmup call, task registration, outcome
-logging or Herdr tab is a prerequisite. Follow the user's requested scope and session.
+mypi provides local memory, projects, task records, CLI and stdio MCP tools. Pi and
+Claude Code start here as one workspace for all projects; these rules apply
+to user-directed work, the [engine rules](docs/agents/engine-development.md) only to
+changing mypi itself. `mypi warmup` prints scoped context that the Pi extension and
+the Claude hook load; it registers no tasks, logs no outcomes, authorizes nothing.
+The former mandatory workflow is withdrawn ([docs/AGENT-WORKFLOW.md](docs/AGENT-WORKFLOW.md)).
+Follow the user's requested scope and session.
 
 ## Instruction ownership
 
-- This root `AGENTS.md` owns the engine's baseline workspace rules. Individual
-  developer preferences belong in `home/USER-INSTRUCTIONS.md`; `mypi warmup`
-  serves them as the first section of every session's context.
-- When an agent starts in this workspace, both instruction layers reach it: the
-  agent reads this file, and the warmup carries the personal instructions. They
-  complement each other; neither is a copy or fallback for the other. Do not
-  duplicate a rule in both files, create `home/AGENTS.md` as a third policy layer,
-  or require one file to reread the other just to activate it.
-- Before maintaining instructions, decide who owns the rule: shared engine
-  behavior here, individual preferences in home, project-specific behavior in
-  that project's instructions or flow. Edit the owning source, not every prompt.
-  Skills and other prompts may point to it instead of restating its policy.
-- Do not copy personal paths or preferences into shared engine policy. Changes
-  to this file use the same project workflow as any other engine contribution.
+- This file owns the engine's baseline rules; personal preferences live
+  in `home/USER-INSTRUCTIONS.md`, served by `mypi warmup` as the first context
+  section. The layers complement each other; never duplicate a rule in both, add a
+  `home/AGENTS.md` layer, or make one file reread the other.
+- Before maintaining instructions, pick the owner: engine behavior here, personal
+  preferences in home, project behavior in that project's instructions or flow. Edit
+  the owner; skills and prompts point to it rather than restate it.
+- No personal paths or preferences in shared engine policy. Changes to this file
+  follow the common project workflow.
 
 ## Communication and changes
 
 - Write maintained AGENTS files, prompts and agent-facing instructions in English.
   Preserve original source and quotations exactly.
-- Answer the actual request. State uncertainty and blockers; do not turn a backlog
-  item, document or historical approval into permission to execute it.
-- A new message on another topic does not cancel or suspend earlier requests.
-  Answer it and continue outstanding authorized work unless the user explicitly
-  asks to stop, pause, cancel, or replace it. Do not silently drop pending work
-  or ask for repeated authorization solely because the topic changed. A real
-  blocker still requires reporting or clarification; continuity grants no new scope.
-- Agent/workflow configuration mistakes are recoverable orchestration defects,
-  not a reason to abandon authorized work or repeatedly ask the user to continue.
-  Stop the failed lane, inspect the actual cause and repository state, preserve
-  failure evidence, correct the agent/workflow configuration, then resume the
-  affected stage through the same authorized protocol and continue the task.
-  Do not repeat an unchanged failing configuration or restart completed stages.
-  Verify the corrected handoff before dependent work; retain review gates,
-  resource budgets, tool restrictions and the original authorization boundaries.
-  If repairing the orchestration requires code changes rather than agent/workflow
-  configuration, stop and obtain approval for that repair; do not patch installed
-  tools or substitute another runner implicitly. Already authorized in-scope
-  product fixes still follow the task's existing correction and verification cycle.
-- Inspect applicable files and preserve unrelated dirty/staged changes.
-- Do not create tabs or subagents unless explicitly requested for the work or
-  authorized by the engine feature-development workflow below. Task worktrees
-  follow the common project workflow below.
-- Check Git status before editing and after pushing. If a push is unavailable
-  or fails, keep the work, report its actual state and ask for direction rather
-  than claiming delivery or retrying blindly. Arrange a suitable remote before
-  making repository changes; never silently create a remote or force-push.
-- Releases, migrations, bootstrap, restore and other external writes still need
-  applicable user authorization. Past one-off approval is not a standing grant for
-  these operations or for changes outside the requested task.
-- Preserve user data and historical artifacts. `home/` is a separate ignored context
-  repository; the SQLite DB is outside both repositories. Neither is engine source.
-  Do not relocate personal data, rewrite append-only history, or rewrite or force-push
-  home's Git history: journal artifacts are `{path, commit}` references into it.
-- Partial operations or lost connections do not imply rollback. Inspect actual state
-  before repeating a write; report verification and remaining limitations honestly.
+- Answer the actual request; state uncertainty and blockers. A backlog item,
+  document or historical approval is not permission to execute it.
+- A new topic cancels no earlier request: continue authorized work unless the user
+  asks to stop or replace it, without asking again. Continuity grants no new scope.
+- Agent/workflow configuration mistakes are recoverable, not a reason to abandon
+  work or ask again: stop the failed lane, find the cause, keep evidence, fix the
+  configuration, resume that stage and continue the task; never repeat a failing
+  configuration or restart finished stages. Verify the corrected handoff before
+  dependent work. Gates, budgets, tool limits and authorization stay. A repair needing
+  code needs approval; never patch installed tools or swap the runner. In-scope
+  product fixes keep the task's correction and verification cycle.
+- Inspect applicable files; preserve unrelated dirty/staged changes.
+- Create tabs or subagents only on request or under the
+  [engine feature workflow](docs/agents/engine-development.md#engine-feature-development-workflow).
+- Check Git status before editing and after pushing; arrange a remote before
+  changing a repository. If a push fails, keep the work, report and ask; never claim
+  delivery, retry blindly, silently create a remote or force-push.
+- Releases, migrations, bootstrap, restore and other external writes need the user's
+  authorization; a past one-off approval is no standing grant.
+- A parent instruction never stands in for the engineer's word: gated steps (/do,
+  /ship, merge, release, migration, engine update) still need the engineer in the
+  child's tab.
+- Preserve user data and history. `home/` is a separate ignored repository; the
+  SQLite DB is outside both; neither is engine source. Never relocate personal data,
+  rewrite append-only history or home's Git history: journal artifacts are
+  `{path, commit}` references.
+- A partial operation or lost connection is no rollback: inspect state before
+  repeating a write; report verification and limits honestly.
 
-## Home and agent configuration
+## Home
 
-- Engine resources are tracked in this repository: agent configuration in `.pi/`
-  (the Pi extension `.pi/extensions/mypi.ts`; `.pi/skills` points to the built-in
-  skills in `integrations/skills/`) and agent texts in `integrations/prompts/`.
-  Personal data lives in `home/`; personal agent settings live in each agent's
-  user-level configuration (for Pi, `~/.pi/agent/`). Never start tracking `home/`
-  or `projects/` in the engine repository, including in future updates.
-- `home/` is its own Git repository. Personal instructions belong in
-  `home/USER-INSTRUCTIONS.md`; personal mypi settings in `home/settings.json`
-  (`defaultAgent`: `claude` or `pi`, the agent for new sessions that /open starts;
-  claude when unset). Use normal file tools for these and other ordinary
-  documents; use mypi operations for managed memory, DB records and append-only
-  history.
-- Home is the direct-main exception to the project workflow: commit intended
-  home changes on its `main` and push each completed commit immediately to
-  `origin/main`, without a task branch, worktree or PR. Finish home operations
-  with a clean Git status, including intended previously untracked files.
-  Review content and ownership before staging; include intended home files
-  rather than leaving them dirty solely because they predate the current request.
-  Ask about unexplained concurrent changes. Never discard data, blindly stage
-  unknown files, or commit secrets, databases or caches to achieve cleanliness.
-- `mise exec -- pnpm bootstrap` builds and opens an Ink confirmation dialog. It
-  creates a missing `home/` with a separate Git on main, `home/USER-INSTRUCTIONS.md`
-  and `home/settings.json`, and initializes SQLite if its file is absent. The
-  preview shows the database path; confirmation authorizes creation. Existing
-  files and databases are left unchanged, not reset or migrated. Bootstrap does
-  not touch agent settings (`.pi/`, `~/.pi/agent/` or Claude settings), commit,
-  push or create remotes. A repeated run is a no-op. Conflicts or stale previews
-  require explicit reconciliation; do not delete user files to make bootstrap
-  pass. Run it only when asked.
-- After project trust, Pi started in this checkout loads `.pi/extensions/mypi.ts`
-  (the entry point; its logic lives in `.pi/extensions/mypi-lib/`, which Pi does not
-  load as a separate extension) and the skills in `.pi/skills`. Start with `mise exec -- pi` so `node` on PATH is
-  Node 24; the extension needs a built engine (`mise exec -- pnpm build`). At each
-  session start it registers the `mypi` MCP server with the session id in
-  `PI_SESSION_ID` and runs `mypi warmup`; it first registers the session
-  (`mypi session register --agent pi`) and passes the registered key to the
-  warmup, and unregisters the process when Pi quits; the output is the
-  `mypi_context` system-prompt section of every turn. It also appends one codemode
-  tool guideline to every turn: `searchTools()`, `describeTool()` and
-  `describeNamespace()` return Promises and must be awaited; Pi shows it in the
-  prompt rules only while codemode is active. The key is the one saved for
-  this conversation, else `MYPI_SCOPE`, else `global`.
-  It also registers the /open command (`/open <key...> [--message text]`, the
-  rest of the line after --message is the text), which runs mypi open
-  and suggests keys while its arguments are typed (the session's project and its
-  open tasks in a project or task chat, the organization's projects and their open
-  tasks in an organization chat, all projects and open tasks in the main chat; loaded through the CLI and reused for 15 s; none for flags or after
-  --message), and the /inbox command, which runs the inbox skill as /skill:inbox. On `agent_settled`
-  (with the last reply) and on `ui_prompt_start` (`--waiting`) it runs
-  `mypi event emit` with the registered key and `--to` the sender of that frame,
-  only in a turn that a message in the mypi parent-message frame started through
-  its socket; the event goes to that sender when it is a parent of the task, else
-  to the task's project. From `session_start` to
-  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
-  one socket per Pi process so a displaced session never removes the new one's,
-  and registers its path; `mypi event emit` then sends all undelivered events of the
-  parent except milestones to its live Pi session and marks the acknowledged ones delivered. Without a
-  socket or an answer they wait for /inbox and the warmup; a displaced session
-  silently stops receiving them. A live Claude parent gets them at once through
-  its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
-  SessionStart hook), one `{"type":"user",…}` line per event; they count as
-  delivered once the socket took the write (the server closed its side). A
-  bypass parent gets them live only when started with `accept`, as /open does;
-  this is not promised before a test-installation measurement. At-least-once: a
-  missed server close repeats events, an event over 1 MiB is resent with every
-  send and stays in /inbox and the warmup, and a message held in bypass and then
-  rejected, or one the parent never handled, is lost after it was marked delivered.
-  A status change to review, blocked, merged or a terminal status queues one
-  milestone event for the parent that last sent the task a message, else the
-  project chat, unless that recipient makes the change;
-  milestones wait for /inbox and the warmup and are never sent live.
-  Down go parent messages: a direct parent (project chat → its task, organization
-  chat → a task of its organization, main chat → a project or an organization; the
-  sender key is resolved like the warmup's — registered key, else `MYPI_SCOPE`,
-  else `global`, so an unresolved caller counts as global and may send only to
-  projects and organizations; any other sender is refused) writes an `events` row of
-  kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
-  It goes through the same channels with the same at-least-once semantics as a
-  new turn in the parent-message frame; a closed child gets its queue once at the
-  next /open, in one message together with the start message. The warmup shows no
-  parent message as a message, at most its `message_sent` journal fact line, and
-  marks none of them; the child's own /inbox returns and marks them. A busy Claude
-  child takes one as a `queued_command` inside the current turn, without its own
-  `turn_end`; Pi takes it as a `followUp`. A parent instruction never stands in
-  for the engineer's word: gated steps (/do, /ship, merge, release, migration,
-  engine update) still need the engineer in the child's tab.
-  A same-name server in a Pi `mcp.json` overrides the registration, including
-  `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
-  not load extension servers. After updating/rebuilding, reload or restart Pi.
-  Inspect diagnostics before claiming an integration works.
-- Customize through personal agent configuration with distinct resource names,
-  not by editing tracked `.pi/` or `integrations/` files; do not rely on
-  duplicate-name discovery order. Secrets belong in environment variables or
-  credential storage, not committed JSON.
-- Inspect Git status separately for engine, home and each checkout. Existing home
-  commits and Git configuration are preserved by setup; configure synchronization
-  explicitly. Context backup requires a clean committed home; symlinks in home are
-  rejected, except the one instruction link that homes created by earlier versions
-  may contain. Managed context writes never follow links.
-
-## Starting Claude Code
-
-- Start `claude` in the engine root after `mise exec -- pnpm build`. The tracked
-  `.mcp.json` starts the `mypi` MCP server with `node dist/src/mcp/main.js`; Claude
-  asks once to approve this project server. The tracked `.claude/settings.json`
-  allows exactly the mypi MCP tools and runs one SessionStart command on every
-  source (startup, resume, clear, compact, fork): `mypi session register --agent
-  claude --hook` (its output is discarded, its failure does not stop the warmup),
-  then `mypi warmup --max-chars 9500`, so each session starts with its scoped
-  context: the key saved for this conversation, else `MYPI_SCOPE`, else `global`.
-  The budget keeps the hook
-  under Claude Code's 10,000-character limit for hook output. The Stop hook runs
-  `mypi turn end` and the Notification hook, for `permission_prompt` and
-  `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
-  event only when the current turn was started by a parent message (`turnOrigin`
-  `peer` with the mypi parent-message frame in the transcript), and discard their
-  output.
-- When the MCP tool list changes, update the allow list in the same change; a fast
-  test compares them. Do not add `enableAllProjectMcpServers`,
-  `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project
-  settings can only tighten cross-session delivery, so `accept` there changes nothing.
-- Personal Claude settings belong in the ignored `.claude/settings.local.json` or in
-  user settings. There is no `CLAUDE.md`; Claude Code loads this file instead.
-- Shared skills live in `integrations/skills/`; each gets a relative symlink
-  `.claude/skills/<name>`. The development pipeline's skills and agents in
-  `.claude/` are real directories and files, used only with Claude Code.
-- Both agents register their sessions: a row in the `sessions` table (key → agent
-  and native id, kept for continuation) and a live record in
-  `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and process start,
-  native id, name, socket, start permission mode). The key is resolved in one
-  order: the row for this native id, the live record of the same process,
-  `MYPI_SCOPE`, `global`. A newer live session under a key becomes canonical and
-  the older record moves to `<key>~<pid>.json`. A fork started by hand without
-  `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
-  `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 15 database registration fails and the
-  warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
-  session's Herdr tab or opens a new tab in its project's Herdr workspace (label
-  org/project, created when missing; a task gets its tab there without starting
-  the project session; an organization key, the bare slug `tb-ff`, gets the tab
-  `org-<slug>` in the workspace `<slug>`, with no clone or worktree, and an
-  organization without registered projects is refused) in the engine root with MYPI_SCOPE and starts or resumes
-  the agent; it writes no session rows. A project without a clone is first cloned
-  from its registered `repository` (`local`: `git init`) into
-  `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
-  `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
-  status, MCP progress notifications, CLI stderr lines prefixed "mypi: "), without a
-  total time limit but stopped after 5 minutes without progress, and the result
-  appears under projects/<org>/<project> only complete; Esc in Pi, cancelling the
-  MCP call or SIGINT/SIGTERM of the CLI stops git, removes the partial clone and
-  registers nothing, so the next /open prepares it again; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
-  or focused one) gets one start message in the frame `[mypi: стартовое сообщение
-  для <key>. …]` through the same socket as events: for an organization the open
-  tasks of each of its projects by status and the number of its undelivered
-  events, for a project its open tasks by status and the number of undelivered
-  events, for a task its status, worktree
-  and the last journal entries with their artifacts. It is state, not an
-  instruction, and creates no events. If it cannot be delivered, /open still
-  succeeds with `start message not delivered: <reason>` in `notes`; for Claude in
-  `bypassPermissions` delivery is not promised, as for events. `--message <text>`
-  (one key; the caller must be its parent, else nothing opens) queues a parent
-  message after the focus or start and delivers it live, after a resume or in the
-  same message as the start text; `opened[].message` is its id.
-
-## HTTP API
-
-- `mypi serve` (docs/HTTP-API.md) is an optional foreground HTTP API over the
-  same application commands; start it, expose it with `--listen` or install
-  its systemd unit only on the user's request. Server-side token hashes live
-  only in `$XDG_CONFIG_HOME/mypi/api-tokens.json`; a client's token value only in
-  `MYPI_API_TOKEN` or the private 0600 file `$XDG_CONFIG_HOME/mypi/tui-token`
-  (docs/TUI.md), never in home, a repository or a prompt; never print a token value except the one `mypi token create` returns.
-- docs/HTTP-API.md owns the API contract: a route or response change updates it
-  in the same change, and a breaking change needs a new /v<N>.
+- `home/` is its own Git repository: `home/USER-INSTRUCTIONS.md`, and
+  `home/settings.json` (`defaultAgent`: `claude` or `pi` for new /open sessions,
+  default claude). Ordinary documents by file tools; managed memory, DB records and
+  append-only history by mypi operations.
+- Home is the direct-main exception: commit intended changes on `main` and push each
+  to `origin/main` at once, no task branch, worktree or PR. Finish clean, intended
+  untracked files included. Review before staging; ask about unexplained changes;
+  never discard data, blindly stage, or commit secrets, databases or caches.
+- Inspect Git status separately for engine, home and each checkout.
 
 ## Project setup and maintenance
 
-- For explicitly requested creation, initialization, registration or maintenance of
-  a project, use the [project-management skill](integrations/skills/project-management/SKILL.md).
-  Clarify whether the user means a repository or a mypi registration; neither
-  implies the other. Do not register projects, initialize storage, or start a
-  project-tracking workflow automatically.
-- Record a project's `repository` (its Git remote URL, or `local`) when registering
-  it; ask the user when it is unknown. /open clones into `projects/<org>/<project>`
-  only when `checkoutPath` is empty; existing clones are not moved.
-- `mypi project remove <org/project> --expected-code <CODE>` and `mypi org remove <org>`
-  undo a mistaken registration, only on the user's explicit request. They refuse
-  while anything references the project (tasks, sessions, journal entries, events)
-  or while the organization has projects, never cascade, and leave `home/` folders
-  in place, reporting them as `homeFolder`. History is never deleted; a project with
-  history stays registered.
+- For requested creation, registration or maintenance of a project, use the
+  [project-management skill](integrations/skills/project-management/SKILL.md); it
+  also holds registration details and undoing one. A repository and a mypi
+  registration are distinct; never register or initialize anything automatically.
 
 ## Common project workflow
 
-- All project development, including mypi itself, uses a registered project and
-  an independent Git clone, a task branch/worktree, verification, push and PR.
-  Resolve missing setup within the requested scope using the project-management
-  skill; this is not permission to initialize storage or register unrelated projects.
-- Keep base clones in `projects/<organization>/<project>/` and task worktrees
-  alongside them in `projects/<organization>/<project>--<task-slug>/`. These are
-  source directories, not `home/projects/` knowledge. Do not relocate existing
-  checkouts without authorization simply to enforce the naming convention.
-- Before editing, inspect the project's instructions, selected flow, Git status,
-  remote and identity. Create one branch and worktree per task from the appropriate
-  updated base of that project's clone. Do not develop in the base checkout or
-  switch its branch for a task; do not allow concurrent writers in one worktree.
-- Verify repository, branch and worktree association through Git. The current
-  mypi resolver matches one registered path and its descendants, not sibling
-  worktrees. Supply project identity explicitly where needed; neither a directory
-  name nor an enclosing installation's registration proves project membership.
-- Run the project's required checks in the task worktree under its prescribed
-  isolation with disposable test data, not personal runtime data. Commit only
-  task-related changes with descriptive messages, push each completed commit
-  immediately, and open a PR. Finish with no uncommitted task changes. Preserve
-  unrelated changes; never commit or discard someone else's work to clean a tree.
-- Project configuration and the selected flow determine review, merge and delivery.
-  There is no additional universal merge-approval step in these workspace rules;
-  do not invent an automatic merge policy when the project has not defined one.
-  The machine-readable flow of a registered project is
-  `home/projects/<org>/<project>/flow.json` (integration branch, task branch
-  template, PR target, merge method, a link to the release procedure). Without it
-  `origin/HEAD`, else `main`, `task/<KEY>-<slug>`, a PR into the integration branch
-  and a merge commit apply. Read it with `mypi project flow` or `projects` action
-  `flow`; the project-management skill says how to set it. A release follows only
-  the linked procedure and only on the user's explicit request. What each pipeline
-  step and each chat records in the mypi journal is defined once in
-  `docs/PIPELINE.md` («Journal») and the role texts in `integrations/prompts/`.
-- Before removing a worktree or branch, inspect tracked, untracked and ignored
-  files, preserve unique user materials, and verify publication. Follow the
-  requested branch-retention policy; closing a PR does not itself authorize
-  deleting its remote branch or changing a task's DB status.
-- These are working instructions, not a security boundary or an implemented flow
-  runner. Worktrees share Git metadata within a project and do not isolate access.
+- All project development, mypi included, uses a registered project, its own Git
+  clone, a task branch/worktree, verification, push and PR; missing setup goes
+  through the project-management skill, within the requested scope.
+- Base clones live in `projects/<organization>/<project>/`, task worktrees beside them
+  in `projects/<organization>/<project>--<task-slug>/` (source, not `home/projects/`).
+  Do not relocate existing checkouts without authorization.
+- Before editing, inspect the project's instructions, flow, Git status, remote and
+  identity. One branch and worktree per task from the updated base; never develop in
+  the base checkout or switch its branch; one writer per worktree.
+- Verify repository, branch and worktree through Git; name the project explicitly —
+  a directory name or an enclosing installation proves nothing.
+- Run the project's checks in the worktree under its isolation with disposable data.
+  Commit only task changes, push each commit at once, open a PR, leave nothing
+  uncommitted; never commit or discard someone else's work.
+- The project's configuration and flow decide review, merge and delivery; there is no
+  universal merge approval step, and no automatic merge policy unless the project
+  defines one. The flow is `home/projects/<org>/<project>/flow.json`
+  (`mypi project flow`; fields in the project-management skill). Release only by its
+  linked procedure, on explicit request. Journal per step: `docs/PIPELINE.md` and
+  `integrations/prompts/`.
+- Before removing a worktree or branch, inspect tracked, untracked and ignored files,
+  keep unique materials, verify publication. Follow the requested branch-retention
+  policy; a closed PR does not authorize deleting its branch or changing a task's
+  status.
+- These are working instructions, not a security boundary or a flow runner;
+  worktrees do not isolate access.
 
 ## Protect the installed engine
 
-- Treat the workspace's installed engine as a tool, not a development checkout.
-  Never edit its source, this `AGENTS.md`, or shipped resources in place; do not
-  apply development patches, switch branches, or create task worktrees from its
-  Git repository. The separate home and ignored project directories are not
-  installed engine source.
-- Develop mypi through the common project workflow in its own clone under
-  `projects/<organization>/`, with Git metadata independent of the installation.
-- Pi applies the closest saved trust decision of a folder or its parents, so a
-  mypi development clone or task worktree under this installation's `projects/`
-  inherits the installation's trust and loads the candidate's `.pi/extensions`,
-  whose MCP server and warmup use the default database. Start Pi in such a
-  checkout only with `XDG_STATE_HOME` set to disposable test state, or with
-  `pi -ne`; never against the personal DB.
-- After project changes have been merged, update the installed engine only through
-  the applicable update flow: check a clean engine checkout, `git pull --ff-only`,
-  locked dependencies/build as prescribed, then reload/restart and verify. Do not
-  substitute file copying, cherry-picking or a hard reset. Do not connect candidate
-  builds to personal DB/home. Migrations remain separately authorized operations.
-- The first update to a version with the tracked `.pi/` directory replaces the
-  local `.pi` of earlier versions, and Pi stops loading `home/pi/`. Before that
-  update, move personal Pi settings (settings, MCP servers, installed packages and
-  resources) from `home/pi/` to `~/.pi/agent/`, and remove the old built-in package
-  entry from `~/.pi/agent/settings.json` if present. Moving them is a separate,
-  operator-authorized step of the update, not part of an engine PR.
+- The installed engine is a tool: never edit its source, this `AGENTS.md` or shipped
+  resources in place, patch it, switch its branch or make worktrees from it.
+- Develop mypi in its own clone under `projects/<organization>/`; update the
+  installation only per [installation](docs/agents/installation.md).
 
-## Engine feature-development workflow
+## Where to read more
 
-For an approved mypi engine feature plan, use native subagents for implementation,
-independent test-diff review and verification. Assemble a tested task branch, push
-and open a PR with evidence; do not merge or update the primary installation by
-inference. When live acceptance applies, use a designated disposable test
-installation: archive existing test data before a clean refresh, write an executable
-checklist, exercise the real Pi UI through Herdr, verify state independently, and
-fix and retest in-scope failures without requesting repeated permission. See
-[the manual acceptance guide](docs/MANUAL-ACCEPTANCE.md) for stand boundaries.
-This standing authorization is for approved engine features, not managed project
-checkouts, backlog execution, arbitrary resets, other sessions or a flow runner.
+Before acting in an area, read its document; it binds like this file.
 
-## Developing the engine
-
-These additional rules govern mypi source, tests, scripts and shipped integrations
-in project task worktrees. They do not impose mypi's stack or test runner on other
-projects. Inspect each project's own instructions and verification commands.
-
-- TypeScript strict, Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3,
-  SQL migrations without an ORM, node:test + node:assert/strict.
-- The web UI (`web/`, a pnpm workspace package) uses React, Mantine and Vite in
-  Feature-Sliced Design layers, enforced by `.dependency-cruiser.web.cjs`.
-  `pnpm build` typechecks it and bundles it into `dist/ui`; its pure logic in
-  `web/src/shared/lib/` is tested with node:test, the UI itself on the stand.
-- The terminal UI (`tui/`, Rust + ratatui, docs/TUI.md) reads data only through
-  the HTTP API and opens tabs only through `mypi open`. Rust is pinned in
-  `mise.toml` and `tui/rust-toolchain.toml` (change both together); run
-  `pnpm tui:fetch` once per checkout (network), and `pnpm verify` runs its cargo
-  checks offline in the bounded `mypi-tui-check` unit. Linking the Herdr plugin
-  and binding its key are user configuration, done only on the user's request.
-- Modular monolith, domain modules with Ports & Adapters and use cases.
-  Before structural/dependency changes, inspect current module boundaries and
-  contracts; preserve the separation of domain, application and adapters.
-- CLI and MCP share typed application commands. Keep adapters thin; fix every
-  affected entry point. No domain logic in scripts or private cross-module imports.
-- Before changing tests or their execution, inspect existing tests and their
-  runner. Protect observable behavior at the cheapest reliable level; do not add
-  redundant tests, new runners or higher resource limits just to get green. Use
-  only disposable data under the approved isolation (2 CPU, 1 GiB, 64 tasks,
-  60-second external deadline, one suite run at a time; no network or personal
-  home); if unavailable, stop rather than using an unsafe fallback. Fast tests
-  must not spawn subprocesses; boundary tests may use isolated CLI/Git processes.
-  Do not weaken admission or mandatory checks. CI tests the proposed revision
-  with its own locked dependencies and scripts; changes to package.json, lockfiles
-  or build scripts do not require promoting a separate trusted base.
-- For explicitly requested live acceptance in a disposable test installation, use
-  the [Herdr manual acceptance guide](docs/MANUAL-ACCEPTANCE.md). It supplements
-  mandatory verification; it does not authorize storage resets or session control.
-- Build changed code: `mise exec -- pnpm build`.
-  Verify completion: `mise exec -- pnpm verify`; `pnpm test` alone is insufficient.
-- Do not restore removed prototype/import compatibility or implement speculative
-  flows, agents, recovery infrastructure or runtime enforcement without a request.
-- Do not modify global Pi settings as incidental repository upkeep. Explicitly
-  requested installation/removal is a separate, narrowly scoped operation.
+- mypi source, tests, checks (`mise exec -- pnpm build`, `mise exec -- pnpm verify`),
+  engine features → [engine development](docs/agents/engine-development.md)
+- bootstrap, engine updates, Pi settings move, home backups →
+  [installation](docs/agents/installation.md)
+- Claude Code or Pi setup, diagnosis → [agent integration](docs/agents/agent-integration.md)
+- sessions, /open, events, parent messages → [sessions](docs/agents/sessions.md)
+- `mypi serve`, API tokens, the TUI → [HTTP API](docs/agents/http-api.md)
+- projects → [project-management skill](integrations/skills/project-management/SKILL.md)
+- /plan, /do, /flow, /ship, /board → [pipeline](docs/PIPELINE.md)
+- [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md),
+  [stand acceptance](docs/MANUAL-ACCEPTANCE.md)
 
 Historical cards, reports and branches are evidence of past work, not active agent
 instructions. Connecting the MCP server does not assign work or authorize execution.
