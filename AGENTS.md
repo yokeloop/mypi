@@ -151,8 +151,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
   It goes through the same channels with the same at-least-once semantics as a
   new turn in the parent-message frame; a closed child gets its queue once at the
-  next /open, in one message together with the start message. The warmup neither
-  shows nor marks messages; the child's own /inbox returns them. A busy Claude
+  next /open, in one message together with the start message. The warmup shows no
+  parent message as a message, at most its `message_sent` journal fact line, and
+  marks nothing; the child's own /inbox returns and marks them. A busy Claude
   child takes one as a `queued_command` inside the current turn, without its own
   `turn_end`; Pi takes it as a `followUp`. A parent instruction never stands in
   for the engineer's word: gated steps (/do, /ship, merge, release, migration,
