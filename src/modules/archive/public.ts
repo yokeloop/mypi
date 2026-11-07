@@ -1,6 +1,17 @@
 import { InputError } from '../../shared/errors.js';
 import type { ArchiveAgent, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource } from './ports.js';
 export type { ArchiveAgent, ArchiveEntry, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, KeyLookup, KeySource, TranscriptReader } from './ports.js';
+export function claudeFolderName(cwd: string): string {
+  return cwd.replace(/[^A-Za-z0-9]/g, '-');
+}
+export function piFolderName(cwd: string): string {
+  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`;
+}
+export function nativeIdOf(agent: ArchiveAgent, path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1).replace(/\.jsonl$/, '');
+  const cut = name.indexOf('_');
+  return agent === 'pi' && cut >= 0 ? name.slice(cut + 1) : name;
+}
 export function bindKey(agent: ArchiveAgent, nativeId: string, name: string | null, lookup: KeyLookup): { key: string; keySource: KeySource } | null {
   const key = lookup.byNative(agent, nativeId);
   if (key !== undefined) return { key, keySource: 'sessions' };
