@@ -115,6 +115,7 @@ pub enum Tone {
     Plain,
     Dim,
     Accent,
+    Info,
     Good,
     Warn,
     Muted,
@@ -221,8 +222,9 @@ pub fn summary(section: Section, r: &Record) -> Vec<(String, Tone)> {
             let kind = line(r, "type");
             let tone = match kind.as_str() {
                 "note" => Tone::Accent,
-                "task_created" => Tone::Good,
-                "status_changed" => Tone::Warn,
+                "task_created" | "worktree_created" => Tone::Good,
+                "status_changed" | "title_changed" => Tone::Warn,
+                "session_opened" | "message_sent" | "clone_prepared" => Tone::Info,
                 _ => Tone::Muted,
             };
             vec![
@@ -294,6 +296,18 @@ mod tests {
         let cells = summary(Section::Tasks, &task);
         assert_eq!(cells[1], ("someday".to_string(), Tone::Good));
         assert_eq!(cells[2], ("—".to_string(), Tone::Plain));
+        for (kind, tone) in [
+            ("session_opened", Tone::Info),
+            ("worktree_created", Tone::Good),
+            ("title_changed", Tone::Warn),
+            ("future", Tone::Muted),
+        ] {
+            let entry = record(json!({"type": kind}));
+            assert_eq!(
+                summary(Section::Journal, &entry)[1],
+                (kind.to_string(), tone)
+            );
+        }
         let task = record(json!({"key": "MP-1", "title": "a\nb", "priority": 3}));
         assert_eq!(summary(Section::Tasks, &task)[2].0, "a");
         let shown = details(Section::Tasks, &task);

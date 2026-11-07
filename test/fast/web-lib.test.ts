@@ -1,9 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ApiFailure, INITIAL_CHANGES, apiPath, asPage, display, extraFields, filterProjects, filtersOf, onChange, onDisconnect,
+  ApiFailure, INITIAL_CHANGES, JOURNAL_TYPES, apiPath, asPage, display, extraFields, filterProjects, filtersOf, onChange, onDisconnect,
   unwrap, withFilter,
 } from '../../web/src/shared/lib/index.js';
+import { EVENT_TYPES } from '../../src/modules/knowledge/public.js';
 
 const failure = (code: string, status?: number) => (error: unknown) =>
   error instanceof ApiFailure && error.code === code && (status === undefined || error.status === status);
@@ -73,4 +74,8 @@ test('change tracking refetches on a new changeId or after a disconnect and igno
   assert.equal(step.refetch, true);
   step = onChange(step.state, '{"changeId":4}');
   assert.equal(step.refetch, false);
+});
+
+test('the web journal types are the engine event types in the same order', () => {
+  assert.deepEqual(JOURNAL_TYPES, EVENT_TYPES);
 });

@@ -79,7 +79,7 @@ then unknown ones under "Other fields".
 | Projects | `org` | `q` on code and identity, in the TUI |
 | Tasks | `project`, `status` | `q` on the server |
 | Events | `to`, `from`, `kind` (any, turn_end, waiting, milestone, message), `delivered` (all, pending, delivered) | `q` on the server |
-| Journal | `scope`, `type` (any, note, task_created, status_changed), `from`, `to` (YYYY-MM-DD) | `q` on the server |
+| Journal | `scope`, `type` (any, note, task_created, status_changed, title_changed, worktree_created, session_opened, message_sent, clone_prepared), `from`, `to` (YYYY-MM-DD) | `q` on the server |
 
 The journal `scope` filter takes a project code or a task key and sends them as
 `project:<CODE>` and `task:<KEY>`; other references (`global`, `org:fx`,
@@ -136,8 +136,8 @@ appear in the status line.
 
 The TUI checks `apiVersion: 1` in every response and shows other versions as an
 error instead of guessing. Records are kept as JSON objects: unknown fields appear
-under "Other fields", unknown event kinds and statuses in a neutral color, missing
-fields as `—`.
+under "Other fields", unknown event kinds, journal types and statuses in a neutral
+color, missing fields as `—`.
 
 ## Development
 
