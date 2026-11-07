@@ -4,6 +4,7 @@ import { InputError } from '../../shared/errors.js';
 import { entryValue, utc, EVENT_TYPES } from './model.js';
 import type { ArtifactRef, Entry, EventType } from './model.js';
 import type { JournalBrowseStore, JournalStore } from './ports.js';
+export type { JournalSummaryStore } from './ports.js';
 import { matchesQuery, takePage } from '../../shared/page.js';
 import type { Page } from '../../shared/page.js';
 export { createNotes } from './notes.js';

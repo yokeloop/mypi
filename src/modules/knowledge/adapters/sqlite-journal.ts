@@ -1,7 +1,7 @@
 import type { Database } from 'better-sqlite3';
 import { entryValue } from '../model.js';
 import type { ArtifactRef, Entry } from '../model.js';
-import type { JournalBrowseStore, JournalStore } from '../ports.js';
+import type { JournalBrowseStore, JournalStore, JournalSummaryStore } from '../ports.js';
 
 export interface FileFingerprint { path: string; sha256: string; byteLength: number; registeredAt: string }
 export interface JournalImport { path: string; sha256: string; byteLength: number; importedAt: string }
@@ -10,7 +10,7 @@ function digest(value: string): void {
   if (!/^[a-f0-9]{64}$/.test(value)) throw new Error('Invalid SHA-256 digest');
 }
 
-export function sqliteJournalStore(db: Database): JournalStore & JournalBrowseStore & {
+export function sqliteJournalStore(db: Database): JournalStore & JournalBrowseStore & JournalSummaryStore & {
   importEntry(path: string, line: number, entry: Entry): void;
   journalImport(path: string): JournalImport | undefined;
   journalImports(): JournalImport[];
@@ -47,6 +47,18 @@ export function sqliteJournalStore(db: Database): JournalStore & JournalBrowseSt
         FROM knowledge_journal WHERE (? IS NULL OR id < ?) AND (? IS NULL OR substr(at,1,7) >= ?) AND (? IS NULL OR substr(at,1,7) <= ?) ORDER BY id DESC`)
         .iterate(before ?? null, before ?? null, fromMonth ?? null, fromMonth ?? null, toMonth ?? null, toMonth ?? null);
       for (const row of rows) yield { id: (row as { id: number }).id, raw: decode(row) };
+    },
+    stats(project, tasks) {
+      const row = db.prepare(`SELECT COUNT(*) AS count, MAX(at) AS lastAt FROM knowledge_journal
+        WHERE (scope_type = 'project' AND scope_key = ?) OR (scope_type = 'task' AND scope_key IN (${tasks.map(() => '?').join(',')}))`)
+        .get(project, ...tasks) as { count: number; lastAt: string | null };
+      return { count: Number(row.count), lastAt: row.lastAt ?? null };
+    },
+    last(scope, limit) {
+      const rows = db.prepare(`SELECT at,scope_type AS scopeType,scope_key AS scopeKey,event_type AS eventType,text,artifacts_json AS artifactsJson
+        FROM knowledge_journal WHERE scope_type = ? AND scope_key IS ? ORDER BY at DESC, id DESC LIMIT ?`)
+        .all(scope.type, scope.type === 'global' ? null : scope.key, limit);
+      return rows.map(decode).reverse();
     },
     importEntry(path, line, entry) { assertWritable(); if (!path || !Number.isSafeInteger(line) || line < 1) throw new Error('Invalid journal import location'); write(entry, path, line); },
     journalImport(path) {
