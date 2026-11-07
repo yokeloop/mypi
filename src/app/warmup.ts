@@ -202,8 +202,12 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const points = body === undefined ? [] : [...body.text];
       const clipNote = () => '> The card is clipped to fit the ' + limit.label + ' warmup limit. Read in full: context_read {"path":"'
         + body!.path + '"} (CLI: mypi context read ' + body!.path + ')';
-      const withBody = () => body === undefined ? tail : [tail[0] + '\n\n' + (shortened === 0 ? body.text
-        : points.slice(0, points.length - shortened).join('').trimEnd() + '\n\n' + clipNote()), ...tail.slice(1)];
+      const clippedBody = () => {
+        const kept = points.slice(0, points.length - shortened).join('').trimEnd();
+        const fences = kept.split('\n').filter(line => /^\s*(```|~~~)/.test(line)).length;
+        return kept + (fences % 2 === 1 ? '\n```' : '') + '\n\n' + clipNote();
+      };
+      const withBody = () => body === undefined ? tail : [tail[0] + '\n\n' + (shortened === 0 ? body.text : clippedBody()), ...tail.slice(1)];
       const report = (event: EventRow) => {
         const text = event.message.trimEnd(), short = clipped && text.length > 280 ? text.slice(0, 280) + '…' : text;
         return '### ' + event.fromKey + ', событие ' + event.id + ', ' + localTime(event.createdAt) + '\n\n' + (short === '' ? '(без текста)' : demote(short, 3));
@@ -251,7 +255,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         if (next !== -1) hidden[next]!++;
         else if (cut < fresh.length) cut++;
         else if (shortened < points.length) {
-          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 2 : 0));
+          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 6 : 0));
         } else { out = render(hidden, true); break; }
         out = render(hidden, false);
       }

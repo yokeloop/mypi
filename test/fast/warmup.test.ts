@@ -428,4 +428,8 @@ test('over budget a task warmup clips the end of its card after memory facts and
   assert(out.includes('older facts hidden from projects/one/project/MEMORY.md') && !out.includes('even without memory facts'));
   assert(out.includes('## Журнал\n\nЗаписей в журнале задачи нет.\n'));
   assert(!readWarmup(filename, root, 'MP-12').includes('The card is clipped'));
+  write(path, '# Card\n\n```sh\n' + 'echo long card line ж\n'.repeat(700) + '```\n');
+  const fenced = readWarmup(filename, root, 'MP-12', 9500);
+  assert(fenced.length <= 9500);
+  assert(/\necho long[^\n]*\n```\n\n> The card is clipped/.test(fenced));
 });

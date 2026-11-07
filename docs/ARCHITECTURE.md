@@ -178,7 +178,7 @@ Warmup creates no rows, files or Git state; a project or organization warmup set
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
 characters always fit 64 KiB. Both limits cut the same way.
-Memory facts and, in a task scope, the shown journal entries are cut: never the personal instructions, role, how-to, project list, task list, task card, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
+Memory facts and, in a task scope, the shown journal entries and then the end of the task card (`source.md`) are cut: never the personal instructions, role, how-to, project list, task list, the task card's key, title, status and context lines, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
 The farthest zone
 loses facts first (global, then organization, then project); within a file the
 oldest facts go first. In their place a line states how many facts were hidden, from
