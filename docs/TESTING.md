@@ -357,7 +357,7 @@ supervisor/scheduler, full-repo mutation pipeline or new tickets for policy book
 
 ## 9. Источники и запись исследования
 
-Ниже сохранена запись исходного исследования до принятия политики. Прежний путь `docs/TESTING-PROPOSAL.md` оставлен указателем на этот документ.
+Ниже сохранена запись исходного исследования до принятия политики. Прежний файл `TESTING-PROPOSAL.md` удалён; его текст — этот раздел.
 
 Основной отчёт и шесть его основных первоисточников ([1–4], [7–8]) получены и прочитаны через Firecrawl MCP; также проверена документация Stryker [9]. Дополнительные главы Google [5–6], Node [10] и ранний gist изучены по ранее загруженным текстам. Firecrawl мог вернуть кэшированное содержимое; это чтение материалов, не проверка их deployment-status.
 
@@ -372,7 +372,7 @@ supervisor/scheduler, full-repo mutation pipeline or new tickets for policy book
 9. [StrykerJS — Incremental mode и ограничения](https://stryker-mutator.io/docs/stryker-js/incremental/).
 10. [Node.js v24 — Test runner execution model](https://nodejs.org/docs/latest-v24.x/api/test.html#test-runner-execution-model). Версия документации не означает выбор runtime baseline mypi.
 
-Исход исследования: подготовлено это предложение, без изменений реализации и без принятия политики за инженера. В checkout нет `home/`, поэтому project journal не создавался; устойчивый артефакт — `docs/TESTING-PROPOSAL.md`. Две пакетные попытки чтения через mcpScript завершились timeout (180 и 120 s); отдельные вызовы Firecrawl MCP затем вернули материалы. Код старого suite не запускался, внешние записи не выполнялись.
+Исход исследования: подготовлено это предложение, без изменений реализации и без принятия политики за инженера. В checkout нет `home/`, поэтому project journal не создавался; устойчивый артефакт — `TESTING-PROPOSAL.md` (тогда в `docs/`). Две пакетные попытки чтения через mcpScript завершились timeout (180 и 120 s); отдельные вызовы Firecrawl MCP затем вернули материалы. Код старого suite не запускался, внешние записи не выполнялись.
 
 Проверка артефакта: Node.js-скриптом проверены 2 локальные Markdown-ссылки, синтаксис 12 внешних URL и парность code fences; `git diff --check` прошёл. `git diff --exit-code -- scripts/ .gitignore` подтвердил отсутствие изменений реализации. Это статическая проверка документа, не испытание предложенных профилей, лимитов или test policy.
 

@@ -551,7 +551,7 @@ Answer: how — `ui_prompt_start` when an extension's `ctx.ui` prompt opens and
 arrive while the prompt is open; it comes after the run ends (here the dialog
 stayed open 19.5 minutes: `ui_prompt_start` 11:39:39, `ui_prompt_end` 11:59:09,
 `agent_settled` 11:59:12). Pi 1.0.4 does not ask for approval before tool calls
-(`docs/security.md` of the Pi package); a wait for permission or an answer is an
+(`security.md` in the Pi package's docs); a wait for permission or an answer is an
 extension's `ctx.ui` call, so these two events cover it. Herdr does not help here: with the
 prompt open, `hs agent explain` reported the Pi pane as `idle`
 (`fallback_reason: default_known_agent_idle_fallback`) and `hs agent list`
