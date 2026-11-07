@@ -28,6 +28,15 @@ Use this workflow only for the part of project setup or maintenance the user act
 - Use normal file tools to search/read project Markdown and edit ordinary documents, `home/USER-INSTRUCTIONS.md` and `home/settings.json`. Never rewrite the inbox, append-only history or home's Git history this way. Built-in skills live in the engine's `integrations/skills/`, and agent configuration such as `.pi/` is tracked engine source; personal agent settings belong to the agent's user-level configuration (for Pi, `~/.pi/agent/`). Do not customize built-ins to implement personal preferences.
 - For ongoing maintenance, update appropriate project-owned documentation and metadata when the user asks or when needed to keep the requested change accurate. Keep instructions factual and current; do not rewrite historical or immutable records. Ask before introducing a new tracking convention. `mypi project remove <org/project> --expected-code <CODE>` and `mypi org remove <org>` undo a mistaken registration, only on the user's explicit request. They refuse while anything references the project (tasks, sessions, journal entries, events) or while the organization has projects, never cascade, and leave `home/` folders in place, reporting them as `homeFolder`. History is never deleted; a project with history stays registered.
 
+## Clone administration
+
+The main chat administers project clones, only on the user's request:
+
+- Clone or re-clone a project into `projects/<org>/<project>` with its registered `repository` as `origin` (a fork as an extra remote), so that /open adopts and registers it; use a partial clone such as `--filter=blob:none` only when a full clone fails and the user agrees. Register a clone at another path with `projects` update.
+- Set remotes and a fork, fetch and inspect status, create and delete branches and worktrees (a task's worktree through the CLI `task worktree <KEY>`), register or re-register a checkout (`projects` add or update, /open adopting a clone, `project remove` only on explicit request), and fix whatever keeps a project or task tab from starting.
+- Before deleting a branch or worktree, re-cloning or removing a registration, check for uncommitted and unpublished work and preserve unique material.
+- The installed engine checkout is not a project clone.
+
 ## Project flow
 
 - A registered project may have a machine-readable flow in `home/projects/<org>/<project>/flow.json`. Fields, all optional: `integration` (the branch tasks start from), `taskBranch` (template with `{KEY}` and optionally `{slug}`), `prTarget` (the branch PRs go into), `mergeMethod` (`merge`, `squash` or `rebase`), `release` (an https URL or a path relative to the project's clone naming the release procedure; it is only shown, never run). There are no presets and no other fields.
