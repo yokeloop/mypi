@@ -8,7 +8,7 @@ import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
-test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_update partial, two clients and CLI', async t => {
+test('real stdio: seventeen tools, maintenance absent, exact source, scope, task_update partial, two clients and CLI', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function install(name: string) {
@@ -48,10 +48,10 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
     return JSON.parse(result.stdout);
   }
   const listed = (await client.listTools()).tools;
-  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
+  assert.deepEqual(listed.map(t => t.name).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
     'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
-  const readOnlyTools = ['task_list', 'task_show', 'journal', 'context_read', 'sessions'];
+  const readOnlyTools = ['task_list', 'task_show', 'journal', 'context_read', 'sessions', 'archive_search', 'archive_show'];
   for (const tool of listed) {
     const readonly = readOnlyTools.includes(tool.name);
     assert.equal(tool.annotations!.readOnlyHint, readonly, tool.name);
@@ -74,6 +74,21 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
   assert.equal(existsSync(home), false);
   assert.equal(existsSync(root + '-state'), false, 'connect/list/invalid calls must not initialize DB');
   cli('db', 'init');
+  const archive = join(root + '-state', 'mypi', 'archive.sqlite3');
+  const missing = await client.callTool({ name: 'archive_search', arguments: { q: 'x' } });
+  assert.equal(missing.isError, true);
+  assert.match(String((missing.structuredContent as Record<string, unknown>)['message']), /run mypi archive import/);
+  assert.equal(existsSync(archive), false);
+  const transcripts = join(dir, 'transcripts'); mkdirSync(transcripts);
+  writeFileSync(join(transcripts, 'c1.jsonl'), [
+    { type: 'user', uuid: 'u1', parentUuid: null, timestamp: '2026-11-07T10:00:00.000Z', turnOrigin: 'human', message: { role: 'user', content: 'обсудили сокет событий' } },
+    { type: 'assistant', uuid: 'a1', parentUuid: 'u1', timestamp: '2026-11-07T10:01:00.000Z', message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'сокет событий оставили одним' }] } },
+  ].map(r => JSON.stringify(r) + '\n').join(''));
+  cli('archive', 'import', '--dir', transcripts, '--agent', 'claude');
+  const { hits } = await call('archive_search', { q: 'сокет' });
+  assert(hits.length >= 1 && hits.length <= 2 && hits.every((h: { snippet: string }) => h.snippet.includes('[сокет')), JSON.stringify(hits));
+  const shown = await call('archive_show', { id: hits[0].id });
+  assert.deepEqual(shown.messages.map((m: { text: string }) => m.text), ['обсудили сокет событий', 'сокет событий оставили одним']);
   await call('projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: dir });
   assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: dir, checkoutPath: root })).project.checkoutPath, root);
   assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'local' })).project.repository, 'local');

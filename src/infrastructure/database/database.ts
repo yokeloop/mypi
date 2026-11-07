@@ -4,7 +4,7 @@ import { dirname } from 'node:path';
 
 export const SCHEMA_VERSION = 15;
 
-function connect(filename: string, readonly: boolean, fileMustExist: boolean): Database.Database {
+export function connect(filename: string, readonly: boolean, fileMustExist: boolean): Database.Database {
   const db = new Database(filename, { readonly, fileMustExist, timeout: 1000 });
   try {
     db.pragma('foreign_keys = ON');

@@ -51,6 +51,10 @@ export function externalDatabasePath(input: string, engineRoot: string): string 
   return filename;
 }
 
+export function archiveDatabasePath(stateFile: string, engineRoot: string): string {
+  return externalDatabasePath(join(dirname(externalDatabasePath(stateFile, engineRoot)), 'archive.sqlite3'), engineRoot);
+}
+
 export function sessionRegistryDir(runtime: string | undefined): string {
   if (!runtime || !isAbsolute(runtime) || runtime.includes('\0')) throw new InputError('XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
   return join(runtime, 'mypi', 'sessions');

@@ -124,7 +124,13 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `mypi event emit` with the registered key and `--to` the sender of that frame,
   only in a turn that a message in the mypi parent-message frame started through
   its socket; the event goes to that sender when it is a parent of the task, else
-  to the task's project. From `session_start` to
+  to the task's project. After that, on every `agent_settled` whose session has a
+  file (`getSessionFile()`; none under `--no-session`) it runs `mypi archive capture
+  --agent pi --file <that file>` with a 5-second limit and ignores its result: the
+  file is recorded into the conversation archive from its saved offset and bound
+  to a key by the session's `sessions` row, else by its `session_info` name
+  (`--name <key>` from /open); user messages that start with a mypi frame are
+  stored with origin `frame` and hidden from archive search. From `session_start` to
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
   one socket per Pi process so a displaced session never removes the new one's,
   and registers its path; `mypi event emit` then sends all undelivered events of the
@@ -188,7 +194,13 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
   event only when the current turn was started by a parent message (`turnOrigin`
   `peer` with the mypi parent-message frame in the transcript), and discard their
-  output.
+  output. A second Stop command and the SessionEnd hook (every reason, including
+  /clear and exit) run `mypi archive capture --agent claude --hook`: it reads
+  `session_id` and `transcript_path` from stdin and records that transcript file
+  into the conversation archive from its saved offset, so an answer the file had
+  not yet written at Stop arrives on the next Stop or at SessionEnd. Without a
+  transcript it writes nothing; its output is discarded, and its failure (exit 1,
+  never 2) blocks neither Stop nor exit.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project

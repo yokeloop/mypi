@@ -16,7 +16,9 @@
       "mcp__mypi__sessions",
       "mcp__mypi__open_session",
       "mcp__mypi__inbox",
-      "mcp__mypi__send_message"
+      "mcp__mypi__send_message",
+      "mcp__mypi__archive_search",
+      "mcp__mypi__archive_show"
     ]
   },
   "hooks": {
@@ -39,6 +41,11 @@
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" turn end --pid \"$PPID\" >/dev/null 2>&1",
             "timeout": 10
+          },
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" archive capture --agent claude --hook >/dev/null 2>&1",
+            "timeout": 10
           }
         ]
       }
@@ -50,6 +57,17 @@
           {
             "type": "command",
             "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" event emit --waiting --hook --pid \"$PPID\" >/dev/null 2>&1",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" archive capture --agent claude --hook >/dev/null 2>&1",
             "timeout": 10
           }
         ]

@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, symlinkSync } from 'node:fs';
+import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeState, createApp } from '../../src/app/create-app.js';
-import { databasePath, externalDatabasePath } from '../../src/infrastructure/filesystem/paths.js';
+import { archiveDatabasePath, databasePath, externalDatabasePath } from '../../src/infrastructure/filesystem/paths.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { state } from '../support/state.js';
 
@@ -27,6 +27,19 @@ test('XDG/default state paths stay outside engine and context, including symlink
   const forbidden = fileURLToPath(new URL('../../../forbidden.sqlite3', import.meta.url));
   assert.throws(() => initializeState(forbidden), /outside/);
   assert.throws(() => createApp(forbidden, true), /outside/);
+});
+
+test('archive path sits beside the state file and stays outside the engine', t => {
+  const { dir } = state(t);
+  const engine = join(dir, 'engine');
+  mkdirSync(engine);
+  assert.equal(archiveDatabasePath(join(dir, 'state', 'mypi', 'state.sqlite3'), engine), join(realpathSync(dir), 'state', 'mypi', 'archive.sqlite3'));
+  assert.throws(() => archiveDatabasePath(join(engine, 'state', 'state.sqlite3'), engine), /outside/);
+  const target = join(dir, 'target');
+  mkdirSync(target);
+  const alias = join(dir, 'alias');
+  symlinkSync(target, alias);
+  assert.equal(archiveDatabasePath(join(alias, 'state.sqlite3'), engine), join(realpathSync(target), 'archive.sqlite3'));
 });
 
 test('CLI parsing is strict without invoking a process for the validation matrix', () => {
@@ -58,6 +71,11 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['project', 'remove', 'one/project', '--expected-code', 'MP'], ['org', 'remove', 'one'],
     ['token', 'create', 'phone', '--permission', 'read'], ['token', 'list'], ['token', 'revoke', 'phone'],
     ['serve', '--listen', '100.64.0.1', '--port', '0'],
+    ['archive', 'import'], ['archive', 'status'], ['archive', 'import', '--dir', '/a', '--agent', 'pi'],
+    ['archive', 'search', 'сокет*', '-s', 'MP'], ['archive', 'search'],
+    ['archive', 'show', '42', '--before', '1'], ['archive', 'show', '--session', 'c1', '--offset', '20'],
+    ['archive', 'capture', '--agent', 'claude', '--hook'], ['archive', 'capture', '--agent', 'pi', '--file', '/tmp/p.jsonl'],
+    ['archive', 'forget', '--session', 'c1'], ['archive', 'forget', '--key', 'MP', '--before', '2026-10-01'],
   ]) assert.equal(parseCommand(args).type, 'workspace');
   for (const args of [
     ['project', 'add', 'one/project'],
@@ -72,5 +90,9 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['org', 'remove', 'one', '--expected-code', 'MP'],
     ['token', 'create'],
     ['serve', 'extra'],
+    ['archive', 'status', 'extra'], ['archive', 'import', '--key', 'MP'],
+    ['archive', 'search', 'a', 'b'], ['archive', 'show', '1', '2'], ['archive', 'search', '--key', 'MP'],
+    ['archive', 'capture', 'extra'], ['archive', 'capture', '--key', 'MP'],
+    ['archive', 'forget', 'c1'], ['archive', 'forget', '--agent', 'pi'],
   ]) assert.throws(() => parseCommand(args));
 });

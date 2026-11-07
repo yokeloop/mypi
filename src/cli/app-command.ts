@@ -1,6 +1,7 @@
+import { homedir } from 'node:os';
 import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
-import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
+import { captureInput, hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
@@ -92,6 +93,26 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       { name: 'restore', backupDirectory: a[0]! };
     case 'home migrate-tasks': return { name: 'home_migrate_tasks', dryRun: Boolean(o['dry-run']) };
     case 'sessions': return { name: 'sessions', ...runtime };
+    case 'archive import': {
+      const dirs = o['dir'] as string[] | undefined ?? [], agents = o['agent'] as string[] | undefined ?? [];
+      if (dirs.length !== agents.length) throw new InputError('Each --dir needs its own --agent claude|pi');
+      if (agents.some(agent => agent !== 'claude' && agent !== 'pi')) throw new InputError('--agent must be claude or pi');
+      return { name: 'archive_import', home: env['HOME'] || homedir(),
+        ...(dirs.length ? { dirs: dirs.map((path, i) => ({ agent: agents[i] as 'claude' | 'pi', path })) } : {}) };
+    }
+    case 'archive status': return { name: 'archive_status' };
+    case 'archive search': return { name: 'archive_search', ...(a[0] === undefined ? {} : { q: a[0] }),
+      ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
+      ...(opt('agent') === undefined ? {} : { agent: opt('agent') as 'claude' | 'pi' }),
+      ...(opt('from') === undefined ? {} : { from: opt('from')! }), ...(opt('to') === undefined ? {} : { to: opt('to')! }),
+      ...(o['include-peer'] ? { includePeer: true } : {}),
+      ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }) };
+    case 'archive show': return { name: 'archive_show', ...(a[0] === undefined ? {} : { id: Number(a[0]) }),
+      ...(opt('session') === undefined ? {} : { session: opt('session')! }),
+      ...(opt('agent') === undefined ? {} : { agent: opt('agent') as 'claude' | 'pi' }),
+      ...(opt('before') === undefined ? {} : { before: Number(opt('before')) }), ...(opt('after') === undefined ? {} : { after: Number(opt('after')) }),
+      ...(opt('offset') === undefined ? {} : { offset: Number(opt('offset')) }), ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }),
+      ...(o['include-peer'] ? { includePeer: true } : {}) };
     case 'session register': {
       const agent = required('agent');
       if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
@@ -130,6 +151,19 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime,
         ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
     }
+    case 'archive capture': {
+      const agent = required('agent');
+      if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      if (o['hook']) {
+        if (agent !== 'claude') throw new InputError('--hook is only for --agent claude');
+        if (opt('file') !== undefined) throw new InputError('Use --hook or --file, not both');
+        const input = captureInput(readInputFile(0));
+        return { name: 'archive_capture', agent, nativeId: input.nativeId, ...(input.transcript === undefined ? {} : { file: input.transcript }) };
+      }
+      return { name: 'archive_capture', agent, file: required('file') };
+    }
+    case 'archive forget': return { name: 'archive_forget', ...(opt('session') === undefined ? {} : { session: opt('session')! }),
+      ...(opt('key') === undefined ? {} : { key: opt('key')! }), ...(opt('before') === undefined ? {} : { before: opt('before')! }) };
     case 'inbox': {
       const hint = sessionHint(env, parentPid);
       return { name: 'inbox', ...(a[0] === undefined ? {} : { key: a[0] }), ...(hint === undefined ? {} : { session: hint }),

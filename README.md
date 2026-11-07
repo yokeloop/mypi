@@ -136,7 +136,7 @@ codemode guideline that `searchTools()`, `describeTool()` and `describeNamespace
 return Promises to be awaited. The key is the one saved for
 this conversation, else `MYPI_SCOPE` of the Pi process, else `global`. If warmup fails, the section states the error, Pi shows
 a warning and the MCP tools stay available. Tool schemas use the configured exposure
-(mostly codemode; `projects` and `warmup` are direct).
+(mostly codemode; `projects`, `warmup` and `archive_search` are direct).
 
 Start Pi through `mise exec -- pi` so `node` on PATH is Node 24; Pi itself may be a
 standalone executable rather than Node. `pi -ne` starts without extensions. A
@@ -466,7 +466,7 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/prompts/        # warmup role and how-to texts
-├── integrations/skills/         # built-in skills: open, inbox, project-management
+├── integrations/skills/         # built-in skills: open, inbox, project-management, retro
 ├── .pi/                         # tracked Pi configuration
 │   ├── extensions/mypi.ts       # MCP registration and warmup per session
 │   └── skills -> ../integrations/skills

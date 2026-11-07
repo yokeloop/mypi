@@ -1,8 +1,9 @@
 import { initializeDatabase, openDatabase } from '../infrastructure/database/database.js';
+import { initializeArchive, openArchive } from '../infrastructure/database/archive.js';
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
+import { archiveDatabasePath, canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
@@ -14,6 +15,9 @@ import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-
 import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
 import { createEvents } from '../modules/events/public.js';
 import { sqliteEventStore } from '../modules/events/adapters/sqlite-event-store.js';
+import { createArchive } from '../modules/archive/public.js';
+import type { KeyLookup } from '../modules/archive/ports.js';
+import { sqliteArchiveStore } from '../modules/archive/adapters/sqlite-archive-store.js';
 import { InputError } from '../shared/errors.js';
 
 export { SCHEMA_VERSION } from '../infrastructure/database/database.js';
@@ -69,6 +73,12 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     if (key !== 'global' && key !== 'all' && validSlug(key)) return ['global'];
     return [];
   };
+  const archiveKeys: KeyLookup = {
+    byNative: (agent, nativeId) => sqliteSessionStore(db).byNative(agent, nativeId)?.key,
+    registered: key => {
+      try { sessionScope(key); return true; } catch (error) { if (error instanceof InputError) return false; throw error; }
+    },
+  };
   return {
     readSnapshot: <T>(fn: () => T): T => db.transaction(fn)(),
     serialize: <T>(fn: () => T): T => { if (readonly) throw new Error('Readonly application'); return db.transaction(fn).immediate(); },
@@ -81,6 +91,24 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     journalStore: sqliteJournalStore(db),
     sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock),
     events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
+    archiveKeys,
     close: () => db.close(),
   };
+}
+
+export function archivePath(filename: string): string {
+  return archiveDatabasePath(filename, engineRoot());
+}
+
+export function createArchiveApp(filename: string, readonly: boolean, clock = () => new Date().toISOString()) {
+  const state = createApp(filename, true);
+  try {
+    const path = archivePath(filename);
+    if (!readonly) initializeArchive(path);
+    const db = openArchive(path, readonly);
+    return { path, archive: createArchive(sqliteArchiveStore(db), state.archiveKeys, clock), close: () => { db.close(); state.close(); } };
+  } catch (error) {
+    state.close();
+    throw error;
+  }
 }
