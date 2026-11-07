@@ -19,3 +19,22 @@ test('journal validates envelope and applies overall ordering/limit even for uno
   assert.throws(() => journal.record({ type: 'global' }, 't', 'note', [{ path: '../x', commit }]), /Invalid artifact path/);
   assert.throws(() => journal.read('all', { from: '2026-02-30T00:00:00Z' }));
 });
+
+test('journal accepts each event type only in the scopes of its fact', () => {
+  const journal = createJournal({ append: () => '', entries: () => [] }, () => {}, sameScope, () => '2026-10-02T00:00:00Z');
+  const global = { type: 'global' } as const, org = { type: 'org', key: 'one' } as const;
+  const project = { type: 'project', key: 'MP' } as const, task = { type: 'task', key: 'MP-1' } as const;
+  const accepted = [
+    [global, 'note'], [org, 'note'], [task, 'task_created'], [task, 'status_changed'], [task, 'title_changed'], [task, 'worktree_created'],
+    [project, 'clone_prepared'], [task, 'session_opened'], [project, 'session_opened'], [org, 'session_opened'],
+    [task, 'message_sent'], [project, 'message_sent'], [org, 'message_sent'],
+  ] as const;
+  for (const [scope, type] of accepted) assert.equal(journal.record(scope, 't', type).event_type, type);
+  const rejected = [
+    [project, 'task_created'], [project, 'title_changed'], [project, 'worktree_created'], [task, 'clone_prepared'], [org, 'clone_prepared'],
+    [global, 'session_opened'], [global, 'message_sent'], [global, 'clone_prepared'], [task, 'bogus' as never],
+  ] as const;
+  for (const [scope, type] of rejected) assert.throws(() => journal.record(scope, 't', type), /Invalid event type\/scope/);
+  assert.throws(() => journal.read('all', { type: 'bogus' as never }), /Invalid history filters/);
+  assert.doesNotThrow(() => journal.read('all', { type: 'worktree_created' }));
+});

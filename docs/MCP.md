@@ -68,7 +68,9 @@ else the live record of the server's parent process), else the server's `MYPI_SC
 else `global`. Its data is the Markdown text the CLI prints
 (sections, order and the 64 KiB memory rule: ARCHITECTURE §5). In a project scope it includes
 the undelivered events of the project's tasks and marks the ones shown in full delivered, plus
-the last delivered `turn_end` of each open task as history. An organization scope shows global and organization memory, one line per project of the
+the last delivered `turn_end` of each open task as history.
+A project scope also carries a «Журнал» line (entries of the project and its tasks, newest date) and a task scope the task's last five journal entries; both end with the `journal` call that reads more.
+An organization scope shows global and organization memory, one line per project of the
 organization and, in the same way, the events addressed to the organization; so `warmup` is not read-only.
 `inbox` takes optional `key`: an organization slug, a project code, a task key or `"all"`, default as for `warmup`; it returns
 `{ events: [{ id, from, to, kind, createdAt, text }] }` (`kind`: `turn_end`, `waiting`, `milestone` or `message`) with the undelivered rows, each `text`

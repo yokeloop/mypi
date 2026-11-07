@@ -31,7 +31,13 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     assert.throws(() => app.tasks.create({ project: 'one/project', title: 'bad', status: '', slug: 'bad', source: 'bad' }), /status/);
     at = '2026-10-02T00:00:00.000Z';
     app.tasks.change(a.key, { status: 'research' }, 'same');
-    assert.equal(app.history({ type: 'task', key: a.key }).length, 1);
+    assert.equal(app.history({ type: 'task', key: a.key }).length, 2);
+    const repeated = app.history({ type: 'task', key: a.key }).at(-1)!;
+    assert.equal(repeated.event_type, 'note');
+    assert.equal(repeated.text, 'research (unchanged). same');
+    assert.throws(() => app.tasks.change(a.key, { status: 'research' }, ''), /Nonempty text required/);
+    app.tasks.change(a.key, { title: 'Task' }, 'same title');
+    assert.equal(app.history({ type: 'task', key: a.key }).length, 2);
     app.statuses.renameStatus('research', 'investigation');
     assert.equal(app.tasks.get(a.key).updatedAt, a.updatedAt);
     assert.equal(app.tasks.get(a.key).statusId, a.statusId);
@@ -40,7 +46,7 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     app.tasks.progress(a.key, 'progress\nline', [{ path: 'research/result.md', text: 'result' }]);
     app.tasks.change(a.key, { status: 'accepted' }, 'verified');
     assert.throws(() => app.tasks.change(a.key, { status: 'new' }, 'reopen'), /Terminal/);
-    assert.equal(app.history({ type: 'project', key: 'MP' }).length, 3);
+    assert.equal(app.history({ type: 'project', key: 'MP' }).length, 4);
     assert.equal(app.history({ type: 'org', key: 'two' }).length, 1);
     writeFileSync(join(root, '.git/index.lock'), 'blocked');
     app.tasks.change(b.key, { status: 'planning' }, 'plan');
@@ -63,7 +69,7 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
     const beforeRename = app.tasks.get(b.key);
     app.tasks.change(b.key, { title: 'Renamed task' }, 'clarification');
     const renamed = app.history({ type: 'task', key: b.key }).at(-1)!;
-    assert.equal(renamed.event_type, 'note');
+    assert.equal(renamed.event_type, 'title_changed');
     assert.match(renamed.text, /Title.*Task.*Renamed task.*clarification/);
     assert.equal(app.tasks.get(b.key).contextDir, beforeRename.contextDir);
     assert.equal(app.tasks.get(b.key).status, beforeRename.status);
@@ -117,12 +123,14 @@ test('local task and journal saves never require a context Git repository', t =>
     app.projects.add('one/project', 'MP');
     const card = app.tasks.create({ project: 'one/project', title: 'No Git', status: 'new', slug: 'local', source: 'exact\r\n' });
     app.tasks.change(card.key, { status: 'planning' }, 'working');
+    app.tasks.change(card.key, { title: 'Renamed' }, 'clarified');
     app.tasks.progress(card.key, 'result');
     app.journal({ type: 'global' }, 'another entry');
     assert.equal(app.read(card.contextDir + '/source.md'), 'exact\r\n');
     assert.deepEqual(app.history({ type: 'task', key: card.key }).map(x => x.event_type),
-      ['task_created', 'status_changed', 'note']);
-    assert.equal(app.history('all').length, 4);
+      ['task_created', 'status_changed', 'title_changed', 'note']);
+    assert.equal(app.history('all').length, 5);
+    assert.equal(app.history({ type: 'task', key: card.key })[2]!.text, 'Title: "No Git" → "Renamed". clarified');
   } finally { app.close(); }
 });
 

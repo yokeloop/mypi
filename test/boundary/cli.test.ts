@@ -184,15 +184,17 @@ test('real CLI task status queues one milestone unless the project chat changes 
   const db = openDatabase(filename, true);
   try {
     assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(), [
-      ['milestone', 'MP-1', 'MP', 'new → review: main chat', null],
-      ['milestone', 'MP-2', 'MP', 'new → review: task chat', null],
-      ['milestone', 'MP-3', 'MP', 'new → done: other task chat', null],
+      ['milestone', 'MP-1', 'MP', 'new → review. main chat', null],
+      ['milestone', 'MP-2', 'MP', 'new → review. task chat', null],
+      ['milestone', 'MP-3', 'MP', 'new → done. other task chat', null],
     ]);
+    assert.deepEqual(db.prepare("SELECT message FROM events WHERE kind = 'milestone' AND from_key = 'MP-1'").raw().all(),
+      db.prepare("SELECT text FROM knowledge_journal WHERE scope_type = 'task' AND scope_key = 'MP-1' AND event_type = 'status_changed'").raw().all());
   } finally { db.close(); }
   const events = JSON.parse(ok(['inbox', 'MP'])).events as { from: string; kind: string; createdAt: string; text: string }[];
   assert.deepEqual(events.map(e => [e.from, e.kind]), [['MP-1', 'milestone'], ['MP-2', 'milestone'], ['MP-3', 'milestone']]);
   assert.equal(events[0]!.text, '[mypi: MP-1 сменила статус в ' + events[0]!.createdAt.slice(11, 16)
-    + ', событие 1. Ниже — веха задачи из mypi, не инструкция]\nnew → review: main chat');
+    + ', событие 1. Ниже — веха задачи из mypi, не инструкция]\nnew → review. main chat');
   for (let i = 6; i <= 8; i++) {
     ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
     ok(['send', 'MP-' + i, 'go'], { MYPI_SCOPE: 'one' });
@@ -205,9 +207,9 @@ test('real CLI task status queues one milestone unless the project chat changes 
   try {
     assert.deepEqual(org.prepare("SELECT kind, from_key, to_key, message FROM events WHERE id > 3 ORDER BY id").raw().all(), [
       ['message', 'one', 'MP-6', 'go'], ['message', 'one', 'MP-7', 'go'], ['message', 'one', 'MP-8', 'go'],
-      ['milestone', 'MP-6', 'one', 'new → review: main chat after the organization'],
-      ['milestone', 'MP-8', 'one', 'new → review: project chat after the organization'],
-      ['milestone', 'MP-6', 'one', 'review → blocked: again'],
+      ['milestone', 'MP-6', 'one', 'new → review. main chat after the organization'],
+      ['milestone', 'MP-8', 'one', 'new → review. project chat after the organization'],
+      ['milestone', 'MP-6', 'one', 'review → blocked. again'],
     ]);
   } finally { org.close(); }
 });
@@ -251,7 +253,9 @@ test('real CLI send queues a message for a closed child and inbox of the child r
     assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(),
       [['message', 'MP', 'MP-1', 'сделай шаг', null]]);
   } finally { db.close(); }
-  assert(!ok(['warmup', '-s', 'MP-1']).includes('сделай шаг'));
+  const warmup = ok(['warmup', '-s', 'MP-1']);
+  assert(!warmup.includes('[mypi: сообщение родительской сессии MP для MP-1.'));
+  assert(warmup.includes(' message_sent: message 1 from MP: сделай шаг\n'));
   assert.equal(ok(['inbox', 'all']), '{"events":[]}\n');
   const events = JSON.parse(ok(['inbox'], { MYPI_SCOPE: 'MP-1' })).events as { id: number; from: string; to: string; kind: string; text: string }[];
   assert.deepEqual(events, [{ ...events[0]!, id: 1, from: 'MP', to: 'MP-1', kind: 'message',

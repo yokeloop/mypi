@@ -1,25 +1,12 @@
 import { createApp } from './create-app.js';
-import { localTime } from './warmup.js';
+import { entryLines } from './warmup.js';
 import { createJournal } from '../modules/knowledge/public.js';
-import type { Entry } from '../modules/knowledge/public.js';
 import { validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { sameScope } from '../shared/scope.js';
 
 const NEXT = 'Дождись указаний или предложи следующий шаг.';
-
-function localDate(iso: string): string {
-  const date = new Date(iso);
-  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
-}
-
-function entryLines(entry: Entry): string[] {
-  const text = entry.text.replace(/\r?\n/g, ' ');
-  const line = '- ' + localDate(entry.at) + ' ' + localTime(entry.at) + ' ' + entry.event_type + ': '
-    + (text.length > 300 ? text.slice(0, 300) + '…' : text);
-  return entry.artifacts === undefined ? [line] : [line, '  Артефакты: ' + entry.artifacts.map(a => typeof a === 'string' ? a : a.path + '@' + a.commit.slice(0, 7)).join(', ')];
-}
 
 function openTasks(project: Project, cards: Card[]): string {
   const open = cards.filter(card => card.projectId === project.id && !card.isTerminal)

@@ -128,8 +128,9 @@ key is recorded in the flow score.
    exceed its model-turn or time budget is a question too.
 6. **Record.** Tick the key in the flow score with its merge SHA, the review
    verdict and the acceptance result; `$BIN/mp-home-commit <CODE> "flow <name>:
-   <KEY> merged"`. Then shut the key's teammate down (`SendMessage` «shut down»;
-   `TaskStop` if it does not answer).
+   <KEY> merged"`. The run writes no `progress` of its own: the flow score is its
+   record («Journal» of `docs/PIPELINE.md`). Then shut the key's teammate down
+   (`SendMessage` «shut down»; `TaskStop` if it does not answer).
 
 Re-typing the same command resumes: it expands the subtasks again, and keys
 already in `review` for this flow are skipped.

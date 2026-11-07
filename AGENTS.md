@@ -151,8 +151,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   kind `message` with send_message (CLI `mypi send`) or `/open <key> --message`.
   It goes through the same channels with the same at-least-once semantics as a
   new turn in the parent-message frame; a closed child gets its queue once at the
-  next /open, in one message together with the start message. The warmup neither
-  shows nor marks messages; the child's own /inbox returns them. A busy Claude
+  next /open, in one message together with the start message. The warmup shows no
+  parent message as a message, at most its `message_sent` journal fact line, and
+  marks none of them; the child's own /inbox returns and marks them. A busy Claude
   child takes one as a `queued_command` inside the current turn, without its own
   `turn_end`; Pi takes it as a `followUp`. A parent instruction never stands in
   for the engineer's word: gated steps (/do, /ship, merge, release, migration,
@@ -206,7 +207,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   the older record moves to `<key>~<pid>.json`. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
   `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 14 database registration fails and the
+  `XDG_RUNTIME_DIR` or an initialized schema 15 database registration fails and the
   warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
   session's Herdr tab or opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
@@ -295,7 +296,9 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   `origin/HEAD`, else `main`, `task/<KEY>-<slug>`, a PR into the integration branch
   and a merge commit apply. Read it with `mypi project flow` or `projects` action
   `flow`; the project-management skill says how to set it. A release follows only
-  the linked procedure and only on the user's explicit request.
+  the linked procedure and only on the user's explicit request. What each pipeline
+  step and each chat records in the mypi journal is defined once in
+  `docs/PIPELINE.md` («Journal») and the role texts in `integrations/prompts/`.
 - Before removing a worktree or branch, inspect tracked, untracked and ignored
   files, preserve unique user materials, and verify publication. Follow the
   requested branch-retention policy; closing a PR does not itself authorize

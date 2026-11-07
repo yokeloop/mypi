@@ -19,8 +19,9 @@ usage: mp-task scope                           session scope as JSON (key, proje
        mp-task status <KEY> <code> <reason>    set status with reason
        mp-task progress <KEY> <text> [file...] progress note; files are paths
                                                relative to the task folder
-       mp-task board <CODE> [all]              board rows of a project as JSON lines;
-                                               terminal statuses only with "all"
+       mp-task board <CODE> [all]              board rows of a project as JSON lines
+                                               with the last status reason from the
+                                               journal; terminal statuses only with "all"
        mp-task flow <CODE|KEY>                 the project's flow as JSON (mypi project flow)
        mp-task subtasks <KEY>                  descendants of a task as JSON lines, subtasks before their parent
 EOF
@@ -108,12 +109,31 @@ sys.exit(1)' "$1" "$HOME_DIR" ;;
   board) [[ $# -eq 1 || ( $# -eq 2 && $2 == all ) ]] || usage
     proj=$("$self" project "$1")
     name=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["project"])' <<<"$proj")
+    code=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["code"])' <<<"$proj")
+    tmp=$(mktemp)
+    cli journal read -s "project:$code" > "$tmp"
     cli task list --project "$name" | python3 -c '
-import sys,json
-mode,home=sys.argv[1],sys.argv[2]
+import sys,json,re
+mode,home,path=sys.argv[1],sys.argv[2],sys.argv[3]
 rows=[r for r in json.load(sys.stdin) if mode=="all" or not r["isTerminal"]]
+status={r["key"]:r["status"] for r in rows}
+last={}
+for e in json.load(open(path)):
+    if e["scope"]["type"]!="task" or e["scope"]["key"] not in status:
+        continue
+    key,text=e["scope"]["key"],e["text"]
+    if e["event_type"]=="status_changed":
+        m=re.match(r"\S+ → \S+\. ",text)
+        prefix=m.end() if m else None
+    elif e["event_type"]=="note" and text.startswith(status[key]+" (unchanged). "):
+        prefix=len(status[key]+" (unchanged). ")
+    else:
+        prefix=None
+    if prefix is not None:
+        last[key]=(text[prefix:],e["at"])
 for r in sorted(rows,key=lambda r:r["number"]):
-    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"parent":r["parent"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"]},ensure_ascii=False))' "${2:-}" "$HOME_DIR" ;;
+    reason,at=last.get(r["key"],(None,None))
+    print(json.dumps({"key":r["key"],"status":r["status"],"title":r["title"],"parent":r["parent"],"dir":home+"/"+r["contextDir"],"worktreePath":r["worktreePath"],"reason":reason,"reasonAt":at},ensure_ascii=False))' "${2:-}" "$HOME_DIR" "$tmp"; rm -f "$tmp" ;;
   subtasks) [[ $# -eq 1 ]] || usage
     proj=$("$self" project "$1")
     name=$(python3 -c 'import sys,json;print(json.load(sys.stdin)["project"])' <<<"$proj")

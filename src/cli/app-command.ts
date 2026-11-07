@@ -1,4 +1,4 @@
-import type { AppCommand, Artifact, TextInput } from '../app/commands.js';
+import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
 import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
@@ -51,7 +51,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'journal read': return { name: 'journal_read', scope: o['all'] ? 'all' : journalScope,
       ...(opt('from') === undefined ? {} : { from: opt('from')! }),
       ...(opt('to') === undefined ? {} : { to: opt('to')! }),
-      ...(opt('type') === undefined ? {} : { eventType: opt('type') as 'note' | 'task_created' | 'status_changed' }),
+      ...(opt('type') === undefined ? {} : { eventType: opt('type') as EventType }),
       ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }) };
     case 'task create': return { name: 'task_create', title: required('title'), status: required('status'),
       slug: required('slug'), source: source(0), project: required('project'), adoptSource: Boolean(o['adopt-source']),

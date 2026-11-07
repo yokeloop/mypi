@@ -71,17 +71,23 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       const card = find(publicKey);
       return core.serialize(() => {
         const result = core.tasks.change(card.id, input, reason);
-        if (!result.changed) return result.after;
+        if (!result.changed) {
+          if (input.status !== undefined) journal.append(journal.record({ type: 'task', key: key(result.after) },
+            result.after.status + ' (unchanged). ' + reason, 'note'));
+          return result.after;
+        }
         const statusChanged = result.before.statusId !== result.after.statusId;
+        const titleChanged = result.before.title !== result.after.title;
         const parts = [];
         if (statusChanged) parts.push(result.before.status + ' → ' + result.after.status);
-        if (result.before.title !== result.after.title) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
-        journal.append(journal.record({ type: 'task', key: key(result.after) }, parts.join('. ') + '. ' + reason,
-          statusChanged ? 'status_changed' : 'note'));
+        if (titleChanged) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
+        const text = parts.join('. ') + '. ' + reason;
+        journal.append(journal.record({ type: 'task', key: key(result.after) }, text,
+          statusChanged ? 'status_changed' : titleChanged ? 'title_changed' : 'note'));
         if (statusChanged && result.after.projectId !== null && isMilestone(result.after.status, result.after.isTerminal)) {
           const task = key(result.after);
           const to = core.events.milestoneRecipient(task);
-          if (caller !== to) core.events.milestone({ from: task, to, message: result.before.status + ' → ' + result.after.status + ': ' + reason });
+          if (caller !== to) core.events.milestone({ from: task, to, message: text });
         }
         return result.after;
       });
