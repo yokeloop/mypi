@@ -50,6 +50,10 @@ test('archive import and status run on isolated state and home', t => {
   assert.equal(early.status, 1);
   assert.equal(JSON.parse(early.stderr).status, 'error');
   assert.equal(existsSync(archive), false);
+  const unread = run('archive', 'search', 'x');
+  assert.equal(unread.status, 1);
+  assert.match(JSON.parse(unread.stderr).message, /mypi archive import/);
+  assert.equal(existsSync(archive), false);
 
   assert.equal(run('db', 'init').status, 0);
   const first = run('archive', 'import');
@@ -57,6 +61,14 @@ test('archive import and status run on isolated state and home', t => {
   assert.deepEqual([JSON.parse(first.stdout).files, JSON.parse(first.stdout).inserted], [2, 4]);
   assert.equal(statSync(archive).mode & 0o777, 0o600);
   assert.equal(JSON.parse(run('archive', 'import').stdout).inserted, 0);
+  const found = run('archive', 'search', 'synthetic');
+  assert.equal(found.status, 0, found.stderr);
+  const { hits } = JSON.parse(found.stdout);
+  assert.ok(hits.length >= 1);
+  assert.equal(JSON.parse(run('archive', 'search').stdout).sessions.length, 2);
+  const window = run('archive', 'show', String(hits[0].id));
+  assert.equal(window.status, 0, window.stderr);
+  assert.ok(JSON.parse(window.stdout).messages.length >= 1);
 
   const status = run('archive', 'status');
   assert.equal(status.status, 0, status.stderr);
@@ -76,4 +88,5 @@ test('archive import and status run on isolated state and home', t => {
   const help = run('--help');
   assert.equal(help.status, 0);
   assert.match(help.stdout, /mypi archive import/);
+  assert.match(help.stdout, /mypi archive search/);
 });
