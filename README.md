@@ -466,7 +466,7 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/prompts/        # warmup role and how-to texts
-├── integrations/skills/         # built-in skills: open, inbox, project-management
+├── integrations/skills/         # built-in skills: open, inbox, project-management, retro
 ├── .pi/                         # tracked Pi configuration
 │   ├── extensions/mypi.ts       # MCP registration and warmup per session
 │   └── skills -> ../integrations/skills
