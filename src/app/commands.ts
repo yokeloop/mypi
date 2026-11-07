@@ -50,6 +50,8 @@ export type AppCommand =
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }
+  | { name: 'archive_import'; home: string; dirs?: { agent: 'claude' | 'pi'; path: string }[] }
+  | { name: 'archive_status' }
   | { name: 'event_emit'; kind: 'turn_end' | 'waiting'; message: string; from?: string; to?: string; notification?: string;
       session?: SessionHint; envScope?: string; runtime?: string; transcript?: string }
   | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;

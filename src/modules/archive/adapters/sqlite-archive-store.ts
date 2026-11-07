@@ -1,5 +1,5 @@
 import type { Database } from 'better-sqlite3';
-import type { ArchiveAgent, ArchiveSession, ArchiveStore } from '../ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveSession, ArchiveStore, KeySource } from '../ports.js';
 export function sqliteArchiveStore(db: Database): ArchiveStore {
   return {
     transaction: fn => db.readonly ? db.transaction(fn)() : db.transaction(fn).immediate(),
@@ -19,6 +19,24 @@ export function sqliteArchiveStore(db: Database): ArchiveStore {
       let inserted = 0;
       for (const e of entries) inserted += insert.run(agent, nativeId, e.entryId, e.parentEntryId, e.at, e.role, e.origin, e.text).changes;
       return inserted;
+    },
+    counts() {
+      const counts: ArchiveCounts = { sessions: { claude: 0, pi: 0 }, messages: { claude: 0, pi: 0 }, boundSessions: 0, unboundSessions: 0, keys: 0,
+        keySources: { sessions: 0, name: 0 } };
+      let total = 0;
+      for (const r of db.prepare('SELECT agent, count(*) AS sessions, count(key) AS bound FROM archive_sessions GROUP BY agent').all() as
+        { agent: ArchiveAgent; sessions: number; bound: number }[]) {
+        counts.sessions[r.agent] = r.sessions;
+        counts.boundSessions += r.bound;
+        total += r.sessions;
+      }
+      counts.unboundSessions = total - counts.boundSessions;
+      for (const r of db.prepare('SELECT agent, count(*) AS messages FROM archive_messages GROUP BY agent').all() as
+        { agent: ArchiveAgent; messages: number }[]) counts.messages[r.agent] = r.messages;
+      counts.keys = (db.prepare('SELECT count(DISTINCT key) AS keys FROM archive_sessions').get() as { keys: number }).keys;
+      for (const r of db.prepare('SELECT key_source AS source, count(*) AS n FROM archive_sessions WHERE key_source IS NOT NULL GROUP BY key_source').all() as
+        { source: KeySource; n: number }[]) counts.keySources[r.source] = r.n;
+      return counts;
     },
   };
 }

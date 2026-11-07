@@ -1,6 +1,21 @@
 import { InputError } from '../../shared/errors.js';
-import type { ArchiveAgent, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource } from './ports.js';
-export type { ArchiveAgent, ArchiveEntry, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, KeyLookup, KeySource, TranscriptReader } from './ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveFolder, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFolder, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+export function claudeFolderName(cwd: string): string {
+  return cwd.replace(/[^A-Za-z0-9]/g, '-');
+}
+export function piFolderName(cwd: string): string {
+  return `--${cwd.replace(/^[/\\]/, '').replace(/[/\\:]/g, '-')}--`;
+}
+export function nativeIdOf(agent: ArchiveAgent, path: string): string {
+  const name = path.slice(path.lastIndexOf('/') + 1).replace(/\.jsonl$/, '');
+  const cut = name.indexOf('_');
+  return agent === 'pi' && cut >= 0 ? name.slice(cut + 1) : name;
+}
+export function emptyCounts(): ArchiveCounts {
+  return { sessions: { claude: 0, pi: 0 }, messages: { claude: 0, pi: 0 }, boundSessions: 0, unboundSessions: 0, keys: 0,
+    keySources: { sessions: 0, name: 0 } };
+}
 export function bindKey(agent: ArchiveAgent, nativeId: string, name: string | null, lookup: KeyLookup): { key: string; keySource: KeySource } | null {
   const key = lookup.byNative(agent, nativeId);
   if (key !== undefined) return { key, keySource: 'sessions' };
@@ -11,6 +26,7 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
   return {
     offset: (agent: ArchiveAgent, nativeId: string): number => store.session(agent, nativeId)?.bytesRead ?? 0,
     session: (agent: ArchiveAgent, nativeId: string): ArchiveSession | undefined => store.session(agent, nativeId),
+    counts: (): ArchiveCounts => store.transaction(() => store.counts()),
     record(input: { agent: ArchiveAgent; nativeId: string; path: string; read: ArchiveRead }):
       { inserted: number; skipped: number; key: string | null; keySource: KeySource | null; bytesRead: number } {
       const { agent, nativeId, path, read } = input;
@@ -31,6 +47,36 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
         const inserted = store.insertMessages(agent, nativeId, read.entries);
         return { inserted, skipped: read.entries.length - inserted, key, keySource, bytesRead: read.offset };
       });
+    },
+  };
+}
+export function createImport(archive: ReturnType<typeof createArchive>, readers: Record<ArchiveAgent, TranscriptReader>, files: TranscriptFiles) {
+  const file = (agent: ArchiveAgent, path: string, nativeId: string = nativeIdOf(agent, path)):
+    { agent: ArchiveAgent; nativeId: string; path: string; inserted: number; skipped: number; bytesRead: number; key: string | null } => {
+    const read = readers[agent](path, archive.offset(agent, nativeId));
+    const { inserted, skipped, bytesRead, key } = archive.record({ agent, nativeId, path, read });
+    return { agent, nativeId, path, inserted, skipped, bytesRead, key };
+  };
+  return {
+    file,
+    folders(list: ArchiveFolder[]) {
+      const total = { files: 0, inserted: 0, skipped: 0 };
+      const failed: { agent: ArchiveAgent; path: string; error: string }[] = [];
+      const dirs: { agent: ArchiveAgent; path: string; files: number; inserted: number; skipped: number }[] = [];
+      for (const folder of list) {
+        const dir = { agent: folder.agent, path: folder.path, files: 0, inserted: 0, skipped: 0 };
+        for (const path of files.list(folder.path)) {
+          try {
+            const result = file(folder.agent, path);
+            dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
+          } catch (error) {
+            failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+        total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;
+        dirs.push(dir);
+      }
+      return { ...total, failed, dirs };
     },
   };
 }

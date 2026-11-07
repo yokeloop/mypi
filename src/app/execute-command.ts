@@ -13,6 +13,7 @@ import { openTaskWorktree } from './task-worktree.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerKey, forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { archiveStatus, importArchive } from './archive.js';
 import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
@@ -44,6 +45,8 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
   if (c.name === 'sessions') return listSessions(filename, c);
+  if (c.name === 'archive_import') return importArchive(filename, c);
+  if (c.name === 'archive_status') return archiveStatus(filename);
   if (c.name === 'event_emit') return emitEvent(filename, c, transports);
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
