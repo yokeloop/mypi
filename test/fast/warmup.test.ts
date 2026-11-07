@@ -380,3 +380,37 @@ test('project warmup counts the journal of the project and all its tasks and nam
     + 'Читать: journal {"scope":{"type":"task","key":"MP-3"},"limit":20} (CLI: mypi journal read -s task:MP-3 --limit 20)\n'));
   assert.deepEqual(readFileSync(filename), before);
 });
+
+test('over budget a task warmup drops its journal entries oldest first before memory facts and keeps the heading, the count and the loader', t => {
+  const loader = 'Читать: journal {"scope":{"type":"task","key":"MP-12"},"limit":20} (CLI: mypi journal read -s task:MP-12 --limit 20)\n';
+  {
+    const { filename, root, write, journal } = fixture(t);
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5));
+    journal(...Array.from({ length: 6 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
+      event_type: 'note', text: 'entry ' + i + ' ' + 'x'.repeat(280) })));
+    const full = readWarmup(filename, root, 'MP-12');
+    assert(full.includes('(5):') && full.includes('entry 1 ') && full.includes('entry 5 ') && !full.includes('entry 0 '));
+    const one = readWarmup(filename, root, 'MP-12', full.length - 100);
+    assert(one.length <= full.length - 100);
+    assert(one.includes('Последние записи журнала задачи (4):\n- 2026-10-30 12:00 note: entry 2 ') && one.includes('entry 5 '));
+    assert(!one.includes('entry 1 ') && !one.includes('older facts hidden'));
+    for (let i = 0; i < 5; i++) assert(one.includes(fact('project', i)));
+    assert(one.includes(loader));
+    const none = readWarmup(filename, root, 'MP-12', full.length - 1700);
+    assert(none.length <= full.length - 1700);
+    assert(none.includes('## Журнал\n\nПоследние записи журнала задачи (0):\n' + loader));
+    assert(!none.includes('entry '));
+    assert(none.includes('older facts hidden from projects/one/project/MEMORY.md') && none.includes('Project conventions by hand.'));
+  }
+  {
+    const { filename, root, write, journal } = fixture(t);
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 60, 'ж'));
+    journal(...Array.from({ length: 5 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
+      event_type: 'note', text: 'entry ' + i + ' ' + 'ж'.repeat(280) })));
+    const out = readWarmup(filename, root, 'MP-12', 9500);
+    assert(out.length <= 9500);
+    assert(Buffer.byteLength(out) > out.length);
+    assert(out.includes('## Журнал\n\nПоследние записи журнала задачи (') && out.includes(loader));
+    assert(readWarmup(filename, root, 'MP', 9500).includes('Записей журнала проекта: 5, последняя 2026-10-30.'));
+  }
+});

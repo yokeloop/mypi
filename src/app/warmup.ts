@@ -226,6 +226,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const over = () => limit.size(render(hidden, false)) > limit.max;
       if (over()) clipped = true;
       while (dropped < history.length && over()) dropped++;
+      while (journal !== undefined && trimmed < journal.length && over()) trimmed++;
       let out = render(hidden, false);
       let excess = limit.size(out) - limit.max;
       for (let i = 0; i < zones.length && excess > 0; i++) {
