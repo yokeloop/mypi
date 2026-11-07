@@ -123,7 +123,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       pi.registerMcpServer('mypi', {
         command: 'node', args: [server], cwd: root, env: { PI_SESSION_ID: session },
         description: 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.',
-        exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct' },
+        exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct', archive_search: 'direct' },
       });
       registered = session;
     }

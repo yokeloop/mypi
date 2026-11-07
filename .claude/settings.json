@@ -16,7 +16,9 @@
       "mcp__mypi__sessions",
       "mcp__mypi__open_session",
       "mcp__mypi__inbox",
-      "mcp__mypi__send_message"
+      "mcp__mypi__send_message",
+      "mcp__mypi__archive_search",
+      "mcp__mypi__archive_show"
     ]
   },
   "hooks": {
