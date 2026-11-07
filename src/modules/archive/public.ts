@@ -1,5 +1,5 @@
 import { InputError } from '../../shared/errors.js';
-import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveFolder, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveFolder, ArchiveForget, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFilter, ArchiveForget, ArchiveFolder, ArchiveHit, ArchiveKeys, ArchiveMessage, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, ArchiveSessionHits, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export function claudeFolderName(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-');
@@ -30,6 +30,15 @@ export function archiveInstant(value: string, end: boolean): string {
   if (!Number.isFinite(time) || new Date(time).toISOString().replace('.000Z', 'Z') !== iso!.replace('.000Z', 'Z'))
     throw new InputError('Invalid UTC time or date: ' + value);
   return new Date(time).toISOString();
+}
+export function forgetFilter(input: { session?: string; key?: string; before?: string }): ArchiveForget {
+  const { session, key, before } = input;
+  if (session === undefined && key === undefined && before === undefined) throw new InputError('Use archive forget with --session, --key or --before');
+  for (const [name, value] of [['session', session], ['key', key], ['before', before]] as const)
+    if (value === '') throw new InputError('--' + name + ' must not be empty');
+  if (session !== undefined && (session.length > 256 || /[\u0000-\u001f\u007f]/.test(session))) throw new InputError('Invalid native session id');
+  return { ...(session === undefined ? {} : { nativeId: session }), ...(key === undefined ? {} : { key }),
+    ...(before === undefined ? {} : { before: archiveInstant(before, false) }) };
 }
 export function emptyCounts(): ArchiveCounts {
   return { sessions: { claude: 0, pi: 0 }, messages: { claude: 0, pi: 0 }, boundSessions: 0, unboundSessions: 0, keys: 0,
@@ -100,6 +109,10 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
         const { messages, total } = store.page(agents[0]!, session, offset, limit, includePeer);
         return { session: header(agents[0]!, session), offset, total, next: offset + messages.length < total ? offset + messages.length : null, messages };
       });
+    },
+    forget(input: { session?: string; key?: string; before?: string }) {
+      const filter = forgetFilter(input);
+      return store.transaction(() => store.forget(filter));
     },
     record(input: { agent: ArchiveAgent; nativeId: string; path: string; read: ArchiveRead }):
       { inserted: number; skipped: number; key: string | null; keySource: KeySource | null; bytesRead: number } {
