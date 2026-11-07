@@ -1,6 +1,6 @@
 import { InputError } from '../../shared/errors.js';
 import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveFolder, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
-export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFilter, ArchiveFolder, ArchiveHit, ArchiveKeys, ArchiveMessage, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, ArchiveSessionHits, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFilter, ArchiveForget, ArchiveFolder, ArchiveHit, ArchiveKeys, ArchiveMessage, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, ArchiveSessionHits, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export function claudeFolderName(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-');
 }
