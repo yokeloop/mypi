@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdirSync, symlinkSync } from 'node:fs';
+import { mkdirSync, realpathSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { initializeState, createApp } from '../../src/app/create-app.js';
-import { databasePath, externalDatabasePath } from '../../src/infrastructure/filesystem/paths.js';
+import { archiveDatabasePath, databasePath, externalDatabasePath } from '../../src/infrastructure/filesystem/paths.js';
 import { parseCommand } from '../../src/cli/command.js';
 import { state } from '../support/state.js';
 
@@ -27,6 +27,19 @@ test('XDG/default state paths stay outside engine and context, including symlink
   const forbidden = fileURLToPath(new URL('../../../forbidden.sqlite3', import.meta.url));
   assert.throws(() => initializeState(forbidden), /outside/);
   assert.throws(() => createApp(forbidden, true), /outside/);
+});
+
+test('archive path sits beside the state file and stays outside the engine', t => {
+  const { dir } = state(t);
+  const engine = join(dir, 'engine');
+  mkdirSync(engine);
+  assert.equal(archiveDatabasePath(join(dir, 'state', 'mypi', 'state.sqlite3'), engine), join(realpathSync(dir), 'state', 'mypi', 'archive.sqlite3'));
+  assert.throws(() => archiveDatabasePath(join(engine, 'state', 'state.sqlite3'), engine), /outside/);
+  const target = join(dir, 'target');
+  mkdirSync(target);
+  const alias = join(dir, 'alias');
+  symlinkSync(target, alias);
+  assert.equal(archiveDatabasePath(join(alias, 'state.sqlite3'), engine), join(realpathSync(target), 'archive.sqlite3'));
 });
 
 test('CLI parsing is strict without invoking a process for the validation matrix', () => {
