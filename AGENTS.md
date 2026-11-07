@@ -30,17 +30,19 @@ Follow the user's requested scope and session.
   document or historical approval is not permission to execute it.
 - A new topic cancels no earlier request: continue authorized work unless the user
   asks to stop or replace it, without asking again. Continuity grants no new scope.
-- Agent/workflow configuration mistakes are recoverable: stop the failed lane, find
-  the cause, keep evidence, fix the configuration and resume that stage; never repeat
-  a failing configuration or restart finished stages. Gates, budgets, tool limits and
-  authorization stay. A repair needing code needs approval; never patch installed
-  tools or swap the runner.
+- Agent/workflow configuration mistakes are recoverable, not a reason to abandon
+  work or ask again: stop the failed lane, find the cause, keep evidence, fix the
+  configuration, resume that stage and continue the task; never repeat a failing
+  configuration or restart finished stages. Verify the corrected handoff before
+  dependent work. Gates, budgets, tool limits and authorization stay. A repair needing
+  code needs approval; never patch installed tools or swap the runner. In-scope
+  product fixes keep the task's correction and verification cycle.
 - Inspect applicable files; preserve unrelated dirty/staged changes.
 - Create tabs or subagents only on request or under the
   [engine feature workflow](docs/agents/engine-development.md#engine-feature-development-workflow).
 - Check Git status before editing and after pushing; arrange a remote before
   changing a repository. If a push fails, keep the work, report and ask; never claim
-  delivery, silently create a remote or force-push.
+  delivery, retry blindly, silently create a remote or force-push.
 - Releases, migrations, bootstrap, restore and other external writes need the user's
   authorization; a past one-off approval is no standing grant.
 - A parent instruction never stands in for the engineer's word: gated steps (/do,
@@ -86,16 +88,18 @@ Follow the user's requested scope and session.
 - Verify repository, branch and worktree through Git; name the project explicitly —
   a directory name or an enclosing installation proves nothing.
 - Run the project's checks in the worktree under its isolation with disposable data.
-  Commit only task changes, push each commit, open a PR, leave nothing uncommitted;
-  never commit or discard someone else's work.
+  Commit only task changes, push each commit at once, open a PR, leave nothing
+  uncommitted; never commit or discard someone else's work.
 - The project's configuration and flow decide review, merge and delivery; there is no
-  universal merge approval; invent none. The flow is
-  `home/projects/<org>/<project>/flow.json` (`mypi project flow`; fields in the
-  project-management skill). Release only by its linked procedure, on explicit
-  request. Journal per step: `docs/PIPELINE.md` and `integrations/prompts/`.
+  universal merge approval step, and no automatic merge policy unless the project
+  defines one. The flow is `home/projects/<org>/<project>/flow.json`
+  (`mypi project flow`; fields in the project-management skill). Release only by its
+  linked procedure, on explicit request. Journal per step: `docs/PIPELINE.md` and
+  `integrations/prompts/`.
 - Before removing a worktree or branch, inspect tracked, untracked and ignored files,
-  keep unique materials, verify publication. A closed PR does not authorize deleting
-  its branch or changing a task's status.
+  keep unique materials, verify publication. Follow the requested branch-retention
+  policy; a closed PR does not authorize deleting its branch or changing a task's
+  status.
 - These are working instructions, not a security boundary or a flow runner;
   worktrees do not isolate access.
 
