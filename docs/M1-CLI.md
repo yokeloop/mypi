@@ -37,6 +37,8 @@ warmup [-s global | org | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
 sessions
+archive import [--dir <directory> --agent claude|pi]...
+archive status
 event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid>
 turn end --pid <pid>
 inbox [org | CODE | CODE-N | global | all]
