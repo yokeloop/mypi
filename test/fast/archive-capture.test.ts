@@ -8,6 +8,9 @@ import { captureArchive } from '../../src/app/archive.js';
 import { captureInput } from '../../src/app/session-input.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { openArchive } from '../../src/infrastructure/database/archive.js';
+import { parseCommand } from '../../src/cli/command.js';
+import { appCommand } from '../../src/cli/app-command.js';
+import { InputError } from '../../src/shared/errors.js';
 
 const jsonl = (records: object[]) => records.map(r => JSON.stringify(r) + '\n').join('');
 const at = (minute: number) => '2026-11-07T10:' + String(minute).padStart(2, '0') + ':00.000Z';
@@ -19,6 +22,11 @@ const piHeader = (id: string) => ({ type: 'session', version: 3, id, timestamp: 
 const piMessage = (id: string, parentId: string | null, role: 'user' | 'assistant', minute: number) =>
   ({ type: 'message', id, parentId, timestamp: at(minute), message: { role, stopReason: 'stop', content: [{ type: 'text', text: 'synthetic ' + id }] } });
 
+const cli = (args: string[]) => {
+  const parsed = parseCommand(args);
+  if (parsed.type === 'help') throw new Error('Unexpected help');
+  return appCommand(parsed, {});
+};
 const recorded = (result: ReturnType<typeof captureArchive>) => {
   assert.equal(result.captured, true);
   return result as Extract<typeof result, { inserted: number }>;
@@ -39,6 +47,18 @@ test('capture hook input takes the native id and transcript of Stop and SessionE
   for (const text of ['{', '[]', 'null', JSON.stringify({ ...stop, hook_event_name: 'Notification' }), JSON.stringify({ ...stop, hook_event_name: 'SessionStart' }),
     JSON.stringify(unnamed), JSON.stringify({ ...stop, session_id: '' }), JSON.stringify(anonymous)])
     assert.throws(() => captureInput(text), /Invalid Stop or SessionEnd hook input/);
+});
+
+test('CLI archive capture parses --file for either agent and refuses wrong combinations', () => {
+  for (const agent of ['pi', 'claude'])
+    assert.deepEqual(cli(['archive', 'capture', '--agent', agent, '--file', '/x/p.jsonl']), { name: 'archive_capture', agent, file: '/x/p.jsonl' });
+  for (const [args, message] of [
+    [['archive', 'capture', '--file', '/x'], /--agent required/],
+    [['archive', 'capture', '--agent', 'codex', '--file', '/x'], /--agent must be claude or pi/],
+    [['archive', 'capture', '--agent', 'pi', '--hook'], /only for --agent claude/],
+    [['archive', 'capture', '--agent', 'claude', '--hook', '--file', '/x'], /--hook or --file/],
+    [['archive', 'capture', '--agent', 'pi'], /--file required/],
+  ] as [string[], RegExp][]) assert.throws(() => cli(args), (error: unknown) => error instanceof InputError && message.test(error.message));
 });
 
 test('archive capture records a transcript from its saved offset and writes nothing without one', t => {
