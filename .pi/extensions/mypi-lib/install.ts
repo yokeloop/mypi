@@ -11,7 +11,7 @@ interface ExtensionContext {
     onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void;
   };
   isIdle(): boolean;
-  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getHeader(): { parentSession?: string } | null };
+  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null };
 }
 interface McpServer {
   command: string; args: string[]; cwd: string; env: Record<string, string>;
@@ -29,7 +29,7 @@ export interface ExtensionAPI {
   on(name: 'agent_start', handler: () => void): void;
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
-  on(name: 'agent_settled', handler: () => Promise<void>): void;
+  on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
 }
 
@@ -179,13 +179,16 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       .filter((part): part is { type: 'text'; text: string } => part?.type === 'text' && typeof part.text === 'string')
       .map(part => part.text).join('\n');
   });
-  pi.on('agent_settled', async () => {
+  pi.on('agent_settled', async (_event, ctx) => {
     const report = parentTurn, reply = last, to = parentFrom;
     parentTurn = false;
     parentFrom = undefined;
     last = '';
     if (key !== undefined && report) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(to === undefined ? [] : ['--to', to]),
       '--message=' + clip(reply)], { cwd: root, timeout: 5000 })
+      .catch(() => undefined);
+    const file = ctx.sessionManager.getSessionFile();
+    if (file) await pi.exec('node', [cli, 'archive', 'capture', '--agent', 'pi', '--file', file], { cwd: root, timeout: 5000 })
       .catch(() => undefined);
   });
   pi.on('ui_prompt_start', async event => {
