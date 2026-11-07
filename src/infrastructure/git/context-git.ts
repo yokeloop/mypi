@@ -81,16 +81,16 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
     inspectRepository,
     ensureBytePreservingAttributes() { inspectRepository(); ensureAttributes(); },
     initialize() {
-      files.path('MEMORY.md');
+      files.path('INDEX.md');
       ownMetadata();
       mkdirSync(root, { recursive: true, mode: 0o700 });
       if (!existsSync(join(root, '.git'))) git(['init', '--quiet', '--initial-branch=main']);
-      check(['MEMORY.md']);
+      check(['INDEX.md']);
       ensureAttributes();
     },
     head(): string | undefined { return git(['rev-parse', '--verify', '--quiet', 'HEAD'], true).trim() || undefined; },
     cleanAll() {
-      check(['MEMORY.md']);
+      check(['INDEX.md']);
       for (const path of git(['ls-files', '-z']).split('\0').filter(Boolean)) {
         // The user-layer instruction link is configuration, not a managed context file.
         // Permit only this exact in-repository link in Git bundles; managed reads/writes
@@ -139,7 +139,7 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
       }
     },
     validateJournal() {
-      check(['MEMORY.md']);
+      check(['INDEX.md']);
       const head = this.head();
       if (!head) return;
       const paths = git(['ls-tree', '-r', '-z', '--name-only', head, '--', 'journal']).split('\0').filter(Boolean);
@@ -198,7 +198,7 @@ export function contextGit(root: string, published: () => ReadonlySet<string> = 
 }
 
 export function cloneContextBundle(bundle: string, root: string): void {
-  contextFiles(root).path('MEMORY.md');
+  contextFiles(root).path('INDEX.md');
   mkdirSync(resolve(root, '..'), { recursive: true, mode: 0o700 });
   const result = spawnSync('git', ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false', 'clone', '--quiet', '--no-checkout', '--', resolve(bundle), resolve(root)],
     { encoding: 'utf8', timeout: 3000,

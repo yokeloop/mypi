@@ -1,21 +1,10 @@
 import { z } from 'zod';
 import type { AppCommand } from '../../app/commands.js';
 import { EVENT_TYPES } from '../../app/commands.js';
-import { text, scope, contextScope, textInput, tool, actions } from '../schemas.js';
+import { text, scope, textInput, tool, actions } from '../schemas.js';
 export const knowledge = {
   warmup: tool(z.strictObject({ scope: text.optional() }), 'Call at session start or to reload context: returns the scoped startup context as Markdown (personal instructions, role, how to work in mypi, the knowledge entries (INDEX.md) of the level and its parents, or an invitation line for a missing one, then the project list, open tasks with a journal count line, new events and last reports, or the task card with its worktree and its last five journal entries; both name the journal call that reads more). scope: global, an organization slug, a project code (MP) or a task key (MP-12); default: this session\'s registered key, else MYPI_SCOPE of the server, else global. In a project scope it includes the undelivered events of the project\'s tasks and marks the shown ones delivered, plus the last reports as history (reports left out over the limit are counted with the events call that reads them); in an organization scope it shows the organization\'s projects and the events addressed to the organization and marks the shown ones delivered; it writes nothing else and registers no session.',
     a => [{ name: 'warmup', ...a } as AppCommand]),
-  memory: tool(actions('action', { show: { required: ['scope'] }, add: { required: ['scope', 'text'] },
-    remove: { required: ['scope', 'number', 'expectedRevision'] } },
-  { scope: contextScope, text, number: z.number().int().positive(), expectedRevision: z.string().regex(/^[a-f0-9]{64}$/) }),
-  'Call to read or change MEMORY facts at one level: action show (facts of this level only, not inherited, with revision), add (text; commits in home) or remove (number and expectedRevision from a fresh show; number is not a stable ID). scope: global, org or project, never task. Does not push or edit other files.',
-  a => {
-    switch (a.action) {
-      case 'show': return [{ name: 'memory_show', scope: a.scope! }];
-      case 'add': return [{ name: 'memory_add', scope: a.scope!, text: a.text! }];
-      case 'remove': return [{ name: 'memory_remove', scope: a.scope!, number: a.number!, expectedRevision: a.expectedRevision! }];
-    }
-  }),
   note: tool(actions('kind', { note: { required: ['scope', 'title', 'body'] }, journal: { required: ['scope', 'text'] },
     error: { required: ['project', 'text'] }, capture: { required: ['source'] } },
   { scope, title: text, body: textInput, text, project: text, source: textInput }).superRefine((value, ctx) => {

@@ -48,7 +48,7 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
     return JSON.parse(result.stdout);
   }
   const listed = (await client.listTools()).tools;
-  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'events', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
+  assert.deepEqual(listed.map(t => t.name).sort(), ['context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
     'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
   assert(listed.every(tool => tool.inputSchema.additionalProperties === false && tool.outputSchema));
   const readOnlyTools = ['task_list', 'task_show', 'journal', 'context_read', 'sessions', 'events'];
@@ -58,7 +58,7 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
     assert.equal(tool.annotations!.destructiveHint, !readonly, tool.name);
   }
   assert.equal(listed.find(t => t.name === 'note')!.annotations!.idempotentHint, false);
-  for (const [name, args] of [['memory', { action: 'add', text: 'missing scope' }], ['task_update', { key: 'MP-1' }], ['unknown', {}]] as const) {
+  for (const [name, args] of [['events', { kind: 'other' }], ['task_update', { key: 'MP-1' }], ['unknown', {}]] as const) {
     const invalid = await client.callTool({ name, arguments: args });
     assert.equal(invalid.isError, true);
     assert.equal((invalid.structuredContent as Record<string, unknown> | undefined)?.['status'], 'error');
@@ -90,15 +90,16 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
   const capture = await call('note', { kind: 'capture', source: { text: source } });
   assert.equal((await call('context_read', { path: capture.path })).text, source);
   const sourcePath = join(dir, 'source.txt'); writeFileSync(sourcePath, source);
-  await call('memory', { action: 'add', scope: { type: 'global' }, text: 'parent fact' });
-  await call('memory', { action: 'add', scope, text: 'project fact' });
-  assert.equal((await call('memory', { action: 'show', scope })).items[0].text, 'project fact');
+  mkdirSync(join(home, 'projects/one/project'), { recursive: true });
+  writeFileSync(join(home, 'projects/one/project/INDEX.md'), 'project entry\n');
+  writeFileSync(join(home, 'INDEX.md'), 'global entry\n');
+  await call('context_write', { paths: ['projects/one/project/INDEX.md', 'INDEX.md'], message: 'Add knowledge entries' });
   await call('note', { kind: 'note', scope, title: 'Note', body: { file: sourcePath } });
   await call('note', { kind: 'error', project: 'one/project', text: 'real dead end' });
   await call('note', { kind: 'journal', scope, text: 'project outcome' });
   const warm: string = await call('warmup', { scope: 'MP' });
   assert(warm.startsWith('# mypi warmup: MP (one/project)\n'));
-  assert(warm.includes('project fact') && !warm.includes('parent fact'), 'project warmup carries project memory, not global memory');
+  assert(warm.includes('project entry') && warm.includes('global entry'), 'project warmup carries its entry and its parents\' entries');
   assert(!warm.includes(capture.path), 'project warmup must not expose inbox');
   assert.deepEqual(await call('inbox', { key: 'MP' }), { events: [] });
   const listedEvents = await call('events', { to: 'MP' });
@@ -139,19 +140,16 @@ test('real stdio: fifteen tools, maintenance absent, exact source, scope, task_u
     assert.equal(result.status, 0, result.stderr); return result.stdout.trim();
   };
   const revision = git('rev-parse', 'HEAD');
-  const beforeRemoval = await call('memory', { action: 'show', scope });
-  for (const args of [{ action: 'remove', scope, number: 1 }, { action: 'remove', scope, number: 1, expectedRevision: '0'.repeat(64) }]) {
-    const rejected = await client.callTool({ name: 'memory', arguments: args });
-    assert.equal(rejected.isError, true);
-    assert.deepEqual(await call('memory', { action: 'show', scope }), beforeRemoval);
-  }
-  await call('memory', { action: 'remove', scope, number: 1, expectedRevision: beforeRemoval.revision });
-  cli('context', 'restore', 'projects/one/project/MEMORY.md', '--revision', revision);
-  assert.equal((await call('memory', { action: 'show', scope })).items[0].text, 'project fact');
+  writeFileSync(join(home, 'projects/one/project/INDEX.md'), 'project entry v2\n');
+  await call('context_write', { paths: ['projects/one/project/INDEX.md'], message: 'Update the project entry' });
+  assert.equal((await call('context_read', { path: 'projects/one/project/INDEX.md' })).text, 'project entry v2\n');
+  cli('context', 'restore', 'projects/one/project/INDEX.md', '--revision', revision);
+  assert.equal((await call('context_read', { path: 'projects/one/project/INDEX.md' })).text, 'project entry\n');
   const second = (await connect(root)).client;
-  await Promise.all(['concurrent A', 'concurrent B'].map(text => call('memory', { action: 'add', scope, text })));
-  assert.deepEqual((await call('memory', { action: 'show', scope })).items.map((item: { text: string }) => item.text),
-    ['project fact', 'concurrent A', 'concurrent B']);
+  const concurrent = await Promise.all(['concurrent A', 'concurrent B'].map(title =>
+    call('note', { kind: 'note', scope, title, body: { text: title } })));
+  assert.notEqual(concurrent[0].path, concurrent[1].path);
+  for (const note of concurrent) assert(existsSync(join(home, note.path)), note.path);
   // Send calls from two independent MCP processes and a real CLI writer.
   const child = spawn(process.execPath, [join(root, 'dist/src/cli/main.js'), 'task', 'create', 'cli source',
     '--title', 'CLI', '--slug', 'cli', '--status', 'new', '--project', 'one/project'], { env: env(root) });

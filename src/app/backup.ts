@@ -78,7 +78,7 @@ export function restoreState(backup: string, filename: string, root = defaultCon
   for (const [file, expected] of Object.entries(manifest.files)) {
     if (hash(contextFiles(backup).path(file)) !== expected) throw new Error('Backup checksum mismatch');
   }
-  contextFiles(root).path('MEMORY.md');
+  contextFiles(root).path('INDEX.md');
   if (existsSync(filename) || existsSync(root)) throw new Error('Restore only into absent DB and context; existing state is never overwritten');
   mkdirSync(dirname(filename), { recursive: true, mode: 0o700 });
   try {

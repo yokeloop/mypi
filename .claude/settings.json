@@ -6,7 +6,6 @@
       "mcp__mypi__task_show",
       "mcp__mypi__task_create",
       "mcp__mypi__task_update",
-      "mcp__mypi__memory",
       "mcp__mypi__note",
       "mcp__mypi__journal",
       "mcp__mypi__context_read",
