@@ -195,9 +195,9 @@ registers nothing, so the next /open prepares it again; without a
 organization and an organization without registered projects are refused. A new session (not a resumed or focused one) gets
 one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through
 the same socket as events: for an organization the open tasks of each of its
-projects by status and the number of its undelivered events, for a project its
-open tasks by status and the number of undelivered events, for a task its status, worktree and the last journal
-entries with their artifacts. It is state, not an instruction, and creates no
+projects by status, for a project its code and identity, for a task its key and
+title, then a line asking to wait for directions or propose the next step; the
+rest is in the warmup. It is state, not an instruction, and creates no
 events. If it cannot be delivered, `/open` still succeeds and the key's `notes`
 say `start message not delivered: <reason>`; for Claude in `bypassPermissions`
 delivery is not promised, as for events. `/open <key> --message <text>` (one key;
