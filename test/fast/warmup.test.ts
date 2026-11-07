@@ -185,7 +185,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
   {
     const { filename, root, write } = fixture(t);
     write('projects/one/MEMORY.md', facts('org', 'Org', 60, 'ж'));
-    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5, 'ж'));
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 4, 'ж'));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
     assert(Buffer.byteLength(out) > 9500);
@@ -194,7 +194,7 @@ test('a character budget cuts memory by the same rules, counts characters as Cla
     assert(hidden > 0 && hidden < 60);
     for (let i = 0; i < hidden; i++) assert(!out.includes(fact('org', i)), 'org fact ' + i);
     assert(out.includes(fact('org', hidden)) && out.includes(fact('org', 59)));
-    for (let i = 0; i < 5; i++) assert(out.includes(fact('project', i)));
+    for (let i = 0; i < 4; i++) assert(out.includes(fact('project', i)));
     assert(!out.includes('older facts hidden from projects/one/project/MEMORY.md'));
     const full = readWarmup(filename, root, 'MP');
     assert(!full.includes('older facts hidden'));
@@ -432,7 +432,7 @@ test('over budget a task warmup clips the end of its card after memory facts and
   const fenced = readWarmup(filename, root, 'MP-12', 9500);
   assert(fenced.length <= 9500);
   assert(/\necho long[^\n]*\n```\n\n> The card is clipped/.test(fenced));
-  write(path, '# Card\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
+  write(path, '# Card\n\nTilde fence.\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
   const tilde = readWarmup(filename, root, 'MP-12', 9500);
   assert(tilde.length <= 9500);
   assert(/\necho long[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
