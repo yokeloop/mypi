@@ -1,6 +1,6 @@
 # mypi architecture
 
-Local memory, organizations/projects and task accounting. TypeScript strict,
+A home knowledge tree, organizations/projects and task accounting. TypeScript strict,
 Node.js 24 LTS, ESM/tsc, pnpm, SQLite + better-sqlite3, SQL migrations without ORM.
 One package: modular monolith, Ports & Adapters, use cases within domain modules.
 
@@ -12,11 +12,11 @@ record evidence. Historical contracts describe their time, not extra current com
 
 ## 1. Product and operating boundaries
 
-Implemented: registry/checkout resolution, memory/capture/notes/errors, glossary,
+Implemented: registry/checkout resolution, knowledge entries/capture/notes/errors, glossary,
 scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
-SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes fourteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes fifteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
 
-The memory/task APIs are optional data operations. They do not impose agent
+The task and knowledge APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
 workflow has been withdrawn; existing cards, sources and storage/API
 contracts, including nullable project_id, are unchanged.
@@ -37,7 +37,6 @@ src/
 ├── modules/
 │   ├── projects/        # registry, identity, checkout and scope
 │   ├── tasks/           # cards, numbering, status dictionary
-│   ├── memory/          # facts
 │   ├── inbox/           # immutable capture
 │   ├── sessions/        # session rows, live registry records, key resolution
 │   ├── events/          # turn-end, waiting and milestone events from task chats to their project
@@ -89,7 +88,7 @@ Files own knowledge and original source:
 
 ```text
 home/                           # separate ignored Git inside the engine clone
-├── MEMORY.md
+├── INDEX.md
 ├── inbox/<UTC>-<UUID>.md
 ├── notes/<UTC>-<UUID>.md
 ├── journal/YYYY-MM.jsonl      # legacy, retained unchanged after explicit import
@@ -97,10 +96,10 @@ home/                           # separate ignored Git inside the engine clone
 │   ├── source.md
 │   └── <artifact-path>
 └── projects/<org>/
-    ├── MEMORY.md
+    ├── INDEX.md
     ├── notes/<UTC>-<UUID>.md
     └── <project>/
-        ├── MEMORY.md, context.md, errors.md
+        ├── INDEX.md, context.md, errors.md
         ├── notes/
         └── tasks/CODE-number-slug/
             ├── source.md
@@ -135,10 +134,8 @@ journal; a repeated title writes nothing.
 Terminal tasks do not reopen; continuation is a new explicitly linked record.
 [M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history of the request era.
 
-## 5. Memory, journal and warmup
+## 5. Knowledge entries, journal and warmup
 
-Managed MEMORY facts are Markdown lines containing JSON strings (`- "JSON string"`);
-multiline text is escaped and returned exactly. Other Markdown remains context.
 Capture preserves exact original text in an immutable file, including BOM/CRLF.
 Notes have unique paths; errors append rather than rewrite.
 
@@ -159,9 +156,11 @@ months are selected and filtered before the overall sort/limit.
 Warmup (`mypi warmup`, MCP `warmup`) prints a session's starting context as Markdown in
 a fixed order: personal instructions (`home/USER-INSTRUCTIONS.md`, omitted when absent),
 the scope's role (`integrations/prompts/global.md`, `org.md`, `project.md` or `task.md`), how to
-work in mypi (`integrations/prompts/howto.md`), zone memory (global: `MEMORY.md`;
-organization: global and organization `MEMORY.md`, no project memory; project:
-organization and project `MEMORY.md`; task: project `MEMORY.md`), then the project
+work in mypi (`integrations/prompts/howto.md`), the knowledge
+entries: the entry of every level from global down to the scope's own (global: `INDEX.md`;
+organization: global and `projects/<org>/INDEX.md`; project and task: global, organization
+and `projects/<org>/<project>/INDEX.md`), each under a `###` heading with its home-relative
+path, then the project
 list (global), one line per project of the organization with its clone or `no clone`
 and its open tasks counted by status (organization), the open tasks (project) or the
 task card with its worktree (task).
@@ -172,24 +171,34 @@ open task delivered before this warmup, as history; empty blocks are omitted. Sc
 and `CODE-N` (`all` is not a key). Unknown keys, legacy REQ tasks and projects without a clone are errors.
 Embedded files are inserted as written, except that their ATX headings outside fenced code
 blocks are demoted below the enclosing warmup heading (by two levels under a section, by
-three under a memory file's path, at most to level six).
+three under an entry's path, at most to level six).
+A level's entry is `INDEX.md` in its home folder; a task's entry is its card (`source.md`).
+This location is the only thing the engine fixes: sections, names and branches below the
+entry belong to the level. An entry is shown whole; a missing or whitespace-only entry is
+shown as one line `> No entry yet. Create <path> (owner: <chat>): …` naming the chat that
+keeps it (global: the main chat; organization: the organization chat; project: the project
+chat). A link in place of an entry fails the warmup, as for every context file.
 Warmup creates no rows, files or Git state; a project or organization warmup sets `delivered_at` of the events it shows in full. Scope is not an ACL.
 
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
 characters always fit 64 KiB. Both limits cut the same way.
-Memory facts and, in a task scope, the shown journal entries and then the end of the task card (`source.md`) are cut: never the personal instructions, role, how-to, project list, task list, the task card's key, title, status and context lines, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
-The farthest zone
-loses facts first (global, then organization, then project); within a file the
-oldest facts go first. In their place a line states how many facts were hidden, from
-which file, under which limit, and the `memory` show call (with the CLI command after
-it) that reads them in full. If the parts that are never cut already exceed the
-limit, every fact is hidden, a note says so, and the output is printed in full above
-the limit. A project warmup over the limit cuts in this order: the texts of the last
-reports to 280 characters, then the last reports one by one from the oldest, then
-memory facts as above, then new events from the newest, which stay undelivered and
-are counted in a line pointing to `/inbox`; only then the note above.
-A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then clips the end of the card (`source.md`) with a line naming the `context_read` call (and its CLI command) that reads it in full; only then the note.
+Never cut: the personal instructions, role, how-to, invitation lines, project list, task
+list, the task card's key, title, status and context lines, worktree, the project's journal
+line, the task journal heading with its count and loader. Entries are clipped from their end,
+the farthest first (global, then organization, then project), each closing a fence the clip
+leaves open and ending with a line naming the `context_read` call (and its CLI command) that
+reads the entry in full; a fully clipped entry is only that line. If the parts that are never
+cut already exceed the limit, every entry, new event and the card are clipped, a note says
+so, and the output is printed above the limit. A project or organization warmup over the
+limit cuts in this order: the texts of the last reports to 280 characters, then the last
+reports one by one from the oldest — «Последние доклады» then ends with a line counting the
+reports left out, naming their task keys and the `events` call (CLI `mypi event list`) that
+reads them; the section stays even when all are left out — then the entries as above, then
+new events from the newest, which stay undelivered and are counted in a line pointing to
+`/inbox`; only then the note. A task warmup over the limit drops the shown journal entries
+from the oldest, then clips the entries, then the end of the card with its `context_read`
+line; only then the note.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible
