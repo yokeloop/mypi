@@ -57,8 +57,14 @@ manual check); `/ship` registers it.
 1. **Worktree.** `$BIN/mp-worktree <KEY> [--base flow/<name>]` → JSON; without
    `--base` it takes the base and the task branch from the project's flow. `dirty:
    true` → stop and show `git status` of the worktree; nothing is cleaned
-   automatically. Status: `$BIN/mp-task status <KEY> in_progress "worktree
-   <path>, base <base_ref>"`.
+   automatically. Status, single mode:
+   `$BIN/mp-task status <KEY> in_progress "по плану v<version>: <plan url>"`;
+   flow mode:
+   `$BIN/mp-task status <KEY> in_progress "в потоке <name> по плану v<version>: <plan url>"`;
+   `<version>` and `<plan url>` are `version` and `url` of `derive.json`. The
+   reason names no worktree path («Journal» of `docs/PIPELINE.md`): in single
+   mode the engine's `worktree_created` entry is the worktree's record; in flow
+   mode `pr.md` names the path and `/board` finds it through `git worktree list`.
 
 2. **Executor.** Spawn a teammate: `Agent` with `subagent_type: task-executor`,
    `name: <key in lower case>` (`mp-33`), prompt carrying: the key, the plan path,
@@ -104,7 +110,8 @@ manual check); `/ship` registers it.
    Write `pr.md` in the task folder: PR URL (or flow merge SHA), checks, review.
    The manual check appends its own section to it later; step 6 registers it.
 
-6. **Record.**
+6. **Record** (by «Journal» of `docs/PIPELINE.md`: the step's outcome and its
+   link; the worktree, the branch and the status change are the engine's entries).
    `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <PR url | flow merge>" plan.md pr.md do-report.json review-report.json`.
    `$BIN/mp-task status <KEY> review "ждёт ручной
    проверки: <url>"`; `$BIN/mp-home-commit <KEY> "<KEY>: implemented, PR"`. In single mode

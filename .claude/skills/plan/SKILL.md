@@ -109,7 +109,7 @@ the status.
       plan's first lines (step 5). An inline `publish` with `content` is not used
       for the plan.
 
-7. **Record.**
+7. **Record** (by «Journal» of `docs/PIPELINE.md`).
    1. `$BIN/mp-task progress <KEY> "План v<version> опубликован: <url>" plan.md`.
       `<version>` from `derive.json`.
    2. Fresh plan:
