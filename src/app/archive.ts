@@ -28,6 +28,16 @@ export function importArchive(filename: string, c: Of<'archive_import'>) {
   } finally { close(); }
 }
 
+export function captureArchive(filename: string, c: Of<'archive_capture'>) {
+  if (c.file === undefined) return { captured: false, file: null };
+  const file = resolve(c.file);
+  if (!(existsSync(file) && statSync(file).isFile())) return { captured: false, file };
+  const { path, archive, close } = createArchiveApp(filename, false);
+  try {
+    return { captured: true, archive: path, ...createImport(archive, { claude: claudeArchive, pi: piArchive }, { list: listTranscripts }).file(c.agent, file, c.nativeId) };
+  } finally { close(); }
+}
+
 export function archiveStatus(filename: string) {
   const path = archivePath(filename);
   if (!existsSync(path)) return { path, exists: false, bytes: 0, ...emptyCounts() };

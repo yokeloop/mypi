@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
-import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
+import { captureInput, hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import type { Command } from './command.js';
@@ -150,6 +150,17 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'turn_end', nativeId: input.nativeId, active: input.active, message: input.message, pid,
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime,
         ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
+    }
+    case 'archive capture': {
+      const agent = required('agent');
+      if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      if (o['hook']) {
+        if (agent !== 'claude') throw new InputError('--hook is only for --agent claude');
+        if (opt('file') !== undefined) throw new InputError('Use --hook or --file, not both');
+        const input = captureInput(readInputFile(0));
+        return { name: 'archive_capture', agent, nativeId: input.nativeId, ...(input.transcript === undefined ? {} : { file: input.transcript }) };
+      }
+      return { name: 'archive_capture', agent, file: required('file') };
     }
     case 'inbox': {
       const hint = sessionHint(env, parentPid);

@@ -74,6 +74,7 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['archive', 'import'], ['archive', 'status'], ['archive', 'import', '--dir', '/a', '--agent', 'pi'],
     ['archive', 'search', 'сокет*', '-s', 'MP'], ['archive', 'search'],
     ['archive', 'show', '42', '--before', '1'], ['archive', 'show', '--session', 'c1', '--offset', '20'],
+    ['archive', 'capture', '--agent', 'claude', '--hook'], ['archive', 'capture', '--agent', 'pi', '--file', '/tmp/p.jsonl'],
   ]) assert.equal(parseCommand(args).type, 'workspace');
   for (const args of [
     ['project', 'add', 'one/project'],
@@ -90,5 +91,6 @@ test('CLI parsing is strict without invoking a process for the validation matrix
     ['serve', 'extra'],
     ['archive', 'status', 'extra'], ['archive', 'import', '--key', 'MP'],
     ['archive', 'search', 'a', 'b'], ['archive', 'show', '1', '2'], ['archive', 'search', '--key', 'MP'],
+    ['archive', 'capture', 'extra'], ['archive', 'capture', '--key', 'MP'],
   ]) assert.throws(() => parseCommand(args));
 });
