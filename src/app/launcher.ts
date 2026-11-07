@@ -128,7 +128,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       const worktreePath = entry.kind === 'task' ? openTaskWorktree(filename, root, key).worktreePath : null;
       let text: string | null = null, reason: string | null = null;
       if (decision.action === 'start') {
-        try { text = startFrame(key, startMessage(filename, key, worktreePath)); } catch (error) { reason = (error as Error).message; }
+        try { text = startFrame(key, startMessage(filename, key)); } catch (error) { reason = (error as Error).message; }
       }
       const label = entry.label;
       const env = { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };

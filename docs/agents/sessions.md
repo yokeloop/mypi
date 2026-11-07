@@ -71,10 +71,9 @@ Read when: working with session registration, /open, start messages, events, mil
   registers nothing, so the next /open prepares it again; without a `repository` it is refused before anything opens. A new session it starts (not a resumed
   or focused one) gets one start message in the frame `[mypi: стартовое сообщение
   для <key>. …]` through the same socket as events: for an organization the open
-  tasks of each of its projects by status and the number of its undelivered
-  events, for a project its open tasks by status and the number of undelivered
-  events, for a task its status, worktree
-  and the last journal entries with their artifacts. It is state, not an
+  tasks of each of its projects by status, for a project its code and identity,
+  for a task its key and title, then a line asking to wait for directions or
+  propose the next step; the rest is in the warmup. It is state, not an
   instruction, and creates no events. If it cannot be delivered, /open still
   succeeds with `start message not delivered: <reason>` in `notes`; for Claude in
   `bypassPermissions` delivery is not promised, as for events. `--message <text>`

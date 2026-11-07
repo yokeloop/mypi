@@ -26,6 +26,8 @@ An ordered list of code changes. Each step:
 
 Order by what unblocks what. A step is small enough to build and check alone, big enough to move the ticket. A step that mirrors an existing source («same as X») names that source's exact file — the executor copies against it and the reviewer compares against it; «same as X» without X's path is a gap.
 
+When the ticket changes documentation or a level's map (its entry `INDEX.md` in home), name that in a step: which document or entry changes and how.
+
 In a rework plan, a step exists per remark: the quote, the located cause — files and lines, because a fix guessed at a symptom is not a plan item — the concrete change, and the check that proves it fixed.
 
 ### Assumptions
