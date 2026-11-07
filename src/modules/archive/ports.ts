@@ -15,8 +15,16 @@ export interface ArchiveStore {
   session(agent: ArchiveAgent, nativeId: string): ArchiveSession | undefined;
   saveSession(row: ArchiveSession): void;
   insertMessages(agent: ArchiveAgent, nativeId: string, entries: ArchiveEntry[]): number;
+  counts(): ArchiveCounts;
 }
 export interface KeyLookup {
   byNative(agent: ArchiveAgent, nativeId: string): string | undefined;
   registered(key: string): boolean;
+}
+export interface TranscriptFiles { list(dir: string): string[] }
+export interface ArchiveFolder { agent: ArchiveAgent; path: string }
+export interface ArchiveCounts {
+  sessions: Record<ArchiveAgent, number>; messages: Record<ArchiveAgent, number>;
+  boundSessions: number; unboundSessions: number; keys: number;
+  keySources: Record<KeySource, number>;
 }
