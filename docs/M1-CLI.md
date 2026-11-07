@@ -39,6 +39,8 @@ session unregister --pid <pid> | forget <key>
 sessions
 archive import [--dir <directory> --agent claude|pi]...
 archive status
+archive search ["query words"] [-s MP] [--agent claude|pi] [--from 2026-10-01] [--to 2026-10-31] [--limit n] [--include-peer]
+archive show <id> [--before n] [--after n] | show --session <native-id> [--agent claude|pi] [--offset n] [--limit n]
 event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid>
 turn end --pid <pid>
 inbox [org | CODE | CODE-N | global | all]

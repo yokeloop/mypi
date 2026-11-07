@@ -1,9 +1,9 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { AppCommand } from './commands.js';
-import { archivePath, createArchiveApp, engineRoot } from './create-app.js';
+import { archivePath, createApp, createArchiveApp, engineRoot } from './create-app.js';
 import { claudeFolderName, createImport, emptyCounts, piFolderName } from '../modules/archive/public.js';
-import type { ArchiveFolder } from '../modules/archive/public.js';
+import type { ArchiveFolder, ArchiveKeys } from '../modules/archive/public.js';
 import { claudeArchive } from '../infrastructure/transcript/claude-archive.js';
 import { piArchive } from '../infrastructure/transcript/pi-archive.js';
 import { listTranscripts } from '../infrastructure/transcript/transcript-files.js';
@@ -34,5 +34,39 @@ export function archiveStatus(filename: string) {
   const { archive, close } = createArchiveApp(filename, true);
   try {
     return { path, exists: true, bytes: statSync(path).size, ...archive.counts() };
+  } finally { close(); }
+}
+
+function openForReading(filename: string) {
+  const path = archivePath(filename);
+  if (!existsSync(path)) throw new InputError('No conversation archive at ' + path + '; run mypi archive import first');
+  return createArchiveApp(filename, true);
+}
+
+export function archiveScope(filename: string, key: string): ArchiveKeys {
+  const app = createApp(filename, true);
+  try {
+    if (!app.archiveKeys.registered(key))
+      throw new InputError('Unknown archive scope: ' + key + '; use global, an organization slug, a project code or a task key');
+    if (key === 'global' || /^[A-Z]+-[1-9][0-9]*$/.test(key)) return { exact: [key], projects: [] };
+    if (/^[A-Z]+$/.test(key)) return { exact: [], projects: [key] };
+    return { exact: [key], projects: app.projects.list(key).map(p => p.code) };
+  } finally { app.close(); }
+}
+
+export function searchArchive(filename: string, c: Of<'archive_search'>) {
+  const { archive, close } = openForReading(filename);
+  try {
+    const { name: _, scope, ...input } = c;
+    const keys = scope === undefined ? null : archiveScope(filename, scope);
+    return archive.search({ ...input, keys });
+  } finally { close(); }
+}
+
+export function showArchive(filename: string, c: Of<'archive_show'>) {
+  const { archive, close } = openForReading(filename);
+  try {
+    const { name: _, ...input } = c;
+    return archive.show(input);
   } finally { close(); }
 }

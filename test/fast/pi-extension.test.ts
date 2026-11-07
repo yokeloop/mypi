@@ -70,7 +70,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
   assert.deepEqual(pi.servers, [{ name: 'mypi', config: { command: 'node', args: [join(root, 'dist/src/mcp/main.js')], cwd: root,
-    env: { PI_SESSION_ID: 's1' }, description, exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct' } } }]);
+    env: { PI_SESSION_ID: 's1' }, description, exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct', archive_search: 'direct' } } }]);
   assert.deepEqual(pi.calls, [reg('s1'), warm('global')]);
   const options = await pi.options();
   assert.deepEqual(options.toolGuidelines, { codemode: [CODEMODE_GUIDELINE] });
