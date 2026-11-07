@@ -23,6 +23,7 @@ mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <n
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
+mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n] (events newest first, read-only; never marks them delivered)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)

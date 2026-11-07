@@ -8,7 +8,7 @@ import { sessionTools } from './tools/sessions.js';
 
 export const tools = { ...projects, ...knowledge, ...tasks, ...sessionTools };
 export type ToolName = keyof typeof tools;
-export const readOnly = new Set<ToolName>(['task_list', 'task_show', 'journal', 'context_read', 'sessions']);
+export const readOnly = new Set<ToolName>(['task_list', 'task_show', 'journal', 'context_read', 'sessions', 'events']);
 export function toolCommand(name: string, args: unknown, env: Readonly<Record<string, string | undefined>> = {},
   parentPid = process.ppid): AppCommand[] {
   if (!Object.hasOwn(tools, name)) throw new InputError('Unknown tool: ' + name);

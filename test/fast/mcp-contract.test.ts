@@ -18,9 +18,9 @@ const cli = (argv: string[]) => {
   return appCommand(parsed, {});
 };
 test('MCP lists exactly fifteen agent tools; maintenance and replaced names are unknown tools', () => {
-  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
+  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'events', 'inbox', 'journal', 'memory', 'note', 'open_session', 'projects',
     'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
-  assert.deepEqual([...readOnly].sort(), ['context_read', 'journal', 'sessions', 'task_list', 'task_show']);
+  assert.deepEqual([...readOnly].sort(), ['context_read', 'events', 'journal', 'sessions', 'task_list', 'task_show']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
@@ -76,6 +76,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['send_message', { key: 'MP-12', text: 'go' }, [['send', 'MP-12', 'go']]],
     ['inbox', { key: 'MP' }, [['inbox', 'MP']]],
     ['inbox', {}, [['inbox']]],
+    ['events', { to: 'MP', kind: 'turn_end', delivered: true }, [['event', 'list', '--to', 'MP', '--kind', 'turn_end', '--delivered', 'true']]],
+    ['events', { from: 'MP-12', q: 'x', before: 7, limit: 2 }, [['event', 'list', '--from', 'MP-12', '--q', 'x', '--before', '7', '--limit', '2']]],
   ];
   for (const [tool, args, argvs, patch] of rows) {
     assert.deepEqual(toolCommand(tool, args), argvs.map(argv => ({ ...cli(argv), ...patch })));
@@ -125,6 +127,8 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['journal', { scope: g, limit: 0 }, /limit/],
     ['context_read', { path: 'MEMORY.md', revision: 'abc' }, /revision/],
     ['task_create', { title: 'T', status: 'new', slug: 'task', source: { text: 's' } }, /project/],
+    ['events', { kind: 'other' }, /kind/],
+    ['events', { delivered: 'true' }, /delivered/],
   ] as const) assert.throws(() => toolCommand(name, args), re);
 });
 test('CLI translates to the same subject commands without changing text or default scope', () => {
@@ -176,6 +180,9 @@ test('CLI translates to the same subject commands without changing text or defau
     ['backup', '/tmp/snapshot', '--file', 'x'], ['restore', '--repository', '/tmp/clone'],
     ['restore', '/tmp/snapshot', '--commit', 'a'.repeat(40)]]) assert.throws(() => translate(args));
   assert.throws(() => translate(['capture', 's', '--file', '/tmp/s']), /not both/);
+  assert.throws(() => translate(['event', 'list', '--kind', 'other']), /--kind must be/);
+  assert.throws(() => translate(['event', 'list', '--delivered', 'yes']), /--delivered must be/);
+  assert.throws(() => translate(['event', 'list', '--before', 'x']), /--before must be/);
   assert.deepEqual(translate(['session', 'register', '--agent', 'pi', '--pid', '42', '--native-id', 'p1', '--name', 'n', '--fork'],
     { MYPI_SCOPE: 'MP-12', XDG_RUNTIME_DIR: '/run/user/1' }),
   { name: 'session_register', agent: 'pi', pid: 42, nativeId: 'p1', sessionName: 'n', fork: true, envScope: 'MP-12', runtime: '/run/user/1' });

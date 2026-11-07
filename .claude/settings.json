@@ -16,6 +16,7 @@
       "mcp__mypi__sessions",
       "mcp__mypi__open_session",
       "mcp__mypi__inbox",
+      "mcp__mypi__events",
       "mcp__mypi__send_message"
     ]
   },

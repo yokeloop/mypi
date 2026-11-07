@@ -3,6 +3,7 @@ import { readInputFile } from '../app/input-text.js';
 import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
+import { PAGE_LIMIT_DEFAULT } from '../shared/page.js';
 import type { Command } from './command.js';
 
 export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Readonly<Record<string, string | undefined>> = {},
@@ -122,6 +123,18 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       }
       return { name: 'event_emit', kind: o['waiting'] ? 'waiting' : 'turn_end', message: opt('message') ?? '', from: required('from'),
         ...(opt('to') === undefined ? {} : { to: opt('to')! }), ...runtime };
+    }
+    case 'event list': {
+      const kind = opt('kind'), delivered = opt('delivered'), before = opt('before');
+      if (kind !== undefined && kind !== 'turn_end' && kind !== 'waiting' && kind !== 'milestone' && kind !== 'message')
+        throw new InputError('--kind must be turn_end, waiting, milestone or message');
+      if (delivered !== undefined && delivered !== 'true' && delivered !== 'false') throw new InputError('--delivered must be true or false');
+      if (before !== undefined && !(Number.isInteger(Number(before)) && Number(before) > 0)) throw new InputError('--before must be an event id');
+      return { name: 'event_list', ...(opt('to') === undefined ? {} : { to: opt('to')! }),
+        ...(opt('from') === undefined ? {} : { from: opt('from')! }), ...(kind === undefined ? {} : { kind }),
+        ...(delivered === undefined ? {} : { delivered: delivered === 'true' }), ...(opt('q') === undefined ? {} : { q: opt('q')! }),
+        ...(before === undefined ? {} : { before: Number(before) }),
+        limit: opt('limit') === undefined ? PAGE_LIMIT_DEFAULT : Number(opt('limit')) };
     }
     case 'turn end': {
       const pid = Number(required('pid'));
