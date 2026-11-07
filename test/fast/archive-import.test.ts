@@ -8,6 +8,9 @@ import { archiveStatus, engineFolders, importArchive } from '../../src/app/archi
 import { claudeFolderName, nativeIdOf, piFolderName } from '../../src/modules/archive/public.js';
 import { openArchive } from '../../src/infrastructure/database/archive.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { parseCommand } from '../../src/cli/command.js';
+import { appCommand } from '../../src/cli/app-command.js';
+import { InputError } from '../../src/shared/errors.js';
 
 const jsonl = (records: object[]) => records.map(r => JSON.stringify(r) + '\n').join('');
 const at = (minute: number) => '2026-11-07T10:' + String(minute).padStart(2, '0') + ':00.000Z';
@@ -18,6 +21,11 @@ const assistant = (uuid: string, parentUuid: string | null, minute: number) =>
 const piHeader = (id: string) => ({ type: 'session', version: 3, id, timestamp: at(0), cwd: '/synthetic' });
 const piMessage = (id: string, parentId: string | null, role: 'user' | 'assistant', minute: number) =>
   ({ type: 'message', id, parentId, timestamp: at(minute), message: { role, stopReason: 'stop', content: [{ type: 'text', text: 'synthetic ' + id }] } });
+const cli = (args: string[], env: Record<string, string>) => {
+  const parsed = parseCommand(args);
+  if (parsed.type === 'help') throw new Error('Unexpected help');
+  return appCommand(parsed, env);
+};
 const command = (home: string, dirs?: { agent: 'claude' | 'pi'; path: string }[]) =>
   ({ name: 'archive_import' as const, home, ...(dirs ? { dirs } : {}) });
 
@@ -127,6 +135,11 @@ test('archive import binds a key on a later pass without new bytes', t => {
 });
 
 test('archive import takes each --dir with its own --agent and refuses a missing folder', t => {
+  assert.deepEqual(cli(['archive', 'import', '--dir', '/a', '--agent', 'claude', '--dir', '/b', '--agent', 'pi'], { HOME: '/h' }),
+    { name: 'archive_import', home: '/h', dirs: [{ agent: 'claude', path: '/a' }, { agent: 'pi', path: '/b' }] });
+  for (const args of [['archive', 'import', '--dir', '/a'], ['archive', 'import', '--agent', 'pi'], ['archive', 'import', '--dir', '/a', '--agent', 'codex']])
+    assert.throws(() => cli(args, { HOME: '/h' }), InputError);
+  assert.deepEqual(cli(['archive', 'status'], {}), { name: 'archive_status' });
   const { dir, filename } = state(t);
   assert.throws(() => importArchive(filename, command(dir, [{ agent: 'pi', path: join(dir, 'missing') }])), /Not a directory/);
   assert.equal(existsSync(archivePath(filename)), false);

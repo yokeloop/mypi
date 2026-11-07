@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
 import { hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
@@ -92,6 +93,14 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       { name: 'restore', backupDirectory: a[0]! };
     case 'home migrate-tasks': return { name: 'home_migrate_tasks', dryRun: Boolean(o['dry-run']) };
     case 'sessions': return { name: 'sessions', ...runtime };
+    case 'archive import': {
+      const dirs = o['dir'] as string[] | undefined ?? [], agents = o['agent'] as string[] | undefined ?? [];
+      if (dirs.length !== agents.length) throw new InputError('Each --dir needs its own --agent claude|pi');
+      if (agents.some(agent => agent !== 'claude' && agent !== 'pi')) throw new InputError('--agent must be claude or pi');
+      return { name: 'archive_import', home: env['HOME'] || homedir(),
+        ...(dirs.length ? { dirs: dirs.map((path, i) => ({ agent: agents[i] as 'claude' | 'pi', path })) } : {}) };
+    }
+    case 'archive status': return { name: 'archive_status' };
     case 'session register': {
       const agent = required('agent');
       if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
