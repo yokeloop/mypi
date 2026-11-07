@@ -25,9 +25,6 @@ project resolve /absolute/existing-directory
 project flow MP|org/project
 project remove org/project --expected-code MP
 org remove org
-memory add "fact" [-s org/project]
-memory show [-s org/project]
-memory remove 1 --expected-revision SHA256 [-s org/project]
 capture "original text"
 capture --file /path/to/utf8-source
 note "title" "text" [-s org/project]
@@ -38,27 +35,26 @@ session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>]
 session unregister --pid <pid> | forget <key>
 sessions
 event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid>
+event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n]
 turn end --pid <pid>
 inbox [org | CODE | CODE-N | global | all]
 send MP-12 "next step" | send MP-12 --file step.md
 open MP MP-12 | open tb-ff | open MP-12 --message "next step"
 ```
 
-Without -s, memory/notes are global. Managed MEMORY facts serialize as JSON strings
-inside Markdown; multiline text is returned exactly. Other Markdown remains context,
-not managed facts. `memory show` returns the exact file text and SHA-256 `revision`.
-Removal requires the displayed number and that revision; stale/missing revisions refuse
-without modifying files. Reread and retry deliberately, never reuse an old number.
+Without -s, notes are global.
 Capture creates a separate immutable inbox/*.md original, not a SQL copy; no BOM/CRLF
 stripping. It does not replace a task card or authorize execution. Notes never
 silently overwrite another note with the same topic. `warmup` prints
-Markdown, not JSON: personal instructions, role, how to work in mypi, zone memory, then
+Markdown, not JSON: personal instructions, role, how to work in mypi, the knowledge entries of the level and its parents, then
 the project list (global), the organization's projects with their open tasks by status (organization),
 open tasks and a journal line with the count of the project's and its tasks' entries and the newest date (project), or task card, worktree and the task's last five journal entries (task); both name the `journal read` command that reads more.
 Without -s it uses the session's registered key, else MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
-and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
-the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
-in parentheses, `memory show -s …`. `--max-chars n` (1–21845) applies the same cut at n characters instead; the Claude Code hook uses 9500. `journal read` global remains global-only.
+and projects without a clone exit 1 with a JSON error. Over
+64 KiB the farthest entry is clipped first from its end with a line naming `context_read`
+and, in parentheses, `context read <path>`; reports left out are counted with the
+`events` call and `event list`. `--max-chars n` (1–21845) applies the same cut at n characters instead; the Claude Code hook uses 9500. `journal read` global remains global-only.
+`event list` prints the same rows as MCP `events`, newest first, and never marks them delivered.
 Task cards from task show and task list include worktreePath (null until a worktree is
 recorded) and parent (the key of the parent task, or null).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`

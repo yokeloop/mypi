@@ -15,7 +15,7 @@ The human-readable name of a Session, equal to its Scope: `global`, the Organiza
 The zone a Session works in: `global`, `org`, `project` or `task`. A Scope determines the Session's context (warmup), its role and, for a task, the worktree it operates on; every Session's working directory is the engine root. Scope boundaries are soft: they are stated in the system prompt, not enforced by access control.
 
 ## Main chat
-The Session with the `global` Scope. Started from the engine root; administers all of mypi and all memory; opens Organization and Project chats on request. Top of the parent chain; receives no Events.
+The Session with the `global` Scope. Started from the engine root; administers all of mypi and the global knowledge entry; opens Organization and Project chats on request. Top of the parent chain; receives no Events.
 
 ## Organization chat
 The Session with an `org` Scope. Exactly one per Organization. Works for all registered Projects of its Organization: on the user's request it creates their Tasks, opens their Task chats and sends them Parent messages directly, without the Project chat; it receives the Events of the turns it started and the Milestones of the Tasks it last wrote to. Its Parent is the Main chat.
@@ -63,4 +63,4 @@ The small tracked per-Agent configuration and code in the engine (`.claude/`, `.
 One JSON record per live Session under `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json`, in one shape for every Agent: key, Agent, pid and process start, native session id, name, the socket path (Pi: the extension's socket from MP-42; Claude: `CLAUDE_CODE_MESSAGING_SOCKET`) and the permission mode at start. Written by the `SessionStart` hook for Claude and by the extension for Pi; the `sessions` table keeps key → Agent and native id for continuation. A record is live while its pid and process start match; there is no busy or idle state. It is the only source of liveness for `/open`, `sessions` and Event delivery. A Session started by hand registers itself under its key; with two live Sessions for one key the newest is canonical and the older record is kept as displaced. A fork started by hand without `MYPI_SCOPE` is not registered.
 
 ## Warmup
-The context loaded at every start or continuation of a Session: the Scope's memory, the role of the Scope, the "how to work in mypi" instruction, undelivered Events and a pointer to the Scope's journal — for a Project the count of entries and the newest date, for a Task its last five entries — with the `journal` call that reads more.
+The context loaded at every start or continuation of a Session: the knowledge entries of the Scope and its parents, the role of the Scope, the "how to work in mypi" instruction, undelivered Events and a pointer to the Scope's journal — for a Project the count of entries and the newest date, for a Task its last five entries — with the `journal` call that reads more.
