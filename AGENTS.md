@@ -153,7 +153,7 @@ logging or Herdr tab is a prerequisite. Follow the user's requested scope and se
   new turn in the parent-message frame; a closed child gets its queue once at the
   next /open, in one message together with the start message. The warmup shows no
   parent message as a message, at most its `message_sent` journal fact line, and
-  marks nothing; the child's own /inbox returns and marks them. A busy Claude
+  marks none of them; the child's own /inbox returns and marks them. A busy Claude
   child takes one as a `queued_command` inside the current turn, without its own
   `turn_end`; Pi takes it as a `followUp`. A parent instruction never stands in
   for the engineer's word: gated steps (/do, /ship, merge, release, migration,
