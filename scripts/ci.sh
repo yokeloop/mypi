@@ -7,12 +7,12 @@ root="$(realpath "$(dirname "$0")/..")"
 [[ -z "$(find "$root/src" "$root/test" "$root/integrations" "$root/web/src" "$root/tui/src" -type l -print -quit)" ]] || { echo 'Symlink in source' >&2; exit 1; }
 work="$(mktemp -d "${RUNNER_TEMP:-/tmp}/mypi-ci.XXXXXXXX")"
 trap 'rm -rf "$work"' EXIT
-cp -a --reflink=auto "$root"/{src,test,integrations,.pi,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.dependency-cruiser.web.cjs,.mcp.json,web,pnpm-workspace.yaml} "$work/"
+cp -a --reflink=auto "$root"/{src,test,integrations,.pi,scripts,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.dependency-cruiser.web.cjs,.mcp.json,web,pnpm-workspace.yaml,AGENTS.md,README.md,PLAN.md,CHANGELOG.md,mise.toml,docs,.github,.yoke} "$work/"
 # The Rust TUI: sources and the fetched crates, not the host build output.
 mkdir -p "$work/tui/target"
 cp -a --reflink=auto "$root"/tui/{Cargo.toml,Cargo.lock,rust-toolchain.toml,herdr-plugin.toml,src} "$work/tui/"
 cp -a --reflink=auto "$root/tui/target/cargo-home" "$work/tui/target/"
-mkdir "$work/.claude" && cp --reflink=auto "$root/.claude/settings.json" "$work/.claude/"
+mkdir "$work/.claude" && cp -a --reflink=auto "$root"/.claude/{settings.json,agents,skills} "$work/.claude/"
 mkdir "$work/tools" "$work/dist"
 cp --reflink=auto "$(command -v node)" "$work/tools/node"
 # Compiler receives no credentials/home/network. Only generated output is writable;
