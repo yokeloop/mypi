@@ -9,6 +9,7 @@ import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { readWarmup, warmupScope, WARMUP_LIMIT, WARMUP_MAX_CHARS } from '../../src/app/warmup.js';
 import { readInbox } from '../../src/app/events.js';
+import type { Entry } from '../../src/modules/knowledge/public.js';
 
 function fixture(t: TestContext, personal?: string) {
   const { dir, filename } = state(t);
@@ -52,7 +53,11 @@ function fixture(t: TestContext, personal?: string) {
         : title + '\n');
     }
   } finally { db.close(); }
-  return { dir, filename, root, clone, write };
+  const journal = (...entries: Entry[]) => {
+    const app = createApp(filename, false);
+    try { for (const entry of entries) app.journalStore.append(entry); } finally { app.close(); }
+  };
+  return { dir, filename, root, clone, write, journal };
 }
 
 const normal = (dir: string, out: string) => out.replaceAll(realpathSync(dir), '<TMP>').replaceAll(dir, '<TMP>');
@@ -323,6 +328,7 @@ test('over budget the last reports shrink first, then memory facts, then new eve
     for (let i = 0; i < 40; i++) emit(filename, 'MP-12', 'turn_end', 'event ' + i + ' ' + 'x'.repeat(400));
     const out = readWarmup(filename, root, 'MP', 9500);
     assert(out.length <= 9500);
+    assert(out.includes('## Журнал\n\nЗаписей в журнале проекта нет.\nЧитать: journal {"scope":{"type":"project","key":"MP"},"limit":20} (CLI: mypi journal read -s project:MP --limit 20)\n'));
     assert(out.includes('> 1 older facts hidden from projects/one/MEMORY.md') && out.includes('> 1 older facts hidden from projects/one/project/MEMORY.md'));
     const shown = [...out.matchAll(/^\[mypi: MP-12 завершил ход в 14:02, событие (\d+)\. /gm)].map(m => Number(m[1]));
     assert(shown.length > 0 && shown.length < 40);
@@ -332,4 +338,102 @@ test('over budget the last reports shrink first, then memory facts, then new eve
     assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events.map(e => e.id),
       Array.from({ length: 40 - shown.length }, (_, i) => shown.length + i + 1));
   }
+});
+
+test('project warmup counts the journal of the project and all its tasks and names the newest date; foreign and global rows do not count', t => {
+  const { dir, filename, root, journal } = fixture(t);
+  const task = { type: 'task' as const, key: 'MP-12' };
+  const folder = 'projects/one/project/tasks/MP-12-scoped-warmup/';
+  const long = 'line one\nline two ' + 'y'.repeat(400);
+  journal(
+    { at: '2026-10-30T10:00:00.000Z', scope: task, event_type: 'task_created', text: 'Created' },
+    { at: '2026-10-30T11:00:00.000Z', scope: task, event_type: 'note', text: 'first note' },
+    { at: '2026-10-30T12:00:00.000Z', scope: task, event_type: 'status_changed', text: 'new → research' },
+    { at: '2026-10-30T12:30:00.000Z', scope: { type: 'task', key: 'MP-7' }, event_type: 'note', text: 'foreign' },
+    { at: '2026-10-30T13:00:00.000Z', scope: task, event_type: 'note', text: long },
+    { at: '2026-10-30T13:30:00.000Z', scope: task, event_type: 'note', text: 'derive', artifacts: [folder + 'plan-v1.md', folder + 'derive.json'] },
+    { at: '2026-10-30T14:04:00.000Z', scope: task, event_type: 'status_changed', text: 'research → planning. plan published',
+      artifacts: [{ path: folder + 'plan.md', commit: 'b'.repeat(40) }] },
+    { at: '2026-10-29T08:00:00.000Z', scope: { type: 'task', key: 'MP-5' }, event_type: 'note', text: 'old task' },
+    { at: '2026-10-31T09:00:00.000Z', scope: { type: 'project', key: 'MP' }, event_type: 'note', text: 'release' },
+    { at: '2026-11-01T09:00:00.000Z', scope: { type: 'task', key: 'OT-1' }, event_type: 'note', text: 'foreign project' },
+    { at: '2026-11-02T09:00:00.000Z', scope: { type: 'global' }, event_type: 'note', text: 'global' },
+  );
+  const before = readFileSync(filename);
+  const line = 'Записей журнала проекта: 9, последняя 2026-10-31.';
+  assert(readWarmup(filename, root, 'MP').includes('## Open tasks\n\n- MP-3 [new] Draft the API\n- MP-7 [in_progress] Started work\n- MP-12 [planning] Scoped warmup\n\n'
+    + '## Журнал\n\n' + line + '\nЧитать: journal {"scope":{"type":"project","key":"MP"},"limit":20} (CLI: mypi journal read -s project:MP --limit 20)\n'));
+  assert(readWarmup(filename, root, 'MP', 9500).includes(line));
+  assert(readWarmup(filename, root, 'MP-12').endsWith('## Worktree\n\nNot created yet. Expected path: ' + join(dir, 'clone--MP-12-scoped-warmup')
+    + '\nBase clone: ' + join(dir, 'clone') + '\n\n## Журнал\n\nПоследние записи журнала задачи (5):\n'
+    + '- 2026-10-30 11:00 note: first note\n'
+    + '- 2026-10-30 12:00 status_changed: new → research\n'
+    + '- 2026-10-30 13:00 note: ' + long.replace('\n', ' ').slice(0, 300) + '…\n'
+    + '- 2026-10-30 13:30 note: derive\n'
+    + '  Артефакты: ' + folder + 'plan-v1.md, ' + folder + 'derive.json\n'
+    + '- 2026-10-30 14:04 status_changed: research → planning. plan published\n'
+    + '  Артефакты: ' + folder + 'plan.md@bbbbbbb\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-12"},"limit":20} (CLI: mypi journal read -s task:MP-12 --limit 20)\n'));
+  assert(readWarmup(filename, root, 'MP-7').includes('## Журнал\n\nПоследние записи журнала задачи (1):\n- 2026-10-30 12:30 note: foreign\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-7"},"limit":20} (CLI: mypi journal read -s task:MP-7 --limit 20)\n'));
+  assert(readWarmup(filename, root, 'MP-3').endsWith('## Журнал\n\nЗаписей в журнале задачи нет.\n'
+    + 'Читать: journal {"scope":{"type":"task","key":"MP-3"},"limit":20} (CLI: mypi journal read -s task:MP-3 --limit 20)\n'));
+  assert.deepEqual(readFileSync(filename), before);
+});
+
+test('over budget a task warmup drops its journal entries oldest first before memory facts and keeps the heading, the count and the loader', t => {
+  const loader = 'Читать: journal {"scope":{"type":"task","key":"MP-12"},"limit":20} (CLI: mypi journal read -s task:MP-12 --limit 20)\n';
+  {
+    const { filename, root, write, journal } = fixture(t);
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 5));
+    journal(...Array.from({ length: 6 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
+      event_type: 'note', text: 'entry ' + i + ' ' + 'x'.repeat(280) })));
+    const full = readWarmup(filename, root, 'MP-12');
+    assert(full.includes('(5):') && full.includes('entry 1 ') && full.includes('entry 5 ') && !full.includes('entry 0 '));
+    const one = readWarmup(filename, root, 'MP-12', full.length - 100);
+    assert(one.length <= full.length - 100);
+    assert(one.includes('Последние записи журнала задачи (4):\n- 2026-10-30 12:00 note: entry 2 ') && one.includes('entry 5 '));
+    assert(!one.includes('entry 1 ') && !one.includes('older facts hidden'));
+    for (let i = 0; i < 5; i++) assert(one.includes(fact('project', i)));
+    assert(one.includes(loader));
+    const none = readWarmup(filename, root, 'MP-12', full.length - 1700);
+    assert(none.length <= full.length - 1700);
+    assert(none.includes('## Журнал\n\nПоследние записи журнала задачи (0):\n' + loader));
+    assert(!none.includes('entry '));
+    assert(none.includes('older facts hidden from projects/one/project/MEMORY.md') && none.includes('Project conventions by hand.'));
+  }
+  {
+    const { filename, root, write, journal } = fixture(t);
+    write('projects/one/project/MEMORY.md', facts('project', 'Project', 60, 'ж'));
+    journal(...Array.from({ length: 5 }, (_, i): Entry => ({ at: '2026-10-30T1' + i + ':00:00.000Z', scope: { type: 'task', key: 'MP-12' },
+      event_type: 'note', text: 'entry ' + i + ' ' + 'ж'.repeat(280) })));
+    const out = readWarmup(filename, root, 'MP-12', 9500);
+    assert(out.length <= 9500);
+    assert(Buffer.byteLength(out) > out.length);
+    assert(out.includes('## Журнал\n\nПоследние записи журнала задачи (') && out.includes(loader));
+    assert(readWarmup(filename, root, 'MP', 9500).includes('Записей журнала проекта: 5, последняя 2026-10-30.'));
+  }
+});
+
+test('over budget a task warmup clips the end of its card after memory facts and names the call that reads it in full', t => {
+  const { filename, root, write } = fixture(t);
+  const path = 'projects/one/project/tasks/MP-12-scoped-warmup/source.md';
+  write('projects/one/project/MEMORY.md', facts('project', 'Project', 3));
+  write(path, '# Card\n\nCard start.\n\n' + 'Long card line ж.\n'.repeat(700) + 'Card end.\n');
+  const out = readWarmup(filename, root, 'MP-12', 9500);
+  assert(out.length <= 9500);
+  assert(out.includes('### Card\n\nCard start.') && !out.includes('Card end.'));
+  assert(out.includes('\n\n> The card is clipped to fit the 9500-character warmup limit. Read in full: context_read {"path":"' + path
+    + '"} (CLI: mypi context read ' + path + ')\n\n## Worktree\n\n'));
+  assert(out.includes('older facts hidden from projects/one/project/MEMORY.md') && !out.includes('even without memory facts'));
+  assert(out.includes('## Журнал\n\nЗаписей в журнале задачи нет.\n'));
+  assert(!readWarmup(filename, root, 'MP-12').includes('The card is clipped'));
+  write(path, '# Card\n\n```sh\n' + 'echo long card line ж\n'.repeat(700) + '```\n');
+  const fenced = readWarmup(filename, root, 'MP-12', 9500);
+  assert(fenced.length <= 9500);
+  assert(/\necho long[^\n]*\n```\n\n> The card is clipped/.test(fenced));
+  write(path, '# Card\n\n~~~~\n```js\n' + 'echo long card line ж\n'.repeat(700) + '~~~~\n');
+  const tilde = readWarmup(filename, root, 'MP-12', 9500);
+  assert(tilde.length <= 9500);
+  assert(/\necho long[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
 });

@@ -29,6 +29,7 @@ fn tone(tone: Tone) -> Style {
         Tone::Plain => style,
         Tone::Dim => style.fg(Color::DarkGray),
         Tone::Accent => style.fg(Color::Cyan),
+        Tone::Info => style.fg(Color::Magenta),
         Tone::Good => style.fg(Color::Green),
         Tone::Warn => style.fg(Color::Yellow),
         Tone::Muted => style.fg(Color::Gray),

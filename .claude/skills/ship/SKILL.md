@@ -47,8 +47,9 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
    stop and report.
 4. **Merge.** `gh pr merge <url> --<mergeMethod>` (mypi has no flow.json, so the
    default `merge` keeps the merge commits of its convention: `git log --merges`
-   shows them). Then for the key (every key of
-   a flow), in this order:
+   shows them). Then for the key (every key of a flow), in this order — by
+   «Journal» of `docs/PIPELINE.md`, item 1 leaves the engine's `status_changed`
+   entry and item 3 the skill's `progress` entry:
    1. `$BIN/mp-task status <KEY> merged "смержено в <prTarget>: <merge sha>"`.
    2. If you mark the merge in `progress.md` (a line or a «смержено» checkbox),
       do it here: it is the last entry in `progress.md`; the manual check has
@@ -70,6 +71,8 @@ print the refusal text from `docs/PIPELINE.md` and stop. This step runs before `
 Per key: the merge SHA, the checks before the merge, what was removed; for a
 stop — the literal failing output and what stands untouched. Then one reminder: for
 MP, the installed engine is not updated by this skill; the engineer runs the update
-flow from `AGENTS.md` separately and sets `done` afterwards. For another project,
-delivery after the merge (deploy, release) is the project's business, outside the
-pipeline; the engineer sets `done`.
+flow from `AGENTS.md` separately and sets `done` afterwards. The update is recorded
+once, as a project-scope note by the project chat («Journal» of `docs/PIPELINE.md`:
+the version, the task keys, the session key); the per-task `done` reason names only
+the version. For another project, delivery after the merge (deploy, release) is the
+project's business, outside the pipeline; the engineer sets `done`.

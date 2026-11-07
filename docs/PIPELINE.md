@@ -200,6 +200,54 @@ final message is exactly one JSON object per its definition.
 
 Every status reason carries the relevant link: derive URL or PR URL.
 
+## Journal
+
+One writer per fact; nothing is written twice.
+
+- The engine writes the facts it knows, once, at the moment they happen, inside
+  the application command, so every entry point (CLI, MCP, HTTP API, `/open`)
+  leaves the same entry. The types are `EVENT_TYPES` in
+  `src/modules/knowledge/model.ts`; their texts:
+  - `task_created` (task scope): `Task registered.`, with ` Parent: <KEY>.` when
+    the task has a parent;
+  - `status_changed` (task): `<before> → <after>. <reason>`. A repeated status
+    changes nothing on the card but leaves a `note` `<status> (unchanged).
+    <reason>`, so a rework reason goes into that status call; a repeated title
+    writes nothing;
+  - `title_changed` (task): `Title: "<before>" → "<after>". <reason>`;
+  - `worktree_created` (task): `worktree <path>, branch <branch>, base
+    <integration>`, by `task worktree` when it creates the worktree (the single
+    mode of `mp-worktree`; the flow mode calls git itself and leaves no entry);
+  - `session_opened` (task, project or organization): `started <agent>` or
+    `resumed <agent>`, with `, worktree <path>` for a task; nothing on focus;
+  - `message_sent` (the recipient's scope): `message <id> from <from>: <first
+    line>`;
+  - `clone_prepared` (project): `clone prepared: <action> <path>`, with ` from
+    <repository>` when cloned;
+  - `note`: everything else — `progress`, `task parent`, the repeated-status
+    note above and the `journal` kind of the `note` tool.
+  A skill never repeats these facts in a status reason or a `progress` text: no
+  worktree path, no branch, no session, no parent message.
+- A skill writes what only it knows — the outcome of a step and its link — as
+  one `progress` entry (`mp-task progress`: a `note` with the step's files as
+  artifacts) at its «Record» step: `/plan` the published plan (`plan.md`), `/do`
+  the PR or the flow merge (`plan.md`, `pr.md`, `do-report.json`,
+  `review-report.json`), `/ship` the merge (`pr.md`, `progress.md`). Every
+  status reason carries the relevant link («Statuses in mypi»); a reason set by
+  `/flow` itself or by `/do` stage 1 in flow mode starts with `в потоке <name>`.
+  `/flow` writes no `progress` of its own: its record is the flow score.
+- The project chat, or the organization chat for a project of its organization,
+  writes one `note` in the project scope (`note` kind `journal`, scope
+  `{"type":"project","key":"<CODE>"}`) per release, engine update or decision
+  taken in conversation: what was decided or shipped, the task keys and the key
+  of the session it was decided in; the entry's time is its timestamp. The
+  per-task `merged → done` line stays per task, with only the version in its
+  reason. Never a copy of a task's entries in the project journal
+  (`docs/M1-CLI.md`, «Journal filters»).
+- Not journaled: events (`turn_end`, `waiting`, milestones), `/open` of a live
+  session (focus), `inbox` and `warmup` reads, memory and context notes (home's
+  Git is their history), and the conversation itself.
+
 ## Approval semantics
 
 - An approved plan is the engineer typing `/do <KEY>` or `/flow …`; under
@@ -290,11 +338,10 @@ else `<checkoutPath>/CLAUDE.md`.
   of the plan). Under `/flow` too: no GitHub Release or other publication and no
   migration of the personal database without the engineer's separate permission.
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
-  folder; commit home after each change. Artifacts are the task folder's files
-  named in `progress`; each entry points at the home commit `progress` made. Never
-  rewrite or force-push home history: the references live in it. A repeated `status` with the
-  same value writes nothing to the journal, so a rework reason goes into
-  `progress`.
+  folder by «Journal» above; commit home after each change. Artifacts are the
+  task folder's files named in `progress`; each entry points at the home commit
+  `progress` made. Never rewrite or force-push home history: the references live
+  in it.
 - A stage is passed by its named condition with the command output as evidence,
   never by "looks done". A check still red after three fix attempts is an open
   point, not a fourth attempt. Never a weakened check.

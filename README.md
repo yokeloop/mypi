@@ -169,7 +169,7 @@ order: the row for this native id, the live record of the same process,
 the older record moves to `<key>~<pid>.json`. A fork started by hand without
 `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree
 global → org → project → task; `mypi session forget <key>` drops a row on the
-user's request. Without `XDG_RUNTIME_DIR` or an initialized schema 14 database
+user's request. Without `XDG_RUNTIME_DIR` or an initialized schema 15 database
 registration fails and the warmup still runs.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
@@ -233,7 +233,8 @@ task, organization chat → a task of its organization, main chat → a project 
 organization; any other caller is refused). A live child gets it
 at once through the same socket as events, as a new turn; a closed child gets its
 queued messages exactly once at the next `/open`, in one message with the start
-text. The warmup does not show them; the child's own `/inbox` returns and marks
+text. The warmup shows no parent message as a message, at most its `message_sent`
+journal fact line, and marks none of them; the child's own `/inbox` returns and marks
 them, `/inbox all` skips them. The turn such a message opens is parent-started,
 so its end comes back to the parent as `turn_end`. A busy Claude child takes the
 message as a `queued_command` inside its current turn without a `turn_end` of its
@@ -285,6 +286,10 @@ database first).
 
 Upgrading to schema 14: run `mypi db init` once after updating (back up the
 database first); it rebuilds `sessions` for organization sessions and keeps its rows.
+
+Upgrading to schema 15: run `mypi db init` once after updating (back up the
+database first); it rebuilds `knowledge_journal` for the new event types and keeps
+its rows.
 
 ### Updating without overwriting customizations
 

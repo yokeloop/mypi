@@ -116,8 +116,9 @@ Query details:
 
 - `project` takes a code or `org/project`; `status` a status code.
 - `delivered` is `true` or `false`; `kind` one of `turn_end`, `waiting`, `milestone`,
-  `message`; the journal's `type` one of `note`, `task_created`, `status_changed`; its
-  `from`/`to` are UTC timestamps; its `scope` is a scope reference as in the CLI's
+  `message`; the journal's `type` one of `note`, `task_created`, `status_changed`,
+  `title_changed`, `worktree_created`, `session_opened`, `message_sent`,
+  `clone_prepared`; its `from`/`to` are UTC timestamps; its `scope` is a scope reference as in the CLI's
   `journal -s`: `global`, an org slug, `org/project`, or `type:key` such as
   `project:FX`, `task:FX-1` or `org:fx`; all scopes by default. A bare `FX` or
   `FX-1` is refused.
@@ -190,7 +191,7 @@ field or route needs `/v2`.
 
 ## Engine updates and migrations
 
-The server opens a database of schema 14 and keeps its code in memory. After an
+The server opens a database of schema 15 and keeps its code in memory. After an
 engine update or a migration, restart it.
 
 ## Access log

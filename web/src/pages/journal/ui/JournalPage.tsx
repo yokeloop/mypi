@@ -3,11 +3,9 @@ import { Drawer, Group, Stack } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 import { JournalEntryCard, JournalEntryDetails, useJournalPages } from '../../../entities/journal-entry';
 import { DateFilter, SearchField, SelectFilter, TextFilter, useFilters } from '../../../features/filters';
-import { text } from '../../../shared/lib';
+import { JOURNAL_TYPES, text } from '../../../shared/lib';
 import type { Rec } from '../../../shared/lib';
 import { RecordList } from '../../../widgets/record-list';
-
-const TYPES = ['note', 'task_created', 'status_changed'];
 
 export function JournalPage() {
   const [filters, setFilter] = useFilters('journal');
@@ -18,7 +16,7 @@ export function JournalPage() {
     <Stack>
       <Group gap="xs" wrap="wrap" align="flex-end">
         <TextFilter label="Scope" value={filters.scope} onChange={v => setFilter('scope', v)} />
-        <SelectFilter label="Type" data={TYPES} value={filters.type} onChange={v => setFilter('type', v)} />
+        <SelectFilter label="Type" data={[...JOURNAL_TYPES]} value={filters.type} onChange={v => setFilter('type', v)} />
         <DateFilter label="From" value={filters.from} onChange={v => setFilter('from', v)} />
         <DateFilter label="To" value={filters.to} onChange={v => setFilter('to', v)} />
         <SearchField value={filters.q} onChange={v => setFilter('q', v)} />

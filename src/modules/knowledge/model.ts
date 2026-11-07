@@ -2,7 +2,18 @@ import type { Scope } from '../../shared/scope.js';
 import { scopeValue } from '../../shared/scope.js';
 import { InputError } from '../../shared/errors.js';
 
-export type EventType = 'note' | 'task_created' | 'status_changed';
+export const EVENT_TYPES = ['note', 'task_created', 'status_changed', 'title_changed', 'worktree_created', 'session_opened', 'message_sent', 'clone_prepared'] as const;
+export type EventType = typeof EVENT_TYPES[number];
+const EVENT_SCOPES: Record<EventType, readonly Scope['type'][]> = {
+  note: ['global', 'org', 'project', 'task'],
+  task_created: ['task'],
+  status_changed: ['task'],
+  title_changed: ['task'],
+  worktree_created: ['task'],
+  session_opened: ['task', 'project', 'org'],
+  message_sent: ['task', 'project', 'org'],
+  clone_prepared: ['project'],
+};
 export type ArtifactRef = string | { path: string; commit: string };
 export interface Entry { at: string; scope: Scope; event_type: EventType; text: string; artifacts?: ArtifactRef[] }
 export function utc(value: string): number {
@@ -35,8 +46,8 @@ export function entryValue(value: unknown): Entry {
   utc(x['at']);
   const scope = scopeValue(x['scope']);
   const type = x['event_type'];
-  if (typeof type !== 'string' || !['note', 'task_created', 'status_changed'].includes(type)
-    || (type !== 'note' && scope.type !== 'task')) throw new InputError('Invalid event type/scope');
+  if (typeof type !== 'string' || !(EVENT_TYPES as readonly string[]).includes(type)
+    || !EVENT_SCOPES[type as EventType].includes(scope.type)) throw new InputError('Invalid event type/scope');
   const entry: Entry = { at: x['at'], scope, event_type: type as EventType, text: x['text'] };
   if ('artifacts' in x) {
     if (!Array.isArray(x['artifacts']) || !x['artifacts'].length) throw new InputError('Invalid artifacts');

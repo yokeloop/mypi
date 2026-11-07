@@ -129,7 +129,9 @@ project; the API does not reassign one.
 
 Initial status is explicit. DB dictionary, not fixed code enum/pipeline, determines
 validity/terminality. Used statuses cannot be deleted or have terminality changed;
-renaming preserves stable IDs and is not task progress. Same status is a no-op.
+renaming preserves stable IDs and is not task progress. A repeated status changes
+nothing on the card and leaves a `note` `<status> (unchanged). <reason>` in the task
+journal; a repeated title writes nothing.
 Terminal tasks do not reopen; continuation is a new explicitly linked record.
 [M1-REQUESTS](M1-REQUESTS.md) contains the storage contract and decision history of the request era.
 
@@ -142,7 +144,10 @@ Notes have unique paths; errors append rather than rewrite.
 
 Journal: ordered append-only SQLite rows in the task database, with required
 at/scope/event_type/text and optional home-relative artifacts. Types:
-note/task_created/status_changed. Events do not launch flow. Existing monthly
+note/task_created/status_changed/title_changed/worktree_created/session_opened/message_sent/clone_prepared.
+A type other than note is allowed only in the scopes of its fact: task facts in a
+task, `clone_prepared` in a project, `session_opened` and `message_sent` in a task,
+project or organization. Events do not launch flow. Existing monthly
 JSONL files are read only by explicit `journal import`; originals remain untouched.
 Stop old writers before cutover. Import rejects changed or corrupt input and retains
 legitimate duplicate entries. Imported plain-path artifacts keep fingerprints that
@@ -159,7 +164,9 @@ organization: global and organization `MEMORY.md`, no project memory; project:
 organization and project `MEMORY.md`; task: project `MEMORY.md`), then the project
 list (global), one line per project of the organization with its clone or `no clone`
 and its open tasks counted by status (organization), the open tasks (project) or the
-task card with its worktree (task). A project or organization warmup then adds «Новые
+task card with its worktree (task).
+Then «Журнал»: in a project scope one line with the number of journal entries of the project and all its tasks and the local date of the newest (`stats` of the SQLite journal store, one SQL statement; «Записей в журнале проекта нет.» when none), in a task scope the task's last five entries (`last`, newest last; date, time, type, text up to 300 characters, an artifacts line), «Записей в журнале задачи нет.» when none; both end with the `journal` call with `limit` 20 and its CLI form that read more. Neither reader goes through `createJournal().read`, which resolves every row's scope.
+A project or organization warmup then adds «Новые
 события» — the undelivered events addressed to that key, each in its frame — and «Последние доклады» — the last `turn_end` of each
 open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, an organization slug, `CODE`
 and `CODE-N` (`all` is not a key). Unknown keys, legacy REQ tasks and projects without a clone are errors.
@@ -170,9 +177,9 @@ Warmup creates no rows, files or Git state; a project or organization warmup set
 
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
-characters always fit 64 KiB. Both limits cut the same way. Only memory facts are
-cut: never the personal instructions, role, how-to, project list, task list, task
-card or worktree, and never the hand-written text of a `MEMORY.md`. The farthest zone
+characters always fit 64 KiB. Both limits cut the same way.
+Memory facts and, in a task scope, the shown journal entries and then the end of the task card (`source.md`) are cut: never the personal instructions, role, how-to, project list, task list, the task card's key, title, status and context lines, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
+The farthest zone
 loses facts first (global, then organization, then project); within a file the
 oldest facts go first. In their place a line states how many facts were hidden, from
 which file, under which limit, and the `memory` show call (with the CLI command after
@@ -182,6 +189,7 @@ the limit. A project warmup over the limit cuts in this order: the texts of the 
 reports to 280 characters, then the last reports one by one from the oldest, then
 memory facts as above, then new events from the newest, which stay undelivered and
 are counted in a line pointing to `/inbox`; only then the note above.
+A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then clips the end of the card (`source.md`) with a line naming the `context_read` call (and its CLI command) that reads it in full; only then the note.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible

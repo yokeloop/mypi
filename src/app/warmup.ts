@@ -11,6 +11,7 @@ import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { frame } from '../modules/events/public.js';
 import type { EventRow } from '../modules/events/public.js';
+import type { Entry } from '../modules/knowledge/public.js';
 import { InputError } from '../shared/errors.js';
 
 export const WARMUP_LIMIT = 64 * 1024;
@@ -27,6 +28,18 @@ export function localTime(iso: string): string {
   return String(date.getHours()).padStart(2, '0') + ':' + String(date.getMinutes()).padStart(2, '0');
 }
 
+export function localDate(iso: string): string {
+  const date = new Date(iso);
+  return date.getFullYear() + '-' + String(date.getMonth() + 1).padStart(2, '0') + '-' + String(date.getDate()).padStart(2, '0');
+}
+
+export function entryLines(entry: Entry): string[] {
+  const text = entry.text.replace(/\r?\n/g, ' ');
+  const line = '- ' + localDate(entry.at) + ' ' + localTime(entry.at) + ' ' + entry.event_type + ': '
+    + (text.length > 300 ? text.slice(0, 300) + '…' : text);
+  return entry.artifacts === undefined ? [line] : [line, '  Артефакты: ' + entry.artifacts.map(a => typeof a === 'string' ? a : a.path + '@' + a.commit.slice(0, 7)).join(', ')];
+}
+
 interface Zone { path: string; scope: string; cli: string; text: string | undefined; facts: number[] }
 
 function prompt(name: string): string {
@@ -41,15 +54,22 @@ export function noCloneError(project: { org: string; slug: string; code: string 
     + ' --expected-unset --path <checkout>)');
 }
 
+function fenceStep(fence: string | undefined, line: string): string | undefined {
+  const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
+  if (fence === undefined) return open ? open[1] : undefined;
+  return open && open[1]![0] === fence[0] && open[1]!.length >= fence.length && line.slice(open[0].length).trim() === '' ? undefined : fence;
+}
+
+function openFence(text: string): string | undefined {
+  return text.split('\n').reduce<string | undefined>(fenceStep, undefined);
+}
+
 function demote(text: string, by: number): string {
   let fence: string | undefined;
   return text.split('\n').map(line => {
-    const open = /^ {0,3}(`{3,}|~{3,})/.exec(line);
-    if (fence !== undefined) {
-      if (open && open[1]![0] === fence[0] && open[1]!.length >= fence.length && line.slice(open[0].length).trim() === '') fence = undefined;
-      return line;
-    }
-    if (open) { fence = open[1]; return line; }
+    const inside = fence !== undefined;
+    fence = fenceStep(fence, line);
+    if (inside || fence !== undefined) return line;
     return line.replace(/^( {0,3})(#{1,6})(?=[ \t\r]|$)/, (_, indent: string, marks: string) => indent + '#'.repeat(Math.min(6, marks.length + by)));
   }).join('\n');
 }
@@ -114,6 +134,8 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
       const orgZone = (org: string) => zone('projects/' + org + '/MEMORY.md', { type: 'org', key: org }, ' -s ' + org);
       let header: string, role: string, zones: Zone[], tail: string[];
       let fresh: EventRow[] = [], history: EventRow[] = [];
+      let journal: Entry[] | undefined;
+      let body: { text: string, path: string } | undefined;
       if (key === 'global') {
         header = '# mypi warmup: global';
         role = 'global';
@@ -129,8 +151,13 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         role = 'project';
         zones = [orgZone(project.org), projectZone(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
+        const own = cards.filter(card => card.projectId === project.id);
+        const stats = app.journalStore.stats(key, own.map(taskKey));
         tail = ['## Open tasks\n\n' + (open.length === 0 ? '(none)'
-          : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n'))];
+          : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n')),
+          '## Журнал\n\n' + (stats.count === 0 ? 'Записей в журнале проекта нет.'
+            : 'Записей журнала проекта: ' + stats.count + ', последняя ' + localDate(stats.lastAt!) + '.')
+            + '\nЧитать: journal {"scope":{"type":"project","key":"' + key + '"},"limit":20} (CLI: mypi journal read -s project:' + key + ' --limit 20)'];
         fresh = app.events.pending(key).filter(event => event.kind !== 'message');
         const openKeys = new Set(open.map(taskKey));
         history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
@@ -162,21 +189,32 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         role = 'task';
         zones = [projectZone(project)];
         const source = files.read(card.contextDir + '/source.md');
+        body = { text: source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2),
+          path: card.contextDir + '/source.md' };
         tail = [
-          '## Task card\n\nKey: ' + key + '\nTitle: ' + card.title + '\nStatus: ' + card.status + '\nContext: ' + card.contextDir
-            + '\n\n' + (source === undefined ? 'source.md not found: ' + card.contextDir + '/source.md' : demote(source, 2)),
+          '## Task card\n\nKey: ' + key + '\nTitle: ' + card.title + '\nStatus: ' + card.status + '\nContext: ' + card.contextDir,
           '## Worktree\n\n' + (card.worktreePath === null
             ? 'Not created yet. Expected path: ' + project.checkoutPath + '--' + basename(card.contextDir)
               + expectedBranch(files, project, key, card)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
+        journal = app.journalStore.last({ type: 'task', key }, 5);
       } else {
         throw new InputError('Invalid scope key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
       const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
-      let clipped = false, dropped = 0, cut = 0;
+      let clipped = false, dropped = 0, cut = 0, trimmed = 0, shortened = 0;
+      const points = body === undefined ? [] : [...body.text];
+      const clipNote = () => '> The card is clipped to fit the ' + limit.label + ' warmup limit. Read in full: context_read {"path":"'
+        + body!.path + '"} (CLI: mypi context read ' + body!.path + ')';
+      const clippedBody = () => {
+        const kept = points.slice(0, points.length - shortened).join('').trimEnd();
+        const fence = openFence(kept);
+        return kept + (fence === undefined ? '' : '\n' + fence) + '\n\n' + clipNote();
+      };
+      const withBody = () => body === undefined ? tail : [tail[0] + '\n\n' + (shortened === 0 ? body.text : clippedBody()), ...tail.slice(1)];
       const report = (event: EventRow) => {
         const text = event.message.trimEnd(), short = clipped && text.length > 280 ? text.slice(0, 280) + '…' : text;
         return '### ' + event.fromKey + ', событие ' + event.id + ', ' + localTime(event.createdAt) + '\n\n' + (short === '' ? '(без текста)' : demote(short, 3));
@@ -190,15 +228,23 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
             + kept.map(report).join('\n\n')]),
         ];
       };
+      const journalSection = () => {
+        if (journal === undefined) return [];
+        const shown = journal.slice(trimmed);
+        return ['## Журнал\n\n' + (journal.length === 0 ? 'Записей в журнале задачи нет.'
+          : 'Последние записи журнала задачи (' + shown.length + '):' + shown.flatMap(entryLines).map(line => '\n' + line).join(''))
+          + '\nЧитать: journal {"scope":{"type":"task","key":"' + key + '"},"limit":20} (CLI: mypi journal read -s task:' + key + ' --limit 20)'];
+      };
       const render = (hidden: number[], note: boolean) => [...head,
         '## Memory\n\n' + (note ? '> This warmup exceeds the ' + limit.label + ' limit even without memory facts; all facts are hidden.\n\n' : '')
           + zones.map((z, i) => '### ' + z.path + '\n\n' + memoryText(z, hidden[i]!, limit.label)).join('\n\n'),
-        ...tail, ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
+        ...withBody(), ...journalSection(), ...events()].map(section => section.trimEnd()).join('\n\n') + '\n';
       const lines = zones.map(z => { const all = (z.text ?? '').split('\n'); return z.facts.map(line => limit.size(all[line]!) + 1); });
       const hidden = zones.map(() => 0);
       const over = () => limit.size(render(hidden, false)) > limit.max;
       if (over()) clipped = true;
       while (dropped < history.length && over()) dropped++;
+      while (journal !== undefined && trimmed < journal.length && over()) trimmed++;
       let out = render(hidden, false);
       let excess = limit.size(out) - limit.max;
       for (let i = 0; i < zones.length && excess > 0; i++) {
@@ -215,7 +261,9 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         const next = zones.findIndex((_, i) => hidden[i]! < lines[i]!.length);
         if (next !== -1) hidden[next]!++;
         else if (cut < fresh.length) cut++;
-        else { out = render(hidden, true); break; }
+        else if (shortened < points.length) {
+          shortened = Math.min(points.length, shortened + limit.size(out) - limit.max + (shortened === 0 ? limit.size(clipNote()) + 2 + (openFence(body!.text) === undefined ? 0 : 1 + limit.size(openFence(body!.text)!)) : 0));
+        } else { out = render(hidden, true); break; }
         out = render(hidden, false);
       }
       if (delivers) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));
