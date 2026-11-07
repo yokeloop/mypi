@@ -54,7 +54,7 @@ stripping. It does not replace a task card or authorize execution. Notes never
 silently overwrite another note with the same topic. `warmup` prints
 Markdown, not JSON: personal instructions, role, how to work in mypi, zone memory, then
 the project list (global), the organization's projects with their open tasks by status (organization),
-open tasks (project) or task card and worktree (task).
+open tasks and a journal line with the count of the project's and its tasks' entries and the newest date (project), or task card, worktree and the task's last five journal entries (task); both name the `journal read` command that reads more.
 Without -s it uses the session's registered key, else MYPI_SCOPE, else global. Unknown keys, REQ tasks without a project
 and projects without a clone exit 1 with a JSON error. Over 64 KiB the oldest facts of
 the farthest memory zone are hidden with a marker naming the MCP `memory` show call and,
