@@ -81,12 +81,13 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         const parts = [];
         if (statusChanged) parts.push(result.before.status + ' → ' + result.after.status);
         if (titleChanged) parts.push('Title: ' + JSON.stringify(result.before.title) + ' → ' + JSON.stringify(result.after.title));
-        journal.append(journal.record({ type: 'task', key: key(result.after) }, parts.join('. ') + '. ' + reason,
+        const text = parts.join('. ') + '. ' + reason;
+        journal.append(journal.record({ type: 'task', key: key(result.after) }, text,
           statusChanged ? 'status_changed' : titleChanged ? 'title_changed' : 'note'));
         if (statusChanged && result.after.projectId !== null && isMilestone(result.after.status, result.after.isTerminal)) {
           const task = key(result.after);
           const to = core.events.milestoneRecipient(task);
-          if (caller !== to) core.events.milestone({ from: task, to, message: result.before.status + ' → ' + result.after.status + ': ' + reason });
+          if (caller !== to) core.events.milestone({ from: task, to, message: text });
         }
         return result.after;
       });
