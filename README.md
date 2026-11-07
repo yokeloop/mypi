@@ -18,8 +18,7 @@ and Pi sessions, `/open`, events); it is not production-ready, and final M1 acce
 remains open. CI now runs ordinary bounded PR verification, not the historical
 trusted-base/App-issuer scheme. The earlier
 [v0.1.0-rc.1](https://github.com/yokeloop/mypi/releases/tag/v0.1.0-rc.1) was a
-release candidate. [Release snapshot](docs/RELEASE.md), [file-map snapshot](docs/FILEMAP.md)
-and [published RC report](https://draft.yokeloop.com/artifacts/mypi-m1-bqso2mhf)
+release candidate. [Release snapshot](docs/RELEASE.md) and [file-map snapshot](docs/FILEMAP.md)
 describe older revisions, not the current operating policy.
 
 ## Working model
