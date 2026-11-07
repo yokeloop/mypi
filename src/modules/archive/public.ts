@@ -1,5 +1,5 @@
 import { InputError } from '../../shared/errors.js';
-import type { ArchiveAgent, ArchiveCounts, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource } from './ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveFolder, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFolder, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export function claudeFolderName(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-');
@@ -47,6 +47,36 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
         const inserted = store.insertMessages(agent, nativeId, read.entries);
         return { inserted, skipped: read.entries.length - inserted, key, keySource, bytesRead: read.offset };
       });
+    },
+  };
+}
+export function createImport(archive: ReturnType<typeof createArchive>, readers: Record<ArchiveAgent, TranscriptReader>, files: TranscriptFiles) {
+  const file = (agent: ArchiveAgent, path: string, nativeId: string = nativeIdOf(agent, path)):
+    { agent: ArchiveAgent; nativeId: string; path: string; inserted: number; skipped: number; bytesRead: number; key: string | null } => {
+    const read = readers[agent](path, archive.offset(agent, nativeId));
+    const { inserted, skipped, bytesRead, key } = archive.record({ agent, nativeId, path, read });
+    return { agent, nativeId, path, inserted, skipped, bytesRead, key };
+  };
+  return {
+    file,
+    folders(list: ArchiveFolder[]) {
+      const total = { files: 0, inserted: 0, skipped: 0 };
+      const failed: { agent: ArchiveAgent; path: string; error: string }[] = [];
+      const dirs: { agent: ArchiveAgent; path: string; files: number; inserted: number; skipped: number }[] = [];
+      for (const folder of list) {
+        const dir = { agent: folder.agent, path: folder.path, files: 0, inserted: 0, skipped: 0 };
+        for (const path of files.list(folder.path)) {
+          try {
+            const result = file(folder.agent, path);
+            dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
+          } catch (error) {
+            failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
+          }
+        }
+        total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;
+        dirs.push(dir);
+      }
+      return { ...total, failed, dirs };
     },
   };
 }
