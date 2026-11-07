@@ -47,10 +47,10 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-15 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, memory, note, journal, context_read, context_write, projects, sessions, open_session, send_message and inbox. Inspect live schemas for fields. The remote /mcp endpoint offers a narrower subset ([below](#remote-mcp-over-http)). Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
-`memory` and `projects` take `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title, parent and progress commands (or touch alone) in that order within one serial slot; `parent` (a task key of the same project, or `null` to clear) needs a reason like status and title and is refused for another project, the task itself or a cycle; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error. A status change to review, blocked, merged or a terminal status queues one milestone event (inbox, warmup) for the parent that last sent the task a message, else the project chat, unless the caller is that recipient itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones never start a turn.
+15 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, events, note, journal, context_read, context_write, projects, sessions, open_session, send_message and inbox. Inspect live schemas for fields. The remote /mcp endpoint offers a narrower subset ([below](#remote-mcp-over-http)). Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+`projects` takes `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title, parent and progress commands (or touch alone) in that order within one serial slot; `parent` (a task key of the same project, or `null` to clear) needs a reason like status and title and is refused for another project, the task itself or a cycle; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error. A status change to review, blocked, merged or a terminal status queues one milestone event (inbox, warmup) for the parent that last sent the task a message, else the project chat, unless the caller is that recipient itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones never start a turn.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
-task scope is supported for journal, not MEMORY; warmup takes a scope key string (below). Journal read also accepts
+task scope is supported for journal; warmup takes a scope key string (below). Journal read also accepts
 explicit `"all"`. A project scope key is its code; task_create.project is org/project
 (required; standalone REQ records are legacy). Do not invent an org/task reassignment command.
 TextInput is exactly `{text}` or `{file:absolutePath}`; BOM/CRLF are preserved.
@@ -61,21 +61,22 @@ Context paths are home-relative; progress artifact paths are task-directory-rela
 Success: `{status:"ok",data:...}`. Tool error: `isError:true` and
 `{status:"error",message}`. Partial includes status/message/saved/missing/paths and
 taskId when known. structuredContent equals parsed JSON in text content. The data
-payload retains CLI JSON shapes. `memory` show includes SHA-256 `revision`; `memory` remove requires `number` and `expectedRevision` for that exact file.
+payload retains CLI JSON shapes.
 `warmup` takes optional `scope`: `global`, an organization slug, a project code or a task key; without it the
 key registered for this session (the row for the session id in the server's environment,
 else the live record of the server's parent process), else the server's `MYPI_SCOPE`,
 else `global`. Its data is the Markdown text the CLI prints
-(sections, order and the 64 KiB memory rule: ARCHITECTURE §5). In a project scope it includes
+(sections, order and the 64 KiB cut rule: ARCHITECTURE §5). In a project scope it includes
 the undelivered events of the project's tasks and marks the ones shown in full delivered, plus
 the last delivered `turn_end` of each open task as history.
 A project scope also carries a «Журнал» line (entries of the project and its tasks, newest date) and a task scope the task's last five journal entries; both end with the `journal` call that reads more.
-An organization scope shows global and organization memory, one line per project of the
+An organization scope shows the global and organization entries, one line per project of the
 organization and, in the same way, the events addressed to the organization; so `warmup` is not read-only.
 `inbox` takes optional `key`: an organization slug, a project code, a task key or `"all"`, default as for `warmup`; it returns
 `{ events: [{ id, from, to, kind, createdAt, text }] }` (`kind`: `turn_end`, `waiting`, `milestone` or `message`) with the undelivered rows, each `text`
 in its frame, and marks them delivered. A task key returns its parent's messages (`kind` `message`, in the parent frame), a project or organization key the events addressed to it and
 the main chat's messages to it; `"all"` skips messages. The global key returns an empty list; an unknown key is an error. There is no read-only preview.
+`events` takes optional `to`, `from`, `kind`, `delivered`, `q`, `before` and `limit` (1–200, default 50) and returns `{ items, next }` newest first, the same rows as `GET /v1/events`; it is read-only and never marks events delivered. A warmup names it when the last reports did not fit.
 `send_message` takes `key` and `text`: the calling session's key, resolved as for `warmup` (its registered key, else `MYPI_SCOPE`, else `global`; an unresolved caller
 therefore counts as global and may send only to projects and organizations), must be the key's direct parent (for a task its project or its organization, global for a project or an organization), otherwise it
 is refused and nothing is written. It stores an `events` row of kind `message` and sends it at once to a live child in the
@@ -118,7 +119,7 @@ address, `--listen`, port and token file. Every request carries
   `projects` (`list`, `flow`); a write token also sees `task_create`, `task_update`
   (without `artifacts`), `note` (only `kind: journal`) and `send_message`. A write
   called with a read token is refused with `This token is read-only`. Text inputs are
-  `{text}` only. There is no `warmup`, `inbox`, `sessions`, `open_session`, `memory`,
+  `{text}` only. There is no `warmup`, `inbox`, `sessions`, `open_session`, `events`,
   `context_write`, `projects` add/update/resolve or maintenance.
 - The web session cookie (MP-72) is not accepted on `/mcp`: only the `Authorization`
   header authorizes. Only `authorization`, `accept`, `content-type` and

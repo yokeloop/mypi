@@ -245,7 +245,7 @@ One writer per fact; nothing is written twice.
   reason. Never a copy of a task's entries in the project journal
   (`docs/M1-CLI.md`, «Journal filters»).
 - Not journaled: events (`turn_end`, `waiting`, milestones), `/open` of a live
-  session (focus), `inbox` and `warmup` reads, memory and context notes (home's
+  session (focus), `inbox` and `warmup` reads, knowledge entries and context notes (home's
   Git is their history), and the conversation itself.
 
 ## Approval semantics

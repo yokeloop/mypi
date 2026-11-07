@@ -1,11 +1,11 @@
 # mypi
 
-A project-centered memory and task system for explicit user-directed work.
+A project-centered knowledge and task system for explicit user-directed work.
 [Workspace and development guidance](AGENTS.md) · [Workflow withdrawal](docs/AGENT-WORKFLOW.md) ·
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
-**Implemented:** local memory, organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
+**Implemented:** a home knowledge tree (one `INDEX.md` entry per level), organizations/projects, DB task cards/statuses,
+scoped journal, context Git, backup/restore, CLI and 15 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, an organization, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits as events (`/inbox`) to the parent chat, project or organization, whose message started the turn. No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
@@ -27,7 +27,7 @@ describe older revisions, not the current operating policy.
   Markdown does not duplicate live status. DB needs its own backup.
 - **Task records are explicit data operations.** A card or saved capture does not
   launch work, create a session or authorize execution.
-- **Project context is a directory.** MEMORY, glossary, notes, decisions and task
+- **Project context is a directory.** The level's entry `INDEX.md`, glossary, notes, decisions and task
   materials live under home/projects/<org>/<project>, separate from the source checkout.
 - **History records outcomes.** One factual outcome with evidence paths, not a narration
   of activity. Task history is an ordered append-only SQLite journal.
@@ -47,7 +47,7 @@ describe older revisions, not the current operating policy.
 
 Start an agent from the mypi checkout to work across all your projects. The engine
 and personal data share a workspace, **not a Git repository**. Agent configuration
-is tracked engine source (`.pi/` for Pi); your instructions, settings and memory
+is tracked engine source (`.pi/` for Pi); your instructions, settings and knowledge
 live in an independent `home/` Git.
 
 Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
@@ -92,7 +92,7 @@ explicit administrative initialization/migration, without the setup wizard.
 ### Existing installations
 
 Reuse an existing ordinary `home/` directory; the wizard preserves personal
-instructions and memory and only adds missing files. Symlinked home roots are not
+instructions and knowledge and only adds missing files. Symlinked home roots are not
 supported by the current storage guards. Earlier versions kept personal Pi
 configuration in `home/pi/` behind a local `.pi -> home/pi` link; the tracked `.pi/`
 directory replaces that link and `home/pi/` is no longer loaded. Before updating,
@@ -480,15 +480,15 @@ mypi/
 ├── home/                        # separate ignored user/context Git
 │   ├── USER-INSTRUCTIONS.md
 │   ├── settings.json            # personal mypi settings (defaultAgent)
-│   ├── MEMORY.md
+│   ├── INDEX.md
 │   ├── inbox/*.md
 │   ├── notes/*.md
 │   ├── journal/YYYY-MM.jsonl
 │   ├── tasks/REQ-number-slug/        # legacy standalone records
 │   └── projects/<org>/
-│       ├── MEMORY.md
+│       ├── INDEX.md
 │       └── <project>/
-│           ├── MEMORY.md, context.md, errors.md
+│           ├── INDEX.md, context.md, errors.md
 │           ├── notes/
 │           └── tasks/CODE-number-slug/
 └── projects/                    # ignored project code, not project knowledge
@@ -504,7 +504,7 @@ history is in the SQLite journal. Existing monthly UTC JSONL files remain unchan
 explicit `mypi journal import` imports them once after old writers are stopped. New tasks always belong
 to a registered project; existing standalone REQ records stay readable under their keys. Homes created
 before v2 keep task folders under requests/ until mypi home migrate-tasks moves them.
-`mypi warmup [-s global|org|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, organization, project or task session (without -s it uses the session's registered key, else MYPI_SCOPE, else global); over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it hides the oldest memory facts of the farthest zone first and names the `memory` show call (and CLI command) that reads them in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
+`mypi warmup [-s global|org|CODE|CODE-N] [--max-chars n]` prints the starting context of a global, organization, project or task session (without -s it uses the session's registered key, else MYPI_SCOPE, else global); over 64 KiB (or over n characters with --max-chars, as the Claude Code hook uses) it clips the farthest knowledge entry first and names the `context_read` call (and CLI `context read`) that reads it in full; headings of the embedded files are demoted below the warmup's own sections ([ARCHITECTURE §5](docs/ARCHITECTURE.md)). Global
 journal means global entries only; reading all history is explicit.
 
 The old prototype, import and format compatibility were removed by user request.

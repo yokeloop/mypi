@@ -1,5 +1,4 @@
-import { randomUUID, createHash } from 'node:crypto';
-import { createMemory } from '../modules/memory/public.js';
+import { randomUUID } from 'node:crypto';
 import { createInbox } from '../modules/inbox/public.js';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -86,7 +85,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     },
   };
   const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
-  const memory = createMemory(texts, text => createHash('sha256').update(text).digest('hex')), inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
+  const inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
   return {
     projects: core.projects, close: core.close, tasks,
     statuses: {
@@ -121,11 +120,6 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       });
     },
     contextPath,
-    memory: {
-      show: (scope?: string) => memory.show(contextPath(scope)),
-      add: (text: string, scope?: string) => memory.add(contextPath(scope), text),
-      remove: (number: number, expectedRevision: string, scope?: string) => memory.remove(contextPath(scope), number, expectedRevision),
-    },
     capture: inbox.capture,
     note: (title: string, text: string, scope?: string) => notes.note(contextPath(scope), title, text),
     error(scope: string, text: string) {

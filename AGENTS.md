@@ -2,7 +2,7 @@
 
 ## Scope
 
-mypi provides local memory, projects, task records, CLI and stdio MCP tools. Pi and
+mypi provides a home knowledge tree, projects, task records, CLI and stdio MCP tools. Pi and
 Claude Code start here as one workspace for all projects; these rules apply
 to user-directed work, the [engine rules](docs/agents/engine-development.md) only to
 changing mypi itself. `mypi warmup` prints scoped context that the Pi extension and
@@ -17,7 +17,8 @@ Follow the user's requested scope and session.
   section. The layers complement each other; never duplicate a rule in both, add a
   `home/AGENTS.md` layer, or make one file reread the other.
 - Before maintaining instructions, pick the owner: engine behavior here, personal
-  preferences in home, project behavior in that project's instructions or flow. Edit
+  preferences in home, organization behavior in its entry `home/projects/<org>/INDEX.md`
+  and the branches it links, project behavior in that project's instructions or flow. Edit
   the owner; skills and prompts point to it rather than restate it.
 - No personal paths or preferences in shared engine policy. Changes to this file
   follow the common project workflow.
@@ -59,7 +60,7 @@ Follow the user's requested scope and session.
 
 - `home/` is its own Git repository: `home/USER-INSTRUCTIONS.md`, and
   `home/settings.json` (`defaultAgent`: `claude` or `pi` for new /open sessions,
-  default claude). Ordinary documents by file tools; managed memory, DB records and
+  default claude). Ordinary documents by file tools; DB records and
   append-only history by mypi operations.
 - Home is the direct-main exception: commit intended changes on `main` and push each
   to `origin/main` at once, no task branch, worktree or PR. Finish clean, intended

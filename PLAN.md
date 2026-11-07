@@ -1,13 +1,13 @@
 # mypi roadmap
 
-Current foundation: local project memory and DB-backed task accounting, exposed
+Current foundation: a local home knowledge tree and DB-backed task accounting, exposed
 through optional CLI and MCP tools. Development guidance: [AGENTS](AGENTS.md).
 The former agent workflow is [withdrawn](docs/AGENT-WORKFLOW.md).
 Architecture: [ARCHITECTURE](docs/ARCHITECTURE.md).
 
 ## Product direction
 
-Tasks and memory are available as explicit data operations. There is no mandatory
+Tasks and knowledge files are available as explicit data operations. There is no mandatory
 agent startup, registration, logging or Herdr-session procedure. The earlier policy
 has been withdrawn without deleting existing records or changing the API.
 
@@ -19,7 +19,7 @@ support that evolution without claiming that permissions/isolation are enforced 
 
 - [x] M0 architecture contract accepted; historical record: [M0-CONTRACT](docs/M0-CONTRACT.md).
 - [x] M1 TypeScript/Node 24, SQLite authority, pnpm, modular monolith and Ports & Adapters.
-- [x] Organization/project registry, optional checkout mapping, memory, capture, notes/errors.
+- [x] Organization/project registry, optional checkout mapping, knowledge entries, capture, notes/errors.
 - [x] DB task cards/status dictionary; immutable source and artifacts in home.
 - [x] Common append-only JSONL journal with monthly UTC rotation and scoped selection.
 - [x] Scoped warmup, safe context operations and local Git commits.
@@ -35,7 +35,7 @@ GitHub App issuer, required check and negative spoofing check remain outstanding
 ## Current operating foundation
 
 - Project-local English instructions; communicate in the user's language.
-- Optional task/memory tools without automatic task accounting or session routing.
+- Optional task and knowledge tools without automatic task accounting or session routing.
 - Distinct context and checkout; explicit scope, permission and outcome evidence.
 - CLI/MCP APIs remain usable as independent operations.
 - Bootstrap, registration, migration, backup destination and network actions are
