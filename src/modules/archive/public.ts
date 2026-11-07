@@ -1,5 +1,5 @@
 import { InputError } from '../../shared/errors.js';
-import type { ArchiveAgent, ArchiveCounts, ArchiveFolder, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveFolder, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFilter, ArchiveFolder, ArchiveHit, ArchiveKeys, ArchiveMessage, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, ArchiveSessionHits, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export function claudeFolderName(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-');
@@ -41,11 +41,66 @@ export function bindKey(agent: ArchiveAgent, nativeId: string, name: string | nu
   if (name !== null && lookup.registered(name)) return { key: name, keySource: 'name' };
   return null;
 }
+function bounded(value: number | undefined, name: string, fallback: number, min: number, max: number, unit = ''): number {
+  if (value === undefined) return fallback;
+  if (!Number.isSafeInteger(value) || value < min) throw new InputError('Invalid ' + name);
+  if (value > max) throw new InputError(name + ' is at most ' + max + unit);
+  return value;
+}
+function archiveAgent(agent: string | undefined): ArchiveAgent | undefined {
+  if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('agent must be claude or pi');
+  return agent;
+}
 export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () => string) {
+  const header = (agent: ArchiveAgent, nativeId: string) => {
+    const row = store.session(agent, nativeId);
+    return { agent, session: nativeId, key: row?.key ?? null, firstAt: row?.firstAt ?? null, lastAt: row?.lastAt ?? null };
+  };
   return {
     offset: (agent: ArchiveAgent, nativeId: string): number => store.session(agent, nativeId)?.bytesRead ?? 0,
     session: (agent: ArchiveAgent, nativeId: string): ArchiveSession | undefined => store.session(agent, nativeId),
     counts: (): ArchiveCounts => store.transaction(() => store.counts()),
+    search(input: { q?: string; keys: ArchiveKeys | null; agent?: string; from?: string; to?: string; includePeer?: boolean; limit?: number }) {
+      const agent = archiveAgent(input.agent);
+      const from = input.from === undefined ? undefined : archiveInstant(input.from, false);
+      const to = input.to === undefined ? undefined : archiveInstant(input.to, true);
+      if (from !== undefined && to !== undefined && from > to) throw new InputError('from is after to');
+      const filter: ArchiveFilter = { keys: input.keys, ...(agent === undefined ? {} : { agent }), ...(from === undefined ? {} : { from }),
+        ...(to === undefined ? {} : { to }), includePeer: input.includePeer === true };
+      if (input.q !== undefined) {
+        const match = ftsQuery(input.q), limit = bounded(input.limit, 'limit', 10, 1, 50, ' hits');
+        return store.transaction(() => ({ hits: store.search(match, filter, limit) }));
+      }
+      const limit = bounded(input.limit, 'limit', 50, 1, 200, ' sessions');
+      return store.transaction(() => ({ sessions: store.sessionList(filter, limit) }));
+    },
+    show(input: { id?: number; before?: number; after?: number; session?: string; agent?: string; offset?: number; limit?: number; includePeer?: boolean }) {
+      if ((input.id === undefined) === (input.session === undefined)) throw new InputError('Use archive_show with exactly one of id or session');
+      const includePeer = input.includePeer === true;
+      if (input.id !== undefined) {
+        for (const field of ['agent', 'offset', 'limit'] as const) if (input[field] !== undefined) throw new InputError(field + ' is not allowed with id');
+        const id = input.id;
+        if (!Number.isSafeInteger(id) || id < 1) throw new InputError('Invalid id');
+        const before = bounded(input.before, 'before', 3, 0, 20), after = bounded(input.after, 'after', 3, 0, 20);
+        return store.transaction(() => {
+          const anchor = store.message(id);
+          if (!anchor) throw new InputError('Unknown archive message: ' + id);
+          const near = store.around(anchor, before, after, includePeer);
+          const { agent, session, ...message } = anchor;
+          return { session: header(agent, session), anchor: id, messages: [...near.before, message, ...near.after] };
+        });
+      }
+      for (const field of ['before', 'after'] as const) if (input[field] !== undefined) throw new InputError(field + ' is not allowed with session');
+      const session = input.session!, agent = archiveAgent(input.agent);
+      const offset = bounded(input.offset, 'offset', 0, 0, Number.MAX_SAFE_INTEGER), limit = bounded(input.limit, 'limit', 20, 1, 50);
+      return store.transaction(() => {
+        const agents = store.agentsOf(session).filter(a => agent === undefined || a === agent);
+        if (agents.length === 0) throw new InputError('Unknown archive session: ' + session);
+        if (agents.length > 1) throw new InputError('Session ' + session + ' exists for claude and pi; pass agent');
+        const { messages, total } = store.page(agents[0]!, session, offset, limit, includePeer);
+        return { session: header(agents[0]!, session), offset, total, next: offset + messages.length < total ? offset + messages.length : null, messages };
+      });
+    },
     record(input: { agent: ArchiveAgent; nativeId: string; path: string; read: ArchiveRead }):
       { inserted: number; skipped: number; key: string | null; keySource: KeySource | null; bytesRead: number } {
       const { agent, nativeId, path, read } = input;
