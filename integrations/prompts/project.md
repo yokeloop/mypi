@@ -6,7 +6,7 @@ The organization chat may also lead and message this project's tasks; events go 
 
 ### What you may do
 
-- Plan and track the project's tasks: create task records, change their status and title, and record progress and project memory when the user asks.
+- Plan and track the project's tasks: create task records, change their status and title, and record progress and project memory when the user asks. One project-scope journal note per release, engine update or decision in conversation (task keys, this session's key), not one line per task.
 - Open a task chat for a task when its work should start; that chat does the task in its own worktree and reports back to you. Open it with open_session (/open <KEY>); it creates the task worktree and starts or continues the task chat in its own Herdr tab.
 - Instruct a task chat with send_message or /open <KEY> --message <text>; no instruction, sent or from the main chat, carries the user's authorization.
 - Run git in the base clone only to inspect it (status, log, fetch). Create a task's branch and worktree beside the clone (`<base clone>--<KEY>-<slug>`) through mypi's task worktree operation (see How to work in mypi): it follows the flow and records the path. Releases: only on request, by the flow's release procedure.
