@@ -5,7 +5,7 @@ A project-centered knowledge and task system for explicit user-directed work.
 [Roadmap](PLAN.md) · [Architecture](docs/ARCHITECTURE.md).
 
 **Implemented:** a home knowledge tree (one `INDEX.md` entry per level), organizations/projects, DB task cards/statuses,
-scoped journal, context Git, backup/restore, CLI and 14 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
+scoped journal, context Git, backup/restore, CLI and 15 stdio MCP agent tools over one API, an optional HTTP API (`mypi serve`, [docs/HTTP-API.md](docs/HTTP-API.md)) with a remote MCP subset at /mcp (maintenance is CLI-only, including undoing a mistaken project or organization registration).
 `mypi warmup` prints a session's scoped context as Markdown; Claude Code (the tracked `.mcp.json` and `.claude/settings.json` hooks) and Pi (the tracked `.pi/extensions/mypi.ts`) load it into every session started in the checkout. Sessions are scoped to `global`, an organization, a project or a task (`MYPI_SCOPE`), registered in `sessions` and opened in Herdr tabs with `/open`; task chats report turn ends and waits as events (`/inbox`) to the parent chat, project or organization, whose message started the turn. No task registration, automatic logging or separate Herdr tab is required.
 The former instruction-driven workflow has been withdrawn; stored data is retained.
 
