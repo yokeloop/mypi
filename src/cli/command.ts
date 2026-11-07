@@ -23,6 +23,7 @@ mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <n
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
 mypi archive import [--dir <directory> --agent claude|pi]... | status (conversation archive archive.sqlite3 beside the state DB: import reads the engine root's Claude and Pi transcripts, or each --dir with its --agent, from each file's saved offset; status counts sessions, messages and bound keys and never creates the file)
+mypi archive search [query] [-s global|org|CODE|CODE-N] [--agent claude|pi] [--from date|UTC] [--to date|UTC] [--limit n] [--include-peer] | show <id> [--before n --after n] | show --session <native-id> [--agent claude|pi] [--offset n --limit n] [--include-peer] (full-text search of the conversation archive: human turns and final answers, ranked, with snippets; without a query it lists sessions; show reads around a hit or pages a session)
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)

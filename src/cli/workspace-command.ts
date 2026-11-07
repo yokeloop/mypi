@@ -45,6 +45,8 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   sessions: [0, 0, [], []],
   'archive import': [0, 0, ['dir', 'agent'], []],
   'archive status': [0, 0, [], []],
+  'archive search': [0, 1, ['scope', 'agent', 'from', 'to', 'limit'], ['include-peer']],
+  'archive show': [0, 1, ['before', 'after', 'session', 'agent', 'offset', 'limit'], ['include-peer']],
   'session register': [0, 0, ['agent', 'pid', 'native-id', 'name', 'socket'], ['hook', 'fork']],
   'session unregister': [0, 0, ['pid'], []],
   'session forget': [1, 1, [], []],

@@ -101,6 +101,18 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(dirs.length ? { dirs: dirs.map((path, i) => ({ agent: agents[i] as 'claude' | 'pi', path })) } : {}) };
     }
     case 'archive status': return { name: 'archive_status' };
+    case 'archive search': return { name: 'archive_search', ...(a[0] === undefined ? {} : { q: a[0] }),
+      ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
+      ...(opt('agent') === undefined ? {} : { agent: opt('agent') as 'claude' | 'pi' }),
+      ...(opt('from') === undefined ? {} : { from: opt('from')! }), ...(opt('to') === undefined ? {} : { to: opt('to')! }),
+      ...(o['include-peer'] ? { includePeer: true } : {}),
+      ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }) };
+    case 'archive show': return { name: 'archive_show', ...(a[0] === undefined ? {} : { id: Number(a[0]) }),
+      ...(opt('session') === undefined ? {} : { session: opt('session')! }),
+      ...(opt('agent') === undefined ? {} : { agent: opt('agent') as 'claude' | 'pi' }),
+      ...(opt('before') === undefined ? {} : { before: Number(opt('before')) }), ...(opt('after') === undefined ? {} : { after: Number(opt('after')) }),
+      ...(opt('offset') === undefined ? {} : { offset: Number(opt('offset')) }), ...(opt('limit') === undefined ? {} : { limit: Number(opt('limit')) }),
+      ...(o['include-peer'] ? { includePeer: true } : {}) };
     case 'session register': {
       const agent = required('agent');
       if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
