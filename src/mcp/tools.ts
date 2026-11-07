@@ -5,10 +5,11 @@ import { projects } from './tools/projects.js';
 import { knowledge } from './tools/knowledge.js';
 import { tasks } from './tools/tasks.js';
 import { sessionTools } from './tools/sessions.js';
+import { archiveTools } from './tools/archive.js';
 
-export const tools = { ...projects, ...knowledge, ...tasks, ...sessionTools };
+export const tools = { ...projects, ...knowledge, ...tasks, ...sessionTools, ...archiveTools };
 export type ToolName = keyof typeof tools;
-export const readOnly = new Set<ToolName>(['task_list', 'task_show', 'journal', 'context_read', 'sessions', 'events']);
+export const readOnly = new Set<ToolName>(['task_list', 'task_show', 'journal', 'context_read', 'sessions', 'events', 'archive_search', 'archive_show']);
 export function toolCommand(name: string, args: unknown, env: Readonly<Record<string, string | undefined>> = {},
   parentPid = process.ppid): AppCommand[] {
   if (!Object.hasOwn(tools, name)) throw new InputError('Unknown tool: ' + name);

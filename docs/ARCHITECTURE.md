@@ -14,7 +14,7 @@ record evidence. Historical contracts describe their time, not extra current com
 
 Implemented: registry/checkout resolution, knowledge entries/capture/notes/errors, glossary,
 scoped warmup/history, task cards/statuses/progress, task worktrees beside registered clones, local context commits,
-SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes fifteen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
+SQLite backup and checked restore; CLI and stdio MCP over shared AppCommand; MCP exposes seventeen agent tools, each translating to one or more AppCommands, and maintenance is CLI-only.
 
 The task and knowledge APIs are optional data operations. They do not impose agent
 startup, task registration, logging or Herdr tabs before work. The instruction-driven
@@ -84,6 +84,8 @@ Git, including symlink aliases; created parent directories 0700 and DB 0600.
 
 The live session registry is not state: $XDG_RUNTIME_DIR/mypi/sessions/<key>.json, owner-only, one record per live agent process; a record is live only while its pid and process start match /proc; reads skip dead records and the next registration, unregistration or forget deletes them.
 
+The conversation archive is not state either: `archive.sqlite3` beside `state.sqlite3` (same directory, refused inside the engine or context Git like the DB), file 0600 in a 0700 directory, its own `user_version` and migrations (`src/infrastructure/database/archive-migrations/`), three tables `archive_sessions` (one row per agent and native id with the key, its source and the read offset `bytes_read`), `archive_messages` and the FTS5 index `archive_fts` kept in step by triggers. It holds only the human turns and final answers that the readers in `src/infrastructure/transcript/` take from Claude and Pi transcripts — no reasoning, tool calls or subagents — bound to a scope key through the `sessions` row, else a registered session name, else unbound. `archive import` and live capture (Claude Stop and SessionEnd hooks, the Pi extension on `agent_settled`) fill it from each file's saved offset; `archive_search` and `archive_show` read it; the key is a search filter, not an ACL. It is kept indefinitely with no age or size limit and nothing to configure; text is stored as written, without redaction or publication. Only `mypi archive forget` deletes from it; deleting the whole file is safe: the next import or capture recreates it and rereads every native transcript that still exists.
+
 Files own knowledge and original source:
 
 ```text
@@ -149,6 +151,8 @@ JSONL files are read only by explicit `journal import`; originals remain untouch
 Stop old writers before cutover. Import rejects changed or corrupt input and retains
 legitimate duplicate entries. Imported plain-path artifacts keep fingerprints that
 require unchanged, published files; reconcile dirty legacy files separately.
+
+Journal and archive: the journal keeps short scoped append-only facts and outcomes — what was decided or done, under which key, with which artifact; the conversation archive keeps the verbatim human turns and final answers, bound to a key through `sessions`. A journal entry may point to a conversation (session key and time) but never quotes it; the archive never replaces a status or an outcome entry. The warmup and the start message stay on the journal and `events`; the archive is reached only through search.
 
 Selection: global only global; org includes projects/tasks; project includes its
 tasks; task only itself; all is explicit. Relations resolve through DB; relevant
@@ -245,7 +249,11 @@ after releasing the DB writer lock. Publication can be partial, not cross-store 
 older binary snapshots remain in Git history. Restore from a selected commit in a
 local clone verifies the snapshot and references before installing into absent targets.
 Git is not whole-system backup and cannot restore unsaved data. Scheduling, retention,
-automatic network sync and personal initialization require explicit action. See [M1-CLI](M1-CLI.md).
+automatic network sync and personal initialization require explicit action. The conversation
+archive `archive.sqlite3` is outside backup, `backup --publish` and restore: a backup
+snapshots only `state.sqlite3` and the context bundle, and restore accepts only those; the
+archive is a local copy of native transcripts and `mypi archive forget` is its only deletion.
+See [M1-CLI](M1-CLI.md).
 
 ## 8. Verification and future execution
 

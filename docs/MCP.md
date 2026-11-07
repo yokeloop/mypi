@@ -31,8 +31,8 @@ project server. The `warmup` tool takes no character budget; only the CLI hook d
 Pi sessions started in the engine checkout get the server from the tracked
 extension `.pi/extensions/mypi.ts` after project trust ([README](../README.md#pi)).
 It registers `node dist/src/mcp/main.js` with the engine root as cwd and the Pi
-session id in `PI_SESSION_ID`, with codemode exposure and projects and warmup
-direct. Every turn it also adds a codemode guideline that `searchTools()`,
+session id in `PI_SESSION_ID`, with codemode exposure and projects, warmup and
+archive_search direct. Every turn it also adds a codemode guideline that `searchTools()`,
 `describeTool()` and `describeNamespace()` return Promises to be awaited. It
 installs no agent workflow, task-registration requirement, automatic
 logging, delegation or Herdr-tab rule. A same-name entry in a Pi `mcp.json`
@@ -47,7 +47,7 @@ verification command. See the installed Pi MCP/security documentation for setup.
 
 ## Tool and transport contract
 
-15 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, events, note, journal, context_read, context_write, projects, sessions, open_session, send_message and inbox. Inspect live schemas for fields. The remote /mcp endpoint offers a narrower subset ([below](#remote-mcp-over-http)). Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools.
+17 tools are available through standard tools/list: warmup, task_list, task_show, task_create, task_update, events, note, journal, context_read, context_write, projects, sessions, open_session, send_message, inbox, archive_search and archive_show. Inspect live schemas for fields. The remote /mcp endpoint offers a narrower subset ([below](#remote-mcp-over-http)). Maintenance — db init, bootstrap, backup and its publication, restore, journal import, the status dictionary, context restore, project and organization removal, home migrate-tasks and task worktree — is CLI-only ([M1-CLI](M1-CLI.md)); over MCP these names are unknown tools. `archive_search` and `archive_show` read the conversation archive `archive.sqlite3` beside the state DB; only the CLI fills it (`mypi archive import`, `archive status`). Without the archive they return an error naming `mypi archive import` and never create it. A scope filter takes a key string like warmup's (`global`, an org slug with its projects and tasks, a project code with its tasks, a task key); without `scope` all sessions are searched.
 `projects` takes `action`, `note` takes `kind`, plus that action's fields; a field of another action is rejected. `task_update` runs its parts as the CLI's task status, title, parent and progress commands (or touch alone) in that order within one serial slot; `parent` (a task key of the same project, or `null` to clear) needs a reason like status and title and is refused for another project, the task itself or a cycle; a failure after an earlier part saved returns `partial` with the saved and missing parts, a failure of the first part is a plain error. A status change to review, blocked, merged or a terminal status queues one milestone event (inbox, warmup) for the parent that last sent the task a message, else the project chat, unless the caller is that recipient itself (its registered key, else `MYPI_SCOPE`, as for `warmup`); milestones never start a turn.
 Arguments are strict, including nested fields. Context scopes: global/org/project;
 task scope is supported for journal; warmup takes a scope key string (below). Journal read also accepts
@@ -120,7 +120,7 @@ address, `--listen`, port and token file. Every request carries
   (without `artifacts`), `note` (only `kind: journal`) and `send_message`. A write
   called with a read token is refused with `This token is read-only`. Text inputs are
   `{text}` only. There is no `warmup`, `inbox`, `sessions`, `open_session`, `events`,
-  `context_write`, `projects` add/update/resolve or maintenance.
+  `archive_search`, `archive_show`, `context_write`, `projects` add/update/resolve or maintenance.
 - The web session cookie (MP-72) is not accepted on `/mcp`: only the `Authorization`
   header authorizes. Only `authorization`, `accept`, `content-type` and
   `mcp-protocol-version` are passed to the MCP handler.

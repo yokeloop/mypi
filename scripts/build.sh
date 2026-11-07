@@ -11,6 +11,7 @@ find dist -mindepth 1 -delete
 node --max-old-space-size=768 node_modules/typescript/bin/tsc
 mkdir -p dist/src/infrastructure/database/migrations
 cp src/infrastructure/database/migrations/*.sql dist/src/infrastructure/database/migrations/
+cp -R src/infrastructure/database/archive-migrations dist/src/infrastructure/database/
 # The browser UI: typecheck, then bundle into dist/ui, which mypi serve serves.
 node --max-old-space-size=768 node_modules/typescript/bin/tsc -p web/tsconfig.json
 (cd web && node node_modules/vite/bin/vite.js build --configLoader native --logLevel warn)

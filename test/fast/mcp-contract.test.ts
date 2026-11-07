@@ -16,17 +16,17 @@ const cli = (argv: string[]) => {
   if (parsed.type === 'help') throw new Error('Unexpected help');
   return appCommand(parsed, {});
 };
-test('MCP lists exactly fifteen agent tools; maintenance and replaced names are unknown tools', () => {
-  assert.deepEqual(Object.keys(tools).sort(), ['context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
+test('MCP lists exactly seventeen agent tools; maintenance and replaced names are unknown tools', () => {
+  assert.deepEqual(Object.keys(tools).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
     'send_message', 'sessions', 'task_create', 'task_list', 'task_show', 'task_update', 'warmup']);
-  assert.deepEqual([...readOnly].sort(), ['context_read', 'events', 'journal', 'sessions', 'task_list', 'task_show']);
+  assert.deepEqual([...readOnly].sort(), ['archive_search', 'archive_show', 'context_read', 'events', 'journal', 'sessions', 'task_list', 'task_show']);
   for (const name of ['project_list', 'project_add', 'project_update', 'project_resolve', 'memory', 'memory_show', 'memory_add',
     'memory_remove', 'capture', 'note_add', 'error_add', 'journal_read', 'journal_add', 'journal_import', 'task_status',
     'task_title', 'task_progress', 'task_touch', 'status_list', 'status_add', 'status_rename', 'status_terminal',
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
     'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end',
     'project_remove', 'org_remove', 'api_token_create', 'api_token_list', 'api_token_revoke', 'event_list', 'task_page',
-    'journal_page', 'unknown', '__proto__'])
+    'journal_page', 'archive_import', 'archive_status', 'archive_capture', 'archive_forget', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {
@@ -69,6 +69,12 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
     ['open_session', { keys: ['MP-12'], message: 'go' }, [['open', 'MP-12', '--message', 'go']]],
     ['send_message', { key: 'MP-12', text: 'go' }, [['send', 'MP-12', 'go']]],
+    ['archive_search', { q: 'сокет*', scope: 'MP', agent: 'claude', from: '2026-10-01', to: '2026-10-31', includePeer: true, limit: 5 },
+      [['archive', 'search', 'сокет*', '-s', 'MP', '--agent', 'claude', '--from', '2026-10-01', '--to', '2026-10-31', '--include-peer', '--limit', '5']]],
+    ['archive_search', { scope: 'one', includePeer: false }, [['archive', 'search', '-s', 'one']]],
+    ['archive_show', { id: 42, before: 1, after: 2 }, [['archive', 'show', '42', '--before', '1', '--after', '2']]],
+    ['archive_show', { session: 'c1', agent: 'pi', offset: 20, limit: 20, includePeer: true },
+      [['archive', 'show', '--session', 'c1', '--agent', 'pi', '--offset', '20', '--limit', '20', '--include-peer']]],
     ['inbox', { key: 'MP' }, [['inbox', 'MP']]],
     ['inbox', {}, [['inbox']]],
     ['events', { to: 'MP', kind: 'turn_end', delivered: true }, [['event', 'list', '--to', 'MP', '--kind', 'turn_end', '--delivered', 'true']]],

@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync } from 'node:fs';
+import { writeFileSync, readFileSync, existsSync, rmSync, mkdirSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
-import { createApp } from '../../src/app/create-app.js';
+import { createApp, createArchiveApp } from '../../src/app/create-app.js';
 import { executeCommand } from '../../src/app/execute-command.js';
 import { createWorkspace, initializeWorkspace } from '../../src/app/create-workspace.js';
 import { backupState, restoreState, verifyReferences } from '../../src/app/backup.js';
@@ -36,8 +36,16 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   app.complete(['.gitignore'], 'Ignore cache');
   mkdirSync(join(root, '.cache')); writeFileSync(join(root, '.cache', 'ignored'), 'runtime cache');
   app.close();
+  const archive = createArchiveApp(filename, false);
+  try {
+    archive.archive.record({ agent: 'claude', nativeId: 'b1', path: '/t/b1.jsonl', read: { entries: [{ entryId: 'e1', parentEntryId: null,
+      at: '2026-11-07T10:00:00.000Z', role: 'user', origin: 'human', text: 'synthetic backup entry' }], offset: 10, name: null, cwd: null, parentNativeId: null } });
+  } finally { archive.close(); }
+  assert.equal(existsSync(join(dir, 'archive.sqlite3')), true);
   const snapshot = join(dir, 'backup');
   await backupState(filename, snapshot, root);
+  assert.deepEqual(readdirSync(snapshot).filter(name => name.startsWith('archive')), []);
+  assert.deepEqual(Object.keys(JSON.parse(readFileSync(join(snapshot, 'manifest.json'), 'utf8')).files).sort(), ['context.bundle', 'state.sqlite3']);
   const restoredDB = join(dir, 'restored.sqlite3'), restoredRoot = join(dir, 'restored-home');
   restoreState(snapshot, restoredDB, restoredRoot);
   assert.equal(existsSync(join(restoredRoot, '.cache', 'ignored')), false);

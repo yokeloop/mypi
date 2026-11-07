@@ -8,7 +8,7 @@ an LLM or execute flow. Full command syntax is in help.
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
-MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, project remove, org remove, home migrate-tasks and task worktree exist only in this CLI.
+MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, project remove, org remove, home migrate-tasks, archive import, archive status, archive capture, archive forget and task worktree exist only in this CLI.
 
 ## Storage and context operations
 
@@ -34,6 +34,12 @@ warmup [-s global | org | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
 sessions
+archive import [--dir <directory> --agent claude|pi]...
+archive status
+archive search ["query words"] [-s MP] [--agent claude|pi] [--from 2026-10-01] [--to 2026-10-31] [--limit n] [--include-peer]
+archive show <id> [--before n] [--after n] | show --session <native-id> [--agent claude|pi] [--offset n] [--limit n]
+archive capture --agent claude --hook | --agent claude|pi --file <transcript>
+archive forget [--session <native-id>] [--key MP-12] [--before 2026-10-01]
 event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid>
 event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n]
 turn end --pid <pid>
@@ -176,6 +182,53 @@ full Git revision in a new commit. Commit/restore take exact files, not director
 Dirty/staged preimages are preserved; frozen plain-path artifacts of old entries,
 `journal/`, `inbox/` and `errors.md` cannot be restored this way. Git cannot restore data it never contained.
 
+## Conversation archive
+
+`archive.sqlite3` lies beside the state DB, file 0600 in a 0700 directory, with its own
+schema version. It holds only the human turns and final answers of Claude and Pi
+sessions (Claude `end_turn`, Pi `stop`); parent messages, task notifications and mypi
+frames are kept with their origin and hidden from search and show unless
+`--include-peer`. A session is bound to a key through its `sessions` row, else through a
+registered session name; other sessions stay unbound.
+
+`archive import` reads the engine root's folders of both agents by default, else each
+`--dir` with its `--agent`; only top-level `*.jsonl` files. Each file is read from its
+saved offset, a file shorter than its offset from the start; a failing file is listed in
+`failed` and retried next time. `archive status` counts sessions, messages and bound
+keys and never creates the file.
+
+`archive search` and `archive show` (also MCP `archive_search`, `archive_show`) read it.
+Query words are quoted, a trailing `*` makes a prefix, `-s` filters by scope (a project
+includes its tasks, an organization its projects), dates are `YYYY-MM-DD` or UTC, and
+without a query search lists sessions. `show` reads around a hit id or pages a session.
+A missing archive is an error that names `archive import`.
+
+`archive capture` is run by the Claude Stop and SessionEnd hooks and by the Pi extension
+after each settled turn, never by hand in normal use. Without a transcript it writes
+nothing; errors exit 1, never 2, so a broken archive shows Claude only a non-blocking
+Stop hook error line. Claude's Stop hook can run before the final answer is written, and
+Claude may append a non-message line after SessionEnd; the next capture or import reads
+both from the saved offset without duplicates.
+
+`archive forget` needs at least one of `--session` (the full native id as search prints
+it), `--key` (exact: `MP` does not include `MP-12`; unbound sessions are reached only by
+`--session` or `--before`) and `--before` (`YYYY-MM-DD` is midnight UTC; messages strictly
+earlier); all given options must match. It deletes in one transaction and prints
+`{"archive":"<path>","sessions":n,"messages":n}`; without an archive file it prints zeros
+and creates nothing. Session rows and offsets stay, so `archive status` still counts the
+sessions, import and capture do not bring the text back and later turns of that session
+are still archived. It deletes only the archive copy: native transcripts in
+`~/.claude/projects/` and `~/.pi/agent/sessions/` stay and are the user's to delete. If a
+native file becomes shorter than its saved offset, the next import rereads it from the
+start and restores what forget removed; delete the native file too to remove a
+conversation for good. Run it only on the user's explicit request; there is no dry run
+or confirmation.
+
+Retention: the archive is kept indefinitely, with no age or size limit and nothing to
+configure. It is not part of `backup`, `backup --publish` or `restore`. Text is stored as
+written: secrets pasted into a chat are in the archive as they are in the transcript.
+Deleting the file is safe; the next import or capture recreates it.
+
 ## Backup and restore
 
 `backup /existing-parent/new-backup-directory` uses SQLite backup API, a separate Git
@@ -190,6 +243,7 @@ overwrites current data; repetition refuses without changes. It checks hashes,
 schema/integrity/FKs, sources and that every artifact reference resolves in the
 restored home history. Preserve damaged data
 separately before recovery; there is no automatic deletion or retention policy.
+Neither backup nor restore includes the conversation archive (see Conversation archive).
 
 `backup --publish [--dry-run] [--file exact-relative-path ...]` previews or publishes
 an SQLite snapshot and committed home baseline to the already configured home

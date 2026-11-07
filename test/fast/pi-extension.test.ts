@@ -25,7 +25,7 @@ function stub() {
   const terminal = { unsubscribed: 0 };
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
-  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, header: null as { parentSession?: string } | null,
+  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
   const api = {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
@@ -42,7 +42,7 @@ function stub() {
       return () => { terminal.unsubscribed++; };
     } },
     isIdle: () => state.idle,
-    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getHeader: () => state.header } };
+    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
   const turn = async () => {
@@ -70,7 +70,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
   assert.deepEqual(pi.servers, [{ name: 'mypi', config: { command: 'node', args: [join(root, 'dist/src/mcp/main.js')], cwd: root,
-    env: { PI_SESSION_ID: 's1' }, description, exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct' } } }]);
+    env: { PI_SESSION_ID: 's1' }, description, exposure: 'codemode', toolExposure: { projects: 'direct', warmup: 'direct', archive_search: 'direct' } } }]);
   assert.deepEqual(pi.calls, [reg('s1'), warm('global')]);
   const options = await pi.options();
   assert.deepEqual(options.toolGuidelines, { codemode: [CODEMODE_GUIDELINE] });
@@ -275,6 +275,52 @@ test('pi extension emits no events without a registered key', async () => {
   await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
   await pi.handlers.get('ui_prompt_start')!({ kind: 'confirm', title: 'Allow?' }, pi.ctx);
   assert(pi.calls.every(call => (call[1] as string[])[1] !== 'event'));
+});
+
+test('pi extension captures the session file into the archive after every settled turn and runs nothing without one', async t => {
+  const capture = (file: string) => ['node', [cli, 'archive', 'capture', '--agent', 'pi', '--file', file], { cwd: root, timeout: 5000 }];
+  const pi = stub();
+  const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  install(pi.api, root, serve, undefined);
+  pi.state.key = 'MP-12';
+  await pi.start('startup');
+  const before = pi.calls.length;
+  await settle();
+  pi.state.file = '';
+  await settle();
+  assert.deepEqual(pi.calls.slice(before), []);
+  const file = pi.state.file = '/s/2026-11-07T10-00-00-000Z_s1.jsonl';
+  await settle();
+  assert.deepEqual(pi.calls.slice(before), [capture(file)]);
+  await settle();
+  assert.deepEqual(pi.calls.slice(before), [capture(file), capture(file)]);
+  pi.state.result = () => { throw new Error('spawn node ENOENT'); };
+  await settle();
+  assert.deepEqual(pi.calls.at(-1), capture(file));
+
+  const parent = stub();
+  const { run, batches, serve: listen } = sockets(t);
+  install(parent.api, root, listen, run);
+  parent.state.key = 'MP-12';
+  parent.state.file = file;
+  await parent.start('startup');
+  void batches[0]!([{ id: 1, text: parentFrame('MP', 'MP-12', 'go') }]);
+  await settled();
+  await parent.handlers.get('agent_start')!(undefined, parent.ctx);
+  await settled();
+  parent.handlers.get('agent_end')!({ messages: [{ role: 'assistant', content: [{ type: 'text', text: 'done' }] }] }, parent.ctx);
+  await parent.handlers.get('agent_settled')!(undefined, parent.ctx);
+  assert.deepEqual(parent.calls.slice(-2), [['node', [cli, 'event', 'emit', '--from', 'MP-12', '--to', 'MP', '--message=done'], { cwd: root, timeout: 5000 }], capture(file)]);
+
+  const keyless = stub();
+  install(keyless.api, root, serve, undefined);
+  keyless.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
+    : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
+  keyless.state.file = file;
+  await keyless.start('startup');
+  await keyless.handlers.get('agent_settled')!(undefined, keyless.ctx);
+  assert.deepEqual(keyless.calls.at(-1), capture(file));
+  assert(keyless.calls.every(call => (call[1] as string[])[1] !== 'event'));
 });
 
 test('pi extension /open runs mypi open and notifies its result', async () => {

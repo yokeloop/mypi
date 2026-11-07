@@ -40,6 +40,12 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   restore: [0, 1, ['repository', 'commit'], []],
   'home migrate-tasks': [0, 0, [], ['dry-run']],
   sessions: [0, 0, [], []],
+  'archive import': [0, 0, ['dir', 'agent'], []],
+  'archive status': [0, 0, [], []],
+  'archive search': [0, 1, ['scope', 'agent', 'from', 'to', 'limit'], ['include-peer']],
+  'archive show': [0, 1, ['before', 'after', 'session', 'agent', 'offset', 'limit'], ['include-peer']],
+  'archive capture': [0, 0, ['agent', 'file'], ['hook']],
+  'archive forget': [0, 0, ['session', 'key', 'before'], []],
   'session register': [0, 0, ['agent', 'pid', 'native-id', 'name', 'socket'], ['hook', 'fork']],
   'session unregister': [0, 0, ['pid'], []],
   'session forget': [1, 1, [], []],
@@ -60,7 +66,7 @@ export function parseWorkspaceCommand(args: string[]): WorkspaceCommand {
   if (!spec) throw new InputError('Unknown command; use --help');
   const [min, max, strings, booleans] = spec;
   const options: Record<string, { type: 'string' | 'boolean'; short?: string; multiple?: boolean }> = {};
-  for (const key of strings) options[key] = key === 'scope' ? { type: 'string', short: 's' } : { type: 'string', ...(key === 'file' && name === 'backup' ? { multiple: true } : {}) };
+  for (const key of strings) options[key] = key === 'scope' ? { type: 'string', short: 's' } : { type: 'string', ...((key === 'file' && name === 'backup') || name === 'archive import' ? { multiple: true } : {}) };
   for (const key of booleans) options[key] = { type: 'boolean' };
   const parsed = parseArgs({ args: args.slice(simple ? 1 : 2), options, allowPositionals: true });
   if (parsed.positionals.length < min || parsed.positionals.length > max) throw new InputError('Wrong argument count for ' + name);

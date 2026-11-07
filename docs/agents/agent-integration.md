@@ -1,6 +1,6 @@
 # Claude Code and Pi integration
 
-Read when: starting, configuring or diagnosing Claude Code or Pi in this checkout — hooks, the Pi extension, MCP registration, the allow list, skills, personal agent settings.
+Read when: starting, configuring or diagnosing Claude Code or Pi in this checkout — hooks, the Pi extension, archive capture, MCP registration, the allow list, skills, personal agent settings.
 
 ## Pi
 
@@ -23,6 +23,13 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   open tasks in a project or task chat, the organization's projects and their open
   tasks in an organization chat, all projects and open tasks in the main chat; loaded through the CLI and reused for 15 s; none for flags or after
   --message), and the /inbox command, which runs the inbox skill as /skill:inbox.
+  On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
+  when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
+  `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
+  its result: the file is recorded into the conversation archive from its saved offset
+  and bound to a key by the session's `sessions` row, else by its `session_info` name
+  (`--name <key>` from /open); user messages that start with a mypi frame are stored
+  with origin `frame` and hidden from archive search.
   A same-name server in a Pi `mcp.json` overrides the registration, including
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
@@ -44,7 +51,13 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
   event only when the current turn was started by a parent message (`turnOrigin`
   `peer` with the mypi parent-message frame in the transcript), and discard their
-  output.
+  output. A second Stop command and the SessionEnd hook (every reason, including
+  /clear and exit) run `mypi archive capture --agent claude --hook`: it reads
+  `session_id` and `transcript_path` from stdin and records that transcript file
+  into the conversation archive from its saved offset, so an answer the file had
+  not yet written at Stop arrives on the next Stop or at SessionEnd. Without a
+  transcript it writes nothing; its output is discarded, and its failure (exit 1,
+  never 2) blocks neither Stop nor exit.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project
