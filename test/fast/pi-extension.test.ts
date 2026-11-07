@@ -10,7 +10,7 @@ import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
-const description = 'Local mypi tools for memory, projects, tasks and history. No automatic initialization or writes.';
+const description = 'Local mypi tools for projects, tasks, history and knowledge. No automatic initialization or writes.';
 const cli = join(root, 'dist/src/cli/main.js');
 const reg = (id: string, ...extra: string[]) => ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', id, ...extra], { cwd: root, timeout: 5000 }];
 const serve = async () => ({ close: async () => {} });

@@ -402,7 +402,7 @@ test('over budget a task warmup drops its journal entries oldest first before cl
     const none = readWarmup(filename, root, 'MP-12', full.length - 1700);
     assert(none.length <= full.length - 1700);
     assert(none.includes('## Журнал\n\nПоследние записи журнала задачи (0):\n' + loader));
-    assert(!none.includes('entry '));
+    assert(!/note: entry \d/.test(none));
     assert(none.includes('### INDEX.md\n\n' + clipLine('INDEX.md', (full.length - 1700) + '-character') + '\n'));
   }
   {
