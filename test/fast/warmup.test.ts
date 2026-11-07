@@ -74,6 +74,7 @@ test('global, one, MP and MP-12 warmups match the golden files and read nothing 
     const out = readWarmup(filename, root, key);
     assert.equal(normal(dir, out), readFileSync(new URL('../../../test/fixtures/warmup/' + key + '.md', import.meta.url), 'utf8'), key);
     assert(!out.includes('foreign entry') && !out.includes('## Memory'), key);
+    assert.ok(out.includes('Knowledge in mypi is kept by progressive disclosure.'), key);
   }
   assert.deepEqual(readFileSync(filename), before);
   assert.equal(existsSync(join(root, '.git')), false);
