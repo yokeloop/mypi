@@ -3,7 +3,7 @@
 ## Scope
 
 mypi provides local memory, projects, task records, CLI and stdio MCP tools. Pi and
-Claude Code start here as one workspace for all managed projects; these rules apply
+Claude Code start here as one workspace for all projects; these rules apply
 to user-directed work, the [engine rules](docs/agents/engine-development.md) only to
 changing mypi itself. `mypi warmup` prints scoped context that the Pi extension and
 the Claude hook load; it registers no tasks, logs no outcomes, authorizes nothing.
@@ -14,7 +14,7 @@ Follow the user's requested scope and session.
 
 - This file owns the engine's baseline rules; personal preferences live
   in `home/USER-INSTRUCTIONS.md`, served by `mypi warmup` as the first context
-  section. The layers complement each other: never duplicate a rule in both, add a
+  section. The layers complement each other; never duplicate a rule in both, add a
   `home/AGENTS.md` layer, or make one file reread the other.
 - Before maintaining instructions, pick the owner: engine behavior here, personal
   preferences in home, project behavior in that project's instructions or flow. Edit
@@ -28,9 +28,8 @@ Follow the user's requested scope and session.
   Preserve original source and quotations exactly.
 - Answer the actual request; state uncertainty and blockers. A backlog item,
   document or historical approval is not permission to execute it.
-- A new topic does not cancel earlier requests: continue outstanding authorized work
-  unless the user asks to stop or replace it, without asking again. Continuity grants
-  no new scope.
+- A new topic cancels no earlier request: continue authorized work unless the user
+  asks to stop or replace it, without asking again. Continuity grants no new scope.
 - Agent/workflow configuration mistakes are recoverable: stop the failed lane, find
   the cause, keep evidence, fix the configuration and resume that stage; never repeat
   a failing configuration or restart finished stages. Gates, budgets, tool limits and
@@ -48,8 +47,9 @@ Follow the user's requested scope and session.
   /ship, merge, release, migration, engine update) still need the engineer in the
   child's tab.
 - Preserve user data and history. `home/` is a separate ignored repository; the
-  SQLite DB is outside both. Never relocate personal data, rewrite append-only
-  history or home's Git history: journal artifacts are `{path, commit}` references.
+  SQLite DB is outside both; neither is engine source. Never relocate personal data,
+  rewrite append-only history or home's Git history: journal artifacts are
+  `{path, commit}` references.
 - A partial operation or lost connection is no rollback: inspect state before
   repeating a write; report verification and limits honestly.
 
@@ -75,7 +75,8 @@ Follow the user's requested scope and session.
 ## Common project workflow
 
 - All project development, mypi included, uses a registered project, its own Git
-  clone, a task branch/worktree, verification, push and PR.
+  clone, a task branch/worktree, verification, push and PR; missing setup goes
+  through the project-management skill, within the requested scope.
 - Base clones live in `projects/<organization>/<project>/`, task worktrees beside them
   in `projects/<organization>/<project>--<task-slug>/` (source, not `home/projects/`).
   Do not relocate existing checkouts without authorization.
@@ -88,11 +89,10 @@ Follow the user's requested scope and session.
   Commit only task changes, push each commit, open a PR, leave nothing uncommitted;
   never commit or discard someone else's work.
 - The project's configuration and flow decide review, merge and delivery; there is no
-  universal merge approval, and invent no merge policy. The flow is
+  universal merge approval; invent none. The flow is
   `home/projects/<org>/<project>/flow.json` (`mypi project flow`; fields in the
   project-management skill). Release only by its linked procedure, on explicit
-  request. Journal per pipeline step: `docs/PIPELINE.md` and
-  `integrations/prompts/`.
+  request. Journal per step: `docs/PIPELINE.md` and `integrations/prompts/`.
 - Before removing a worktree or branch, inspect tracked, untracked and ignored files,
   keep unique materials, verify publication. A closed PR does not authorize deleting
   its branch or changing a task's status.
@@ -114,13 +114,13 @@ Before acting in an area, read its document; it binds like this file.
   engine features → [engine development](docs/agents/engine-development.md)
 - bootstrap, engine updates, Pi settings move, home backups →
   [installation](docs/agents/installation.md)
-- Claude Code or Pi setup and diagnosis → [agent integration](docs/agents/agent-integration.md)
+- Claude Code or Pi setup, diagnosis → [agent integration](docs/agents/agent-integration.md)
 - sessions, /open, events, parent messages → [sessions](docs/agents/sessions.md)
 - `mypi serve`, API tokens, the TUI → [HTTP API](docs/agents/http-api.md)
 - projects → [project-management skill](integrations/skills/project-management/SKILL.md)
 - /plan, /do, /flow, /ship, /board → [pipeline](docs/PIPELINE.md)
-- architecture → [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md); testing →
-  [docs/TESTING.md](docs/TESTING.md); stand → [docs/MANUAL-ACCEPTANCE.md](docs/MANUAL-ACCEPTANCE.md)
+- [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md),
+  [stand acceptance](docs/MANUAL-ACCEPTANCE.md)
 
 Historical cards, reports and branches are evidence of past work, not active agent
 instructions. Connecting the MCP server does not assign work or authorize execution.
