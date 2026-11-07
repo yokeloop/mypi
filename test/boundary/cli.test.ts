@@ -253,7 +253,9 @@ test('real CLI send queues a message for a closed child and inbox of the child r
     assert.deepEqual(db.prepare('SELECT kind, from_key, to_key, message, delivered_at FROM events ORDER BY id').raw().all(),
       [['message', 'MP', 'MP-1', 'сделай шаг', null]]);
   } finally { db.close(); }
-  assert(!ok(['warmup', '-s', 'MP-1']).includes('сделай шаг'));
+  const warmup = ok(['warmup', '-s', 'MP-1']);
+  assert(!warmup.includes('[mypi: сообщение родительской сессии MP для MP-1.'));
+  assert(warmup.includes(' message_sent: message 1 from MP: сделай шаг\n'));
   assert.equal(ok(['inbox', 'all']), '{"events":[]}\n');
   const events = JSON.parse(ok(['inbox'], { MYPI_SCOPE: 'MP-1' })).events as { id: number; from: string; to: string; kind: string; text: string }[];
   assert.deepEqual(events, [{ ...events[0]!, id: 1, from: 'MP', to: 'MP-1', kind: 'message',

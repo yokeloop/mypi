@@ -234,7 +234,8 @@ task, organization chat → a task of its organization, main chat → a project 
 organization; any other caller is refused). A live child gets it
 at once through the same socket as events, as a new turn; a closed child gets its
 queued messages exactly once at the next `/open`, in one message with the start
-text. The warmup does not show them; the child's own `/inbox` returns and marks
+text. The warmup shows no parent message as a message, at most its `message_sent`
+journal fact line, and marks none of them; the child's own `/inbox` returns and marks
 them, `/inbox all` skips them. The turn such a message opens is parent-started,
 so its end comes back to the parent as `turn_end`. A busy Claude child takes the
 message as a `queued_command` inside its current turn without a `turn_end` of its

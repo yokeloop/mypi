@@ -164,7 +164,9 @@ organization: global and organization `MEMORY.md`, no project memory; project:
 organization and project `MEMORY.md`; task: project `MEMORY.md`), then the project
 list (global), one line per project of the organization with its clone or `no clone`
 and its open tasks counted by status (organization), the open tasks (project) or the
-task card with its worktree (task). A project or organization warmup then adds «Новые
+task card with its worktree (task).
+Then «Журнал»: in a project scope one line with the number of journal entries of the project and all its tasks and the local date of the newest (`stats` of the SQLite journal store, one SQL statement; «Записей в журнале проекта нет.» when none), in a task scope the task's last five entries (`last`, newest last; date, time, type, text up to 300 characters, an artifacts line), «Записей в журнале задачи нет.» when none; both end with the `journal` call with `limit` 20 and its CLI form that read more. Neither reader goes through `createJournal().read`, which resolves every row's scope.
+A project or organization warmup then adds «Новые
 события» — the undelivered events addressed to that key, each in its frame — and «Последние доклады» — the last `turn_end` of each
 open task delivered before this warmup, as history; empty blocks are omitted. Scope: `--scope`, else the session's registered key (row by native id from CLAUDE_CODE_SESSION_ID or PI_SESSION_ID, else the live record of the parent process), else `MYPI_SCOPE`, else `global`; keys are `global`, an organization slug, `CODE`
 and `CODE-N` (`all` is not a key). Unknown keys, legacy REQ tasks and projects without a clone are errors.
@@ -175,9 +177,9 @@ Warmup creates no rows, files or Git state; a project or organization warmup set
 
 The output is limited to 64 KiB of UTF-8 or, with `--max-chars n` (1–21845, CLI only),
 to n characters counted as UTF-16 code units, the unit Claude Code measures; 21845
-characters always fit 64 KiB. Both limits cut the same way. Only memory facts are
-cut: never the personal instructions, role, how-to, project list, task list, task
-card or worktree, and never the hand-written text of a `MEMORY.md`. The farthest zone
+characters always fit 64 KiB. Both limits cut the same way.
+Memory facts and, in a task scope, the shown journal entries are cut: never the personal instructions, role, how-to, project list, task list, task card, worktree, the project's journal line, the task journal heading with its count and loader, and never the hand-written text of a `MEMORY.md`.
+The farthest zone
 loses facts first (global, then organization, then project); within a file the
 oldest facts go first. In their place a line states how many facts were hidden, from
 which file, under which limit, and the `memory` show call (with the CLI command after
@@ -187,6 +189,7 @@ the limit. A project warmup over the limit cuts in this order: the texts of the 
 reports to 280 characters, then the last reports one by one from the oldest, then
 memory facts as above, then new events from the newest, which stay undelivered and
 are counted in a line pointing to `/inbox`; only then the note above.
+A task warmup over the limit drops the shown journal entries one by one from the oldest (the count in the heading is the number still shown, down to 0), then memory facts as above, then the note.
 
 The Claude Code SessionStart hook passes `--max-chars 9500`, below Claude Code's
 10,000-character limit for hook output. Hook output above that limit (only possible

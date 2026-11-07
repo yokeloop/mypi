@@ -53,3 +53,26 @@ test('relocateFiles rewrites only exact directory prefixes in fingerprints and a
     assert.deepEqual(journal.relocateFiles('requests/REQ-1-x', 'tasks/REQ-1-x'), { fingerprints: 0, artifacts: 0 });
   } finally { db.close(); }
 });
+
+test('stats counts the project and the named tasks only and last returns the newest rows of one scope, newest last', t => {
+  const { filename } = state(t), db = openDatabase(filename), journal = sqliteJournalStore(db);
+  const one = { type: 'task' as const, key: 'MP-1' };
+  try {
+    db.transaction(() => {
+      journal.append({ at: '2026-10-30T10:00:00.000Z', scope: one, event_type: 'task_created', text: 'created' });
+      journal.append({ at: '2026-10-30T11:00:00.000Z', scope: one, event_type: 'note', text: 'one' });
+      journal.append({ at: '2026-10-30T11:00:00.000Z', scope: one, event_type: 'note', text: 'two' });
+      journal.append({ at: '2026-10-29T09:00:00.000Z', scope: { type: 'task', key: 'MP-2' }, event_type: 'note', text: 'other task' });
+      journal.append({ at: '2026-10-31T09:00:00.000Z', scope: { type: 'project', key: 'MP' }, event_type: 'note', text: 'release' });
+      journal.append({ at: '2026-11-01T09:00:00.000Z', scope: { type: 'task', key: 'OT-1' }, event_type: 'note', text: 'foreign' });
+      journal.append({ at: '2026-11-02T09:00:00.000Z', scope: { type: 'global' }, event_type: 'note', text: 'global' });
+    }).immediate();
+    assert.deepEqual(journal.stats('MP', ['MP-1', 'MP-2']), { count: 5, lastAt: '2026-10-31T09:00:00.000Z' });
+    assert.deepEqual(journal.stats('MP', []), { count: 1, lastAt: '2026-10-31T09:00:00.000Z' });
+    assert.deepEqual(journal.stats('XX', ['XX-1']), { count: 0, lastAt: null });
+    assert.deepEqual(journal.last(one, 2).map(e => e.text), ['one', 'two']);
+    assert.deepEqual(journal.last(one, 10).map(e => e.text), ['created', 'one', 'two']);
+    assert.deepEqual(journal.last({ type: 'global' }, 5).map(e => e.text), ['global']);
+    assert.deepEqual(journal.last({ type: 'task', key: 'MP-9' }, 5), []);
+  } finally { db.close(); }
+});
