@@ -10,12 +10,24 @@ export interface ArchiveSession {
   key: string | null; keySource: KeySource | null; parentNativeId: string | null;
   firstAt: string | null; lastAt: string | null; bytesRead: number; updatedAt: string;
 }
+export interface ArchiveKeys { exact: string[]; projects: string[] }
+export interface ArchiveFilter { keys: ArchiveKeys | null; agent?: ArchiveAgent; from?: string; to?: string; includePeer: boolean }
+export interface ArchiveHit { id: number; agent: ArchiveAgent; key: string | null; session: string; at: string; role: ArchiveRole; origin: ArchiveOrigin; snippet: string }
+export interface ArchiveSessionHits { agent: ArchiveAgent; session: string; key: string | null; firstAt: string; lastAt: string; messages: number }
+export interface ArchiveMessage { id: number; at: string; role: ArchiveRole; origin: ArchiveOrigin; text: string }
+export interface ArchiveAnchor extends ArchiveMessage { agent: ArchiveAgent; session: string }
 export interface ArchiveStore {
   transaction<T>(fn: () => T): T;
   session(agent: ArchiveAgent, nativeId: string): ArchiveSession | undefined;
   saveSession(row: ArchiveSession): void;
   insertMessages(agent: ArchiveAgent, nativeId: string, entries: ArchiveEntry[]): number;
   counts(): ArchiveCounts;
+  search(match: string, filter: ArchiveFilter, limit: number): ArchiveHit[];
+  sessionList(filter: ArchiveFilter, limit: number): ArchiveSessionHits[];
+  message(id: number): ArchiveAnchor | undefined;
+  around(anchor: ArchiveAnchor, before: number, after: number, includePeer: boolean): { before: ArchiveMessage[]; after: ArchiveMessage[] };
+  agentsOf(nativeId: string): ArchiveAgent[];
+  page(agent: ArchiveAgent, nativeId: string, offset: number, limit: number, includePeer: boolean): { messages: ArchiveMessage[]; total: number };
 }
 export interface KeyLookup {
   byNative(agent: ArchiveAgent, nativeId: string): string | undefined;
