@@ -35,8 +35,12 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
    Nothing runs before a refusal except `mp-task scope`, `mp-task project` and
    `project list`.
 1. `$BIN/mp-task board <P>` (with `all` when typed) — JSON lines with `key`,
-   `status`, `title`, `parent`, `dir`, `worktreePath`. The project's `checkoutPath` and
-   `home` come from the `mp-task project <P>` output of step 0.
+   `status`, `title`, `parent`, `dir`, `worktreePath`, `reason`, `reasonAt`: `reason`
+   is the text of the task's last status reason from the journal (the newest of its
+   last `status_changed` and a `<status> (unchanged). …` note, without the prefix),
+   `reasonAt` the time of that entry; both `null` when the task never changed
+   status. The project's `checkoutPath` and `home` come from the
+   `mp-task project <P>` output of step 0.
 2. For each row, the files in `dir`, only those that exist: `derive.json` (plan
    URL), `pr.md` (PR), `progress.md` (stage). For each task with a `derive.json`
    run `catch_up` on the plan's `short_id` with `comments: open` and count the
@@ -48,11 +52,9 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
 4. Print one table: key, title, parent (key or —), status, plan (URL or —), open threads, PR,
    worktree, next. The next column, for any project: `/plan` for `new`; `/do` for
    `planning` with no open threads; `/plan` again when threads are open;
-   «ручная проверка → /ship» for `review`; — for `merged`/`done`; the reason for
-   `blocked`; the status itself for any other status.
+   «ручная проверка → /ship» for `review`; — for `merged`/`done`; the row's `reason` for
+   `blocked` (— when `null`); the status itself for any other status.
 
-   The `blocked` reason comes from `$BIN/mp-task show <KEY>` (the card's last
-   status reason). Flows: a line for each `<home>/flows/*.md`, only when
-   `<home>/flows` exists.
+   Flows: a line for each `<home>/flows/*.md`, only when `<home>/flows` exists.
 
 No status changes, no commits. No mypi task worktree, warmup or inbox calls.
