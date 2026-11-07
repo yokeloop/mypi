@@ -47,22 +47,19 @@ mypi keeps memory, projects, task records and history for this workspace. Use it
 - Register tasks only on the user's explicit request, one per independent problem; merge or split them only with the user's agreement, and ask when their number or boundaries are unclear (several problems mentioned, one named: register it, ask about the rest). Title and card keep the user's wording and scope. Record memory, notes or journal entries only when the user asks or the work requires it. What the engine knows (tasks, statuses, titles, worktrees, sessions, parent messages, clones) it journals itself; do not repeat it. Boundaries between chats are guidance, not access control.
 - Maintenance is CLI-only and only on the user's explicit request: `db init`, `bootstrap`, `backup` (including `--publish`), `restore`, `journal import`, `status add|rename|terminal|remove`, `context restore`, `session forget <key>`, `project remove <org/project> --expected-code <CODE>`, `org remove <org>`, `home migrate-tasks`.
 
-## Memory
+## Knowledge entries
 
-### MEMORY.md
+### INDEX.md
 
-#### Memory
+#### Global entry
 
-Global notes written by hand.
+The main chat keeps this map.
 
-- "global fact one"
-- "global fact two"
+### projects/one/INDEX.md
 
-### projects/one/MEMORY.md
+#### Organization one
 
-#### Memory
-
-- "org fact"
+Organization rules: rules.md.
 
 ## Projects
 
