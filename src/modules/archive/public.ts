@@ -12,6 +12,25 @@ export function nativeIdOf(agent: ArchiveAgent, path: string): string {
   const cut = name.indexOf('_');
   return agent === 'pi' && cut >= 0 ? name.slice(cut + 1) : name;
 }
+export function ftsQuery(q: string): string {
+  const parts: string[] = [];
+  for (const token of q.split(/\s+/)) {
+    const prefix = token.length > 1 && token.endsWith('*');
+    const word = prefix ? token.slice(0, -1) : token;
+    if (!/[\p{L}\p{N}]/u.test(word)) continue;
+    parts.push('"' + word.replaceAll('"', '""') + '"' + (prefix ? '*' : ''));
+  }
+  if (parts.length === 0) throw new InputError('Search query has no words');
+  return parts.join(' ');
+}
+export function archiveInstant(value: string, end: boolean): string {
+  const iso = /^\d{4}-\d\d-\d\d$/.test(value) ? value + (end ? 'T23:59:59.999Z' : 'T00:00:00.000Z')
+    : /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{3})?Z$/.test(value) ? value : undefined;
+  const time = iso === undefined ? NaN : Date.parse(iso);
+  if (!Number.isFinite(time) || new Date(time).toISOString().replace('.000Z', 'Z') !== iso!.replace('.000Z', 'Z'))
+    throw new InputError('Invalid UTC time or date: ' + value);
+  return new Date(time).toISOString();
+}
 export function emptyCounts(): ArchiveCounts {
   return { sessions: { claude: 0, pi: 0 }, messages: { claude: 0, pi: 0 }, boundSessions: 0, unboundSessions: 0, keys: 0,
     keySources: { sessions: 0, name: 0 } };
