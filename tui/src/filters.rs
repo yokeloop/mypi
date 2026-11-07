@@ -56,6 +56,11 @@ const JOURNAL: [FilterField; 4] = [
             ("note", "note"),
             ("task_created", "task_created"),
             ("status_changed", "status_changed"),
+            ("title_changed", "title_changed"),
+            ("worktree_created", "worktree_created"),
+            ("session_opened", "session_opened"),
+            ("message_sent", "message_sent"),
+            ("clone_prepared", "clone_prepared"),
         ]),
     ),
     field("from", FieldKind::Date),
@@ -145,6 +150,11 @@ mod tests {
         assert_eq!(cycle(delivered, "true"), "");
         assert_eq!(cycle(delivered, "odd"), "");
         assert_eq!(choices(Section::Journal, "type")[1], ("note", "note"));
+        assert_eq!(choices(Section::Journal, "type").len(), 9);
+        assert_eq!(
+            choices(Section::Journal, "type")[8],
+            ("clone_prepared", "clone_prepared")
+        );
         let projects = vec![
             json!({"code": "MP", "identity": "yokeloop/mypi"}),
             json!({"code": "OT", "identity": "a/other"}),
