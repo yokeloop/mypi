@@ -88,7 +88,7 @@ Rows «1, not started» and «1, under way».
    object by its definition, `commits` 0, `base` and `head` the `SHA`. Save its
    report as `$DIR/do-report.json`. `openPoints` only the engineer can answer are a
    question.
-4. **Review**, one round. A fresh `task-reviewer` with the paths of
+4. **Review**, one round, only when there is no `review-report.json`. A fresh `task-reviewer` with the paths of
    `$DIR/research.md` and `source.md`, the clone and `SHA`, the section «Epics» of
    `docs/PIPELINE.md` in place of a plan, and the brief: review the document, not a
    diff — every `repo:` citation exists on `SHA` and says what is claimed, every
