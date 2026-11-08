@@ -521,7 +521,7 @@ permission to restore the old model.
 - [TESTING](docs/TESTING.md): sole test-policy source, budgets, review and isolation.
 - [CHANGELOG](CHANGELOG.md): released versions and unreleased changes.
 - [MANUAL-ACCEPTANCE](docs/MANUAL-ACCEPTANCE.md): live acceptance with Claude Code, Pi and Herdr on a disposable stand.
-- [PIPELINE](docs/PIPELINE.md), [PLAN-FORMAT](docs/PLAN-FORMAT.md): the /plan, /do, /flow, /ship and /board pipeline and the shape of its plans.
+- [PIPELINE](docs/PIPELINE.md), [PLAN-FORMAT](docs/PLAN-FORMAT.md): the /plan, /do, /epic, /flow, /ship and /board pipeline and the shape of its plans.
 - [v2 facts](docs/v2/facts.md), [ADRs](.yoke/adr/): stage-0 measurements and decisions of the v2 session model.
 - [M1-CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): active operation guides.
 - [M0-CONTRACT](docs/M0-CONTRACT.md): historical agreements, not perpetual permissions.
