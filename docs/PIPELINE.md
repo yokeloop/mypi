@@ -139,7 +139,13 @@ subtask decides:
 - `blocked` or any other non-terminal status (`research`, `paused`, a custom one):
   one `AskUserQuestion` «include or skip». An included subtask gets
   `mp-task status <KEY> planning "в потоке <name>: включена инженером"` and goes on
-  as `planning`.
+  as `planning`;
+- a typed key in `review` with subtasks and no `pr.md` of this flow is the epic:
+  not scouted, planned or executed, its status unchanged by the run, named in
+  the announced order and the flow score as «эпик — идут его подзадачи». When
+  its `research.md` has `**Приёмка эпика:** да: <criterion>`, «Finish» of the
+  flow skill runs one acceptance of the epic on the flow branch before the PR,
+  `acceptance.md` in the epic's folder.
 
 The order: subtasks before their parent, then the «Связи» dependencies and shared
 files on top of it. While the flow runs a subtask that has a live tab of its own,
@@ -286,8 +292,10 @@ place; `blocked` only when the engineer answers so.
 Cheap review advice inside the plan's scope is fixed by the executor, followed
 by one more review round; other advice goes into `pr.md` and the PR. The order of
 the tasks is announced with its reasoning before the start, not asked. A live
-acceptance the plan names runs as part of the run, without a question; an
-exceeded stand budget or a failure that needs a decision is a question.
+acceptance the plan names runs as part of the run, without a question,
+and so does the epic acceptance the epic's research names («Finish» of the flow
+skill, before the PR); an exceeded stand budget or a failure that needs a
+decision is a question.
 
 ## Checks
 
