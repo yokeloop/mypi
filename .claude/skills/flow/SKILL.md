@@ -37,7 +37,9 @@ own Step 0 with the same key; the subtasks of `P-N` pass it by the same rule.
 - The first argument is the run name `<name>`, not a task key; at least one key
   follows. Otherwise print `usage: /flow <name> <KEY> [<KEY>…]` and stop.
 - Every key exists and is `new`, `planning`, `in_progress` (resume) or `review`
-  (already merged into this flow — skipped). Anything else → stop before starting.
+  (already merged into this flow — skipped; or the epic of «Subtasks»: a typed
+  key in `review` whose `$BIN/mp-task subtasks <KEY>` is not empty and that has no
+  `pr.md` naming this flow). Anything else → stop before starting.
 - `$BIN/mp-task project <first KEY>` gives `checkoutPath`, `home` and `repository`;
   `checkoutPath` or `repository` `null` → say so and stop.
 - `$BIN/mp-task flow <first KEY>` gives the project's `integration` and `prTarget`;
@@ -53,6 +55,12 @@ its first occurrence stays. The status of each subtask decides by «Subtasks» o
 `Подзадача`, options «Пропустить (рекомендую)» and «Включить», the reason from
 `$BIN/mp-task show <KEY>` in the question text. An included subtask gets
 `$BIN/mp-task status <KEY> planning "в потоке <name>: включена инженером"`.
+
+A typed key in `review` that has subtasks and no `pr.md` naming this flow is the
+epic: it is not scouted, planned, executed or recorded, and the run never
+changes its status; the announced order and the skipped list of the flow score
+name it `<KEY> — эпик, идут его подзадачи`. Its research may name an epic
+acceptance («Finish», step 2).
 
 ## Order
 
@@ -97,7 +105,8 @@ time.
 Strictly one task at a time: the next key's `/do` starts only after the current
 key is recorded in the flow score.
 
-1. Skip if already `review` with `pr.md` naming this flow.
+1. Skip if already `review` with `pr.md` naming this flow, or if the key is the
+   epic («Subtasks»).
 2. **Plan.** The `/plan <KEY>` procedure (Skill `plan`), unless the task folder
    already has `plan.md` and `derive.json` with no open threads. Its forks go to the
    engineer one at a time through `AskUserQuestion`, the recommendation first; no
@@ -149,23 +158,41 @@ engineer answers so; the run then stops, later keys stay untouched.
 
 1. In the flow worktree: the project's checks (by «Checks» of `docs/PIPELINE.md`;
    when the project's instructions name none, the check commands of the plans of all
-   keys, in order) once more on the assembled result (semantic conflicts between
-   tasks merge clean and only checks expose them). Red → a question with the
+   keys except the epic, in order) once more on the assembled result (semantic
+   conflicts between tasks merge clean and only checks expose them). Red → a question with the
    literal output; no PR until it is answered.
-2. `gh pr create --repo <repository> --base <prTarget> --head flow/<name>` — also for
+2. **Epic acceptance**, only when a typed key is the epic («Subtasks») and its
+   research — `$($BIN/mp-task dir <EPIC>)/research.md` — has the line
+   `**Приёмка эпика:** да: <criterion>`; no file, no such line or `нет` → no
+   epic acceptance. One acceptance of that criterion by
+   `docs/MANUAL-ACCEPTANCE.md` on the flow worktree's head, after step 1 and
+   before the PR, with the pitfalls of «Per key» step 5: the checklist is
+   written before the start, `acceptance.md` and the evidence go into the
+   epic's folder, the result is appended to the flow score;
+   `$BIN/mp-home-commit <CODE> "flow <name>: <EPIC> acceptance"`. The stands of
+   the subtasks («Per key» step 5) stay as they are. A failure inside a
+   subtask's plan goes to a new `task-executor` teammate in that subtask's
+   worktree (its own teammate was shut down at Record): the fix, one review
+   round, the checks, a new `--no-ff` merge into the flow worktree, step 1
+   again, the failed items again. A failure that needs a decision or an
+   exceeded stand budget is a question.
+3. `gh pr create --repo <repository> --base <prTarget> --head flow/<name>` — also for
    one key — with title `Flow <name>: <KEY>, <KEY>, …` and a body listing per key:
    title, plan URL, review verdict, checks, live acceptance (or «not required»),
-   the engineer's answers taken on the way; then the ending
+   the engineer's answers taken on the way; when a typed key is the epic, one line
+   with the epic acceptance result and the path of its `acceptance.md`, or «not
+   required»; then the ending
    `🤖 Generated with [Claude Code](https://claude.com/claude-code)`.
-3. `gh pr checks <url> --watch`. Red only on the test budget with `fail 0` →
+4. `gh pr checks <url> --watch`. Red only on the test budget with `fail 0` →
    report it to the engineer with the measurements, no rerun loop. Any other red →
    a question with the literal output.
-4. For every key: `$BIN/mp-task status <KEY> review "в потоке <name>, ждёт ручной
-   проверки: <PR url>"`. Append the PR URL to the flow score;
+5. For every key except the epic: `$BIN/mp-task status <KEY> review "в потоке
+   <name>, ждёт ручной проверки: <PR url>"`. Append the PR URL to the flow score;
    `$BIN/mp-home-commit <CODE> "flow <name>: PR"`.
-5. Report: the PR URL, the keys in order with their review verdicts and acceptance,
-   open advice, the engineer's answers, the lead's edits of plans, and «ждёт вашей
-   ручной проверки; /ship flow/<name> мержит».
+6. Report: the PR URL, the keys in order with their review verdicts and acceptance,
+   the epic acceptance result (when a typed key is the epic), open advice, the
+   engineer's answers, the lead's edits of plans, and «ждёт вашей ручной проверки;
+   /ship flow/<name> мержит».
 
 ## Never
 
