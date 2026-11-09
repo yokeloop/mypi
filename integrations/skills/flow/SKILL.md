@@ -434,7 +434,9 @@ report.
 3. **PR.** `gh pr list --repo <repository> --head flow/<name> --state open --json
    url --jq '.[0].url // ""'`: a URL → that PR (the pushes have updated it);
    otherwise `gh pr create --repo <repository> --base <prTarget> --head
-   flow/<name> --title "Flow <name>: <KEY>, <KEY>, …" --body "<body>"`, the body
+   flow/<name> --title "Flow <name>: <KEY>, <KEY>, …" --body "<body>"` — also for
+   one key; the title lists every key of the run except the epic, in the order of
+   the score (`Flow fx: FX-2, FX-3`), never the epic's key alone; the body
    listing per key the title, the plan URL, the review verdict, the checks, the
    self-test (or «not required») and the engineer's answers; one line for the epic
    acceptance (result and the path of `acceptance.md`, or «not required») when a
