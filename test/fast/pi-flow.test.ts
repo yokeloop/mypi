@@ -63,6 +63,8 @@ test('integrations/pi-flow holds exactly the seven engine roles, each with its t
   }
   const reviewer = JSON.parse(frontmatter(read('integrations/pi-flow/reviewer.md')).get('outputSchema') ?? '');
   assert.deepEqual(reviewer.properties.status.enum, ['approved', 'changes_required']);
+  assert.deepEqual(reviewer.properties.outsidePlan, { type: 'array', items: { type: 'string' } });
+  assert.ok(reviewer.required.includes('outsidePlan'));
 });
 
 test('integrations/pi-flow holds the three workflow templates, each opening with its header comment, free of nested async functions and compiling as a workflow body', () => {
@@ -74,4 +76,58 @@ test('integrations/pi-flow holds the three workflow templates, each opening with
     assert.doesNotMatch(source, /\basync\b/, file);
     assert.doesNotThrow(() => new Script('(async (runs, args) => {\n' + source + '\n})'), file);
   }
+});
+
+test('standard.js and parallel.js return each review round with its range and outside-plan files, fix blocking findings through resume, and stop before a fix when files lie outside the plan', async () => {
+  const template = (file: string) => new Script('(async (runs, args) => {\n' + read(`integrations/pi-flow/${file}`) + '\n})').runInThisContext();
+  const blocking = { severity: 'blocking', lens: 1, file: 'a.txt', line: 1, problem: 'p', evidence: 'e', fix: 'f' };
+  const fixing = {
+    implement: { runId: 'e1', structuredOutput: { base: 'b0', head: 'h1' } },
+    'review-1': { structuredOutput: { status: 'changes_required', findings: [blocking], outsidePlan: [] } },
+    'fix-1': { runId: 'e2', ok: true, structuredOutput: { base: 'b0', head: 'h2' } },
+    'review-2': { structuredOutput: { status: 'approved', findings: [], outsidePlan: [] } },
+  };
+  const outside = {
+    implement: fixing.implement,
+    'review-1': { structuredOutput: { status: 'changes_required', findings: [blocking], outsidePlan: ['extra.txt'] } },
+  };
+  const stub = (results: Record<string, unknown>, calls: string[]) => ({ run: (key: string) => { calls.push(key); return Promise.resolve(results[key]); } });
+  const prefixed = (results: Record<string, unknown>) => Object.fromEntries(Object.entries(results).map(([key, value]) => ['a-' + key, value]));
+  const parts = { parts: [{ key: 'a', plan: '/p', worktree: '/w', taskDir: '/t', base: 'flow/x' }] };
+
+  let calls: string[] = [];
+  let result = await template('standard.js')(stub(fixing, calls), {});
+  assert.deepEqual(calls, ['implement', 'review-1', 'fix-1', 'review-2']);
+  assert.deepEqual(result.reviews, [
+    { round: 1, range: 'b0..h1', status: 'changes_required', findings: [blocking], outsidePlan: [] },
+    { round: 2, range: 'b0..h2', status: 'approved', findings: [], outsidePlan: [] },
+  ]);
+  assert.equal(result.fixes.length, 1);
+  assert.equal(result.executor.runId, 'e2');
+
+  calls = [];
+  result = await template('standard.js')(stub(outside, calls), {});
+  assert.deepEqual(calls, ['implement', 'review-1']);
+  assert.deepEqual(result.fixes, []);
+  assert.deepEqual(result.reviews[0].outsidePlan, ['extra.txt']);
+  assert.equal(result.executor.runId, 'e1');
+
+  calls = [];
+  result = await template('parallel.js')(stub(prefixed(fixing), calls), parts);
+  assert.deepEqual(calls, ['a-implement', 'a-review-1', 'a-fix-1', 'a-review-2']);
+  assert.equal(result[0].key, 'a');
+  assert.deepEqual(result[0].reviews, [
+    { round: 1, range: 'b0..h1', status: 'changes_required', findings: [blocking], outsidePlan: [] },
+    { round: 2, range: 'b0..h2', status: 'approved', findings: [], outsidePlan: [] },
+  ]);
+  assert.equal(result[0].fixes.length, 1);
+  assert.equal(result[0].executor.runId, 'e2');
+
+  calls = [];
+  result = await template('parallel.js')(stub(prefixed(outside), calls), parts);
+  assert.deepEqual(calls, ['a-implement', 'a-review-1']);
+  assert.equal(result[0].key, 'a');
+  assert.deepEqual(result[0].fixes, []);
+  assert.deepEqual(result[0].reviews[0].outsidePlan, ['extra.txt']);
+  assert.equal(result[0].executor.runId, 'e1');
 });
