@@ -12,36 +12,50 @@
  * Returns [{ key, executor: { runId, report }, fixes, reviews }] in the order of args.parts.
  */
 const reviewerRole = args.reviewer || "reviewer";
-async function chain(part) {
-  const context = `Part ${part.key}. Plan: ${part.plan}. Worktree: ${part.worktree}. Task folder: ${part.taskDir}. Base branch: ${part.base}.`;
-  const implement = await runs.run(`${part.key}-implement`, {
-    agent: part.agent || "executor",
-    task: `${context} Implement every step of the plan in the worktree.`,
-  });
-  const report = implement.structuredOutput ?? null;
-  const base = report && report.base ? report.base : part.base;
-  let head = report && report.head ? report.head : "HEAD";
-  let last = implement;
-  const fixes = [];
-  const reviews = [];
-  for (const round of [1, 2]) {
-    const review = await runs.run(`${part.key}-review-${round}`, {
+function rounds(part, context, state, round) {
+  return runs
+    .run(`${part.key}-review-${round}`, {
       agent: reviewerRole,
-      task: `${context} Review the diff ${base}..${head} in the worktree against the plan.`,
+      task: `${context} Review the diff ${state.base}..${state.head} in the worktree against the plan.`,
+    })
+    .then((review) => {
+      const verdict = review.structuredOutput ?? null;
+      state.reviews.push({ round, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [] });
+      if (!verdict || verdict.status !== "changes_required" || round === 2 || !state.last.runId) return state;
+      const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
+      return runs
+        .run(`${part.key}-fix-${round}`, {
+          resume: state.last.runId,
+          task: `Review round ${round} returned these blocking findings: ${JSON.stringify(blocking)}. Fix them in the worktree, commit, and answer again with your whole report.`,
+        })
+        .then((fix) => {
+          const fixReport = fix.structuredOutput ?? null;
+          state.fixes.push({ round, ok: fix.ok, report: fixReport });
+          state.head = fixReport && fixReport.head ? fixReport.head : "HEAD";
+          state.last = fix;
+          return rounds(part, context, state, round + 1);
+        });
     });
-    const verdict = review.structuredOutput ?? null;
-    reviews.push({ round, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [] });
-    if (!verdict || verdict.status !== "changes_required" || round === 2 || !last.runId) break;
-    const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
-    const fix = await runs.run(`${part.key}-fix-${round}`, {
-      resume: last.runId,
-      task: `Review round ${round} returned these blocking findings: ${JSON.stringify(blocking)}. Fix them in the worktree, commit, and answer again with your whole report.`,
-    });
-    const fixReport = fix.structuredOutput ?? null;
-    fixes.push({ round, ok: fix.ok, report: fixReport });
-    head = fixReport && fixReport.head ? fixReport.head : "HEAD";
-    last = fix;
-  }
-  return { key: part.key, executor: { runId: last.runId ?? null, report }, fixes, reviews };
+}
+function chain(part) {
+  const context = `Part ${part.key}. Plan: ${part.plan}. Worktree: ${part.worktree}. Task folder: ${part.taskDir}. Base branch: ${part.base}.`;
+  return runs
+    .run(`${part.key}-implement`, {
+      agent: part.agent || "executor",
+      task: `${context} Implement every step of the plan in the worktree.`,
+    })
+    .then((implement) => {
+      const report = implement.structuredOutput ?? null;
+      const state = {
+        report,
+        base: report && report.base ? report.base : part.base,
+        head: report && report.head ? report.head : "HEAD",
+        last: implement,
+        fixes: [],
+        reviews: [],
+      };
+      return rounds(part, context, state, 1);
+    })
+    .then((state) => ({ key: part.key, executor: { runId: state.last.runId ?? null, report: state.report }, fixes: state.fixes, reviews: state.reviews }));
 }
 return await Promise.all(args.parts.map(chain));
