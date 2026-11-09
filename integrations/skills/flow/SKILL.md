@@ -261,13 +261,16 @@ Strictly one key executes at a time. `<task folder>` is `$BIN/mp-task dir <KEY>`
 `<flow worktree>` and `<base clone>` are those of «Flow branch». The stage, decided
 by the task folder without asking: the status is `review`, `pr.md` names this flow
 and the line is not ticked → step 8; `do-report.json` exists → step 5; otherwise
-step 1. An answer already recorded in the key's `progress.md` for this key and this
+step 1 — also for a key back from «Замечания», whose base check runs before the
+template of step 3. An answer already recorded in the key's `progress.md` for this key and this
 plan version is not asked again.
 
 1. **Base check.** `git -C <base clone> fetch -q origin`, then
-   `git -C <base clone> log --stat <scout SHA>..origin/flow/<name>` with the newest
-   ` — разведка <SHA>` of the key's line (no such mark — skip the check and name
-   that in the final report). When the log touches a file `plan.md` names: run
+   `git -C <base clone> log --stat <from>..origin/flow/<name>`. `<from>` is the SHA
+   of the last ` — разведка <SHA>` or ` — смержено <SHA>` mark of the key's line,
+   whichever comes later: for a key back from «Замечания» that is its own last flow
+   merge, so only the changes of other keys count (no such mark — skip the check
+   and name that in the final report). When the log touches a file `plan.md` names: run
    `subagent({ agent: "scout", task })` for the key with that log in its task, then
    the planner revises `plan.md` with the new facts as one remark («база потока
    изменилась: <files>»), step 5 of «Per key» as rework and step 6; after
