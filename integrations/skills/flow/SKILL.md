@@ -398,7 +398,12 @@ memory or made up.
 
 ## Finish
 
-The flow lines of the score are appended to its header list, after `- Started:`.
+The flow lines of the score — `- PR:`, `- Стенд:`, `- Замечания:`, `- Стоп:`,
+`- Одобрено:`, `- Смержено:`, `- Релиз начат:`, `- Релиз:` — go into its header
+list, each right after the last line of that list (`- Started:` or the flow line
+before it), never under «Order», «Skipped» or «Answers» and never at the end of the
+file; each is committed by its own `mp-home-commit` as soon as it is written,
+before the next step starts.
 On resume, unticked keys go first by «Per key»; then the newest of these lines
 decides: none → step 1 here; `- PR:` or `- Стоп:` → «The engineer's check» step 1;
 `- Стенд:` → its step 2; `- Замечания:` → step 1 here; `- Одобрено:` → «Ship»;
@@ -517,7 +522,8 @@ The `/ship` procedure for `flow/<name>` (`.claude/skills/ship/SKILL.md`, steps
 2. Otherwise: a `- Релиз начат:` line without a later `- Релиз:` → one `mypi_ask`
    with the procedure and what its done criterion shows now, options `Остановить`,
    `Повторить релиз`. Else append `- Релиз начат: <YYYY-MM-DD HH:MM>, процедура
-   <release>`; `$BIN/mp-home-commit <CODE> "flow <name>: release started"`.
+   <release>`; `$BIN/mp-home-commit <CODE> "flow <name>: release started"`, both
+   before step 3.
 3. `git -C <base clone> fetch -q origin`. The base clone must be on `<prTarget>`
    and clean (`git -C <base clone> status --porcelain` empty), then
    `git -C <base clone> merge -q --ff-only origin/<prTarget>`; anything else → a
