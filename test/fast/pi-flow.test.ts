@@ -65,6 +65,9 @@ test('integrations/pi-flow holds exactly the seven engine roles, each with its t
   assert.deepEqual(reviewer.properties.status.enum, ['approved', 'changes_required']);
   assert.deepEqual(reviewer.properties.outsidePlan, { type: 'array', items: { type: 'string' } });
   assert.ok(reviewer.required.includes('outsidePlan'));
+  const tester = JSON.parse(frontmatter(read('integrations/pi-flow/tester.md')).get('outputSchema') ?? '');
+  assert.deepEqual(tester.properties.handover.required, ['attach', 'teardown']);
+  assert.ok(tester.required.includes('handover'));
 });
 
 test('integrations/pi-flow holds the three workflow templates, each opening with its header comment, free of nested async functions and compiling as a workflow body', () => {
