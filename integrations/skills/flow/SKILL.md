@@ -76,8 +76,9 @@ is created or pushed and before the flow score is written.
 - Every key exists and is `new`, `planning`, `in_progress` (resume) or `review`
   (already merged into this flow — skipped; or the epic of «Subtasks»: a typed key
   in `review` whose `$BIN/mp-task subtasks <KEY>` is not empty and that has no
-  `pr.md` naming this flow), or `merged` when the flow score has a `- Смержено:`
-  line (a resume before the release). Anything else → stop before starting.
+  `pr.md` naming this flow), or `merged` when the flow score has a `- Одобрено:`
+  or `- Смержено:` line (a resume inside «Ship» or before the release). Anything
+  else → stop before starting.
 - `$BIN/mp-task project <first KEY>` gives `checkoutPath`, `home` and `repository`;
   `checkoutPath` or `repository` `null` → say so and stop.
 - `$BIN/mp-task flow <first KEY>` gives the project's `integration` and `prTarget`;
@@ -499,6 +500,9 @@ report.
 The `/ship` procedure for `flow/<name>` (`.claude/skills/ship/SKILL.md`, steps
 2–6), run by this skill after «Одобрить»:
 
+First `gh pr view <url> --json state --jq .state`: `MERGED` (a resume after the
+merge) → skip steps 1–3 and take the merge SHA as in step 3.
+
 1. `git -C <flow worktree> fetch -q origin`, `git -C <flow worktree> merge
    origin/<prTarget>`, never a rebase. Conflicts by the rule of `/ship` step 2:
    read the neighbour's merged PR and the plans, keep both intents, never
@@ -514,8 +518,11 @@ The `/ship` procedure for `flow/<name>` (`.claude/skills/ship/SKILL.md`, steps
 4. For every key except the epic, in order, unless it is already `merged`:
    `$BIN/mp-task status <KEY> merged "смержено в <prTarget>: <merge SHA>"`;
    `$BIN/mp-task progress <KEY> "Смержено: <PR url>" pr.md progress.md`.
-5. Clean up each key's worktree and part worktrees, then the flow worktree:
-   `git -C <wt> status --porcelain --ignored`; untracked files that are not build
+5. Clean up each key's worktree and part worktrees, then the flow worktree; a
+   worktree whose path is gone, or a branch `git -C <base clone> rev-parse -q
+   --verify refs/heads/<branch>` does not find, is already removed and skipped, no
+   git runs on it. For each remaining one: `git -C <wt> status --porcelain
+   --ignored`; untracked files that are not build
    output move to the key's task folder (the flow worktree's to `<project
    home>/flows/<name>/`); `git -C <base clone> worktree remove <wt>`; `git -C <base
    clone> branch -d` for each task branch, part branch and `flow/<name>`. Remote
