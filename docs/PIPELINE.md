@@ -4,7 +4,8 @@ Tooling for running the tasks of any registered project from the engine root; ev
 session starts there, so each pipeline skill checks the session scope first (see
 «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
 `scripts/pipeline/`, the skills `/plan`, `/do`, `/epic`, `/flow`, `/ship`, `/board` in
-`.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). Claude
+`.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). For Pi, the roles and workflow templates in `integrations/pi-flow/`,
+found through `.pi/settings.json` («Roles»). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
 the installation they are run from and refuse any other working directory.
 
@@ -68,8 +69,12 @@ The key: `scripts/pipeline/mp-task scope` prints `{"key", "project", "org", "cod
 `org` is the key when it is the slug of a registered organization with at least one
 project, and `codes` the sorted codes of its projects; otherwise both are `null`. It
 takes the `sessions` row with this conversation's agent and native id
-(`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`; it is set inside subagents too and
-is the parent chat's id), else `MYPI_SCOPE` (set by `/open`), else `global`. This is
+(`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`), else `MYPI_SCOPE` (set by
+`/open`), else `global`. Inside a Claude Code subagent `CLAUDE_CODE_SESSION_ID` is
+the parent chat's id. Inside a pi-subagents child `PI_SESSION_ID` is the child's
+own id, which has no `sessions` row, so a child's scope falls back to
+`MYPI_SCOPE`, then `global`; the Pi lead therefore names the key and the paths in
+each role's task. This is
 the order of `warmup` without an argument, except the live record by pid: through
 `mise exec` the pid does not match, and `MYPI_SCOPE`, which `/open` sets to the same
 key, takes its place. The subcommand only reads (`mypi sessions`); neither `warmup`
@@ -249,6 +254,20 @@ recorded in the flow score.
 What every executor prompt carries: the task key, the plan path, the worktree path,
 the task folder path, the base branch, this file's path, and the rule that its
 final message is exactly one JSON object per its definition. Under `/epic` the epic's folder and the clone's SHA take the place of the worktree and the base branch («Epics»).
+
+Pi's roles live in `integrations/pi-flow/`: `scout`, `planner`, `executor`,
+`reviewer`, `tester`, `investigator`, `challenger`, each a `*.md` file whose
+answer schema is its `outputSchema`, beside the workflow templates `standard.js`
+(implement, review, fix through `resume`, at most two review rounds),
+`parallel.js` (the same chain for several worktrees at once) and `investigate.js`
+(read-only fan-out of scouts or investigators). `.pi/settings.json` makes
+pi-subagents scan `integrations/pi-flow` and `home/pi-flow` (the engineer's own
+roles and templates) and starts children without ambient extensions. The bodies
+follow the Claude roles above without their defects: the executor reports the
+worktree's real branch name and separates `openQuestions` from `deviations`, each
+check with its expected exit code; the planner saves `plan.md` in the task's
+folder and writes the plan's «Execution» section. File formats, own roles and
+model tiers: `docs/agents/agent-integration.md`.
 
 ## Statuses in mypi
 
