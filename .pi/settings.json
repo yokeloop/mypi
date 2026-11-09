@@ -1,0 +1,6 @@
+{
+  "subagents": {
+    "defaultExtensions": [],
+    "agentScanDirs": ["integrations/pi-flow", "home/pi-flow"]
+  }
+}
