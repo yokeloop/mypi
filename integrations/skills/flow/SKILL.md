@@ -43,6 +43,9 @@ session's working directory).
   `curl`. Roles have no MCP: every derive call and every mypi write is the lead's.
 - GitHub: `gh` through bash, for the PR, its checks and its merge.
 - Questions: `mypi_ask` («Questions»).
+- Time: every `<YYYY-MM-DD HH:MM>` and `<YYYY-MM-DD>` of this skill is the output of
+  `date '+%Y-%m-%d %H:%M'` (or `date +%F`) run through bash right before the write
+  that carries it; never a time typed by hand or guessed.
 
 ## Step 0 — session scope
 
