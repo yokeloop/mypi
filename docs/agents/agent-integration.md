@@ -1,6 +1,6 @@
 # Claude Code and Pi integration
 
-Read when: starting, configuring or diagnosing Claude Code or Pi in this checkout — hooks, the Pi extension, archive capture, MCP registration, the allow list, skills, personal agent settings.
+Read when: starting, configuring or diagnosing Claude Code or Pi in this checkout — hooks, the Pi extension, archive capture, MCP registration, the allow list, skills, personal agent settings, the Pi pipeline roles and workflow templates.
 
 ## Pi
 
@@ -34,6 +34,35 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `enabled: false`; `pi -ne` starts without extensions. Shell `pi mcp list` does
   not load extension servers. After updating/rebuilding, reload or restart Pi.
   Inspect diagnostics before claiming an integration works.
+- Pi pipeline resources: the tracked `.pi/settings.json` sets pi-subagents'
+  `defaultExtensions: []` (children start without ambient extensions, mypi
+  included) and `agentScanDirs` to `integrations/pi-flow` and `home/pi-flow`,
+  resolved from the engine root, where Pi starts. `integrations/pi-flow/` holds
+  the engine's roles (`*.md`) and workflow templates (`*.js`), `home/pi-flow/` the
+  engineer's own for all projects; subfolders are scanned too. pi-subagents reads
+  only `*.md`, so the templates are not roles; `subagent({ action: "list" })`
+  lists the roles. In a Pi session started in the engine root the engine roles
+  `scout` and `reviewer` shadow pi-subagents' builtin roles of the same names, also
+  inside its builtin `/parallel-review` and `/review-loop`.
+- A role file: frontmatter of flat `key: value` lines, then the body. `name`
+  equals the file's base name; `description` is one line, and the planner picks a
+  role by it (a role for one project says so); `tools` lists Pi tools comma-
+  separated — `read, grep, find, ls, bash` for a read-only role, plus
+  `edit, write` for one that changes files; `acceptanceRole` is `read-only` or
+  `writer`; `inheritProjectContext: true`; `outputSchema` is the answer's JSON
+  Schema on one line, an object with `additionalProperties: false`. Never `model`
+  (models are personal, see «Personal customization») and never `extensions`
+  (`extensions: []` parses as a path; `defaultExtensions` covers every role). The
+  body: the input, what to do, what never, when to ask the lead
+  (`contact_supervisor`, only at a real fork), the answer. A file without `name` or
+  `description` is skipped silently; invalid JSON in one `outputSchema` fails
+  every agent definition.
+- A workflow template: a pi-subagents workflow script (`runs.run`, `runs.all`,
+  `resume`; no filesystem, shell or Pi tools inside) that opens with a `/* … */`
+  header naming what it does and each `args` parameter. Run it as
+  `subagent({ workflow: "integrations/pi-flow/standard.js", args })`; check it
+  without launching children with `subagent({ action: "validate", workflow: … })`,
+  not with bare `node --check`, which rejects the top-level `await` and `return`.
 
 ## Claude Code
 
@@ -74,3 +103,16 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   not by editing tracked `.pi/` or `integrations/` files; do not rely on
   duplicate-name discovery order. Secrets belong in environment variables or
   credential storage, not committed JSON.
+- Own Pi roles and workflow templates live in `home/pi-flow/`, in the formats of
+  «Pi» above, written with ordinary file tools, each with a line in the home map
+  `home/INDEX.md`. Their names differ from every role in `integrations/pi-flow/`:
+  the order between same-name roles of the two scan roots is not a contract.
+- Model tiers of the Pi roles are personal: `~/.pi/agent/settings.json` →
+  `subagents.agentOverrides.<role>` with `model` and `thinking`, never the tracked
+  `.pi/settings.json` (project overrides beat personal ones). Tier 1 (fast):
+  `scout`, `investigator`; tier 2 (standard): `executor`, `tester`; tier 3 (deep,
+  bounded): `reviewer`, `challenger`; tier 4 (intent): `planner`. A tier whose
+  model comes from a provider extension (for example litellm) also needs
+  `"subagentOnlyExtensions": ["<path to the provider extension>"]` in the same
+  override: under `defaultExtensions: []` the role fails before its first turn
+  without it.
