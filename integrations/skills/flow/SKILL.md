@@ -1,6 +1,6 @@
 ---
 name: flow
-description: Pi only. Run one or more tasks of one registered project to an agreed plan, one key at a time — session scope, subtasks, order, flow branch and score, reconnaissance by the scout role, every question to the engineer through mypi_ask, the plan by the planner role, published on derive, «Согласовать / Правки». Runs only when typed: "/flow <name> <KEY> [<KEY>…]", or "/flow <name>" in a project or task chat to resume.
+description: 'Pi only. Run one or more tasks of one registered project to an agreed plan, one key at a time — session scope, subtasks, order, flow branch and score, reconnaissance by the scout role, every question to the engineer through mypi_ask, the plan by the planner role, published on derive, «Согласовать / Правки». Runs only when typed: "/flow <name> <KEY> [<KEY>…]", or "/flow <name>" in a project or task chat to resume.'
 ---
 
 # /flow in Pi — tasks of one project to an agreed plan
