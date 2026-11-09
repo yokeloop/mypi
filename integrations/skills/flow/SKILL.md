@@ -405,14 +405,15 @@ memory or made up.
 
 ## Finish
 
-The flow lines of the score — `- PR:`, `- Стенд:`, `- Замечания:`, `- Стоп:`,
-`- Одобрено:`, `- Смержено:`, `- Релиз начат:`, `- Релиз:` — go into its header
-list, each right after the last line of that list (`- Started:` or the flow line
-before it), never under «Order», «Skipped» or «Answers» and never at the end of the
-file; each is committed by its own `mp-home-commit` as soon as it is written,
+The flow lines of the score — `- Приёмка эпика:`, `- PR:`, `- Стенд:`,
+`- Замечания:`, `- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`,
+`- Релиз:` — go into its header list, each right after the last line of that list
+(`- Started:` or the flow line before it), never under «Order», «Skipped» or
+«Answers» and never at the end of the file; each is committed by its own `mp-home-commit` as soon as it is written,
 before the next step starts.
 On resume, unticked keys go first by «Per key»; then the newest of these lines
-decides: none → step 1 here; `- PR:` or `- Стоп:` → «The engineer's check» step 1;
+decides: none → step 1 here; `- Приёмка эпика:` → step 3 here (the acceptance is
+not run again); `- PR:` or `- Стоп:` → «The engineer's check» step 1;
 `- Стенд:` → its step 2; `- Замечания:` → step 1 here; `- Одобрено:` → «Ship»;
 `- Смержено:` → «Release»; `- Релиз начат:` → «Release» step 2; `- Релиз:` → the
 report.
