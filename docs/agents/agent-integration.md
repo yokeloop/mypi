@@ -22,7 +22,14 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   and suggests keys while its arguments are typed (the session's project and its
   open tasks in a project or task chat, the organization's projects and their open
   tasks in an organization chat, all projects and open tasks in the main chat; loaded through the CLI and reused for 15 s; none for flags or after
-  --message), and the /inbox command, which runs the inbox skill as /skill:inbox.
+  --message), the /inbox command, which runs the inbox skill as /skill:inbox, and the
+  /flow command, which runs the Pi-only flow skill as /skill:flow. It registers the tool
+  `mypi_ask` (direct, run sequentially): `question` and 2–4 `options`, the recommended
+  one first; it shows a select with the first option marked «(рекомендую)» and «Своё
+  слово» last, which opens a text input; it returns `{"answer","custom"}`,
+  `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
+  input is empty), and an error result without asking when the session has no
+  interactive UI.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
@@ -95,7 +102,8 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
 - Personal Claude settings belong in the ignored `.claude/settings.local.json` or in
   user settings. There is no `CLAUDE.md`; Claude Code loads [AGENTS.md](../../AGENTS.md) instead.
 - Shared skills live in `integrations/skills/`; each gets a relative symlink
-  `.claude/skills/<name>`. The development pipeline's skills and agents in
+  `.claude/skills/<name>`, except the Pi-only skills (`flow`), which Claude Code
+  replaces with its own pipeline skill of the same name. The development pipeline's skills and agents in
   `.claude/` are real directories and files, used only with Claude Code.
 
 ## Personal customization
