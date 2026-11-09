@@ -262,8 +262,12 @@ Strictly one key executes at a time. `<task folder>` is `$BIN/mp-task dir <KEY>`
 by the task folder without asking: the status is `review`, `pr.md` names this flow
 and the line is not ticked → step 8; `do-report.json` exists → step 5; otherwise
 step 1 — also for a key back from «Замечания», whose base check runs before the
-template of step 3. An answer already recorded in the key's `progress.md` for this key and this
-plan version is not asked again.
+template of step 3. An answer already recorded in the key's `progress.md` for this
+key and this plan version is not asked again.
+
+A key's plan URL — in its statuses, `pr.md`, the PR body and every question — is
+`url` of its `derive.json`, read from the file each time; never a URL written from
+memory or made up.
 
 1. **Base check.** `git -C <base clone> fetch -q origin`, then
    `git -C <base clone> log --stat <from>..origin/flow/<name>`. `<from>` is the SHA
