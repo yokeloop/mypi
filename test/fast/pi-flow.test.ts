@@ -81,7 +81,7 @@ test('integrations/pi-flow holds the three workflow templates, each opening with
   }
 });
 
-test('standard.js and parallel.js return each review round with its range and outside-plan files, fix blocking findings through resume, and stop before a fix when files lie outside the plan', async () => {
+test('standard.js and parallel.js return each review round with its range and outside-plan files, fix blocking findings through resume, stop before a fix when files lie outside the plan, and treat a reviewer without outsidePlan as none', async () => {
   const template = (file: string) => new Script('(async (runs, args) => {\n' + read(`integrations/pi-flow/${file}`) + '\n})').runInThisContext();
   const blocking = { severity: 'blocking', lens: 1, file: 'a.txt', line: 1, problem: 'p', evidence: 'e', fix: 'f' };
   const fixing = {
@@ -125,6 +125,17 @@ test('standard.js and parallel.js return each review round with its range and ou
   ]);
   assert.equal(result[0].fixes.length, 1);
   assert.equal(result[0].executor.runId, 'e2');
+
+  const legacy = { ...fixing, 'review-1': { structuredOutput: { status: 'changes_required', findings: [blocking] } } };
+  calls = [];
+  result = await template('standard.js')(stub(legacy, calls), {});
+  assert.deepEqual(calls, ['implement', 'review-1', 'fix-1', 'review-2']);
+  assert.deepEqual(result.reviews[0].outsidePlan, []);
+
+  calls = [];
+  result = await template('parallel.js')(stub(prefixed(legacy), calls), parts);
+  assert.deepEqual(calls, ['a-implement', 'a-review-1', 'a-fix-1', 'a-review-2']);
+  assert.deepEqual(result[0].reviews[0].outsidePlan, []);
 
   calls = [];
   result = await template('parallel.js')(stub(prefixed(outside), calls), parts);

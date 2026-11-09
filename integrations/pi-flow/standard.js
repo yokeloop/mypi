@@ -32,8 +32,8 @@ for (const round of [1, 2]) {
     task: `${context} Review the diff ${base}..${head} in the worktree against the plan.`,
   });
   const verdict = review.structuredOutput ?? null;
-  reviews.push({ round, range: `${base}..${head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan : [] });
-  if (!verdict || verdict.status !== "changes_required" || verdict.outsidePlan.length > 0 || round === 2 || !last.runId) break;
+  reviews.push({ round, range: `${base}..${head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan || [] : [] });
+  if (!verdict || verdict.status !== "changes_required" || (verdict.outsidePlan || []).length > 0 || round === 2 || !last.runId) break;
   const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
   const fix = await runs.run(`fix-${round}`, {
     resume: last.runId,

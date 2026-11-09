@@ -21,8 +21,8 @@ function rounds(part, context, state, round) {
     })
     .then((review) => {
       const verdict = review.structuredOutput ?? null;
-      state.reviews.push({ round, range: `${state.base}..${state.head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan : [] });
-      if (!verdict || verdict.status !== "changes_required" || verdict.outsidePlan.length > 0 || round === 2 || !state.last.runId) return state;
+      state.reviews.push({ round, range: `${state.base}..${state.head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan || [] : [] });
+      if (!verdict || verdict.status !== "changes_required" || (verdict.outsidePlan || []).length > 0 || round === 2 || !state.last.runId) return state;
       const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
       return runs
         .run(`${part.key}-fix-${round}`, {
