@@ -24,6 +24,7 @@ function stub() {
   const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
   const terminal = { unsubscribed: 0 };
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
+  const tools = new Map<string, any>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
   const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
@@ -34,6 +35,7 @@ function stub() {
     registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }) { commands.set(name, command); },
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
     sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
+    registerTool(tool: any) { tools.set(tool.name, tool); },
   };
   const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); },
     setStatus(key: string, text: string | undefined) { statuses.push([key, text]); },
@@ -55,7 +57,7 @@ function stub() {
     await handlers.get('before_agent_start')?.(event, ctx);
     return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
   };
-  return { api: api as never, handlers, commands, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
+  return { api: api as never, handlers, commands, tools, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
     options, registration };
 }
 
@@ -65,7 +67,8 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
-  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow']);
+  assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -383,6 +386,59 @@ test('pi extension /inbox runs the inbox skill', async () => {
   assert.deepEqual(pi.calls, []);
 });
 
+test('pi extension /flow runs the flow skill', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  await pi.commands.get('flow')!.handler('fx FX-1', pi.ctx);
+  await pi.commands.get('flow')!.handler('', pi.ctx);
+  assert.deepEqual(pi.sent, [['/skill:flow fx FX-1', { expandPromptTemplates: true }], ['/skill:flow', { expandPromptTemplates: true }]]);
+  assert.deepEqual(pi.calls, []);
+  assert.equal(pi.commands.get('flow')!.getArgumentCompletions, undefined);
+});
+
+test('pi extension mypi_ask asks one question with the recommendation first and the engineer\'s own word last', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const tool = pi.tools.get('mypi_ask');
+  assert.equal(tool.label, 'mypi ask');
+  assert.equal(tool.executionMode, 'sequential');
+  assert.equal('exposure' in tool, false);
+  assert.equal(tool.parameters.properties.options.minItems, 2);
+  assert.equal(tool.parameters.properties.options.maxItems, 4);
+  assert.deepEqual(tool.parameters.required, ['question', 'options']);
+  const ask = async (answers: (string | undefined)[], hasUI = true) => {
+    const selects: unknown[][] = [], inputs: unknown[][] = [];
+    const signal = new AbortController().signal;
+    const ctx = { hasUI, ui: {
+      async select(...args: unknown[]) { selects.push(args); return answers.shift(); },
+      async input(...args: unknown[]) { inputs.push(args); return answers.shift(); },
+    } };
+    const result = await tool.execute('call-1', { question: 'Q?', options: ['A', 'B'] }, signal, undefined, ctx);
+    return { result, selects, inputs, signal };
+  };
+  const recommended = await ask(['A (рекомендую)']);
+  assert.deepEqual(recommended.result.details, { answer: 'A', custom: false });
+  assert.equal(recommended.result.content[0].text, JSON.stringify({ answer: 'A', custom: false }));
+  assert.equal(recommended.result.isError, undefined);
+  assert.deepEqual(recommended.selects, [['Q?', ['A (рекомендую)', 'B', 'Своё слово'], { signal: recommended.signal }]]);
+  assert.deepEqual(recommended.inputs, []);
+  assert.deepEqual((await ask(['B'])).result.details, { answer: 'B', custom: false });
+  const own = await ask(['Своё слово', ' текст ']);
+  assert.deepEqual(own.result.details, { answer: 'текст', custom: true });
+  assert.deepEqual(own.inputs, [['Своё слово:', undefined, { signal: own.signal }]]);
+  const escape = await ask([undefined]);
+  assert.deepEqual(escape.result.details, { answer: null, cancelled: true });
+  assert.equal(escape.result.content[0].text, JSON.stringify({ answer: null, cancelled: true }));
+  assert.equal(escape.result.isError, undefined);
+  assert.deepEqual(escape.inputs, []);
+  assert.deepEqual((await ask(['Своё слово', undefined])).result.details, { answer: null, cancelled: true });
+  assert.deepEqual((await ask(['Своё слово', '  '])).result.details, { answer: null, cancelled: true });
+  const headless = await ask(['A (рекомендую)'], false);
+  assert.equal(headless.result.isError, true);
+  assert.deepEqual(headless.result.details, { answer: null, error: 'no-ui' });
+  assert.deepEqual(headless.selects, []);
+});
+
 test('pi extension /open suggests keys of the session\'s project from the CLI', async () => {
   const pi = stub();
   let clock = 1000;
@@ -411,7 +467,7 @@ test('pi extension /open suggests keys of the session\'s project from the CLI', 
   taskList = tasks;
   assert.deepEqual((await open.getArgumentCompletions!('') as { label: string }[]).map(item => item.label), ['MP', 'MP-74']);
   assert.equal(lists(), 3);
-  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow']);
   assert.equal(pi.commands.get('inbox')!.getArgumentCompletions, undefined);
 });
 

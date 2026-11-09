@@ -467,7 +467,7 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/prompts/        # warmup role and how-to texts
-├── integrations/skills/         # built-in skills: open, inbox, project-management, retro
+├── integrations/skills/         # built-in skills: open, inbox, project-management, retro; flow (Pi only)
 ├── integrations/pi-flow/        # Pi pipeline roles (*.md) and workflow templates (*.js)
 ├── .pi/                         # tracked Pi configuration
 │   ├── settings.json            # pi-subagents: no ambient extensions, role scan roots

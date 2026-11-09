@@ -5,7 +5,8 @@ session starts there, so each pipeline skill checks the session scope first (see
 «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
 `scripts/pipeline/`, the skills `/plan`, `/do`, `/epic`, `/flow`, `/ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). For Pi, the roles and workflow templates in `integrations/pi-flow/`,
-found through `.pi/settings.json` («Roles»). Claude
+found through `.pi/settings.json` («Roles»), and the Pi `/flow` skill
+`integrations/skills/flow/SKILL.md` («Pi»). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
 the installation they are run from and refuse any other working directory.
 
@@ -106,7 +107,8 @@ A refusal prints its text and stops. Nothing runs before it except `mp-task scop
 no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
 `mp-home-commit`, no derive calls, no subagents (`/board` also runs `mp-task project`
 and `project list`). In a `P-N` session `mp-task subtasks P-N` may run too, and for
-`/ship flow/<name>` also `mp-task project P` and reading the flow score. The texts (`<cmd>`, the typed
+`/ship flow/<name>` also `mp-task project P` and reading the flow score. The same holds for the Pi `/flow <name>` typed without keys, which resumes the
+keys of that score. The texts (`<cmd>`, the typed
 arguments and `<key>` substituted):
 
 - `/board` with another project's code: `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
@@ -134,7 +136,8 @@ tree of any depth. `mp-task subtasks <KEY>` prints the recursive descendants of 
 task as JSON lines, subtasks before their parent.
 
 `/flow` expands every typed key into its subtasks and runs them in the same cycle
-as the typed keys (`.claude/skills/flow/SKILL.md`, «Subtasks»). The status of a
+as the typed keys (`.claude/skills/flow/SKILL.md`; in Pi `integrations/skills/flow/SKILL.md`;
+«Subtasks»). The status of a
 subtask decides:
 
 - `merged` or a terminal status: skipped, named in the announced order;
@@ -142,7 +145,7 @@ subtask decides:
   like a typed key;
 - `review` not of this flow: skipped, named; it has its own PR or flow already;
 - `blocked` or any other non-terminal status (`research`, `paused`, a custom one):
-  one `AskUserQuestion` «include or skip». An included subtask gets
+  one `AskUserQuestion` (in Pi one `mypi_ask`) «include or skip». An included subtask gets
   `mp-task status <KEY> planning "в потоке <name>: включена инженером"` and goes on
   as `planning`;
 - a typed key in `review` with subtasks and no `pr.md` of this flow is the epic:
@@ -269,6 +272,32 @@ check with its expected exit code; the planner saves `plan.md` in the task's
 folder and writes the plan's «Execution» section. File formats, own roles and
 model tiers: `docs/agents/agent-integration.md`.
 
+## Pi
+
+Pi runs `/flow` from `integrations/skills/flow/SKILL.md`; it is Pi-only and keeps
+the rules of the Claude skill with these bindings:
+
+| Claude | Pi |
+| --- | --- |
+| the skill `.claude/skills/flow` | the extension command `/flow`, which sends `/skill:flow <args>` |
+| `AskUserQuestion` | the extension tool `mypi_ask`: `question` and 2–4 `options`, the recommended one first; the tool marks it «(рекомендую)» and adds «Своё слово» |
+| the `plan` skill with `plan-scout` and `plan-writer` | `subagent`: `integrations/pi-flow/investigate.js` with `scout`, then `planner` |
+| the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
+| `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
+| re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
+
+The run's state is the flow score, the task statuses and the task folders, so a
+restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
+`plan.md` without `derive.json` — publication; `derive.json` without the line
+` — план v<version> согласован` on the key in the score — the «Согласовать /
+Правки» question; with it — the plan is agreed. «Правки» or an own word sends the
+plan back to `planner` with the remarks and the open derive threads, publishes a new
+version of the same artifact and asks again. The answers go to the key's
+`progress.md`. A cancelled `mypi_ask` stops the run: the cancelled answer is not
+recorded, and only `mp-home-commit` commits the answers already written.
+Execution after the agreement is not part of the Pi skill yet: the run stops with
+«план <KEY> согласован».
+
 ## Statuses in mypi
 
 `new → planning → in_progress → review → merged → done`, plus `blocked`.
@@ -339,6 +368,10 @@ One writer per fact; nothing is written twice.
 - An approved plan is the engineer typing `/do <KEY>` or `/flow …`; under
   `/flow` the engineer's answers to the plan's forks are part of the approval. No
   other signal counts; a published plan queues nothing.
+- In the Pi `/flow` the plan of a key is agreed by the engineer's answer
+  «Согласовать» to its `mypi_ask` question, recorded on the key's line of the flow
+  score with the plan's version («Pi»); the typed `/flow` alone does not agree a
+  plan there.
 - Typing `/epic <KEY>` authorizes the research, its publication on derive and,
   after the engineer's answer to the «Подзадачи» question, `mypi task create
   --parent <KEY>` for the agreed subtasks. The answer «Завести и запустить /flow»
@@ -351,13 +384,15 @@ One writer per fact; nothing is written twice.
 
 ## Where /flow waits for the engineer
 
-`/flow` decides nothing on its own: each point below is one `AskUserQuestion` in
+`/flow` decides nothing on its own: each point below is one `AskUserQuestion` (in Pi one
+`mypi_ask`, «Pi») in
 the flow's chat (header ≤ 12 characters, 2–4 options, the recommendation first),
 and the run waits for the answer. No retry, no bypass, no weakened check in its
 place; `blocked` only when the engineer answers so.
 
 - a dependency outside the run that is not `review`, `merged` or `done`;
 - every fork of a plan, one question at a time;
+- in Pi, every published plan: «Согласовать» or «Правки»;
 - an edit of the lead to a plan beyond the plan-writer's output (or an explicit
   line in the report);
 - `openPoints` of the executor only the engineer can answer;

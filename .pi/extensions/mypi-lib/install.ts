@@ -1,5 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
+import { registerAsk } from './ask.js';
+import type { AskTool } from './ask.js';
 import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
@@ -31,6 +33,7 @@ export interface ExtensionAPI {
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
+  registerTool(tool: AskTool): void;
 }
 
 export type RunCli = (args: string[], options: { cwd: string; signal: AbortSignal; onLine: (line: string) => void }) =>
@@ -262,4 +265,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       pi.sendUserMessage(('/skill:inbox ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
+  pi.registerCommand('flow', {
+    description: 'Run tasks of one project to an agreed plan in Pi: /flow <name> <KEY> [<KEY>…], or /flow <name> to resume',
+    handler: async args => {
+      pi.sendUserMessage(('/skill:flow ' + args.trim()).trim(), { expandPromptTemplates: true });
+    },
+  });
+  registerAsk(pi);
 }
