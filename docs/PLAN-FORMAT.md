@@ -1,6 +1,6 @@
 # PLAN-FORMAT — the shape of a plan
 
-One format for every plan, whoever writes it — `/plan`, or `/review` (a rework plan). `/do` executes the plan literally and the reviewer compares the diff against it, so what the plan does not say is not in the ticket. The modes reference this file and do not restate it.
+One format for every plan, whoever writes it — `/plan`, also when it reworks a plan after remarks. `/do` executes the plan literally and the reviewer compares the diff against it, so what the plan does not say is not in the ticket. The modes reference this file and do not restate it.
 
 ## Sections, in order
 
@@ -30,6 +30,15 @@ When the ticket changes documentation or a level's map (its entry `INDEX.md` in 
 
 In a rework plan, a step exists per remark: the quote, the located cause — files and lines, because a fix guessed at a symptom is not a plan item — the concrete change, and the check that proves it fixed.
 
+### Execution
+
+Only in a plan the Pi `/flow` runs, and there mandatory; a plan for Claude Code omits the section. It tells the lead how to run the steps:
+
+- the workflow template: its path in `integrations/pi-flow/` or `home/pi-flow/`, chosen by the header comment of its `*.js`, and its `args`; when no template fits, the order of the runs in words, which the lead runs as a one-off script;
+- the role for each step or group of steps: a role from `integrations/pi-flow/` or `home/pi-flow/`, chosen by its `description`;
+- the self-test: the Acceptance items the `tester` role checks live, or «none»;
+- the stand: the project's stand procedure the self-test follows, or «none».
+
 ### Assumptions
 
 Choices the plan's author made without asking, for the engineer to override. An assumption names the choice and the reason — it is a decision on record, not a question in disguise.
@@ -40,7 +49,7 @@ What this ticket deliberately does not change. The line that keeps `/do` from wi
 
 ### Acceptance
 
-What the engineer will see and check on the stand at `/review`: observable behavior with its trigger — «когда X — Y видно на стенде» — never internals, never «работает корректно». One list, used twice: `/do` proves these technically, `/review` walks them with the engineer.
+What the engineer will see and check on the stand at the engineer's manual check before `/ship`: observable behavior with its trigger — «когда X — Y видно на стенде» — never internals, never «работает корректно». One list, used twice: `/do` proves these technically, the engineer walks them at the manual check before `/ship`.
 
 ## The bar
 
