@@ -67,7 +67,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
-  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow']);
   assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
@@ -386,6 +386,16 @@ test('pi extension /inbox runs the inbox skill', async () => {
   assert.deepEqual(pi.calls, []);
 });
 
+test('pi extension /flow runs the flow skill', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  await pi.commands.get('flow')!.handler('fx FX-1', pi.ctx);
+  await pi.commands.get('flow')!.handler('', pi.ctx);
+  assert.deepEqual(pi.sent, [['/skill:flow fx FX-1', { expandPromptTemplates: true }], ['/skill:flow', { expandPromptTemplates: true }]]);
+  assert.deepEqual(pi.calls, []);
+  assert.equal(pi.commands.get('flow')!.getArgumentCompletions, undefined);
+});
+
 test('pi extension mypi_ask asks one question with the recommendation first and the engineer\'s own word last', async () => {
   const pi = stub();
   install(pi.api, root, serve, undefined);
@@ -457,7 +467,7 @@ test('pi extension /open suggests keys of the session\'s project from the CLI', 
   taskList = tasks;
   assert.deepEqual((await open.getArgumentCompletions!('') as { label: string }[]).map(item => item.label), ['MP', 'MP-74']);
   assert.equal(lists(), 3);
-  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox']);
+  assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow']);
   assert.equal(pi.commands.get('inbox')!.getArgumentCompletions, undefined);
 });
 

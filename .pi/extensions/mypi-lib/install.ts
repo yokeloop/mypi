@@ -265,5 +265,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       pi.sendUserMessage(('/skill:inbox ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
+  pi.registerCommand('flow', {
+    description: 'Run tasks of one project to an agreed plan in Pi: /flow <name> <KEY> [<KEY>…], or /flow <name> to resume',
+    handler: async args => {
+      pi.sendUserMessage(('/skill:flow ' + args.trim()).trim(), { expandPromptTemplates: true });
+    },
+  });
   registerAsk(pi);
 }
