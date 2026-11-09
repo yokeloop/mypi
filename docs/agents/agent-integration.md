@@ -58,7 +58,8 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `description` is skipped silently; invalid JSON in one `outputSchema` fails
   every agent definition.
 - A workflow template: a pi-subagents workflow script (`runs.run`, `runs.all`,
-  `resume`; no filesystem, shell or Pi tools inside) that opens with a `/* … */`
+  `resume`; no filesystem, shell or Pi tools inside; no nested async functions
+  (plain helpers returning `runs.run(...)` or Promise chains)) that opens with a `/* … */`
   header naming what it does and each `args` parameter. Run it as
   `subagent({ workflow: "integrations/pi-flow/standard.js", args })`; check it
   without launching children with `subagent({ action: "validate", workflow: … })`,
