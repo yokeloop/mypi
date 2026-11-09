@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { Script } from 'node:vm';
 
 const root = new URL('../../../', import.meta.url);
 const read = (path: string) => readFileSync(new URL(path, root), 'utf8');
@@ -62,4 +63,14 @@ test('integrations/pi-flow holds exactly the seven engine roles, each with its t
   }
   const reviewer = JSON.parse(frontmatter(read('integrations/pi-flow/reviewer.md')).get('outputSchema') ?? '');
   assert.deepEqual(reviewer.properties.status.enum, ['approved', 'changes_required']);
+});
+
+test('integrations/pi-flow holds the three workflow templates, each opening with its header comment and compiling as a workflow body', () => {
+  const files = readdirSync(new URL('integrations/pi-flow/', root)).filter(file => file.endsWith('.js')).sort();
+  assert.deepEqual(files, ['investigate.js', 'parallel.js', 'standard.js']);
+  for (const file of files) {
+    const source = read(`integrations/pi-flow/${file}`);
+    assert(source.startsWith('/*'), file);
+    assert.doesNotThrow(() => new Script('(async (runs, args) => {\n' + source + '\n})'), file);
+  }
 });
