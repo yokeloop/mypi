@@ -293,7 +293,8 @@ restarted Pi continues where it stopped: no `plan.md` — reconnaissance and pla
 Правки» question; with it — the plan is agreed. «Правки» or an own word sends the
 plan back to `planner` with the remarks and the open derive threads, publishes a new
 version of the same artifact and asks again. The answers go to the key's
-`progress.md`. A cancelled `mypi_ask` stops the run without another write.
+`progress.md`. A cancelled `mypi_ask` stops the run: the cancelled answer is not
+recorded, and only `mp-home-commit` commits the answers already written.
 Execution after the agreement is not part of the Pi skill yet: the run stops with
 «план <KEY> согласован».
 

@@ -263,9 +263,10 @@ waits for the answer; no retry, no bypass, no weakened check in its place.
   <answer>` (with ` (своё слово)` when `custom` is true) to `progress.md` in the
   key's task folder; an answer that belongs to no key goes to «Answers» of the score.
   It is committed with the next `mp-home-commit` of the run.
-- `{ answer: null, cancelled: true }` → stop the run at once: no write after it, not
-  even the answer. Report `остановлено инженером: <question>`; typing `/flow <name>`
-  again resumes from the stage.
+- `{ answer: null, cancelled: true }` → stop the run at once. The cancelled answer is
+  not recorded; the only write after it is `$BIN/mp-home-commit <CODE> "flow <name>:
+  stopped"`, which commits the answers already written. Report `остановлено
+  инженером: <question>`; typing `/flow <name>` again resumes from the stage.
 - An error result (no interactive UI) → stop and say that `/flow` needs an
   interactive Pi session.
 
