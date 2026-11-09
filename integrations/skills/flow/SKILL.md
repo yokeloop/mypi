@@ -370,8 +370,10 @@ memory or made up.
    (blocked)`, `Ещё попытка`. Keep the last output's tail for `pr.md`.
 7. **Merge into the flow branch.** `git -C <worktree> push -u origin <branch>`;
    `git -C <flow worktree> merge --no-ff <branch> -m "Merge <KEY>: <title>"`;
-   `git -C <flow worktree> push`. A conflict → `git -C <flow worktree> merge
-   --abort` and a key stop question with the literal output. Write `pr.md` in the
+   `git -C <flow worktree> push`, always before step 8: the stand clones the commit
+   from origin. A conflict → `git -C <flow worktree> merge --abort` and a key stop
+   question with the literal output; a failed push → a key stop question with the
+   literal output. Write `pr.md` in the
    task folder: `# <KEY> — доставка (поток <name>)`, the flow merge SHA and the
    branch, the plan URL, the checks with their exit codes and the tail, the review
    rounds with what each fixed, open advice, the executor's `deviations`, the
@@ -379,7 +381,8 @@ memory or made up.
    `$BIN/mp-task progress <KEY> "Реализовано, ревью чистое, проверки зелёные: <flow merge SHA>" plan.md pr.md do-report.json review-report.json`;
    `$BIN/mp-task status <KEY> review "в потоке <name>, слито <flow merge SHA>"`;
    `$BIN/mp-home-commit <KEY> "<KEY>: merged into flow/<name>"`.
-8. **Self-test**, only when the plan's «Execution» names self-test items and a
+8. **Self-test**, after the push of step 7 (`git -C <flow worktree> status -sb`
+   shows no `ahead`), only when the plan's «Execution» names self-test items and a
    stand (not «none») and `<project home>/stand.md` exists:
    `subagent({ agent: "tester", task })` with the plan, the commit
    `git -C <flow worktree> rev-parse HEAD`, the stand document, the task folder,
