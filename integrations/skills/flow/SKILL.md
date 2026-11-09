@@ -473,7 +473,9 @@ report.
      it names); a remark that names none → one `mypi_ask` with the remark, options
      up to four keys of the run whose plans' files it is closest to, closest first.
      Per touched key: append `- <YYYY-MM-DD HH:MM> замечания приёмки: <remark>` to
-     its `progress.md`; move `do-report.json` and `review-report.json` to
+     its `progress.md` — only there: the remark texts never go into the flow score,
+     whose «Answers» line for this question reads `→ Замечания: <keys>`; move
+     `do-report.json` and `review-report.json` to
      `do-report-v<version>.json` and `review-report-v<version>.json` (`version` of
      `derive.json`); untick its line and append ` — замечания`. Append `-
      Замечания: <YYYY-MM-DD HH:MM>: <keys>`; `$BIN/mp-home-commit <CODE> "flow
