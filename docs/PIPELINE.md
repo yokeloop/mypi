@@ -4,7 +4,10 @@ Tooling for running the tasks of any registered project from the engine root; ev
 session starts there, so each pipeline skill checks the session scope first (see
 «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
 `scripts/pipeline/`, the skills `/plan`, `/do`, `/epic`, `/flow`, `/ship`, `/board` in
-`.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). Claude
+`.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). For Pi, the roles and workflow templates in `integrations/pi-flow/`,
+found through `.pi/settings.json` («Roles»), and the Pi skills `/flow`
+(`integrations/skills/flow/SKILL.md`) and `/epic`
+(`integrations/skills/epic/SKILL.md`) («Pi»). Claude
 Code loads the skills and roles when it starts in the engine root; the scripts act on
 the installation they are run from and refuse any other working directory.
 
@@ -68,8 +71,12 @@ The key: `scripts/pipeline/mp-task scope` prints `{"key", "project", "org", "cod
 `org` is the key when it is the slug of a registered organization with at least one
 project, and `codes` the sorted codes of its projects; otherwise both are `null`. It
 takes the `sessions` row with this conversation's agent and native id
-(`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`; it is set inside subagents too and
-is the parent chat's id), else `MYPI_SCOPE` (set by `/open`), else `global`. This is
+(`CLAUDE_CODE_SESSION_ID`, else `PI_SESSION_ID`), else `MYPI_SCOPE` (set by
+`/open`), else `global`. Inside a Claude Code subagent `CLAUDE_CODE_SESSION_ID` is
+the parent chat's id. Inside a pi-subagents child `PI_SESSION_ID` is the child's
+own id, which has no `sessions` row, so a child's scope falls back to
+`MYPI_SCOPE`, then `global`; the Pi lead therefore names the key and the paths in
+each role's task. This is
 the order of `warmup` without an argument, except the live record by pid: through
 `mise exec` the pid does not match, and `MYPI_SCOPE`, which `/open` sets to the same
 key, takes its place. The subcommand only reads (`mypi sessions`); neither `warmup`
@@ -101,7 +108,8 @@ A refusal prints its text and stops. Nothing runs before it except `mp-task scop
 no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
 `mp-home-commit`, no derive calls, no subagents (`/board` also runs `mp-task project`
 and `project list`). In a `P-N` session `mp-task subtasks P-N` may run too, and for
-`/ship flow/<name>` also `mp-task project P` and reading the flow score. The texts (`<cmd>`, the typed
+`/ship flow/<name>` also `mp-task project P` and reading the flow score. The same holds for the Pi `/flow <name>` typed without keys, which resumes the
+keys of that score. The texts (`<cmd>`, the typed
 arguments and `<key>` substituted):
 
 - `/board` with another project's code: `/board <CODE> is not allowed in session scope <key>; this chat shows the board of <P> only. Use /board here or /open global for another project.`
@@ -129,7 +137,8 @@ tree of any depth. `mp-task subtasks <KEY>` prints the recursive descendants of 
 task as JSON lines, subtasks before their parent.
 
 `/flow` expands every typed key into its subtasks and runs them in the same cycle
-as the typed keys (`.claude/skills/flow/SKILL.md`, «Subtasks»). The status of a
+as the typed keys (`.claude/skills/flow/SKILL.md`; in Pi `integrations/skills/flow/SKILL.md`;
+«Subtasks»). The status of a
 subtask decides:
 
 - `merged` or a terminal status: skipped, named in the announced order;
@@ -137,7 +146,7 @@ subtask decides:
   like a typed key;
 - `review` not of this flow: skipped, named; it has its own PR or flow already;
 - `blocked` or any other non-terminal status (`research`, `paused`, a custom one):
-  one `AskUserQuestion` «include or skip». An included subtask gets
+  one `AskUserQuestion` (in Pi one `mypi_ask`) «include or skip». An included subtask gets
   `mp-task status <KEY> planning "в потоке <name>: включена инженером"` and goes on
   as `planning`;
 - a typed key in `review` with subtasks and no `pr.md` of this flow is the epic:
@@ -158,11 +167,13 @@ whose message started the turn, else the project chat.
 ## Epics
 
 An epic is a task whose research proposes a mechanism and its subtasks.
-`/epic <KEY>` (`.claude/skills/epic/SKILL.md`) leads steps 1–5 in the epic's chat:
+`/epic <KEY>` (`.claude/skills/epic/SKILL.md`; in Pi
+`integrations/skills/epic/SKILL.md`, «Pi») leads steps 1–5 in the epic's chat:
 research, independent check (`plan-challenger`), the engineer's decision on each
 finding, version 2, subtasks. `/flow <name> <KEY>` runs steps 6–8 (the epic key
 and the epic acceptance of «Subtasks» above), started by the engineer's answer in
-`/epic` or typed; `/ship flow/<name>` merges. The step comes from the epic's status
+`/epic` or typed; `/ship flow/<name>` merges. In Pi the answer starts the Pi `/flow`,
+whose answer «Одобрить» merges in place of a typed `/ship`. The step comes from the epic's status
 and the files of its folder; there is no epic status, field or engine command.
 
 `DIR` is `scripts/pipeline/mp-task dir <KEY>`; `N` —
@@ -179,7 +190,7 @@ The first row from the top whose sign holds is the step:
 | `ROWS` < `N` | 3 | `/epic <KEY>`: a question on each remaining finding |
 | `ROWS` = `N`, `V` = 1 | 4 | `/epic <KEY>`: version 2 |
 | `V` ≥ 2, `mp-task subtasks <KEY>` empty | 5 | `/epic <KEY>`: the «Подзадачи» question |
-| `mp-task subtasks <KEY>` not empty | 6–8 | `/flow <name> <KEY>`, then `/ship flow/<name>` |
+| `mp-task subtasks <KEY>` not empty | 6–8 | `/flow <name> <KEY>`, then `/ship flow/<name>` (in Pi the answer «Одобрить» of the flow) |
 
 Statuses of an epic: `new` while the research is written; `planning` with the
 research URL once version 1 is published; `review` once the subtasks are
@@ -213,7 +224,8 @@ version 1); `challenge-report.json` (the `plan-challenger` answer, verbatim);
 `acceptance.md` and its evidence (the epic acceptance, «Subtasks»). The journal gets one
 `progress` per `/epic` run, at step 5, with `research.md`,
 `research-derive.json` and `challenge-report.json`; the decisions live only in
-the table.
+the table. In Pi these files come from the roles `executor` in research mode,
+`reviewer` and `challenger` («Pi»).
 
 ## Temporary scripts
 
@@ -248,7 +260,82 @@ recorded in the flow score.
 
 What every executor prompt carries: the task key, the plan path, the worktree path,
 the task folder path, the base branch, this file's path, and the rule that its
-final message is exactly one JSON object per its definition. Under `/epic` the epic's folder and the clone's SHA take the place of the worktree and the base branch («Epics»).
+final message is exactly one JSON object per its definition. Under `/epic` the epic's folder and the clone's SHA take the place of the worktree and the base branch («Epics»). In the Pi `/epic` the role `executor` runs in that research mode, and `subagent({ action: "resume" })` of its run takes the place of the teammate and `SendMessage` («Pi»).
+
+Pi's roles live in `integrations/pi-flow/`: `scout`, `planner`, `executor`,
+`reviewer`, `tester`, `investigator`, `challenger`, each a `*.md` file whose
+answer schema is its `outputSchema`, beside the workflow templates `standard.js`
+(implement, review, fix through `resume`, at most two review rounds; each round
+returns its `range`, and a round whose reviewer lists files in `outsidePlan` ends it
+before a fix),
+`parallel.js` (the same chain for several worktrees at once) and `investigate.js`
+(read-only fan-out of scouts or investigators). `tester` also builds the stand for
+the engineer and leaves it up (`handover`). `.pi/settings.json` makes
+pi-subagents scan `integrations/pi-flow` and `home/pi-flow` (the engineer's own
+roles and templates) and starts children without ambient extensions. The bodies
+follow the Claude roles above without their defects: the executor reports the
+worktree's real branch name and separates `openQuestions` from `deviations`, each
+check with its expected exit code; the planner saves `plan.md` in the task's
+folder and writes the plan's «Execution» section. File formats, own roles and
+model tiers: `docs/agents/agent-integration.md`.
+
+## Pi
+
+Pi runs `/flow` from `integrations/skills/flow/SKILL.md` and `/epic` from
+`integrations/skills/epic/SKILL.md`; both are Pi-only and keep the rules of their
+Claude skills with these bindings:
+
+| Claude | Pi |
+| --- | --- |
+| the skill `.claude/skills/flow` | the extension command `/flow`, which sends `/skill:flow <args>` |
+| the skill `.claude/skills/epic` | the extension command `/epic`, which sends `/skill:epic <args>` |
+| `AskUserQuestion` | the extension tool `mypi_ask`: `question` and 2–4 `options`, the recommended one first; the tool marks it «(рекомендую)» and adds «Своё слово» |
+| the `plan` skill with `plan-scout` and `plan-writer` | `subagent`: `integrations/pi-flow/investigate.js` with `scout`, then `planner` |
+| `/do <KEY> --base flow/<name>` with `task-executor` and `task-reviewer` | the plan's «Execution»: a template of `integrations/pi-flow/` or `home/pi-flow/` through `subagent`, fixes by `subagent({ action: "resume" })` of the executor |
+| the live acceptance of `/flow` | the `tester` role by the project's stand document `<project home>/stand.md` |
+| the manual check, then a typed `/ship flow/<name>` | the stand handed over in the question «Одобрить / Замечания / Стоп»; «Одобрить» runs the `/ship` procedure and the release |
+| the `task-executor` teammate of `/epic` and `SendMessage` | the `executor` role in research mode through `subagent`; the review findings, version 2 and an edit of the subtask list by `subagent({ action: "resume" })`, a fresh `executor` with the research-mode task when the run is not retained |
+| `task-reviewer` and `plan-challenger` of `/epic` | the roles `reviewer` (a review of the document, `outsidePlan` empty) and `challenger` |
+| «Завести и запустить /flow» runs the `flow` skill | the lead reads `integrations/skills/flow/SKILL.md` and follows it in the same chat with `<name> <KEY>` |
+| the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
+| `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
+| re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
+
+The run's state is the flow score, the task statuses and the task folders, so a
+restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
+`plan.md` without `derive.json` — publication; `derive.json` without the line
+` — план v<version> согласован` on the key in the score — the «Согласовать /
+Правки» question; with it — the plan is agreed. «Правки» or an own word sends the
+plan back to `planner` with the remarks and the open derive threads, publishes a new
+version of the same artifact and asks again. The answers go to the key's
+`progress.md`. A cancelled `mypi_ask` stops the run: the cancelled answer is not
+recorded, and only `mp-home-commit` commits the answers already written.
+After «Согласовать» the key executes by its plan's «Execution»: the base check,
+the task worktree from `mp-worktree --base flow/<name>`, the template through
+`subagent` in the background while the next key's plan is agreed,
+`do-report.json` and `review-report.json` written by the lead as soon as the
+template returns (rounds with `range`, `outsidePlan` and each finding's
+`resolution`), the reviewer's `outsidePlan` as one question per key, fixes by
+resuming the executor, the project's checks by the lead, the `--no-ff` merge into
+the flow branch and the self-test where the plan names it. Then the checks of the
+assembled branch, the epic acceptance, the PR and CI, the stand for the engineer
+by the project's stand document (none — the PR alone) and one question
+«Одобрить / Замечания / Стоп». «Замечания» sends the keys they touch back to the
+plan rework and executes them again on the same worktree; «Одобрить» merges the PR
+by the `/ship` procedure and runs the project's `release` procedure, none — the
+merge only. The flow lines of the score (`- Приёмка эпика:`, `- PR:`, `- Стенд:`,
+`- Замечания:`, `- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`,
+`- Релиз:`) let a restarted run continue.
+The statuses end at `merged`; `done` stays the engineer's.
+
+The Pi `/epic` keeps its state where «Epics» says, so a restarted Pi continues by
+the signs; a resume of the executor that is no longer retained becomes a fresh
+`executor` with the research-mode task, named in the report. Each finding is one
+`mypi_ask` («Принять» / «Отклонить», an own word is a comment) and its row in the
+table; the «Подзадачи» question has «Завести и запустить /flow» and «Завести», an
+own word edits the list, and one flow name alone creates and runs with that name.
+Its answers are not written to `progress.md`. A cancelled `mypi_ask` stops the run;
+only `mp-home-commit` commits what is already written.
 
 ## Statuses in mypi
 
@@ -260,7 +347,8 @@ final message is exactly one JSON object per its definition. Under `/epic` the e
 - `review`: implementation finished, review clean, checks green, PR open (single
   mode) or merged into the flow branch (flow mode). Waiting for the engineer's
   manual check.
-- `merged`: the PR is merged into the PR target by `/ship`.
+- `merged`: the PR is merged into the PR target by `/ship` (in Pi, by `/flow` after
+  «Одобрить»).
 - `done`: the engineer's word after the installed engine runs the change. The
   pipeline never sets it.
 - `blocked`: the pipeline stopped on an open point; the reason names it.
@@ -307,7 +395,8 @@ One writer per fact; nothing is written twice.
   writes one `note` in the project scope (`note` kind `journal`, scope
   `{"type":"project","key":"<CODE>"}`) per release, engine update or decision
   taken in conversation: what was decided or shipped, the task keys and the key
-  of the session it was decided in; the entry's time is its timestamp. The
+  of the session it was decided in; the entry's time is its timestamp. A release
+  the Pi `/flow` runs after «Одобрить» is noted by that run the same way. The
   per-task `merged → done` line stays per task, with only the version in its
   reason. Never a copy of a task's entries in the project journal
   (`docs/M1-CLI.md`, «Journal filters»).
@@ -320,11 +409,21 @@ One writer per fact; nothing is written twice.
 - An approved plan is the engineer typing `/do <KEY>` or `/flow …`; under
   `/flow` the engineer's answers to the plan's forks are part of the approval. No
   other signal counts; a published plan queues nothing.
+- In the Pi `/flow` the plan of a key is agreed by the engineer's answer
+  «Согласовать» to its `mypi_ask` question, recorded on the key's line of the flow
+  score with the plan's version («Pi»); the typed `/flow` alone does not agree a
+  plan there.
 - Typing `/epic <KEY>` authorizes the research, its publication on derive and,
   after the engineer's answer to the «Подзадачи» question, `mypi task create
   --parent <KEY>` for the agreed subtasks. The answer «Завести и запустить /flow»
   in the epic's chat equals typing `/flow <name> <KEY>`; `/ship` runs only when
-  typed. A parent message is never an answer to these questions.
+  typed, except that in Pi this `/flow` is the Pi `/flow`, whose answer «Одобрить»
+  stands for `/ship flow/<name>` (below). A parent message is never an answer to these questions.
+- In the chat of a Pi `/flow` the engineer's answer «Одобрить» to the question
+  after the PR equals typing `/ship flow/<name>` and is the explicit request for
+  the release by the procedure the project's `release` in `flow.json` names (none
+  — the merge only); the run then merges and releases («Pi»). Claude's `/ship`
+  still runs only when typed, and Claude's `/flow` never releases.
 - Open comment threads on the plan artifact (`catch_up` with `comments: open`) are
   remarks. `/plan` reworks the plan and republishes, resolving each thread with
   `comment` and `set_state: resolved` and a reply saying what changed. `/do` refuses to start while a thread is open, unless typed with
@@ -332,13 +431,21 @@ One writer per fact; nothing is written twice.
 
 ## Where /flow waits for the engineer
 
-`/flow` decides nothing on its own: each point below is one `AskUserQuestion` in
+`/flow` decides nothing on its own: each point below is one `AskUserQuestion` (in Pi one
+`mypi_ask`, «Pi») in
 the flow's chat (header ≤ 12 characters, 2–4 options, the recommendation first),
 and the run waits for the answer. No retry, no bypass, no weakened check in its
 place; `blocked` only when the engineer answers so.
 
 - a dependency outside the run that is not `review`, `merged` or `done`;
 - every fork of a plan, one question at a time;
+- in Pi, every published plan: «Согласовать» or «Правки»;
+- in Pi, the files the reviewer lists outside the plan, one question per key for
+  all of them: «Убрать» or «Оставить»;
+- in Pi, after the PR: «Одобрить», «Замечания» or «Стоп», with the stand by the
+  project's stand document when it has one;
+- in Pi, a release step that would commit, switch a branch or change tracked
+  files in the base clone, and a failed release step;
 - an edit of the lead to a plan beyond the plan-writer's output (or an explicit
   line in the report);
 - `openPoints` of the executor only the engineer can answer;
@@ -402,7 +509,7 @@ else `<checkoutPath>/CLAUDE.md`.
 - Commits: English, imperative, one concern, no code comments, no attribution
   trailers (the `task-executor` rule).
 - Never force-push. Never delete a remote branch. Worktrees are removed only by
-  `/ship`, after the merge is verified and the tree inspected.
+  `/ship` (in Pi, by `/flow` after «Одобрить»), after the merge is verified and the tree inspected.
 
 ## Hard rules
 
@@ -411,6 +518,8 @@ else `<checkoutPath>/CLAUDE.md`.
   engine update: those are the engineer's separate authorizations (for MP, task T14
   of the plan). Under `/flow` too: no GitHub Release or other publication and no
   migration of the personal database without the engineer's separate permission.
+  The one exception is the Pi `/flow`: its answer «Одобрить» is that permission for
+  the project's `release` procedure («Approval semantics»).
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
   folder by «Journal» above; commit home after each change. Artifacts are the
   task folder's files named in `progress`; each entry points at the home commit

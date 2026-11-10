@@ -109,6 +109,7 @@ any more: warmup serves `home/USER-INSTRUCTIONS.md`. Backups keep accepting the 
 | Personal agent instructions | `home/USER-INSTRUCTIONS.md` |
 | Personal mypi settings (`defaultAgent`) | `home/settings.json` |
 | Pi settings, MCP servers, packages, skills, extensions, prompts, themes | `~/.pi/agent/` |
+| Own Pi pipeline roles and workflow templates | `home/pi-flow/` |
 | Project knowledge | `home/projects/<org>/<project>/` |
 | Project source code | `projects/<org>/<project>/`, its own Git |
 | Task worktrees | `projects/<org>/<project>--<KEY>-<slug>/`, created by `mypi task worktree <KEY>` |
@@ -466,8 +467,10 @@ mypi/
 ├── test/                        # fast and boundary
 ├── scripts/                     # bounded build/checks
 ├── integrations/prompts/        # warmup role and how-to texts
-├── integrations/skills/         # built-in skills: open, inbox, project-management, retro
+├── integrations/skills/         # built-in skills: open, inbox, project-management, retro; flow (Pi only)
+├── integrations/pi-flow/        # Pi pipeline roles (*.md) and workflow templates (*.js)
 ├── .pi/                         # tracked Pi configuration
+│   ├── settings.json            # pi-subagents: no ambient extensions, role scan roots
 │   ├── extensions/mypi.ts       # MCP registration and warmup per session
 │   └── skills -> ../integrations/skills
 ├── .claude/                     # tracked Claude Code configuration

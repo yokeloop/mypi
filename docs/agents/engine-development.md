@@ -6,7 +6,9 @@ Read when: changing mypi source, tests, scripts or shipped integrations, buildin
 
 - Engine resources are tracked in this repository: agent configuration in `.pi/`
   (the Pi extension `.pi/extensions/mypi.ts`; `.pi/skills` points to the built-in
-  skills in `integrations/skills/`) and agent texts in `integrations/prompts/`.
+  skills in `integrations/skills/`; `.pi/settings.json` sets the pi-subagents scan
+  roots), agent texts in `integrations/prompts/` and the Pi pipeline roles and
+  workflow templates in `integrations/pi-flow/`.
   Personal data lives in `home/`; personal agent settings live in each agent's
   user-level configuration (for Pi, `~/.pi/agent/`). Never start tracking `home/`
   or `projects/` in the engine repository, including in future updates.
