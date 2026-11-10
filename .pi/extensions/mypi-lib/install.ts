@@ -271,5 +271,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       pi.sendUserMessage(('/skill:flow ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
+  pi.registerCommand('epic', {
+    description: 'Lead an epic in Pi from research to its subtasks: /epic <KEY>',
+    handler: async args => {
+      pi.sendUserMessage(('/skill:epic ' + args.trim()).trim(), { expandPromptTemplates: true });
+    },
+  });
   registerAsk(pi);
 }
