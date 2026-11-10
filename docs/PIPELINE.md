@@ -314,9 +314,9 @@ by the project's stand document (none — the PR alone) and one question
 «Одобрить / Замечания / Стоп». «Замечания» sends the keys they touch back to the
 plan rework and executes them again on the same worktree; «Одобрить» merges the PR
 by the `/ship` procedure and runs the project's `release` procedure, none — the
-merge only. The flow lines of the score (`- PR:`, `- Стенд:`, `- Замечания:`,
-`- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`, `- Релиз:`) let a restarted
-run continue.
+merge only. The flow lines of the score (`- Приёмка эпика:`, `- PR:`, `- Стенд:`,
+`- Замечания:`, `- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`,
+`- Релиз:`) let a restarted run continue.
 The statuses end at `merged`; `done` stays the engineer's.
 
 ## Statuses in mypi
