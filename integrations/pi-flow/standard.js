@@ -2,6 +2,7 @@
  * standard — one executor implements a task's plan in its worktree; a fresh reviewer
  * checks the diff; blocking findings go back to the same executor through resume;
  * at most two review rounds. The project's checks stay with the lead.
+ * A round whose reviewer lists files outside the plan ends the run before a fix; the lead asks the engineer.
  * Parameters:
  *   args.key      — task key, e.g. "MP-116"
  *   args.plan     — absolute path of the task's plan.md
@@ -10,7 +11,7 @@
  *   args.base     — the branch the worktree was created from
  *   args.executor — role that implements (default "executor")
  *   args.reviewer — role that reviews (default "reviewer")
- * Returns { executor: { runId, report }, fixes: [{ round, ok, report }], reviews: [{ round, status, findings }] }.
+ * Returns { executor: { runId, report }, fixes: [{ round, ok, report }], reviews: [{ round, range, status, findings, outsidePlan }] }.
  */
 const executorRole = args.executor || "executor";
 const reviewerRole = args.reviewer || "reviewer";
@@ -31,8 +32,8 @@ for (const round of [1, 2]) {
     task: `${context} Review the diff ${base}..${head} in the worktree against the plan.`,
   });
   const verdict = review.structuredOutput ?? null;
-  reviews.push({ round, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [] });
-  if (!verdict || verdict.status !== "changes_required" || round === 2 || !last.runId) break;
+  reviews.push({ round, range: `${base}..${head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan || [] : [] });
+  if (!verdict || verdict.status !== "changes_required" || (verdict.outsidePlan || []).length > 0 || round === 2 || !last.runId) break;
   const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
   const fix = await runs.run(`fix-${round}`, {
     resume: last.runId,

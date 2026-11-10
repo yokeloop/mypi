@@ -3,13 +3,14 @@
  * standard.js: its executor implements, a fresh reviewer checks the diff, blocking
  * findings go back to the same executor through resume, at most two review rounds.
  * The project's checks stay with the lead.
+ * A round whose reviewer lists files outside the plan ends the run before a fix; the lead asks the engineer.
  * Parameters:
  *   args.parts    — [{ key, agent, plan, worktree, taskDir, base }]: key — a short unique
  *                   part name (letters, digits, "-"), agent — role that implements
  *                   (default "executor"), plan, worktree, taskDir — absolute paths,
  *                   base — the branch the part's worktree was created from
  *   args.reviewer — role that reviews (default "reviewer")
- * Returns [{ key, executor: { runId, report }, fixes, reviews }] in the order of args.parts.
+ * Returns [{ key, executor: { runId, report }, fixes, reviews: [{ round, range, status, findings, outsidePlan }] }] in the order of args.parts.
  */
 const reviewerRole = args.reviewer || "reviewer";
 function rounds(part, context, state, round) {
@@ -20,8 +21,8 @@ function rounds(part, context, state, round) {
     })
     .then((review) => {
       const verdict = review.structuredOutput ?? null;
-      state.reviews.push({ round, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [] });
-      if (!verdict || verdict.status !== "changes_required" || round === 2 || !state.last.runId) return state;
+      state.reviews.push({ round, range: `${state.base}..${state.head}`, status: verdict ? verdict.status : null, findings: verdict ? verdict.findings : [], outsidePlan: verdict ? verdict.outsidePlan || [] : [] });
+      if (!verdict || verdict.status !== "changes_required" || (verdict.outsidePlan || []).length > 0 || round === 2 || !state.last.runId) return state;
       const blocking = verdict.findings.filter((finding) => finding.severity === "blocking");
       return runs
         .run(`${part.key}-fix-${round}`, {

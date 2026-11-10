@@ -37,7 +37,8 @@ Only in a plan the Pi `/flow` runs, and there mandatory; a plan for Claude Code 
 - the workflow template: its path in `integrations/pi-flow/` or `home/pi-flow/`, chosen by the header comment of its `*.js`, and its `args`; when no template fits, the order of the runs in words, which the lead runs as a one-off script;
 - the role for each step or group of steps: a role from `integrations/pi-flow/` or `home/pi-flow/`, chosen by its `description`;
 - the self-test: the Acceptance items the `tester` role checks live, or «none»;
-- the stand: the project's stand procedure the self-test follows, or «none».
+- the stand: the project's stand document (`<project home>/stand.md` in mypi home) the self-test follows and its budget of model turns, or «none»;
+- the release: the project's `release` procedure from `flow.json` that runs after the engineer's «Одобрить», or «none — merge only».
 
 ### Assumptions
 

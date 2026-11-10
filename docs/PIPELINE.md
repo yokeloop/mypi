@@ -261,9 +261,12 @@ final message is exactly one JSON object per its definition. Under `/epic` the e
 Pi's roles live in `integrations/pi-flow/`: `scout`, `planner`, `executor`,
 `reviewer`, `tester`, `investigator`, `challenger`, each a `*.md` file whose
 answer schema is its `outputSchema`, beside the workflow templates `standard.js`
-(implement, review, fix through `resume`, at most two review rounds),
+(implement, review, fix through `resume`, at most two review rounds; each round
+returns its `range`, and a round whose reviewer lists files in `outsidePlan` ends it
+before a fix),
 `parallel.js` (the same chain for several worktrees at once) and `investigate.js`
-(read-only fan-out of scouts or investigators). `.pi/settings.json` makes
+(read-only fan-out of scouts or investigators). `tester` also builds the stand for
+the engineer and leaves it up (`handover`). `.pi/settings.json` makes
 pi-subagents scan `integrations/pi-flow` and `home/pi-flow` (the engineer's own
 roles and templates) and starts children without ambient extensions. The bodies
 follow the Claude roles above without their defects: the executor reports the
@@ -282,6 +285,9 @@ the rules of the Claude skill with these bindings:
 | the skill `.claude/skills/flow` | the extension command `/flow`, which sends `/skill:flow <args>` |
 | `AskUserQuestion` | the extension tool `mypi_ask`: `question` and 2–4 `options`, the recommended one first; the tool marks it «(рекомендую)» and adds «Своё слово» |
 | the `plan` skill with `plan-scout` and `plan-writer` | `subagent`: `integrations/pi-flow/investigate.js` with `scout`, then `planner` |
+| `/do <KEY> --base flow/<name>` with `task-executor` and `task-reviewer` | the plan's «Execution»: a template of `integrations/pi-flow/` or `home/pi-flow/` through `subagent`, fixes by `subagent({ action: "resume" })` of the executor |
+| the live acceptance of `/flow` | the `tester` role by the project's stand document `<project home>/stand.md` |
+| the manual check, then a typed `/ship flow/<name>` | the stand handed over in the question «Одобрить / Замечания / Стоп»; «Одобрить» runs the `/ship` procedure and the release |
 | the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
 | `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
 | re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
@@ -295,8 +301,23 @@ plan back to `planner` with the remarks and the open derive threads, publishes a
 version of the same artifact and asks again. The answers go to the key's
 `progress.md`. A cancelled `mypi_ask` stops the run: the cancelled answer is not
 recorded, and only `mp-home-commit` commits the answers already written.
-Execution after the agreement is not part of the Pi skill yet: the run stops with
-«план <KEY> согласован».
+After «Согласовать» the key executes by its plan's «Execution»: the base check,
+the task worktree from `mp-worktree --base flow/<name>`, the template through
+`subagent` in the background while the next key's plan is agreed,
+`do-report.json` and `review-report.json` written by the lead as soon as the
+template returns (rounds with `range`, `outsidePlan` and each finding's
+`resolution`), the reviewer's `outsidePlan` as one question per key, fixes by
+resuming the executor, the project's checks by the lead, the `--no-ff` merge into
+the flow branch and the self-test where the plan names it. Then the checks of the
+assembled branch, the epic acceptance, the PR and CI, the stand for the engineer
+by the project's stand document (none — the PR alone) and one question
+«Одобрить / Замечания / Стоп». «Замечания» sends the keys they touch back to the
+plan rework and executes them again on the same worktree; «Одобрить» merges the PR
+by the `/ship` procedure and runs the project's `release` procedure, none — the
+merge only. The flow lines of the score (`- Приёмка эпика:`, `- PR:`, `- Стенд:`,
+`- Замечания:`, `- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`,
+`- Релиз:`) let a restarted run continue.
+The statuses end at `merged`; `done` stays the engineer's.
 
 ## Statuses in mypi
 
@@ -308,7 +329,8 @@ Execution after the agreement is not part of the Pi skill yet: the run stops wit
 - `review`: implementation finished, review clean, checks green, PR open (single
   mode) or merged into the flow branch (flow mode). Waiting for the engineer's
   manual check.
-- `merged`: the PR is merged into the PR target by `/ship`.
+- `merged`: the PR is merged into the PR target by `/ship` (in Pi, by `/flow` after
+  «Одобрить»).
 - `done`: the engineer's word after the installed engine runs the change. The
   pipeline never sets it.
 - `blocked`: the pipeline stopped on an open point; the reason names it.
@@ -355,7 +377,8 @@ One writer per fact; nothing is written twice.
   writes one `note` in the project scope (`note` kind `journal`, scope
   `{"type":"project","key":"<CODE>"}`) per release, engine update or decision
   taken in conversation: what was decided or shipped, the task keys and the key
-  of the session it was decided in; the entry's time is its timestamp. The
+  of the session it was decided in; the entry's time is its timestamp. A release
+  the Pi `/flow` runs after «Одобрить» is noted by that run the same way. The
   per-task `merged → done` line stays per task, with only the version in its
   reason. Never a copy of a task's entries in the project journal
   (`docs/M1-CLI.md`, «Journal filters»).
@@ -377,6 +400,11 @@ One writer per fact; nothing is written twice.
   --parent <KEY>` for the agreed subtasks. The answer «Завести и запустить /flow»
   in the epic's chat equals typing `/flow <name> <KEY>`; `/ship` runs only when
   typed. A parent message is never an answer to these questions.
+- In the chat of a Pi `/flow` the engineer's answer «Одобрить» to the question
+  after the PR equals typing `/ship flow/<name>` and is the explicit request for
+  the release by the procedure the project's `release` in `flow.json` names (none
+  — the merge only); the run then merges and releases («Pi»). Claude's `/ship`
+  still runs only when typed, and Claude's `/flow` never releases.
 - Open comment threads on the plan artifact (`catch_up` with `comments: open`) are
   remarks. `/plan` reworks the plan and republishes, resolving each thread with
   `comment` and `set_state: resolved` and a reply saying what changed. `/do` refuses to start while a thread is open, unless typed with
@@ -393,6 +421,12 @@ place; `blocked` only when the engineer answers so.
 - a dependency outside the run that is not `review`, `merged` or `done`;
 - every fork of a plan, one question at a time;
 - in Pi, every published plan: «Согласовать» or «Правки»;
+- in Pi, the files the reviewer lists outside the plan, one question per key for
+  all of them: «Убрать» or «Оставить»;
+- in Pi, after the PR: «Одобрить», «Замечания» or «Стоп», with the stand by the
+  project's stand document when it has one;
+- in Pi, a release step that would commit, switch a branch or change tracked
+  files in the base clone, and a failed release step;
 - an edit of the lead to a plan beyond the plan-writer's output (or an explicit
   line in the report);
 - `openPoints` of the executor only the engineer can answer;
@@ -456,7 +490,7 @@ else `<checkoutPath>/CLAUDE.md`.
 - Commits: English, imperative, one concern, no code comments, no attribution
   trailers (the `task-executor` rule).
 - Never force-push. Never delete a remote branch. Worktrees are removed only by
-  `/ship`, after the merge is verified and the tree inspected.
+  `/ship` (in Pi, by `/flow` after «Одобрить»), after the merge is verified and the tree inspected.
 
 ## Hard rules
 
@@ -465,6 +499,8 @@ else `<checkoutPath>/CLAUDE.md`.
   engine update: those are the engineer's separate authorizations (for MP, task T14
   of the plan). Under `/flow` too: no GitHub Release or other publication and no
   migration of the personal database without the engineer's separate permission.
+  The one exception is the Pi `/flow`: its answer «Одобрить» is that permission for
+  the project's `release` procedure («Approval semantics»).
 - Record state in mypi (`status`, `progress` with artifacts) and in the task
   folder by «Journal» above; commit home after each change. Artifacts are the
   task folder's files named in `progress`; each entry points at the home commit
