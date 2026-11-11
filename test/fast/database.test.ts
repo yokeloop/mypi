@@ -61,10 +61,12 @@ test('initialization is a no-op on a current database and rejects a newer schema
   let db = openDatabase(filename);
   assert.equal(db.pragma('journal_mode', { simple: true }), 'wal');
   assert.deepEqual(db.prepare('SELECT code, is_terminal FROM task_statuses ORDER BY id').all(),
-    ['new', 'research', 'planning', 'in_progress', 'review', 'blocked', 'paused', 'done', 'failed', 'cancelled']
+    ['new', 'research', 'planning', 'in_progress', 'review', 'blocked', 'paused', 'done', 'failed', 'cancelled', 'merged']
       .map(code => ({ code, is_terminal: ['done', 'failed', 'cancelled'].includes(code) ? 1 : 0 })));
   db.prepare("UPDATE task_statuses SET code = 'fresh' WHERE code = 'new'").run();
   db.prepare("INSERT INTO task_statuses(code, is_terminal) VALUES ('custom', 0)").run();
+  db.prepare("DELETE FROM task_statuses WHERE code = 'merged'").run();
+  db.prepare("INSERT INTO task_statuses(code, is_terminal) VALUES ('merged', 0)").run();
   const expected = db.prepare('SELECT * FROM task_statuses ORDER BY id').all();
   db.close();
   initializeDatabase(filename);
