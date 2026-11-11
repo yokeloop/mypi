@@ -6,7 +6,9 @@ match the GitHub releases.
 
 ## [Unreleased]
 
-Upgrading: schema 15, run `mypi db init` once after the update (back up the database
+## [0.12.0] - 2026-11-11
+
+Upgrading from v0.11.0: `git pull --ff-only`, install the locked dependencies and build; schema 15, run `mypi db init` once after the update (back up the database
 first); reload or restart Claude Code and Pi sessions so the new roles and the Pi
 extension take effect. Run `mypi archive import` once to fill the conversation archive
 from existing transcripts. MEMORY.md is no longer read; move facts into INDEX.md (MP-106) before updating.
