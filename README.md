@@ -13,7 +13,7 @@ The former instruction-driven workflow has been withdrawn; stored data is retain
 Flow is part of the product direction; automated execution/visibility isolation are
 not implemented. See [PLAN](PLAN.md) for milestones without speculative infrastructure.
 
-**Readiness:** v0.11.0 is a prerelease of the v2 session model (scoped Claude Code
+**Readiness:** v0.12.0 is a prerelease of the v2 session model (scoped Claude Code
 and Pi sessions, `/open`, events); it is not production-ready, and final M1 acceptance
 remains open. CI now runs ordinary bounded PR verification, not the historical
 trusted-base/App-issuer scheme. The earlier
