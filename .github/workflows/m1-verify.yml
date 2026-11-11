@@ -31,6 +31,11 @@ jobs:
       - name: Provision isolated ephemeral runner
         timeout-minutes: 5
         run: |
+          # The runner's Azure apt mirror is sometimes unresolvable; use the Ubuntu archive then.
+          if ! getent hosts azure.archive.ubuntu.com >/dev/null; then
+            sudo grep -rl 'mirror+file:/etc/apt/apt-mirrors.txt' /etc/apt/sources.list /etc/apt/sources.list.d \
+              | xargs -r sudo sed -i 's#mirror+file:/etc/apt/apt-mirrors.txt#http://archive.ubuntu.com/ubuntu/#'
+          fi
           sudo apt-get update -qq
           sudo apt-get install -y bubblewrap dbus-user-session
           # Permit namespaces only for bwrap on this disposable VM; keep AppArmor enabled.
