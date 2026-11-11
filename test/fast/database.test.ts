@@ -61,10 +61,12 @@ test('initialization is a no-op on a current database and rejects a newer schema
   let db = openDatabase(filename);
   assert.equal(db.pragma('journal_mode', { simple: true }), 'wal');
   assert.deepEqual(db.prepare('SELECT code, is_terminal FROM task_statuses ORDER BY id').all(),
-    ['new', 'research', 'planning', 'in_progress', 'review', 'blocked', 'paused', 'done', 'failed', 'cancelled']
+    ['new', 'research', 'planning', 'in_progress', 'review', 'blocked', 'paused', 'done', 'failed', 'cancelled', 'merged']
       .map(code => ({ code, is_terminal: ['done', 'failed', 'cancelled'].includes(code) ? 1 : 0 })));
   db.prepare("UPDATE task_statuses SET code = 'fresh' WHERE code = 'new'").run();
   db.prepare("INSERT INTO task_statuses(code, is_terminal) VALUES ('custom', 0)").run();
+  db.prepare("DELETE FROM task_statuses WHERE code = 'merged'").run();
+  db.prepare("INSERT INTO task_statuses(code, is_terminal) VALUES ('merged', 0)").run();
   const expected = db.prepare('SELECT * FROM task_statuses ORDER BY id').all();
   db.close();
   initializeDatabase(filename);
@@ -82,6 +84,21 @@ test('initialization is a no-op on a current database and rejects a newer schema
     assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
     assert.equal(unsupported.pragma('user_version', { simple: true }), 16);
   } finally { unsupported.close(); }
+});
+
+test('a fresh database lets a task go review → merged → done', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    const project = app.projects.add('one/project', 'MP');
+    const task = app.tasks.create({ projectId: project.id, slug: 'ship', title: 'ship', status: 'review' }, () => {});
+    const merged = app.tasks.change(task.id, { status: 'merged' }, 'merged');
+    assert.equal(merged.changed, true);
+    assert.equal(merged.after.isTerminal, false);
+    const done = app.tasks.change(task.id, { status: 'done' }, 'accepted');
+    assert.equal(done.changed, true);
+    assert.equal(done.after.isTerminal, true);
+  } finally { app.close(); }
 });
 
 test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests renamed to tasks, journal literals mapped, ids and paths kept', async t => {

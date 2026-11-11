@@ -39,6 +39,10 @@ from existing transcripts. MEMORY.md is no longer read; move facts into INDEX.md
 - Schema 14 (MP-78): `sessions` gains the scope `org` and the column `org_id`; `mypi db init` is required. `mypi org remove` refuses while an organization session or an event with its slug exists.
 - Pipeline texts (MP-116): `docs/PLAN-FORMAT.md` no longer names a `/review` command (a rework plan comes from `/plan`; Acceptance is walked at the manual check before `/ship`) and gains the «Execution» section, mandatory for plans the Pi `/flow` runs and absent from Claude plans; `docs/PIPELINE.md` says a pi-subagents child's `PI_SESSION_ID` is its own id, so its scope falls back to `MYPI_SCOPE`, then `global`.
 
+### Fixed
+
+- Merged status in fresh databases (MP-122): a database created by `pnpm bootstrap` now has the non-terminal status `merged` that `/ship` and `docs/PIPELINE.md` rely on, so `mp-task status <KEY> merged` works on a fresh install. Existing databases are not changed and need no `db init`; a database without `merged` (created by v0.11.0 or earlier) adds it once with `mypi status add merged`.
+
 ### Removed
 
 - Memory (MP-104): `MEMORY.md` files, the MCP tool and CLI command `memory` and the warmup's memory zones and fact hiding are removed; durable facts live on a level's entry or in a branch it links.

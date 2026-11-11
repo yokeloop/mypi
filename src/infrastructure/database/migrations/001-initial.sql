@@ -51,4 +51,5 @@ END;
 
 INSERT INTO request_statuses(code, is_terminal) VALUES
   ('new', 0), ('research', 0), ('planning', 0), ('in_progress', 0), ('review', 0),
-  ('blocked', 0), ('paused', 0), ('done', 1), ('failed', 1), ('cancelled', 1);
+  ('blocked', 0), ('paused', 0), ('done', 1), ('failed', 1), ('cancelled', 1),
+  ('merged', 0);
