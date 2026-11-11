@@ -86,6 +86,21 @@ test('initialization is a no-op on a current database and rejects a newer schema
   } finally { unsupported.close(); }
 });
 
+test('a fresh database lets a task go review → merged → done', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    const project = app.projects.add('one/project', 'MP');
+    const task = app.tasks.create({ projectId: project.id, slug: 'ship', title: 'ship', status: 'review' }, () => {});
+    const merged = app.tasks.change(task.id, { status: 'merged' }, 'merged');
+    assert.equal(merged.changed, true);
+    assert.equal(merged.after.isTerminal, false);
+    const done = app.tasks.change(task.id, { status: 'done' }, 'accepted');
+    assert.equal(done.changed, true);
+    assert.equal(done.after.isTerminal, true);
+  } finally { app.close(); }
+});
+
 test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests renamed to tasks, journal literals mapped, ids and paths kept', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
