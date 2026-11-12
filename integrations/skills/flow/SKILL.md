@@ -43,6 +43,13 @@ session's working directory).
   `curl`. Roles have no MCP: every derive call and every mypi write is the lead's.
 - GitHub: `gh` through bash, for the PR, its checks and its merge.
 - Questions: `mypi_ask` («Questions»).
+- Compaction: the extension tool `mypi_compact` (step 9 of «Execution of the key»).
+  Call it directly, never from a codemode script, and alone as the last call of the
+  turn; the turn ends there. It refuses while the project's home has uncommitted
+  changes: commit what it lists and call again. The extension compacts the context
+  after the turn, saves the summary to the key's `compactions.md` and sends
+  `/skill:flow <args>`; this skill then starts over from Step 0 and continues by the
+  score, as after a restart.
 - Time: every `<YYYY-MM-DD HH:MM>` and `<YYYY-MM-DD>` of this skill is the output of
   `date '+%Y-%m-%d %H:%M'` (or `date +%F`) run through bash right before the write
   that carries it; never a time typed by hand or guessed.
@@ -122,7 +129,9 @@ status in the question, options `Остановить и ждать`, `Прод�
 second answer is recorded in the key's `progress.md`, as `/do --force` records it.
 
 On resume the order of the score stands: print it with the stage of each key
-(«Per key»), no new announcement.
+(«Per key»), no new announcement. Then read `knowledge.md` of every ticked key of
+the score and the project's entry `<project home>/INDEX.md` with the branches it
+links that concern the run, before the next key.
 
 ## Flow branch
 
@@ -195,8 +204,9 @@ Strictly one key at a time. For each key:
    - the line's last mark is ` — замечания` → the rework of step 6 («With remarks»)
      with the remarks of the last `замечания приёмки` lines of the key's
      `progress.md`;
-   - no `plan.md` → step 3 with the key's scout answer; when this run has none,
-     run `subagent({ agent: "scout", task })` for the key first, as in
+   - no `plan.md` → step 3 with the key's scout answer — of this run, else
+     `scout.json` in the key's folder; when there is neither, run
+     `subagent({ agent: "scout", task })` for the key first, as in
      «Reconnaissance up front»;
    - `plan.md` without `derive.json` → step 5;
    - `derive.json`, and the key's line in the score has no ` — план v<version>
@@ -400,8 +410,21 @@ memory or made up.
 9. **Record.** Tick the key's line (`- [ ]` → `- [x]`) and append ` — смержено
    <flow merge SHA>, ревью <status of the newest round> (<rounds> р.), самотест
    <passed>/<total> | не требуется`; `$BIN/mp-home-commit <CODE> "flow <name>: <KEY>
-   merged"`. The run writes no `progress` of its own. Then the next key; after the
-   last one, «Finish».
+   merged"`. The run writes no `progress` of its own. Then, when an unticked key is
+   left in «Order» and no background subagent run of this chat is active (a
+   template, a resume or a role started and not yet ended): the knowledge checkpoint
+   by «Knowledge» — the stage's knowledge into `knowledge.md` of the key (a section
+   `## <YYYY-MM-DD HH:MM> — перед сжатием (<KEY> смержен)`, `Новых знаний нет.` when
+   there is nothing), `scout.json` of the keys without `plan.md`, the project's
+   memory with `context commit`; then `$BIN/mp-home-commit <CODE> "flow <name>: <KEY>
+   knowledge"`; then `mypi_compact({ key: "<KEY>", resume, focus })` — `resume`
+   is the text of the score's `- Command:` line without the backticks, `focus` is
+   `<KEY> merged into flow/<name>; next <next unticked KEY> at stage <its stage by
+   «Per key» step 2>` — and end the turn.
+   A refusal names uncommitted files: write and commit them as above and call
+   again; a second refusal → a flow stop question with the literal error. A
+   background run active → no checkpoint and no compaction at this boundary, go on
+   with the next key. After the last key, «Finish», without compaction.
 
 ## Finish
 
@@ -565,6 +588,40 @@ epic acceptance; the release result or «релиза нет — только м
 removed and what was kept; open advice; the engineer's answers; fallbacks and
 skipped base checks; and «статусы — merged; done ставит инженер» (for MP also:
 the installed engine is not updated by this run, `docs/agents/installation.md`).
+
+## Knowledge
+
+The stage's knowledge is what the lead learned during a stage and what no file of
+the task folder holds yet: facts about code and contracts from the scout, executor,
+reviewer, investigator and tester answers, the engineer's answers, deviations from
+the plan and their reasons, pitfalls (the failed command and the form that worked),
+self-test and stand findings, open points, and run ids still needed. It goes:
+
+- facts about code and contracts from scout, executor, reviewer, investigator and
+  tester answers, deviations and their reasons, pitfalls (the failed command and the
+  form that worked), self-test and stand findings, open points → `knowledge.md` of
+  the key they concern (the key just finished; a fact about a later key — that key's
+  `knowledge.md`);
+- the scout answer (`facts`, `localization`, `simplestPath`, `forks`,
+  `assumptions`) of every key of the run without `plan.md` → `scout.json` in that
+  key's folder, verbatim;
+- answers of the engineer → where «Questions» already puts them (`progress.md` of
+  the key, «Answers» of the score); not again in `knowledge.md`;
+- facts true beyond the task (project conventions, tool pitfalls, contracts) → the
+  project's entry `<project home>/INDEX.md` or the branch it links for that topic,
+  one place per fact, others link to it; committed with `mise exec -- node
+  dist/src/cli/main.js context commit <paths> --message "<KEY>: knowledge before
+  compaction"` from the engine root, pushed by the next `mp-home-commit`;
+- never what mypi records itself (statuses, the journal, sessions) and never a copy
+  of a file of the folder — a link to it.
+
+The task's memory is `knowledge.md` in the task folder: one section per boundary,
+`## <YYYY-MM-DD HH:MM> — перед сжатием (<stage>)`, with only the non-empty kinds
+above; a fact already in a file of the folder (`plan.md`, `pr.md`,
+`do-report.json`, `review-report.json`, `progress.md`, reports) is a link to that
+file, not a copy; nothing new — the line `Новых знаний нет.`. The summaries of the
+compactions are `compactions.md` in the task folder; the extension writes and
+commits it.
 
 ## Questions
 
