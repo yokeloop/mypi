@@ -41,7 +41,9 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   counts to `compactions.md` of the task folder and runs
   `scripts/pipeline/mp-home-commit <KEY>`; then it sends `/skill:flow …` or
   `/skill:epic …` as a follow-up — also after «Nothing to compact», «Already
-  compacted» and a failure (the last with a warning). While it compacts, an
+  compacted» and a failure (the last with a warning). From the recorded request
+  until the resumed run starts (`agent_start`; 5 s at most after the follow-up, at
+  once when the follow-up cannot be sent or the request is dropped on shutdown), an
   incoming event batch waits and is injected and acknowledged after it.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs

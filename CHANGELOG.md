@@ -8,7 +8,7 @@ match the GitHub releases.
 
 ### Added
 
-- Pi compaction between stages (MP-133): the extension tool `mypi_compact` lets the Pi `/flow` compact the context between keys (after step 9 «Record») and the Pi `/epic` after research v1 and v2. Before the call the skill writes the stage's knowledge into the task's `knowledge.md`, unplanned scout answers into `scout.json` and project-wide facts into the project's entry, and commits home; the tool refuses while the project's home is uncommitted. The extension compacts after the turn settles, saves and commits the summary in the task's `compactions.md`, and resends the skill command, which rereads the knowledge and resumes from the score or the epic's signs, also when there is nothing to compact or the compaction fails. Event batches wait for the compaction to end. Claude Code is unchanged.
+- Pi compaction between stages (MP-133): the extension tool `mypi_compact` lets the Pi `/flow` compact the context between keys (after step 9 «Record») and the Pi `/epic` after research v1 and v2. Before the call the skill writes the stage's knowledge into the task's `knowledge.md`, unplanned scout answers into `scout.json` and project-wide facts into the project's entry, and commits home; the tool refuses while the project's home is uncommitted. The extension compacts after the turn settles, saves and commits the summary in the task's `compactions.md`, and resends the skill command, which rereads the knowledge and resumes from the score or the epic's signs, also when there is nothing to compact or the compaction fails. Event batches wait from the request until the resumed run starts. Claude Code is unchanged.
 
 ## [0.12.0] - 2026-11-11
 
