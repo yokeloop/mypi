@@ -49,7 +49,8 @@ session's working directory). One key.
   turn, saves the summary to the epic's `compactions.md` and sends
   `/skill:epic <KEY>`; this skill then starts over from Step 0 and continues by
   «State».
-- Time: every `<YYYY-MM-DD>` of this skill is the output of `date +%F`, and
+- Time: every `<YYYY-MM-DD HH:MM>` of this skill is the output of
+  `date '+%Y-%m-%d %H:%M'`, every `<YYYY-MM-DD>` the output of `date +%F`, and
   `published_at` the output of `date -Iseconds`, run through bash right before the
   write that carries it; never a time typed by hand or guessed.
 
