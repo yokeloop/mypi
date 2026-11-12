@@ -43,7 +43,7 @@ session's working directory).
   `curl`. Roles have no MCP: every derive call and every mypi write is the lead's.
 - GitHub: `gh` through bash, for the PR, its checks and its merge.
 - Questions: `mypi_ask` («Questions»).
-- Compaction: the extension tool `mypi_compact` (step 9 of «Execution of the key»).
+- Compaction: the extension tool `mypi_compact` (step 10 of «Execution of the key»).
   Call it directly, never from a codemode script, and alone as the last call of the
   turn; the turn ends there. It refuses while the project's home has uncommitted
   changes: commit what it lists and call again. The extension compacts the context
@@ -199,7 +199,8 @@ Questions and plans still go one key at a time.
 Strictly one key at a time. For each key:
 
 1. Skip if the key's line in the score is ticked (`- [x]`), or if the key is the
-   epic («Subtasks»).
+   epic («Subtasks»). When a key was ticked in this turn without step 10 of
+   «Execution of the key», do that step 10 first.
 2. **Stage.** Decide by the task folder and the score, without asking:
    - the line's last mark is ` — замечания` → the rework of step 6 («With remarks»)
      with the remarks of the last `замечания приёмки` lines of the key's
@@ -410,21 +411,28 @@ memory or made up.
 9. **Record.** Tick the key's line (`- [ ]` → `- [x]`) and append ` — смержено
    <flow merge SHA>, ревью <status of the newest round> (<rounds> р.), самотест
    <passed>/<total> | не требуется`; `$BIN/mp-home-commit <CODE> "flow <name>: <KEY>
-   merged"`. The run writes no `progress` of its own. Then, when an unticked key is
-   left in «Order» and no background subagent run of this chat is active (a
-   template, a resume or a role started and not yet ended): the knowledge checkpoint
-   by «Knowledge» — the stage's knowledge into `knowledge.md` of the key (a section
-   `## <YYYY-MM-DD HH:MM> — перед сжатием (<KEY> смержен)`, `Новых знаний нет.` when
-   there is nothing), `scout.json` of the keys without `plan.md`, the project's
-   memory with `context commit`; then `$BIN/mp-home-commit <CODE> "flow <name>: <KEY>
-   knowledge"`; then `mypi_compact({ key: "<KEY>", resume, focus })` — `resume`
-   is the text of the score's `- Command:` line without the backticks, `focus` is
-   `<KEY> merged into flow/<name>; next <next unticked KEY> at stage <its stage by
-   «Per key» step 2>` — and end the turn.
-   A refusal names uncommitted files: write and commit them as above and call
-   again; a second refusal → a flow stop question with the literal error. A
-   background run active → no checkpoint and no compaction at this boundary, go on
-   with the next key. After the last key, «Finish», without compaction.
+   merged"`. The run writes no `progress` of its own. This commit is a bash call of
+   its own: never chain it with a command for another key (`mp-task show`, its base
+   check, its worktree) in the same bash call. Step 10 comes next, always.
+10. **Boundary.** Before any command for another key: when an unticked key is left
+    in «Order», do the knowledge checkpoint, commit home, call `mypi_compact` and
+    end the turn:
+    1. The knowledge checkpoint by «Knowledge»: the stage's knowledge into
+       `knowledge.md` of the key (a section `## <YYYY-MM-DD HH:MM> — перед сжатием
+       (<KEY> смержен)`, `Новых знаний нет.` when there is nothing), `scout.json` of
+       the keys without `plan.md`, the project's memory with `context commit`.
+    2. `$BIN/mp-home-commit <CODE> "flow <name>: <KEY> knowledge"`.
+    3. `mypi_compact({ key: "<KEY>", resume, focus })` — `resume` is the text of the
+       score's `- Command:` line without the backticks, `focus` is `<KEY> merged into
+       flow/<name>; next <next unticked KEY> at stage <its stage by «Per key» step
+       2>` — the last call of the turn; end the turn.
+
+    A refusal names uncommitted files: write and commit them as in 1–2 and call
+    again; a second refusal → a flow stop question with the literal error. Skip this
+    step only when `subagent({ action: "status" })` lists a running run of this chat
+    (a template, a resume or a role started and not yet ended) — then go on with the
+    next key, the next boundary compacts — or after the last key: go to «Finish»,
+    without compaction.
 
 ## Finish
 

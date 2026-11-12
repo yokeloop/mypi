@@ -300,7 +300,7 @@ Claude skills with these bindings:
 | the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
 | `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
 | re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
-| the threshold auto-compaction of Claude Code | the extension tool `mypi_compact` at the stage boundaries: `/flow` after step 9 «Record» while an unticked key is left, `/epic` after the commits of research v1 and v2 |
+| the threshold auto-compaction of Claude Code | the extension tool `mypi_compact` at the stage boundaries: `/flow` at step 10 «Boundary», after step 9 «Record», while an unticked key is left; `/epic` at the «Boundary» after the commits of research v1 and v2 |
 
 The run's state is the flow score, the task statuses and the task folders, so a
 restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
@@ -338,13 +338,17 @@ own word edits the list, and one flow name alone creates and runs with that name
 Its answers are not written to `progress.md`. A cancelled `mypi_ask` stops the run;
 only `mp-home-commit` commits what is already written.
 
-At these boundaries, only when no background subagent run of the chat is active, the
-skill first writes the stage's knowledge — into `knowledge.md` of the task folder
+At these boundaries, before any command of the next key or step, the skill writes
+the stage's knowledge — into `knowledge.md` of the task folder
 (facts from the roles, deviations, pitfalls, stand findings, open points, run ids
 still needed; links to the folder's files, not copies), `scout.json` of keys not yet
 planned, and facts beyond the task into the project's entry or its branches —
 commits home, then calls `mypi_compact` with the task key and the run's command and
-ends its turn. The tool refuses while the project's home has uncommitted changes.
+ends its turn. The commit before a boundary is a bash call of its own, never chained
+with a command of the next key or step. The skill skips a boundary only when
+`subagent({ action: "status" })` lists a running run of the chat, and `/flow` has
+none after its last key. The tool refuses while the project's home has uncommitted
+changes.
 The extension compacts the context after the turn (`agent_settled`), appends the
 summary to the task's `compactions.md` and commits it with `mp-home-commit`, and
 sends `/skill:flow <args>` or `/skill:epic <KEY>`; the resumed skill reads
