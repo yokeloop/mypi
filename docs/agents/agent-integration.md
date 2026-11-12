@@ -44,7 +44,11 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   compacted» and a failure (the last with a warning). From the recorded request
   until the resumed run starts (`agent_start`; 5 s at most after the follow-up, at
   once when the follow-up cannot be sent or the request is dropped on shutdown), an
-  incoming event batch waits and is injected and acknowledged after it.
+  incoming event batch waits and is injected and acknowledged after it; an event
+  delivered again while it waits is sent once. Known limit: when the resume prompt's
+  preflight takes longer than 5 s (for example an OAuth auth check), the held batch
+  is released before that run is active and can be lost as in a plain prompt
+  submitted beside it.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
