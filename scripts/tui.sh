@@ -8,8 +8,8 @@ cmd="${1:-}"
 tui="$root/tui"; target="$tui/target"
 want="$(sed -n 's/^channel = "\(.*\)"$/\1/p' "$tui/rust-toolchain.toml")"
 hint="Rust $want required: mise install, then mise exec -- pnpm tui:$cmd"
-command -v rustc >/dev/null || { echo "$hint" >&2; exit 2; }
-sysroot="$(cd "$tui" && rustc --print sysroot)"
+rustc_bin="$(cd "$root" && mise which rustc 2>/dev/null)" || { echo "$hint" >&2; exit 2; }
+sysroot="$(cd "$tui" && "$rustc_bin" --print sysroot)"
 found="$("$sysroot/bin/rustc" --version)"
 [[ "$found" == "rustc $want "* ]] || { echo "$hint (found $found)" >&2; exit 2; }
 host="$("$sysroot/bin/rustc" -vV | sed -n 's/^host: //p')"
