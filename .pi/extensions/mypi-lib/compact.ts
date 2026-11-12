@@ -42,9 +42,23 @@ export function registerCompact(pi: {
   exec: Exec;
   sendUserMessage(content: string, options: { deliverAs: 'followUp'; expandPromptTemplates: true }): void;
 }, paths: { root: string; cli: string; home: string }, now: () => Date = () => new Date()):
-  { settle(ctx: CompactContext): void; quiet(): Promise<void>; reset(): void } {
+  { settle(ctx: CompactContext): void; quiet(): Promise<void>; started(): void; reset(): void } {
   let request: Request | undefined;
-  let running: Promise<void> | undefined;
+  let held: Promise<void> | undefined;
+  let release: () => void = () => {};
+  let compacting = false;
+  let resuming = false;
+  let fallback: ReturnType<typeof setTimeout> | undefined;
+  const hold = () => { held ??= new Promise<void>(resolve => { release = resolve; }); };
+  const free = () => {
+    const done = release;
+    held = undefined;
+    release = () => {};
+    resuming = false;
+    if (fallback !== undefined) clearTimeout(fallback);
+    fallback = undefined;
+    done();
+  };
   const refuse = (error: 'resume' | 'key' | 'dirty', message: string) =>
     ({ content: [{ type: 'text' as const, text: 'Error: ' + message }], details: { error, message }, isError: true });
   pi.registerTool({
@@ -89,6 +103,7 @@ export function registerCompact(pi: {
       if (status.stdout.trim() !== '') return refuse('dirty', `the project's home has uncommitted changes:\n${status.stdout.slice(0, 2000)}\nWrite down what is missing, commit with mp-home-commit (and context commit for the project's entry and branches), then call mypi_compact again; no compaction was requested.`);
       const folder = join(paths.home, contextDir);
       request = { key, resume, focus, folder, project };
+      hold();
       return {
         content: [{ type: 'text', text: 'Compaction requested: end this turn now, without another tool call. After the turn the extension compacts the context, saves the summary to ' + folder + '/compactions.md and sends /skill:' + resume.slice(1) + ', which continues from the recorded state.' }],
         details: { key, resume, focus, folder },
@@ -107,13 +122,19 @@ export function registerCompact(pi: {
       if (run === undefined || !ctx.isIdle()) return;
       request = undefined;
       let finished = false;
-      let release: () => void = () => {};
-      running = new Promise<void>(resolve => { release = resolve; });
+      compacting = true;
       const warn = (message: string) => { if (ctx.hasUI) ctx.ui.notify(message, 'warning'); };
       const finish = () => {
-        pi.sendUserMessage('/skill:' + run.resume.slice(1), { deliverAs: 'followUp', expandPromptTemplates: true });
-        running = undefined;
-        release();
+        compacting = false;
+        try {
+          pi.sendUserMessage('/skill:' + run.resume.slice(1), { deliverAs: 'followUp', expandPromptTemplates: true });
+        } catch {
+          free();
+          return;
+        }
+        resuming = true;
+        fallback = setTimeout(free, 5000);
+        fallback.unref?.();
       };
       const onComplete = (result: CompactResult) => {
         if (finished) return;
@@ -151,10 +172,14 @@ export function registerCompact(pi: {
       }
     },
     quiet() {
-      return running ?? Promise.resolve();
+      return held ?? Promise.resolve();
+    },
+    started() {
+      if (resuming) free();
     },
     reset() {
       request = undefined;
+      if (!compacting) free();
     },
   };
 }

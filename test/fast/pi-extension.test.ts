@@ -619,19 +619,30 @@ test('pi extension holds an event batch while compacting', async t => {
   await pi.start('startup');
   const result = await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
   assert.equal(result.terminate, true);
+  let early: number[] | undefined;
+  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { early = ids; });
+  await settled();
+  assert.equal(pi.sent.length, 0);
+  assert.equal(early, undefined);
   await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
   assert.equal(pi.compactions.length, 1);
   let acked: number[] | undefined;
-  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { acked = ids; });
+  void batches[0]!([{ id: 2, text: 'b' }]).then(ids => { acked = ids; });
   await settled();
-  assert.equal(pi.sent.some(entry => entry[0] === 'a'), false);
+  assert.equal(pi.sent.length, 0);
+  assert.equal(early, undefined);
   assert.equal(acked, undefined);
   pi.compactions[0].onError(new Error('Nothing to compact (session too small)'));
   await settled();
-  assert.deepEqual(pi.sent, [['/skill:flow fx MP-1', { deliverAs: 'followUp', expandPromptTemplates: true }], ['a', { deliverAs: 'followUp' }]]);
+  assert.deepEqual(pi.sent, [['/skill:flow fx MP-1', { deliverAs: 'followUp', expandPromptTemplates: true }]]);
+  assert.equal(early, undefined);
+  assert.equal(acked, undefined);
+  pi.state.idle = false;
   await pi.handlers.get('agent_start')!(undefined, pi.ctx);
   await settled();
-  assert.deepEqual(acked, [1]);
+  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
+  assert.deepEqual(early, [1]);
+  assert.deepEqual(acked, [2]);
 });
 
 test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {

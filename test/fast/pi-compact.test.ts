@@ -17,7 +17,7 @@ function fixture(t: TestContext) {
   mkdirSync(join(home, contextDir), { recursive: true });
   const calls: unknown[][] = [], sent: unknown[][] = [], notes: [string, string][] = [], compactions: CompactOptions[] = [];
   const tools = new Map<string, any>();
-  const state = { show: { code: 0, stderr: '' }, status: '', commit: { code: 0, stderr: '' }, idle: true, throws: undefined as Error | undefined };
+  const state = { show: { code: 0, stderr: '' }, status: '', commit: { code: 0, stderr: '' }, idle: true, throws: undefined as Error | undefined, refuseSend: false };
   const pi = {
     registerTool(tool: any) { tools.set(tool.name, tool); },
     async exec(command: string, args: string[], options: { cwd: string; timeout: number }) {
@@ -26,7 +26,7 @@ function fixture(t: TestContext) {
       if (command === 'git') return { code: 0, killed: false, stderr: '', stdout: state.status };
       return { code: state.commit.code, killed: false, stderr: state.commit.stderr, stdout: '' };
     },
-    sendUserMessage(content: string, options: unknown) { sent.push([content, options]); },
+    sendUserMessage(content: string, options: unknown) { if (state.refuseSend) throw new Error('busy'); sent.push([content, options]); },
   };
   const compactor = registerCompact(pi, { root: '/r', cli: '/r/dist/src/cli/main.js', home }, () => moment);
   const ctx = { hasUI: true, ui: { notify(message: string, level: 'info' | 'warning') { notes.push([message, level]); } }, isIdle: () => state.idle,
@@ -88,6 +88,8 @@ test('mypi_compact compacts after the turn settles, saves and commits the summar
   const result = await f.call({ key: 'FX-1', resume: ' /flow fx FX-1 FX-2 ', focus: 'next FX-2' });
   assert.equal(result.terminate, true);
   assert.deepEqual(result.details, { key: 'FX-1', resume: '/flow fx FX-1 FX-2', focus: 'next FX-2', folder: f.folder });
+  let quiet = false;
+  void f.compactor.quiet().then(() => { quiet = true; });
   f.state.idle = false;
   f.compactor.settle(f.ctx);
   assert.equal(f.compactions.length, 0);
@@ -96,8 +98,6 @@ test('mypi_compact compacts after the turn settles, saves and commits the summar
   assert.equal(f.compactions.length, 1);
   const options = f.compactions[0]!;
   for (const part of ['"/flow fx FX-1 FX-2"', 'flows/fx.md', 'knowledge.md', 'Point at the files', 'next FX-2']) assert.ok(options.customInstructions.includes(part), part);
-  let quiet = false;
-  void f.compactor.quiet().then(() => { quiet = true; });
   await settled();
   assert.equal(quiet, false);
   const commits = f.calls.length;
@@ -109,6 +109,9 @@ test('mypi_compact compacts after the turn settles, saves and commits the summar
   assert.ok(text.includes('S'));
   assert.deepEqual(f.calls.slice(commits), [['bash', ['/r/scripts/pipeline/mp-home-commit', 'FX-1', 'FX-1: compaction summary'], { cwd: '/r', timeout: 60000 }]]);
   assert.deepEqual(f.sent, [['/skill:flow fx FX-1 FX-2', { deliverAs: 'followUp', expandPromptTemplates: true }]]);
+  assert.equal(quiet, false);
+  f.compactor.started();
+  await settled();
   assert.equal(quiet, true);
   assert.deepEqual(f.notes, []);
   f.compactor.settle(f.ctx);
@@ -156,4 +159,47 @@ test('mypi_compact resumes after nothing to compact and after a failed compactio
   f.compactor.settle(f.ctx);
   assert.equal(f.compactions.length, 3);
   assert.equal(f.sent.length, 4);
+});
+
+test('mypi_compact holds event batches from the request until the resumed run starts, with fallbacks', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(t);
+  const watch = () => {
+    const seen = { quiet: false };
+    void f.compactor.quiet().then(() => { seen.quiet = true; });
+    return seen;
+  };
+  assert.equal(watch().quiet, false);
+  await settled();
+  const request = { key: 'FX-1', resume: '/epic FX-1', focus: 'next step 2' };
+  await f.call(request);
+  const dropped = watch();
+  f.compactor.started();
+  await settled();
+  assert.equal(dropped.quiet, false);
+  f.compactor.reset();
+  await settled();
+  assert.equal(dropped.quiet, true);
+  await f.call(request);
+  const timed = watch();
+  f.compactor.settle(f.ctx);
+  f.compactor.reset();
+  await settled();
+  assert.equal(timed.quiet, false);
+  f.compactions.at(-1)!.onError(new Error('Already compacted'));
+  await settled();
+  assert.equal(timed.quiet, false);
+  t.mock.timers.tick(4999);
+  await settled();
+  assert.equal(timed.quiet, false);
+  t.mock.timers.tick(1);
+  await settled();
+  assert.equal(timed.quiet, true);
+  await f.call(request);
+  const refused = watch();
+  f.state.refuseSend = true;
+  f.compactor.settle(f.ctx);
+  f.compactions.at(-1)!.onError(new Error('Already compacted'));
+  await settled();
+  assert.equal(refused.quiet, true);
 });

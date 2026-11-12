@@ -174,6 +174,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     starting = undefined;
     started = undefined;
     done?.();
+    compactor.started();
   });
   pi.on('before_agent_start', event => {
     const options = event.systemPromptOptions;
