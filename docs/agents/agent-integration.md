@@ -30,7 +30,19 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   слово» last, which opens a text input; it returns `{"answer","custom"}`,
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
-  interactive UI.
+  interactive UI. It also registers the tool `mypi_compact` (direct, run
+  sequentially): `key` — the task whose folder takes the summary, `resume` —
+  `/flow <name> <KEY>…` or `/epic <KEY>`, `focus` — what the summary points at; it
+  refuses while `git status --porcelain` of the project's home folder in home is not
+  empty, otherwise records the request and ends the turn (`terminate`). On the next
+  `agent_settled`, after the archive capture, when the session is idle, it runs
+  `ctx.compact` with instructions naming the task folder, the project's entry, the
+  score and the resume command; on success it appends the summary and the token
+  counts to `compactions.md` of the task folder and runs
+  `scripts/pipeline/mp-home-commit <KEY>`; then it sends `/skill:flow …` or
+  `/skill:epic …` as a follow-up — also after «Nothing to compact», «Already
+  compacted» and a failure (the last with a warning). While it compacts, an
+  incoming event batch waits and is injected and acknowledged after it.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
