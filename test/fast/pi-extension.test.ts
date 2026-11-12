@@ -645,6 +645,30 @@ test('pi extension holds an event batch while compacting', async t => {
   assert.deepEqual(acked, [2]);
 });
 
+test('pi extension sends an event delivered again during a compaction once', async t => {
+  const pi = stub();
+  const { run, batches, serve } = sockets(t);
+  install(pi.api, root, serve, run);
+  pi.state.key = 'MP';
+  pi.state.result = (command, args) => command === 'git' || command === 'bash' ? { code: 0, killed: false, stdout: '', stderr: '' }
+    : args[1] === 'task' ? { code: 0, killed: false, stdout: JSON.stringify({ contextDir: 'projects/yokeloop/mypi/tasks/MP-1-one' }), stderr: '' }
+    : args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '', stderr: '' };
+  await pi.start('startup');
+  await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
+  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  const acked: number[][] = [];
+  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { acked.push(ids); });
+  void batches[0]!([{ id: 1, text: 'a' }, { id: 2, text: 'b' }]).then(ids => { acked.push(ids); });
+  await settled();
+  assert.deepEqual(acked, []);
+  pi.compactions[0].onError(new Error('Already compacted'));
+  pi.state.idle = false;
+  await pi.handlers.get('agent_start')!(undefined, pi.ctx);
+  await settled();
+  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
+  assert.deepEqual(acked, [[1], [1, 2]]);
+});
+
 test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
   const literal = (path: string, prefix: string) => {
     const line = readFileSync(join(root, path), 'utf8').split('\n').find(l => l.startsWith(prefix));

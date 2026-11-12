@@ -102,28 +102,43 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   const injected = new Set<number>();
   let parentTurn = false;
   let parentFrom: string | undefined;
+  const sending = new Map<number, Promise<void>>();
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
     const ids = events.map(e => e.id);
-    const fresh = events.filter(e => !injected.has(e.id));
-    if (fresh.length === 0) return ids;
-    await compactor.quiet();
-    const text = fresh.map(e => e.text).join('\n\n');
-    for (const e of fresh) {
-      for (const match of e.text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) {
-        parentTurn = true;
-        parentFrom = match[1];
-      }
+    const waits = [...new Set(events.flatMap(e => sending.get(e.id) ?? []))];
+    const fresh = events.filter(e => !injected.has(e.id) && !sending.has(e.id));
+    if (fresh.length === 0) {
+      if (waits.length === 0) return ids;
+      await Promise.all(waits);
+      return ids.filter(id => injected.has(id));
     }
-    if (starting !== undefined) {
-      await starting;
-      pi.sendUserMessage(text, { deliverAs: 'followUp' });
-    } else if (current?.isIdle()) {
-      const turn = starting = new Promise<void>(resolve => { started = resolve; });
-      pi.sendUserMessage(text, { deliverAs: 'followUp' });
-      await turn;
-    } else pi.sendUserMessage(text, { deliverAs: 'followUp' });
-    for (const e of fresh) injected.add(e.id);
-    return ids;
+    let done: () => void = () => {};
+    const mine = new Promise<void>(resolve => { done = resolve; });
+    for (const e of fresh) sending.set(e.id, mine);
+    try {
+      await compactor.quiet();
+      const text = fresh.map(e => e.text).join('\n\n');
+      for (const e of fresh) {
+        for (const match of e.text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) {
+          parentTurn = true;
+          parentFrom = match[1];
+        }
+      }
+      if (starting !== undefined) {
+        await starting;
+        pi.sendUserMessage(text, { deliverAs: 'followUp' });
+      } else if (current?.isIdle()) {
+        const turn = starting = new Promise<void>(resolve => { started = resolve; });
+        pi.sendUserMessage(text, { deliverAs: 'followUp' });
+        await turn;
+      } else pi.sendUserMessage(text, { deliverAs: 'followUp' });
+      for (const e of fresh) injected.add(e.id);
+    } finally {
+      for (const e of fresh) sending.delete(e.id);
+      done();
+    }
+    await Promise.all(waits);
+    return ids.filter(id => injected.has(id));
   };
   pi.on('session_start', async (event, ctx) => {
     const session = ctx.sessionManager.getSessionId();
