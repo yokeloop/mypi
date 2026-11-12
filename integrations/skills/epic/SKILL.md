@@ -42,9 +42,9 @@ session's working directory). One key.
   write is the lead's.
 - Subtasks: `mise exec -- node dist/src/cli/main.js task create …` through bash.
 - Questions: `mypi_ask` («Questions»).
-- Compaction: the extension tool `mypi_compact` (end of step 1 and of step 4). Call
-  it directly, never from a codemode script, and alone as the last call of the turn;
-  the turn ends there. It refuses while the project's home has uncommitted changes:
+- Compaction: the extension tool `mypi_compact` («Boundary» of step 1 and of
+  step 4). Call it directly, never from a codemode script, and alone as the last
+  call of the turn; the turn ends there. It refuses while the project's home has uncommitted changes:
   commit what it lists and call again. The extension compacts the context after the
   turn, saves the summary to the epic's `compactions.md` and sends
   `/skill:epic <KEY>`; this skill then starts over from Step 0 and continues by
@@ -165,19 +165,25 @@ Rows «1, not started» and «1, under way».
    5. `tools.mcp__derive__read({ short_id, render: "full" })`: a diagram that did not
       render is named in the report and fixed in version 2.
    6. `$BIN/mp-task status <KEY> planning "исследование v1 опубликовано: <url>"`;
-      `$BIN/mp-home-commit <KEY> "<KEY>: research v1"`. Then, when no background
-      subagent run of this chat is active, the knowledge checkpoint: append to
-      `$DIR/knowledge.md` a section `## <YYYY-MM-DD HH:MM> — перед сжатием
-      (исследование v1)` with the line `executor run id: <the newest executor run
-      id>`, the scout's facts and forks and the reviewer's findings not carried
-      into `research.md` (link the reports, never copy them), pitfalls and open
-      points; facts true beyond the epic → the project's entry or its branch with
-      `context commit` (as «Knowledge» of the Pi `/flow` skill says); the
-      decisions on findings stay only in their table; then `$BIN/mp-home-commit
-      <KEY> "<KEY>: knowledge v1"` and `mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v1 published <url>; next step 2" })`,
-      and end the turn. A refusal: commit what it lists and call again; a second
-      refusal → one `mypi_ask` with the literal error, options `Остановить`,
-      `Продолжить без сжатия`. A background run active → go on with step 2.
+      `$BIN/mp-home-commit <KEY> "<KEY>: research v1"`, in a bash call of its own:
+      never chain it with a command of step 2.
+6. **Boundary.** Before any command of step 2: do the knowledge checkpoint, commit
+   home, call `mypi_compact` and end the turn:
+   1. The knowledge checkpoint: append to `$DIR/knowledge.md` a section
+      `## <YYYY-MM-DD HH:MM> — перед сжатием (исследование v1)` with the line
+      `executor run id: <the newest executor run id>`, the scout's facts and forks and
+      the reviewer's findings not carried into `research.md` (link the reports, never
+      copy them), pitfalls and open points; facts true beyond the epic → the project's
+      entry or its branch with `context commit` (as «Knowledge» of the Pi `/flow` skill
+      says); the decisions on findings stay only in their table.
+   2. `$BIN/mp-home-commit <KEY> "<KEY>: knowledge v1"`.
+   3. `mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v1 published <url>; next step 2" })`
+      — the last call of the turn; end the turn.
+
+   A refusal: commit what it lists and call again; a second refusal → one `mypi_ask`
+   with the literal error, options `Остановить`, `Продолжить без сжатия`. Skip this
+   only when `subagent({ action: "status" })` lists a running run of this chat — then
+   go on with step 2.
 
 ## Step 2 — independent check
 
@@ -236,19 +242,26 @@ defect, options `Остановить`, `Опубликовать как ест�
 `-F message="v2: независимая проверка — <N> находок, решения инженера в разделе «Решения по независимой проверке»"`;
 update `research-derive.json` (the version from the answer, `published_at`);
 `tools.mcp__derive__read({ short_id, render: "full" })`. No review of version 2.
-`$BIN/mp-home-commit <KEY> "<KEY>: research v2"`. Then, when no background subagent
-run of this chat is active, the knowledge checkpoint: append to `$DIR/knowledge.md`
-a section `## <YYYY-MM-DD HH:MM> — перед сжатием (исследование v2)` with the line
-`executor run id: <the newest executor run id>`, the scout's facts and forks and the
-reviewer's findings not carried into `research.md` (link the reports, never copy
-them), pitfalls and open points; facts true beyond the epic → the project's entry or
-its branch with `context commit` (as «Knowledge» of the Pi `/flow` skill says); the
-decisions on findings stay only in their table; then `$BIN/mp-home-commit <KEY>
-"<KEY>: knowledge v2"` and
-`mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v2 published <url>; next step 5" })`,
-and end the turn. A refusal: commit what it lists and call again; a second refusal →
-one `mypi_ask` with the literal error, options `Остановить`, `Продолжить без
-сжатия`. A background run active → go on with step 5.
+`$BIN/mp-home-commit <KEY> "<KEY>: research v2"`, in a bash call of its own: never
+chain it with a command of step 5.
+
+**Boundary.** Before any command of step 5: do the knowledge checkpoint, commit
+home, call `mypi_compact` and end the turn:
+1. The knowledge checkpoint: append to `$DIR/knowledge.md` a section
+   `## <YYYY-MM-DD HH:MM> — перед сжатием (исследование v2)` with the line
+   `executor run id: <the newest executor run id>`, the scout's facts and forks and
+   the reviewer's findings not carried into `research.md` (link the reports, never
+   copy them), pitfalls and open points; facts true beyond the epic → the project's
+   entry or its branch with `context commit` (as «Knowledge» of the Pi `/flow` skill
+   says); the decisions on findings stay only in their table.
+2. `$BIN/mp-home-commit <KEY> "<KEY>: knowledge v2"`.
+3. `mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v2 published <url>; next step 5" })`
+   — the last call of the turn; end the turn.
+
+A refusal: commit what it lists and call again; a second refusal → one `mypi_ask`
+with the literal error, options `Остановить`, `Продолжить без сжатия`. Skip this
+only when `subagent({ action: "status" })` lists a running run of this chat — then
+go on with step 5.
 
 ## Step 5 — subtasks
 
