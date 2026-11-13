@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, relative } from 'node:path';
 
 export interface Block { type: string; text?: string; id?: string; name?: string; arguments?: unknown }
 export interface Message { role: string; content?: string | Block[]; toolCallId?: string; toolName?: string; timestamp?: number }
@@ -84,9 +85,9 @@ export function lastSkill(branch: SessionEntry[]): Skill | undefined {
     const entry = branch[i]!;
     if (entry.type !== 'message' || entry.message?.role !== 'user') continue;
     const match = SKILL.exec(text(entry.message.content));
-    if (match === null || (match[1] !== 'flow' && match[1] !== 'epic')) continue;
+    if (match === null) continue;
     const args = (match[4] ?? '').trim();
-    if (args === '') continue;
+    if ((match[1] !== 'flow' && match[1] !== 'epic') || args === '') return undefined;
     return { id: entry.id, name: match[1], location: match[2]!, args };
   }
   return undefined;
@@ -96,9 +97,9 @@ export function resumeBlock(skill: Skill, projectHome: string | undefined): stri
   const ph = projectHome ?? '<project home>';
   if (skill.name === 'flow') {
     const name = skill.args.split(/\s+/)[0];
-    return `[mypi: this session's context was compacted during the run /flow ${skill.args}. Before the next step read the skill file ${skill.location} again, then these files of mypi home, and continue the run from the state they record: the flow score ${ph}/flows/${name}.md, the flow's knowledge ${ph}/flows/${name}/knowledge.md, knowledge.md in the folder of every key of the score ($BIN/mp-task dir <KEY> prints it) and the project's entry ${ph}/INDEX.md.]`;
+    return `[mypi: this session's context was compacted during the run /flow ${skill.args}. If that run is already finished, ignore this note. Before the next step read the skill file ${skill.location} again, then these files of mypi home, and continue the run from the state they record: the flow score ${ph}/flows/${name}.md, the flow's knowledge ${ph}/flows/${name}/knowledge.md, knowledge.md in the folder of every key of the score ($BIN/mp-task dir <KEY> prints it) and the project's entry ${ph}/INDEX.md.]`;
   }
-  return `[mypi: this session's context was compacted during the run /epic ${skill.args}. Before the next step read the skill file ${skill.location} again, then these files of mypi home, and continue the run from the state they record: knowledge.md in the epic's folder ($BIN/mp-task dir ${skill.args} prints it) and the project's entry ${ph}/INDEX.md.]`;
+  return `[mypi: this session's context was compacted during the run /epic ${skill.args}. If that run is already finished, ignore this note. Before the next step read the skill file ${skill.location} again, then these files of mypi home, and continue the run from the state they record: knowledge.md in the epic's folder ($BIN/mp-task dir ${skill.args} prints it) and the project's entry ${ph}/INDEX.md.]`;
 }
 
 export function createPrune(exec: Exec, paths: { root: string; cli: string; home: string }, percent: number,
@@ -119,6 +120,26 @@ export function createPrune(exec: Exec, paths: { root: string; cli: string; home
       return undefined;
     }
   };
+  const done = new Set<string>();
+  const pending = new Set<string>();
+  const finished = async (skill: Skill, projectHome: string | undefined): Promise<boolean> => {
+    if (projectHome === undefined) return false;
+    const first = skill.args.split(/\s+/)[0]!;
+    if (skill.name === 'flow') {
+      try {
+        return readFileSync(join(projectHome, 'flows', first + '.md'), 'utf8').split('\n').some(line => line.startsWith('- Релиз:'));
+      } catch {
+        return false;
+      }
+    }
+    try {
+      const result = await exec('node', [paths.cli, 'task', 'list', '--project', relative(join(paths.home, 'projects'), projectHome)], { cwd: paths.root, timeout: 5000 });
+      if (result.code !== 0 || result.killed) return false;
+      return (JSON.parse(result.stdout) as { parent?: unknown }[]).some(row => row.parent === first);
+    } catch {
+      return false;
+    }
+  };
   return {
     turnEnd(event, ctx) {
       const usage = ctx.getContextUsage();
@@ -134,7 +155,17 @@ export function createPrune(exec: Exec, paths: { root: string; cli: string; home
       const i = event.messages.map(message => message.role).lastIndexOf('compactionSummary');
       if (i === -1) return undefined;
       if (!homes.has(skill.id)) homes.set(skill.id, await projectHome(skill));
-      const block = { role: 'custom', customType: 'mypi-resume', content: resumeBlock(skill, homes.get(skill.id)), display: false,
+      const home = homes.get(skill.id);
+      if (done.has(skill.id)) return undefined;
+      const point = skill.id + '\n' + branch.filter(entry => entry.type === 'compaction').at(-1)!.id;
+      if (!pending.has(point)) {
+        if (await finished(skill, home)) {
+          done.add(skill.id);
+          return undefined;
+        }
+        pending.add(point);
+      }
+      const block = { role: 'custom', customType: 'mypi-resume', content: resumeBlock(skill, home), display: false,
         timestamp: event.messages[i]!.timestamp ?? 0 };
       return { messages: [...event.messages.slice(0, i + 1), block, ...event.messages.slice(i + 1)] };
     },
