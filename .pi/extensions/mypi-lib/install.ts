@@ -2,6 +2,8 @@ import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from '
 import { join } from 'node:path';
 import { registerAsk } from './ask.js';
 import type { AskTool } from './ask.js';
+import { createPrune, threshold } from './prune.js';
+import type { ContextEvent, Draft, Message, SessionEntry, TurnEndEvent } from './prune.js';
 import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
@@ -13,7 +15,9 @@ interface ExtensionContext {
     onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void;
   };
   isIdle(): boolean;
-  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null };
+  getContextUsage(): { percent: number | null } | undefined;
+  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null;
+    getBranch(): SessionEntry[] };
 }
 interface McpServer {
   command: string; args: string[]; cwd: string; env: Record<string, string>;
@@ -32,6 +36,8 @@ export interface ExtensionAPI {
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
+  on(name: 'turn_end', handler: (event: TurnEndEvent, ctx: ExtensionContext) => { entries: Draft[] } | undefined): void;
+  on(name: 'context', handler: (event: ContextEvent, ctx: ExtensionContext) => Promise<{ messages: Message[] } | undefined>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
   registerTool(tool: AskTool): void;
 }
@@ -58,10 +64,11 @@ function clip(text: string): string {
 }
 
 export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid,
-  runCli: RunCli = unavailable, now: () => number = Date.now): void {
+  runCli: RunCli = unavailable, now: () => number = Date.now, prunePercent: string | undefined = undefined): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
+  const prune = createPrune((command, args, options) => pi.exec(command, args, options), { root, cli, home: join(root, 'home') }, threshold(prunePercent), () => key);
   const register = async (ctx: ExtensionContext, session: string, fork: boolean, socket?: string): Promise<string | undefined> => {
     const name = ctx.sessionManager.getSessionName();
     try {
@@ -194,6 +201,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     if (file) await pi.exec('node', [cli, 'archive', 'capture', '--agent', 'pi', '--file', file], { cwd: root, timeout: 5000 })
       .catch(() => undefined);
   });
+  pi.on('turn_end', (event, ctx) => prune.turnEnd(event, ctx));
+  pi.on('context', (event, ctx) => prune.context(event, ctx));
   pi.on('ui_prompt_start', async event => {
     if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(parentFrom === undefined ? [] : ['--to', parentFrom]),
       '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
