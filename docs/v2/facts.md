@@ -19,7 +19,7 @@ documentation. Session ids in the excerpts are stand ids.
 | 6 | Does `claude agents --json` see sessions started in Herdr tabs? | yes | [Fact 6](#fact-6-claude-agents---json-and-herdr-tabs) | — |
 | 7 | What opens a Claude turn in the transcript, and how does a parent's socket message look there? | how: a `type:"user"` entry with a string `turnOrigin` (`human`, `peer`, `task_notification`); a socket message is `turnOrigin:"peer"` and starts with `Another Claude session sent a message:\n` | [Fact 7](#fact-7-what-opens-a-claude-turn-in-the-transcript) | no mark — no Event |
 | 8 | Does Pi keep the mypi context after /compact and /new? | how: `/compact` fires no `session_start` and `mypi_context` stays; `/new` fires `session_start` with `reason: new` and a new session id, the warmup runs again, and the key stays `ACME`, pointing at the new native id | [Fact 8](#fact-8-pi-context-after-compact-and-new) | — |
-| 9 | How do Pi's `context_edit` drafts and its auto-compaction treat a pruned tool result? | how: a `turn_end` draft is written to the session file and changes only the result's content from the next model call; compaction summarises the edited projection; the `context` hook runs after a mid-run compaction | [Fact 9](#fact-9-pi-context-edits-and-compaction) | — |
+| 9 | How do Pi's `context_edit` drafts and its auto-compaction treat a pruned tool result? | how: a `turn_end` draft is written to the session file and changes only the result's content from the next model call; compaction summarises the edited projection | [Fact 9](#fact-9-pi-context-edits-and-compaction) | — |
 
 ## Stand
 
@@ -770,8 +770,7 @@ Fallback: —. Used by MP-105.
 ### Fact 9: Pi context edits and compaction
 
 Question: how do Pi's `context_edit` drafts and its auto-compaction treat a tool
-result that the mypi extension prunes, and where can the extension add text
-after a compaction? Read from Pi 1.5.2 (MP-133); `S:<n>` is a line of
+result that the mypi extension prunes? Read from Pi 1.5.2 (MP-133); `S:<n>` is a line of
 `strings -n 8 ~/.local/share/mise/installs/pi/1.5.2/pi/pi`.
 
 Answer:
@@ -788,17 +787,19 @@ Answer:
   from `event.context.contextEntries`.
 - The replacement changes only `content` (`{ ...message, content }`): `toolCallId`,
   `toolName` and `isError` stay, call/result pairs stay whole; a string becomes
-  one text block (S:410590-410600).
+  one text block (`projectContextEntry`, S:410567-410578).
 - The drafts are written to the session file (`_applyBoundaryDrafts` →
-  `appendContextEdit`, S:453565-453585), `agent.state.messages` is updated
-  (S:453614-453618), and every request is built from `buildSessionProjection()`
-  (S:453455-453470): an edit takes effect from the next model call of the same run.
+  `appendContextEdit`, S:453565-453585), `agent.state.messages` is refreshed
+  from the new projection (`_commitBoundaryDrafts` → `_refreshFinalizedContext`,
+  S:453610-453612, S:453558-453563), and every request is built from
+  `buildSessionProjection()` (S:453455-453470): an edit takes effect from the next model call of the same run.
 - `turn_end` fires on every `finishTurn`, that is on every model reply, tool calls
   and mid-run replies included (S:453519-453528).
 - Compaction summarises the projection with the edits (S:448091-448127); its cut
   point counts projected tokens, and edits of already compacted entries are
-  harmless no-ops (S:410606-410611). The threshold and `getContextUsage` count
-  chars/4 of the projection after an edit (S:447847-447867, S:454793-454796):
+  harmless no-ops: `buildSessionProjection` builds its edits map only from the
+  entries the compaction kept (S:410579-410590). The threshold and
+  `getContextUsage` count chars/4 of the projection after an edit (S:447847-447867, S:454793-454796):
   pruning defers the built-in compaction.
 - Prompt caches: the Codex websocket sends a delta with `previous_response_id` only
   when the new input starts with the previous input and output, else a full
@@ -816,9 +817,12 @@ Answer:
 - `ctx.getContextUsage()` returns `{ tokens, contextWindow, percent }`; right after
   a compaction, until a new reply with usage, `tokens` and `percent` are `null`
   (S:455524-455545).
+- Observed on the MP-133 stand 3: Pi 1.5.2 loads the stand probe `zz-probe.ts`
+  of the engine's `.pi/extensions/` before `mypi.ts`.
 
 Reproduce: the lines above from `strings -n 8` of the Pi 1.5.2 binary and Pi's
 `docs/`. The extension code is `.pi/extensions/mypi-lib/prune.ts`, wired in the
-`turn_end` and `context` handlers of `.pi/extensions/mypi-lib/install.ts`.
+`turn_end` handler of `.pi/extensions/mypi-lib/install.ts`; mypi adds no text
+after a compaction.
 
 Fallback: —. Used by MP-133.

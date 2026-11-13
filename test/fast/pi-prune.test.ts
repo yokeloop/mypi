@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createPrune, marker, pruneDrafts, resumeBlock, threshold } from '../../.pi/extensions/mypi-lib/prune.js';
-import type { Draft, Message, SessionEntry, TurnEndEvent } from '../../.pi/extensions/mypi-lib/prune.js';
+import { createPrune, marker, pruneDrafts, threshold } from '../../.pi/extensions/mypi-lib/prune.js';
+import type { Draft, SessionEntry, TurnEndEvent } from '../../.pi/extensions/mypi-lib/prune.js';
 
 type Item = { sourceEntry: SessionEntry; messages: unknown[] };
 
@@ -13,20 +13,7 @@ const result = (id: string, toolCallId: string, toolName: string, size: number):
 const replies = (count: number, from = 0) => Array.from({ length: count }, (_, i) => assistant(`a${from + i}`));
 const event = (contextEntries: Item[], entries: Draft[] = []): TurnEndEvent => ({ entries, context: { contextEntries } });
 const tail = ' was removed from the context to save space. What the run learned is in mypi home: the task folder\'s knowledge.md, plan.md and reports, and the project\'s INDEX.md. If you need this output, run the call again.]';
-const paths = { root: '/r', cli: '/r/dist/src/cli/main.js', home: '/h' };
-const projects = JSON.stringify({ projects: [{ id: 1, org: 'fx', slug: 'fixture', code: 'FX', checkoutPath: '/c', repository: null }] });
-
-function fakeExec(code = 0) {
-  const calls: unknown[][] = [];
-  const exec = async (command: string, args: string[], options: { cwd: string; timeout: number }) => {
-    calls.push([command, args, options]);
-    return { code, killed: false, stderr: '', stdout: code === 0 ? projects : '' };
-  };
-  return { calls, exec };
-}
-
-const ctx = (percent: number | null | undefined, branch: SessionEntry[] = []) =>
-  ({ getContextUsage: () => percent === undefined ? undefined : { percent }, sessionManager: { getBranch: () => branch } });
+const ctx = (percent: number | null | undefined) => ({ getContextUsage: () => percent === undefined ? undefined : { percent } });
 
 test('pi prune reads the threshold', () => {
   for (const value of [undefined, '', 'x', '0', '150']) assert.equal(threshold(value), 50);
@@ -35,7 +22,7 @@ test('pi prune reads the threshold', () => {
 });
 
 test('pi prune edits nothing below the threshold or without a usage', () => {
-  const prune = createPrune(fakeExec().exec, paths, 50, () => undefined);
+  const prune = createPrune(50);
   const items = [assistant('c', [{ id: 'k1', name: 'read', arguments: { path: '/x' } }]), result('r1', 'k1', 'read', 3000), ...replies(10)];
   for (const percent of [undefined, null, 49]) assert.equal(prune.turnEnd(event(items), ctx(percent)), undefined);
   assert.equal(prune.turnEnd(event(items), ctx(50))!.entries.length, 1);
@@ -57,7 +44,7 @@ test('pi prune replaces old large results of repeatable tools', () => {
 });
 
 test('pi prune keeps the proposals before it and skips edited targets', () => {
-  const prune = createPrune(fakeExec().exec, paths, 50, () => undefined);
+  const prune = createPrune(50);
   const calls = ['a', 'b', 'c'].map(id => ({ id: `k${id}`, name: 'bash', arguments: { id } }));
   const items = [assistant('c', calls), result('A', 'ka', 'bash', 2500), result('B', 'kb', 'bash', 2500), result('C', 'kc', 'bash', 2500),
     { sourceEntry: { type: 'context_edit', id: 'e1', targetId: 'B' }, messages: [] }, ...replies(10)];
@@ -73,51 +60,4 @@ test('pi prune clips the arguments and names a call missing from the context', (
   assert.equal(marker('read', long, 2500), `[mypi: the read result of ${json.slice(0, 300)}… (2500 chars)${tail}`);
   const drafts = pruneDrafts(event([result('r', 'gone', 'bash', 2500), ...replies(10)]));
   assert.equal(drafts[0]!.replacement!.content[0]!.text, `[mypi: the bash result (2500 chars)${tail}`);
-});
-
-const skillEntry = (id: string, name: string, args: string): SessionEntry =>
-  ({ type: 'message', id, message: { role: 'user', content: `<skill name="${name}" location="/e/integrations/skills/${name}/SKILL.md">\nbody\n</skill>\n\n${args}` } });
-const compaction: SessionEntry = { type: 'compaction', id: 'cp' };
-const summary: Message = { role: 'compactionSummary', timestamp: 7 };
-const next: Message = { role: 'user', content: 'go on' };
-
-test('pi prune adds the mypi block after a compaction of a flow run', async () => {
-  const { calls, exec } = fakeExec();
-  const prune = createPrune(exec, paths, 50, () => undefined);
-  const branch = [skillEntry('s1', 'flow', 'fx FX-1 FX-2'), compaction];
-  const output = await prune.context({ messages: [summary, next] }, ctx(10, branch));
-  const block = output!.messages[1] as unknown as Record<string, unknown>;
-  assert.deepEqual(output!.messages[0], summary);
-  assert.deepEqual(output!.messages[2], next);
-  assert.equal(block['role'], 'custom');
-  assert.equal(block['customType'], 'mypi-resume');
-  assert.equal(block['display'], false);
-  assert.equal(block['timestamp'], 7);
-  const expected = resumeBlock({ id: 's1', name: 'flow', location: '/e/integrations/skills/flow/SKILL.md', args: 'fx FX-1 FX-2' }, '/h/projects/fx/fixture');
-  assert.equal(block['content'], expected);
-  for (const part of ['/h/projects/fx/fixture/flows/fx.md', '/h/projects/fx/fixture/flows/fx/knowledge.md', '/h/projects/fx/fixture/INDEX.md', '/e/integrations/skills/flow/SKILL.md'])
-    assert.ok(expected.includes(part), part);
-  assert.deepEqual(calls, [['node', ['/r/dist/src/cli/main.js', 'project', 'list'], { cwd: '/r', timeout: 5000 }]]);
-  await prune.context({ messages: [summary, next] }, ctx(10, branch));
-  assert.equal(calls.length, 1);
-});
-
-test('pi prune adds no block without a compaction, a flow or epic skill or a summary', async () => {
-  const { calls, exec } = fakeExec();
-  const prune = createPrune(exec, paths, 50, () => 'FX');
-  assert.equal(await prune.context({ messages: [summary, next] }, ctx(10, [skillEntry('s1', 'flow', 'fx FX-1')])), undefined);
-  assert.equal(await prune.context({ messages: [summary, next] }, ctx(10, [skillEntry('s1', 'inbox', 'FX'), compaction])), undefined);
-  assert.equal(await prune.context({ messages: [next] }, ctx(10, [skillEntry('s1', 'flow', 'fx FX-1'), compaction])), undefined);
-  assert.deepEqual(calls, []);
-});
-
-test('pi prune names the epic folder and falls back to the project home placeholder', async () => {
-  const failing = fakeExec(1);
-  const epic = await createPrune(failing.exec, paths, 50, () => undefined).context({ messages: [summary] }, ctx(10, [skillEntry('s1', 'epic', 'FX-3'), compaction]));
-  const text = (epic!.messages[1] as unknown as { content: string }).content;
-  assert.ok(text.includes('$BIN/mp-task dir FX-3'));
-  assert.ok(text.includes('<project home>/INDEX.md'));
-  const scoped = fakeExec();
-  const flow = await createPrune(scoped.exec, paths, 50, () => 'FX').context({ messages: [summary] }, ctx(10, [skillEntry('s2', 'flow', 'fx'), compaction]));
-  assert.ok((flow!.messages[1] as unknown as { content: string }).content.includes('/h/projects/fx/fixture/flows/fx.md'));
 });

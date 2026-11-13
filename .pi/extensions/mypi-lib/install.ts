@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { registerAsk } from './ask.js';
 import type { AskTool } from './ask.js';
 import { createPrune, threshold } from './prune.js';
-import type { ContextEvent, Draft, Message, SessionEntry, TurnEndEvent } from './prune.js';
+import type { Draft, TurnEndEvent } from './prune.js';
 import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
@@ -16,8 +16,7 @@ interface ExtensionContext {
   };
   isIdle(): boolean;
   getContextUsage(): { percent: number | null } | undefined;
-  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null;
-    getBranch(): SessionEntry[] };
+  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null };
 }
 interface McpServer {
   command: string; args: string[]; cwd: string; env: Record<string, string>;
@@ -37,7 +36,6 @@ export interface ExtensionAPI {
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'turn_end', handler: (event: TurnEndEvent, ctx: ExtensionContext) => { entries: Draft[] } | undefined): void;
-  on(name: 'context', handler: (event: ContextEvent, ctx: ExtensionContext) => Promise<{ messages: Message[] } | undefined>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
   registerTool(tool: AskTool): void;
 }
@@ -68,7 +66,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
-  const prune = createPrune((command, args, options) => pi.exec(command, args, options), { root, cli, home: join(root, 'home') }, threshold(prunePercent), () => key);
+  const prune = createPrune(threshold(prunePercent));
   const register = async (ctx: ExtensionContext, session: string, fork: boolean, socket?: string): Promise<string | undefined> => {
     const name = ctx.sessionManager.getSessionName();
     try {
@@ -202,7 +200,6 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       .catch(() => undefined);
   });
   pi.on('turn_end', (event, ctx) => prune.turnEnd(event, ctx));
-  pi.on('context', (event, ctx) => prune.context(event, ctx));
   pi.on('ui_prompt_start', async event => {
     if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(parentFrom === undefined ? [] : ['--to', parentFrom]),
       '--waiting', ...(event.title ? ['--message=' + event.title] : [])],

@@ -41,15 +41,8 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `[mypi: the <tool> result of <arguments, 300 characters at most> (<N> chars) was
   removed from the context …]`, oldest first. Pi writes the drafts to the session
   file; the call ids and tool names stay, so call/result pairs stay whole. No
-  usage or `percent: null` (right after a compaction) edits nothing. On every
-  `context` call, when the branch (`ctx.sessionManager.getBranch()`) has a
-  `compaction` entry and a `/skill:flow` or `/skill:epic` invocation with
-  arguments, it inserts after the `compactionSummary` message a hidden custom
-  message (`customType: mypi-resume`) naming that skill's file, its arguments,
-  the flow score, the flow's and the tasks' `knowledge.md` and the project's
-  `INDEX.md` (the project's home from `mypi project list` by the code of the
-  first key, else of the session key; resolved once per invocation), and telling
-  the model to read them again before the next step.
+  usage or `percent: null` (right after a compaction) edits nothing. Pi's
+  built-in auto-compaction is not configured or changed by mypi.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
