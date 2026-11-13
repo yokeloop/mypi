@@ -787,17 +787,19 @@ Answer:
   from `event.context.contextEntries`.
 - The replacement changes only `content` (`{ ...message, content }`): `toolCallId`,
   `toolName` and `isError` stay, call/result pairs stay whole; a string becomes
-  one text block (S:410590-410600).
+  one text block (`projectContextEntry`, S:410567-410578).
 - The drafts are written to the session file (`_applyBoundaryDrafts` →
-  `appendContextEdit`, S:453565-453585), `agent.state.messages` is updated
-  (S:453614-453618), and every request is built from `buildSessionProjection()`
-  (S:453455-453470): an edit takes effect from the next model call of the same run.
+  `appendContextEdit`, S:453565-453585), `agent.state.messages` is refreshed
+  from the new projection (`_commitBoundaryDrafts` → `_refreshFinalizedContext`,
+  S:453610-453612, S:453558-453563), and every request is built from
+  `buildSessionProjection()` (S:453455-453470): an edit takes effect from the next model call of the same run.
 - `turn_end` fires on every `finishTurn`, that is on every model reply, tool calls
   and mid-run replies included (S:453519-453528).
 - Compaction summarises the projection with the edits (S:448091-448127); its cut
   point counts projected tokens, and edits of already compacted entries are
-  harmless no-ops (S:410606-410611). The threshold and `getContextUsage` count
-  chars/4 of the projection after an edit (S:447847-447867, S:454793-454796):
+  harmless no-ops: `buildSessionProjection` builds its edits map only from the
+  entries the compaction kept (S:410579-410590). The threshold and
+  `getContextUsage` count chars/4 of the projection after an edit (S:447847-447867, S:454793-454796):
   pruning defers the built-in compaction.
 - Prompt caches: the Codex websocket sends a delta with `previous_response_id` only
   when the new input starts with the previous input and output, else a full
