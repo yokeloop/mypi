@@ -42,13 +42,6 @@ session's working directory). One key.
   write is the lead's.
 - Subtasks: `mise exec -- node dist/src/cli/main.js task create …` through bash.
 - Questions: `mypi_ask` («Questions»).
-- Compaction: the extension tool `mypi_compact` («Boundary» of step 1 and of
-  step 4). Call it directly, never from a codemode script, and alone as the last
-  call of the turn; the turn ends there. It refuses while the project's home has uncommitted changes:
-  commit what it lists and call again. The extension compacts the context after the
-  turn, saves the summary to the epic's `compactions.md` and sends
-  `/skill:epic <KEY>`; this skill then starts over from Step 0 and continues by
-  «State».
 - Time: every `<YYYY-MM-DD HH:MM>` of this skill is the output of
   `date '+%Y-%m-%d %H:%M'`, every `<YYYY-MM-DD>` the output of `date +%F`, and
   `published_at` the output of `date -Iseconds`, run through bash right before the
@@ -165,25 +158,7 @@ Rows «1, not started» and «1, under way».
    5. `tools.mcp__derive__read({ short_id, render: "full" })`: a diagram that did not
       render is named in the report and fixed in version 2.
    6. `$BIN/mp-task status <KEY> planning "исследование v1 опубликовано: <url>"`;
-      `$BIN/mp-home-commit <KEY> "<KEY>: research v1"`, in a bash call of its own:
-      never chain it with a command of step 2.
-6. **Boundary.** Before any command of step 2: do the knowledge checkpoint, commit
-   home, call `mypi_compact` and end the turn:
-   1. The knowledge checkpoint: append to `$DIR/knowledge.md` a section
-      `## <YYYY-MM-DD HH:MM> — перед сжатием (исследование v1)` with the line
-      `executor run id: <the newest executor run id>`, the scout's facts and forks and
-      the reviewer's findings not carried into `research.md` (link the reports, never
-      copy them), pitfalls and open points; facts true beyond the epic → the project's
-      entry or its branch with `context commit` (as «Knowledge» of the Pi `/flow` skill
-      says); the decisions on findings stay only in their table.
-   2. `$BIN/mp-home-commit <KEY> "<KEY>: knowledge v1"`.
-   3. `mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v1 published <url>; next step 2" })`
-      — the last call of the turn; end the turn.
-
-   A refusal: commit what it lists and call again; a second refusal → one `mypi_ask`
-   with the literal error, options `Остановить`, `Продолжить без сжатия`. Skip this
-   only when `subagent({ action: "status" })` lists a running run of this chat — then
-   go on with step 2.
+      `$BIN/mp-home-commit <KEY> "<KEY>: research v1"`.
 
 ## Step 2 — independent check
 
@@ -242,26 +217,7 @@ defect, options `Остановить`, `Опубликовать как ест�
 `-F message="v2: независимая проверка — <N> находок, решения инженера в разделе «Решения по независимой проверке»"`;
 update `research-derive.json` (the version from the answer, `published_at`);
 `tools.mcp__derive__read({ short_id, render: "full" })`. No review of version 2.
-`$BIN/mp-home-commit <KEY> "<KEY>: research v2"`, in a bash call of its own: never
-chain it with a command of step 5.
-
-**Boundary.** Before any command of step 5: do the knowledge checkpoint, commit
-home, call `mypi_compact` and end the turn:
-1. The knowledge checkpoint: append to `$DIR/knowledge.md` a section
-   `## <YYYY-MM-DD HH:MM> — перед сжатием (исследование v2)` with the line
-   `executor run id: <the newest executor run id>`, the scout's facts and forks and
-   the reviewer's findings not carried into `research.md` (link the reports, never
-   copy them), pitfalls and open points; facts true beyond the epic → the project's
-   entry or its branch with `context commit` (as «Knowledge» of the Pi `/flow` skill
-   says); the decisions on findings stay only in their table.
-2. `$BIN/mp-home-commit <KEY> "<KEY>: knowledge v2"`.
-3. `mypi_compact({ key: "<KEY>", resume: "/epic <KEY>", focus: "<KEY>: research v2 published <url>; next step 5" })`
-   — the last call of the turn; end the turn.
-
-A refusal: commit what it lists and call again; a second refusal → one `mypi_ask`
-with the literal error, options `Остановить`, `Продолжить без сжатия`. Skip this
-only when `subagent({ action: "status" })` lists a running run of this chat — then
-go on with step 5.
+`$BIN/mp-home-commit <KEY> "<KEY>: research v2"`.
 
 ## Step 5 — subtasks
 
@@ -314,6 +270,29 @@ Row 5 (`V` ≥ 2, no subtasks). `<name>` is the output of `$BIN/mp-task slug <KE
    «Завести» → the report: the research URL, the number of findings and decisions,
    the subtask keys in order, the fallbacks of «Tools» and
    `следующий шаг — /flow <name> <KEY>, набираете вы; /ship — ответ «Одобрить» этого потока`.
+
+## Knowledge
+
+Every `$BIN/mp-home-commit` of this skill ends a stage, and the knowledge checkpoint
+comes right before each one, except the commit after a cancelled answer
+(«Questions»). Steps 1.2 (the scout answered), 1.3 (the executor
+answered) and 1.4 (the fixes are checked) end with a checkpoint followed by
+`$BIN/mp-home-commit <KEY> "<KEY>: knowledge"`. The extension prunes old tool
+results from the context and Pi compacts it at its threshold at any moment:
+what is not written by the end of the stage is lost.
+
+The checkpoint appends to `$DIR/knowledge.md` a section `## <YYYY-MM-DD
+HH:MM> — <the message of the commit that follows>` with what the lead learned
+during the stage and no file of the folder holds yet: the line `executor run
+id: <the newest executor run id>` whenever the stage produced one, the scout's
+facts and forks and the reviewer's findings not carried into `research.md`
+(link the reports, never copy them), pitfalls (the failed command and the form
+that worked) and open points; nothing new — the line `Новых знаний нет.`. Facts
+true beyond the epic → the project's entry `<project home>/INDEX.md` or the
+branch it links for that topic, committed with `mise exec -- node
+dist/src/cli/main.js context commit <paths> --message "<KEY>: knowledge"` from
+the engine root before that `mp-home-commit`. The decisions on findings stay
+only in their table.
 
 ## Questions
 

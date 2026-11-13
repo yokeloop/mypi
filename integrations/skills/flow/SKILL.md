@@ -43,13 +43,6 @@ session's working directory).
   `curl`. Roles have no MCP: every derive call and every mypi write is the lead's.
 - GitHub: `gh` through bash, for the PR, its checks and its merge.
 - Questions: `mypi_ask` («Questions»).
-- Compaction: the extension tool `mypi_compact` (step 10 of «Execution of the key»).
-  Call it directly, never from a codemode script, and alone as the last call of the
-  turn; the turn ends there. It refuses while the project's home has uncommitted
-  changes: commit what it lists and call again. The extension compacts the context
-  after the turn, saves the summary to the key's `compactions.md` and sends
-  `/skill:flow <args>`; this skill then starts over from Step 0 and continues by the
-  score, as after a restart.
 - Time: every `<YYYY-MM-DD HH:MM>` and `<YYYY-MM-DD>` of this skill is the output of
   `date '+%Y-%m-%d %H:%M'` (or `date +%F`) run through bash right before the write
   that carries it; never a time typed by hand or guessed.
@@ -129,9 +122,10 @@ status in the question, options `Остановить и ждать`, `Прод�
 second answer is recorded in the key's `progress.md`, as `/do --force` records it.
 
 On resume the order of the score stands: print it with the stage of each key
-(«Per key»), no new announcement. Then read `knowledge.md` of every ticked key of
-the score and the project's entry `<project home>/INDEX.md` with the branches it
-links that concern the run, before the next key.
+(«Per key»), no new announcement. Then read `knowledge.md` of every key of the score
+that has one, `<project home>/flows/<name>/knowledge.md` when it exists, and the
+project's entry `<project home>/INDEX.md` with the branches it links that concern
+the run, before the next key.
 
 ## Flow branch
 
@@ -192,15 +186,16 @@ per key the SHA `git -C <base clone> rev-parse origin/flow/<name>` and append
 that key. `solvable: false` is one `mypi_ask` with `missing` in the question,
 options `Остановить (blocked)`, `Остановить`: the first sets
 `$BIN/mp-task status <KEY> blocked "в потоке <name>: <missing>"`, both stop the run.
-Questions and plans still go one key at a time.
+Questions and plans still go one key at a time. When every scout has answered: the
+knowledge checkpoint («Knowledge»), then `$BIN/mp-home-commit <CODE> "flow <name>:
+reconnaissance"`.
 
 ## Per key, in the announced order
 
 Strictly one key at a time. For each key:
 
 1. Skip if the key's line in the score is ticked (`- [x]`), or if the key is the
-   epic («Subtasks»). When a key was ticked in this turn without step 10 of
-   «Execution of the key», do that step 10 first.
+   epic («Subtasks»).
 2. **Stage.** Decide by the task folder and the score, without asking:
    - the line's last mark is ` — замечания` → the rework of step 6 («With remarks»)
      with the remarks of the last `замечания приёмки` lines of the key's
@@ -411,28 +406,8 @@ memory or made up.
 9. **Record.** Tick the key's line (`- [ ]` → `- [x]`) and append ` — смержено
    <flow merge SHA>, ревью <status of the newest round> (<rounds> р.), самотест
    <passed>/<total> | не требуется`; `$BIN/mp-home-commit <CODE> "flow <name>: <KEY>
-   merged"`. The run writes no `progress` of its own. This commit is a bash call of
-   its own: never chain it with a command for another key (`mp-task show`, its base
-   check, its worktree) in the same bash call. Step 10 comes next, always.
-10. **Boundary.** Before any command for another key: when an unticked key is left
-    in «Order», do the knowledge checkpoint, commit home, call `mypi_compact` and
-    end the turn:
-    1. The knowledge checkpoint by «Knowledge»: the stage's knowledge into
-       `knowledge.md` of the key (a section `## <YYYY-MM-DD HH:MM> — перед сжатием
-       (<KEY> смержен)`, `Новых знаний нет.` when there is nothing), `scout.json` of
-       the keys without `plan.md`, the project's memory with `context commit`.
-    2. `$BIN/mp-home-commit <CODE> "flow <name>: <KEY> knowledge"`.
-    3. `mypi_compact({ key: "<KEY>", resume, focus })` — `resume` is the text of the
-       score's `- Command:` line without the backticks, `focus` is `<KEY> merged into
-       flow/<name>; next <next unticked KEY> at stage <its stage by «Per key» step
-       2>` — the last call of the turn; end the turn.
-
-    A refusal names uncommitted files: write and commit them as in 1–2 and call
-    again; a second refusal → a flow stop question with the literal error. Skip this
-    step only when `subagent({ action: "status" })` lists a running run of this chat
-    (a template, a resume or a role started and not yet ended) — then go on with the
-    next key, the next boundary compacts — or after the last key: go to «Finish»,
-    without compaction.
+   merged"`. The run writes no `progress` of its own. Then the next key; after the
+   last one, «Finish».
 
 ## Finish
 
@@ -599,37 +574,45 @@ the installed engine is not updated by this run, `docs/agents/installation.md`).
 
 ## Knowledge
 
-The stage's knowledge is what the lead learned during a stage and what no file of
-the task folder holds yet: facts about code and contracts from the scout, executor,
-reviewer, investigator and tester answers, the engineer's answers, deviations from
-the plan and their reasons, pitfalls (the failed command and the form that worked),
-self-test and stand findings, open points, and run ids still needed. It goes:
+Every stage of this skill ends with a `$BIN/mp-home-commit`. Right before each
+one comes the knowledge checkpoint — except the commit after a cancelled answer
+(«Questions»). A stage without a commit of its own ends at the next one: the
+questions and the plan of «Per key» at «plan v<version>», the base check, the
+run, the reports, the decisions and the checks of «Execution of the key» at
+«merged into flow/<name>», the self-test at step 9, the checks of «Finish»
+step 1 at «PR». The extension prunes old tool results from the context and Pi
+compacts it at its threshold at any moment: what is not written by the end of
+the stage is lost.
 
-- facts about code and contracts from scout, executor, reviewer, investigator and
-  tester answers, deviations and their reasons, pitfalls (the failed command and the
-  form that worked), self-test and stand findings, open points → `knowledge.md` of
-  the key they concern (the key just finished; a fact about a later key — that key's
-  `knowledge.md`);
+The checkpoint writes the stage's knowledge — what the lead learned during the
+stage and no file of the task folder holds yet: facts about code and contracts
+from the scout, executor, reviewer, investigator and tester answers, deviations
+from the plan and their reasons, pitfalls (the failed command and the form that
+worked), self-test, stand and CI findings, open points, and run ids still
+needed:
+
+- a section `## <YYYY-MM-DD HH:MM> — <the message of the commit that follows>`
+  appended to `knowledge.md` of the key that commit names (`<KEY>: …` or
+  `flow <name>: <KEY> …`), or to `<project home>/flows/<name>/knowledge.md`
+  for a commit without a key; a fact about another key goes to that key's
+  `knowledge.md` in a section of the same form; only the non-empty kinds above;
+  a fact already in a file of the folder (`plan.md`, `pr.md`, `do-report.json`,
+  `review-report.json`, `progress.md`, reports) is a link to that file, not a
+  copy; nothing new — the line `Новых знаний нет.`;
 - the scout answer (`facts`, `localization`, `simplestPath`, `forks`,
-  `assumptions`) of every key of the run without `plan.md` → `scout.json` in that
-  key's folder, verbatim;
-- answers of the engineer → where «Questions» already puts them (`progress.md` of
-  the key, «Answers» of the score); not again in `knowledge.md`;
-- facts true beyond the task (project conventions, tool pitfalls, contracts) → the
-  project's entry `<project home>/INDEX.md` or the branch it links for that topic,
-  one place per fact, others link to it; committed with `mise exec -- node
-  dist/src/cli/main.js context commit <paths> --message "<KEY>: knowledge before
-  compaction"` from the engine root, pushed by the next `mp-home-commit`;
-- never what mypi records itself (statuses, the journal, sessions) and never a copy
-  of a file of the folder — a link to it.
+  `assumptions`) of every key without `plan.md` → `scout.json` in that key's
+  folder, verbatim;
+- answers of the engineer → where «Questions» puts them (`progress.md` of the
+  key, «Answers» of the score); not again in `knowledge.md`;
+- facts true beyond the task (project conventions, tool pitfalls, contracts) →
+  the project's entry `<project home>/INDEX.md` or the branch it links for that
+  topic, one place per fact, others link to it; committed with `mise exec --
+  node dist/src/cli/main.js context commit <paths> --message "<KEY>:
+  knowledge"` (a commit without a key: `"flow <name>: knowledge"`) from the
+  engine root before that `mp-home-commit`, which pushes it;
+- never what mypi records itself (statuses, the journal, sessions).
 
-The task's memory is `knowledge.md` in the task folder: one section per boundary,
-`## <YYYY-MM-DD HH:MM> — перед сжатием (<stage>)`, with only the non-empty kinds
-above; a fact already in a file of the folder (`plan.md`, `pr.md`,
-`do-report.json`, `review-report.json`, `progress.md`, reports) is a link to that
-file, not a copy; nothing new — the line `Новых знаний нет.`. The summaries of the
-compactions are `compactions.md` in the task folder; the extension writes and
-commits it.
+The sections and files go into that same `mp-home-commit`.
 
 ## Questions
 
