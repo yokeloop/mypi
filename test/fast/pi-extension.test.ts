@@ -26,7 +26,7 @@ function stub() {
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
   const tools = new Map<string, any>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
-  const state = { id: 's1', key: 'global', idle: true, usage: undefined as { percent: number | null } | undefined, branch: [] as unknown[], name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
+  const state = { id: 's1', key: 'global', idle: true, usage: undefined as { percent: number | null } | undefined, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
   const api = {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
@@ -45,7 +45,7 @@ function stub() {
     } },
     isIdle: () => state.idle,
     getContextUsage: () => state.usage,
-    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header, getBranch: () => state.branch } };
+    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
   const turn = async () => {
@@ -68,7 +68,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start',
-    'context', 'session_shutdown', 'session_start', 'turn_end', 'ui_prompt_start']);
+    'session_shutdown', 'session_start', 'turn_end', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow', 'epic']);
   assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
@@ -623,19 +623,6 @@ test('pi extension prunes on turn_end at the installed threshold', async () => {
   install(low.api, root, serve, undefined, process.pid, undefined, Date.now, '20');
   low.state.usage = { percent: 30 };
   assert.deepEqual(turnEnd(low)!.entries.map(draft => draft.targetId), ['r']);
-});
-
-test('pi extension adds the mypi block with the session\'s project', async () => {
-  const pi = stub();
-  install(pi.api, root, serve, undefined);
-  pi.state.key = 'FX';
-  pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : args[1] === 'project'
-    ? { code: 0, killed: false, stdout: JSON.stringify({ projects: [{ id: 1, org: 'fx', slug: 'fixture', code: 'FX', checkoutPath: null, repository: null }] }), stderr: '' }
-    : { code: 0, killed: false, stdout: '# mypi warmup\n', stderr: '' };
-  await pi.start('startup');
-  pi.state.branch = [{ type: 'message', id: 's', message: { role: 'user', content: '<skill name="flow" location="/e/SKILL.md">\nbody\n</skill>\n\nfx' } }, { type: 'compaction', id: 'cp' }];
-  const output = await pi.handlers.get('context')!({ messages: [{ role: 'compactionSummary', summary: 'S', timestamp: 1 }, { role: 'user', content: 'go' }] }, pi.ctx) as unknown as { messages: { content: string }[] };
-  assert.ok(output.messages[1]!.content.includes(join(root, 'home/projects/fx/fixture/flows/fx.md')));
 });
 
 test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
