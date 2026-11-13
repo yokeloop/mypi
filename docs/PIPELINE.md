@@ -300,7 +300,7 @@ Claude skills with these bindings:
 | the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
 | `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
 | re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
-| the threshold auto-compaction of Claude Code | Pi's threshold auto-compaction; the extension prunes old tool results on `turn_end` and adds a mypi block after a compaction |
+| the threshold auto-compaction of Claude Code | Pi's own threshold auto-compaction, unchanged; the extension prunes old tool results on `turn_end` |
 
 The run's state is the flow score, the task statuses and the task folders, so a
 restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
@@ -349,12 +349,10 @@ on `turn_end`, when the context usage is at least `MYPI_PI_PRUNE_PERCENT`
 (default 50), it replaces every result of a repeatable tool (codemode, read,
 bash, grep, find, ls, MCP tools) longer than 2000 characters and older than the
 last 10 replies of the model with a marker that points at these files; results
-of `subagent` and `mypi_ask` stay. Pi's own threshold auto-compaction
-remains the safety net; after it the extension adds, right after the summary,
-a hidden block naming the running skill with its arguments and the files to
-read again before the next step — only while `/flow` or `/epic` is the last skill
-invoked in the session and its run is not finished (the flow score has no
-`- Релиз:` line, the epic has no subtasks). Claude's skills do not compact.
+of `subagent` and `mypi_ask` stay. Pruning keeps the context below Pi's
+own threshold auto-compaction, which mypi leaves unchanged; the skill's text
+is a user message and is never pruned. When Pi compacts all the same, its
+summary and these files carry the run on. Claude's skills do not compact.
 
 ## Statuses in mypi
 

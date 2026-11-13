@@ -8,7 +8,7 @@ match the GitHub releases.
 
 ### Added
 
-- Pi context pruning (MP-133): the Pi `/flow` and `/epic` write the stage's knowledge into the task's `knowledge.md`, the flow's `knowledge.md` and the project's entry at the end of every stage. The Pi extension replaces old large results of repeatable tools with a marker through `context_edit` on `turn_end` once the context usage reaches `MYPI_PI_PRUNE_PERCENT` (default 50), and after Pi's auto-compaction adds a hidden block naming the running skill and the files to read again. Claude Code is unchanged.
+- Pi context pruning (MP-133): the Pi `/flow` and `/epic` write the stage's knowledge into the task's `knowledge.md`, the flow's `knowledge.md` and the project's entry at the end of every stage. The Pi extension replaces old large results of repeatable tools with a marker through `context_edit` on `turn_end` once the context usage reaches `MYPI_PI_PRUNE_PERCENT` (default 50); Pi's built-in auto-compaction is unchanged. Claude Code is unchanged.
 
 ## [0.12.0] - 2026-11-11
 
