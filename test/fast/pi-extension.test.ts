@@ -20,7 +20,6 @@ function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
-  const compactions: any[] = [];
   const statuses: [string, string | undefined][] = [];
   const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
   const terminal = { unsubscribed: 0 };
@@ -45,7 +44,6 @@ function stub() {
       return () => { terminal.unsubscribed++; };
     } },
     isIdle: () => state.idle,
-    compact(options: any) { compactions.push(options); },
     sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
@@ -60,7 +58,7 @@ function stub() {
     return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
   };
   return { api: api as never, handlers, commands, tools, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
-    options, registration, compactions };
+    options, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -70,7 +68,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   assert.deepEqual(pi.calls, []);
   assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow', 'epic']);
-  assert.deepEqual([...pi.tools.keys()], ['mypi_ask', 'mypi_compact']);
+  assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -605,68 +603,6 @@ test('pi extension injects a batch as one follow-up, waits for the turn to start
   await settled();
   assert.deepEqual(pi.sent.slice(2), [['d', follow], ['e', follow]]);
   assert.deepEqual(acked, [[4], [5]]);
-});
-
-test('pi extension holds an event batch while compacting', async t => {
-  const pi = stub();
-  const { run, batches, serve } = sockets(t);
-  install(pi.api, root, serve, run);
-  pi.state.key = 'MP';
-  pi.state.result = (command, args) => command === 'git' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : command === 'bash' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : args[1] === 'task' ? { code: 0, killed: false, stdout: JSON.stringify({ contextDir: 'projects/yokeloop/mypi/tasks/MP-1-one' }), stderr: '' }
-    : args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '', stderr: '' };
-  await pi.start('startup');
-  const result = await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
-  assert.equal(result.terminate, true);
-  let early: number[] | undefined;
-  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { early = ids; });
-  await settled();
-  assert.equal(pi.sent.length, 0);
-  assert.equal(early, undefined);
-  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
-  assert.equal(pi.compactions.length, 1);
-  let acked: number[] | undefined;
-  void batches[0]!([{ id: 2, text: 'b' }]).then(ids => { acked = ids; });
-  await settled();
-  assert.equal(pi.sent.length, 0);
-  assert.equal(early, undefined);
-  assert.equal(acked, undefined);
-  pi.compactions[0].onError(new Error('Nothing to compact (session too small)'));
-  await settled();
-  assert.deepEqual(pi.sent, [['/skill:flow fx MP-1', { deliverAs: 'followUp', expandPromptTemplates: true }]]);
-  assert.equal(early, undefined);
-  assert.equal(acked, undefined);
-  pi.state.idle = false;
-  await pi.handlers.get('agent_start')!(undefined, pi.ctx);
-  await settled();
-  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
-  assert.deepEqual(early, [1]);
-  assert.deepEqual(acked, [2]);
-});
-
-test('pi extension sends an event delivered again during a compaction once', async t => {
-  const pi = stub();
-  const { run, batches, serve } = sockets(t);
-  install(pi.api, root, serve, run);
-  pi.state.key = 'MP';
-  pi.state.result = (command, args) => command === 'git' || command === 'bash' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : args[1] === 'task' ? { code: 0, killed: false, stdout: JSON.stringify({ contextDir: 'projects/yokeloop/mypi/tasks/MP-1-one' }), stderr: '' }
-    : args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '', stderr: '' };
-  await pi.start('startup');
-  await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
-  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
-  const acked: number[][] = [];
-  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { acked.push(ids); });
-  void batches[0]!([{ id: 1, text: 'a' }, { id: 2, text: 'b' }]).then(ids => { acked.push(ids); });
-  await settled();
-  assert.deepEqual(acked, []);
-  pi.compactions[0].onError(new Error('Already compacted'));
-  pi.state.idle = false;
-  await pi.handlers.get('agent_start')!(undefined, pi.ctx);
-  await settled();
-  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
-  assert.deepEqual(acked, [[1], [1, 2]]);
 });
 
 test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
