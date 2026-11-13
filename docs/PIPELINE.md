@@ -300,6 +300,7 @@ Claude skills with these bindings:
 | the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
 | `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
 | re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
+| the threshold auto-compaction of Claude Code | Pi's threshold auto-compaction; the extension prunes old tool results on `turn_end` and adds a mypi block after a compaction |
 
 The run's state is the flow score, the task statuses and the task folders, so a
 restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
@@ -336,6 +337,22 @@ table; the «Подзадачи» question has «Завести и запуст�
 own word edits the list, and one flow name alone creates and runs with that name.
 Its answers are not written to `progress.md`. A cancelled `mypi_ask` stops the run;
 only `mp-home-commit` commits what is already written.
+
+Both skills write the stage's knowledge at the end of every stage, right before
+the `mp-home-commit` that ends it: a section named by that commit's message in
+`knowledge.md` of the task folder (facts from the roles, deviations, pitfalls,
+findings, open points, run ids still needed; links to the folder's files, not
+copies), flow-wide facts in `<project home>/flows/<name>/knowledge.md`,
+`scout.json` of keys not yet planned, and facts beyond the task in the
+project's entry or its branches. The Pi extension keeps the context small:
+on `turn_end`, when the context usage is at least `MYPI_PI_PRUNE_PERCENT`
+(default 50), it replaces every result of a repeatable tool (codemode, read,
+bash, grep, find, ls, MCP tools) longer than 2000 characters and older than the
+last 10 replies of the model with a marker that points at these files; results
+of `subagent` and `mypi_ask` stay. Pi's own threshold auto-compaction
+remains the safety net; after it the extension adds, right after the summary,
+a hidden block naming the running skill with its arguments and the files to
+read again before the next step. Claude's skills do not compact.
 
 ## Statuses in mypi
 

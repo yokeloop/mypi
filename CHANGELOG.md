@@ -6,6 +6,10 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+### Added
+
+- Pi context pruning (MP-133): the Pi `/flow` and `/epic` write the stage's knowledge into the task's `knowledge.md`, the flow's `knowledge.md` and the project's entry at the end of every stage. The Pi extension replaces old large results of repeatable tools with a marker through `context_edit` on `turn_end` once the context usage reaches `MYPI_PI_PRUNE_PERCENT` (default 50), and after Pi's auto-compaction adds a hidden block naming the running skill and the files to read again. Claude Code is unchanged.
+
 ## [0.12.0] - 2026-11-11
 
 Upgrading from v0.11.0: `git pull --ff-only`, install the locked dependencies and build; schema 15, run `mypi db init` once after the update (back up the database
