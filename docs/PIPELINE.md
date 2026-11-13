@@ -352,7 +352,9 @@ last 10 replies of the model with a marker that points at these files; results
 of `subagent` and `mypi_ask` stay. Pi's own threshold auto-compaction
 remains the safety net; after it the extension adds, right after the summary,
 a hidden block naming the running skill with its arguments and the files to
-read again before the next step. Claude's skills do not compact.
+read again before the next step — only while `/flow` or `/epic` is the last skill
+invoked in the session and its run is not finished (the flow score has no
+`- Релиз:` line, the epic has no subtasks). Claude's skills do not compact.
 
 ## Statuses in mypi
 

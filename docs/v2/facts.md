@@ -816,9 +816,13 @@ Answer:
 - `ctx.getContextUsage()` returns `{ tokens, contextWindow, percent }`; right after
   a compaction, until a new reply with usage, `tokens` and `percent` are `null`
   (S:455524-455545).
+- Observed on the MP-133 stand 3: Pi 1.5.2 loads the stand probe `zz-probe.ts`
+  of the engine's `.pi/extensions/` before `mypi.ts`.
 
 Reproduce: the lines above from `strings -n 8` of the Pi 1.5.2 binary and Pi's
 `docs/`. The extension code is `.pi/extensions/mypi-lib/prune.ts`, wired in the
-`turn_end` and `context` handlers of `.pi/extensions/mypi-lib/install.ts`.
+`turn_end` and `context` handlers of `.pi/extensions/mypi-lib/install.ts`; the
+mypi block is added only while the last skill invocation is an unfinished
+`/flow` or `/epic` (`lastSkill` and `finished` there).
 
 Fallback: —. Used by MP-133.

@@ -43,13 +43,19 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   file; the call ids and tool names stay, so call/result pairs stay whole. No
   usage or `percent: null` (right after a compaction) edits nothing. On every
   `context` call, when the branch (`ctx.sessionManager.getBranch()`) has a
-  `compaction` entry and a `/skill:flow` or `/skill:epic` invocation with
-  arguments, it inserts after the `compactionSummary` message a hidden custom
-  message (`customType: mypi-resume`) naming that skill's file, its arguments,
-  the flow score, the flow's and the tasks' `knowledge.md` and the project's
-  `INDEX.md` (the project's home from `mypi project list` by the code of the
-  first key, else of the session key; resolved once per invocation), and telling
-  the model to read them again before the next step.
+  `compaction` entry and its last skill invocation is `/skill:flow` or
+  `/skill:epic` with arguments, it inserts after the `compactionSummary` message a
+  hidden custom message (`customType: mypi-resume`) naming that skill's file, its
+  arguments, the flow score, the flow's and the tasks' `knowledge.md` and the
+  project's `INDEX.md` (the project's home from `mypi project list` by the code of
+  the first key, else of the session key; resolved once per invocation), telling
+  the model to read them again before the next step and to ignore the note when
+  that run is already finished. No block when the run is finished by its files: a
+  `/flow` whose score `flows/<name>.md` has a line starting with `- Релиз:`, an
+  `/epic` whose key is the `parent` of a task in `mypi task list --project
+  <org>/<slug>`; a finished run is remembered per invocation, an unfinished one is
+  checked again after each new compaction, and a failed check counts as
+  unfinished.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
