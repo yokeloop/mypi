@@ -110,7 +110,8 @@ Rows «1, not started» and «1, under way».
    engineer: they go to the executor as hypotheses the research weighs.
    `solvable: false` → say what `missing` lists and stop without a status change. No
    structured output or a failed run → one `mypi_ask` with the error, options
-   `Повторить разведку`, `Остановить`.
+   `Повторить разведку`, `Остановить`. When the scout has answered: the knowledge
+   checkpoint and `$BIN/mp-home-commit <KEY> "<KEY>: knowledge"` («Knowledge»).
 3. **Executor**, only when there is no `research.md`.
    `subagent({ agent: "executor", task })`; the research-mode task carries, as text:
    «Research mode: the research of an epic, no worktree.»; the key; the path of
@@ -127,7 +128,9 @@ Rows «1, not started» and «1, under way».
    write, no diff, no derive, no task changes; its answer by its schema with
    `branch` and `head` null, `base` the `SHA`, `commits` 0. Keep its run id. Write
    its structured output as `$DIR/do-report.json`. Each of its `openQuestions` only
-   the engineer can answer is one `mypi_ask`; the answers go to it by resume.
+   the engineer can answer is one `mypi_ask`; the answers go to it by resume. When
+   the executor has answered: the knowledge checkpoint and
+   `$BIN/mp-home-commit <KEY> "<KEY>: knowledge"` («Knowledge»).
 4. **Review**, one round, only when there is no `review-report.json`.
    `subagent({ agent: "reviewer", task })`, a fresh run; the task carries, as text:
    «Review a document, not a diff: there is no worktree and no diff range; answer by
@@ -145,7 +148,9 @@ Rows «1, not started» and «1, under way».
    report»; its report becomes `do-report.json`. Check the fixed places against the
    `fix` of each blocking finding by reading; there is no second review round. A
    blocking finding that is still not fixed → one `mypi_ask` with the finding and
-   the place, options `Остановить`, `Опубликовать как есть`.
+   the place, options `Остановить`, `Опубликовать как есть`. When the fixes are
+   checked: the knowledge checkpoint and
+   `$BIN/mp-home-commit <KEY> "<KEY>: knowledge"` («Knowledge»).
 5. **Publish version 1:**
    1. `await tools.mcp__derive__stage({ target: "doc" })`, no `short_id`.
    2. Upload through bash: `curl -sS -F file=@$DIR/research.md -F title="<KEY> —
