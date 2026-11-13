@@ -2,8 +2,8 @@ import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from '
 import { join } from 'node:path';
 import { registerAsk } from './ask.js';
 import type { AskTool } from './ask.js';
-import { registerCompact } from './compact.js';
-import type { CompactOptions, CompactTool } from './compact.js';
+import { createPrune, threshold } from './prune.js';
+import type { ContextEvent, Draft, Message, SessionEntry, TurnEndEvent } from './prune.js';
 import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
@@ -15,8 +15,9 @@ interface ExtensionContext {
     onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void;
   };
   isIdle(): boolean;
-  compact(options: CompactOptions): void;
-  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null };
+  getContextUsage(): { percent: number | null } | undefined;
+  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null;
+    getBranch(): SessionEntry[] };
 }
 interface McpServer {
   command: string; args: string[]; cwd: string; env: Record<string, string>;
@@ -35,8 +36,10 @@ export interface ExtensionAPI {
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
+  on(name: 'turn_end', handler: (event: TurnEndEvent, ctx: ExtensionContext) => { entries: Draft[] } | undefined): void;
+  on(name: 'context', handler: (event: ContextEvent, ctx: ExtensionContext) => Promise<{ messages: Message[] } | undefined>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
-  registerTool(tool: AskTool | CompactTool): void;
+  registerTool(tool: AskTool): void;
 }
 
 export type RunCli = (args: string[], options: { cwd: string; signal: AbortSignal; onLine: (line: string) => void }) =>
@@ -61,12 +64,11 @@ function clip(text: string): string {
 }
 
 export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runtime: string | undefined, pid = process.pid,
-  runCli: RunCli = unavailable, now: () => number = Date.now): void {
+  runCli: RunCli = unavailable, now: () => number = Date.now, prunePercent: string | undefined = undefined): void {
   const server = join(root, 'dist/src/mcp/main.js');
   const cli = join(root, 'dist/src/cli/main.js');
   if (!existsSync(server) || !existsSync(cli)) throw new Error('mypi is not built. Run mise exec -- pnpm build in the engine checkout.');
-  registerAsk(pi);
-  const compactor = registerCompact(pi, { root, cli, home: join(root, 'home') });
+  const prune = createPrune((command, args, options) => pi.exec(command, args, options), { root, cli, home: join(root, 'home') }, threshold(prunePercent), () => key);
   const register = async (ctx: ExtensionContext, session: string, fork: boolean, socket?: string): Promise<string | undefined> => {
     const name = ctx.sessionManager.getSessionName();
     try {
@@ -102,43 +104,27 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   const injected = new Set<number>();
   let parentTurn = false;
   let parentFrom: string | undefined;
-  const sending = new Map<number, Promise<void>>();
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
     const ids = events.map(e => e.id);
-    const waits = [...new Set(events.flatMap(e => sending.get(e.id) ?? []))];
-    const fresh = events.filter(e => !injected.has(e.id) && !sending.has(e.id));
-    if (fresh.length === 0) {
-      if (waits.length === 0) return ids;
-      await Promise.all(waits);
-      return ids.filter(id => injected.has(id));
-    }
-    let done: () => void = () => {};
-    const mine = new Promise<void>(resolve => { done = resolve; });
-    for (const e of fresh) sending.set(e.id, mine);
-    try {
-      await compactor.quiet();
-      const text = fresh.map(e => e.text).join('\n\n');
-      for (const e of fresh) {
-        for (const match of e.text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) {
-          parentTurn = true;
-          parentFrom = match[1];
-        }
+    const fresh = events.filter(e => !injected.has(e.id));
+    if (fresh.length === 0) return ids;
+    const text = fresh.map(e => e.text).join('\n\n');
+    for (const e of fresh) {
+      for (const match of e.text.matchAll(new RegExp(PARENT_MESSAGE.source, 'g'))) {
+        parentTurn = true;
+        parentFrom = match[1];
       }
-      if (starting !== undefined) {
-        await starting;
-        pi.sendUserMessage(text, { deliverAs: 'followUp' });
-      } else if (current?.isIdle()) {
-        const turn = starting = new Promise<void>(resolve => { started = resolve; });
-        pi.sendUserMessage(text, { deliverAs: 'followUp' });
-        await turn;
-      } else pi.sendUserMessage(text, { deliverAs: 'followUp' });
-      for (const e of fresh) injected.add(e.id);
-    } finally {
-      for (const e of fresh) sending.delete(e.id);
-      done();
     }
-    await Promise.all(waits);
-    return ids.filter(id => injected.has(id));
+    if (starting !== undefined) {
+      await starting;
+      pi.sendUserMessage(text, { deliverAs: 'followUp' });
+    } else if (current?.isIdle()) {
+      const turn = starting = new Promise<void>(resolve => { started = resolve; });
+      pi.sendUserMessage(text, { deliverAs: 'followUp' });
+      await turn;
+    } else pi.sendUserMessage(text, { deliverAs: 'followUp' });
+    for (const e of fresh) injected.add(e.id);
+    return ids;
   };
   pi.on('session_start', async (event, ctx) => {
     const session = ctx.sessionManager.getSessionId();
@@ -189,7 +175,6 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     starting = undefined;
     started = undefined;
     done?.();
-    compactor.started();
   });
   pi.on('before_agent_start', event => {
     const options = event.systemPromptOptions;
@@ -215,15 +200,15 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     const file = ctx.sessionManager.getSessionFile();
     if (file) await pi.exec('node', [cli, 'archive', 'capture', '--agent', 'pi', '--file', file], { cwd: root, timeout: 5000 })
       .catch(() => undefined);
-    compactor.settle(ctx);
   });
+  pi.on('turn_end', (event, ctx) => prune.turnEnd(event, ctx));
+  pi.on('context', (event, ctx) => prune.context(event, ctx));
   pi.on('ui_prompt_start', async event => {
     if (key !== undefined && parentTurn) await pi.exec('node', [cli, 'event', 'emit', '--from', key, ...(parentFrom === undefined ? [] : ['--to', parentFrom]),
       '--waiting', ...(event.title ? ['--message=' + event.title] : [])],
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
-    compactor.reset();
     const open = socket;
     socket = undefined;
     current = undefined;
@@ -301,4 +286,5 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       pi.sendUserMessage(('/skill:epic ' + args.trim()).trim(), { expandPromptTemplates: true });
     },
   });
+  registerAsk(pi);
 }

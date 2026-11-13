@@ -300,7 +300,7 @@ Claude skills with these bindings:
 | the derive MCP tools | `mcp__derive__*` through codemode; the upload by `curl` |
 | `CLAUDE_CODE_SESSION_ID` for `mp-task scope` | `PI_SESSION_ID`, exported by Pi's bash |
 | re-typing the command | the same; `/flow <name>` without keys in a project or task chat resumes the keys of the flow score |
-| the threshold auto-compaction of Claude Code | the extension tool `mypi_compact` at the stage boundaries: `/flow` at step 10 «Boundary», after step 9 «Record», while an unticked key is left; `/epic` at the «Boundary» after the commits of research v1 and v2 |
+| the threshold auto-compaction of Claude Code | Pi's threshold auto-compaction; the extension prunes old tool results on `turn_end` and adds a mypi block after a compaction |
 
 The run's state is the flow score, the task statuses and the task folders, so a
 restarted Pi continues where it stopped: no `plan.md` — reconnaissance and plan;
@@ -338,23 +338,21 @@ own word edits the list, and one flow name alone creates and runs with that name
 Its answers are not written to `progress.md`. A cancelled `mypi_ask` stops the run;
 only `mp-home-commit` commits what is already written.
 
-At these boundaries, before any command of the next key or step, the skill writes
-the stage's knowledge — into `knowledge.md` of the task folder
-(facts from the roles, deviations, pitfalls, stand findings, open points, run ids
-still needed; links to the folder's files, not copies), `scout.json` of keys not yet
-planned, and facts beyond the task into the project's entry or its branches —
-commits home, then calls `mypi_compact` with the task key and the run's command and
-ends its turn. The commit before a boundary is a bash call of its own, never chained
-with a command of the next key or step. The skill skips a boundary only when
-`subagent({ action: "status" })` lists a running run of the chat, and `/flow` has
-none after its last key. The tool refuses while the project's home has uncommitted
-changes.
-The extension compacts the context after the turn (`agent_settled`), appends the
-summary to the task's `compactions.md` and commits it with `mp-home-commit`, and
-sends `/skill:flow <args>` or `/skill:epic <KEY>`; the resumed skill reads
-`knowledge.md` and the project's entry before it goes on. «Nothing to compact» and
-«Already compacted» resume silently, another failure resumes with a warning. Pi's
-own threshold auto-compaction is unchanged; Claude's skills do not compact.
+Both skills write the stage's knowledge at the end of every stage, right before
+the `mp-home-commit` that ends it: a section named by that commit's message in
+`knowledge.md` of the task folder (facts from the roles, deviations, pitfalls,
+findings, open points, run ids still needed; links to the folder's files, not
+copies), flow-wide facts in `<project home>/flows/<name>/knowledge.md`,
+`scout.json` of keys not yet planned, and facts beyond the task in the
+project's entry or its branches. The Pi extension keeps the context small:
+on `turn_end`, when the context usage is at least `MYPI_PI_PRUNE_PERCENT`
+(default 50), it replaces every result of a repeatable tool (codemode, read,
+bash, grep, find, ls, MCP tools) longer than 2000 characters and older than the
+last 10 replies of the model with a marker that points at these files; results
+of `subagent` and `mypi_ask` stay. Pi's own threshold auto-compaction
+remains the safety net; after it the extension adds, right after the summary,
+a hidden block naming the running skill with its arguments and the files to
+read again before the next step. Claude's skills do not compact.
 
 ## Statuses in mypi
 

@@ -30,25 +30,26 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   слово» last, which opens a text input; it returns `{"answer","custom"}`,
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
-  interactive UI. It also registers the tool `mypi_compact` (direct, run
-  sequentially): `key` — the task whose folder takes the summary, `resume` —
-  `/flow <name> <KEY>…` or `/epic <KEY>`, `focus` — what the summary points at; it
-  refuses while `git status --porcelain` of the project's home folder in home is not
-  empty, otherwise records the request and ends the turn (`terminate`). On the next
-  `agent_settled`, after the archive capture, when the session is idle, it runs
-  `ctx.compact` with instructions naming the task folder, the project's entry, the
-  score and the resume command; on success it appends the summary and the token
-  counts to `compactions.md` of the task folder and runs
-  `scripts/pipeline/mp-home-commit <KEY>`; then it sends `/skill:flow …` or
-  `/skill:epic …` as a follow-up — also after «Nothing to compact», «Already
-  compacted» and a failure (the last with a warning). From the recorded request
-  until the resumed run starts (`agent_start`; 5 s at most after the follow-up, at
-  once when the follow-up cannot be sent or the request is dropped on shutdown), an
-  incoming event batch waits and is injected and acknowledged after it; an event
-  delivered again while it waits is sent once. Known limit: when the resume prompt's
-  preflight takes longer than 5 s (for example an OAuth auth check), the held batch
-  is released before that run is active and can be lost as in a plain prompt
-  submitted beside it.
+  interactive UI.
+  On every `turn_end`, when `ctx.getContextUsage().percent` is at least the
+  threshold (`MYPI_PI_PRUNE_PERCENT` read by `.pi/extensions/mypi.ts` at load:
+  a number above 0 and at most 100, else 50), it returns `context_edit` drafts
+  after the drafts of earlier handlers: every `toolResult` entry of
+  `event.context.contextEntries` that is older than the last 10 assistant
+  messages, has more than 2000 text characters, belongs to codemode, read, bash,
+  grep, find, ls or an `mcp*` tool and is not edited yet gets one text block
+  `[mypi: the <tool> result of <arguments, 300 characters at most> (<N> chars) was
+  removed from the context …]`, oldest first. Pi writes the drafts to the session
+  file; the call ids and tool names stay, so call/result pairs stay whole. No
+  usage or `percent: null` (right after a compaction) edits nothing. On every
+  `context` call, when the branch (`ctx.sessionManager.getBranch()`) has a
+  `compaction` entry and a `/skill:flow` or `/skill:epic` invocation with
+  arguments, it inserts after the `compactionSummary` message a hidden custom
+  message (`customType: mypi-resume`) naming that skill's file, its arguments,
+  the flow score, the flow's and the tasks' `knowledge.md` and the project's
+  `INDEX.md` (the project's home from `mypi project list` by the code of the
+  first key, else of the session key; resolved once per invocation), and telling
+  the model to read them again before the next step.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores

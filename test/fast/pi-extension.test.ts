@@ -20,14 +20,13 @@ function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
-  const compactions: any[] = [];
   const statuses: [string, string | undefined][] = [];
   const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
   const terminal = { unsubscribed: 0 };
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
   const tools = new Map<string, any>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true, displaced: null }) + '\n', stderr: '' });
-  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
+  const state = { id: 's1', key: 'global', idle: true, usage: undefined as { percent: number | null } | undefined, branch: [] as unknown[], name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
   const api = {
     on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
@@ -45,8 +44,8 @@ function stub() {
       return () => { terminal.unsubscribed++; };
     } },
     isIdle: () => state.idle,
-    compact(options: any) { compactions.push(options); },
-    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header } };
+    getContextUsage: () => state.usage,
+    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header, getBranch: () => state.branch } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
   const turn = async () => {
@@ -60,7 +59,7 @@ function stub() {
     return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
   };
   return { api: api as never, handlers, commands, tools, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
-    options, registration, compactions };
+    options, registration };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -68,9 +67,10 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   install(pi.api, root, serve, undefined);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
-  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'session_shutdown', 'session_start', 'ui_prompt_start']);
+  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start',
+    'context', 'session_shutdown', 'session_start', 'turn_end', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow', 'epic']);
-  assert.deepEqual([...pi.tools.keys()], ['mypi_ask', 'mypi_compact']);
+  assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
   pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
   await pi.start('startup');
@@ -607,66 +607,35 @@ test('pi extension injects a batch as one follow-up, waits for the turn to start
   assert.deepEqual(acked, [[4], [5]]);
 });
 
-test('pi extension holds an event batch while compacting', async t => {
+test('pi extension prunes on turn_end at the installed threshold', async () => {
+  const entries = [
+    { sourceEntry: { type: 'message', id: 'c', message: { role: 'assistant', content: [{ type: 'toolCall', id: 'k', name: 'read', arguments: { path: '/x' } }] } }, messages: [{}] },
+    { sourceEntry: { type: 'message', id: 'r', message: { role: 'toolResult', toolCallId: 'k', toolName: 'read', content: [{ type: 'text', text: 'x'.repeat(3000) }] } }, messages: [{}] },
+    ...Array.from({ length: 10 }, (_, i) => ({ sourceEntry: { type: 'message', id: `a${i}`, message: { role: 'assistant', content: [] } }, messages: [{}] }))];
+  const turnEnd = (pi: ReturnType<typeof stub>) => pi.handlers.get('turn_end')!({ entries: [], context: { contextEntries: entries } }, pi.ctx) as unknown as { entries: { targetId: string }[] } | undefined;
   const pi = stub();
-  const { run, batches, serve } = sockets(t);
-  install(pi.api, root, serve, run);
-  pi.state.key = 'MP';
-  pi.state.result = (command, args) => command === 'git' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : command === 'bash' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : args[1] === 'task' ? { code: 0, killed: false, stdout: JSON.stringify({ contextDir: 'projects/yokeloop/mypi/tasks/MP-1-one' }), stderr: '' }
-    : args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '', stderr: '' };
-  await pi.start('startup');
-  const result = await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
-  assert.equal(result.terminate, true);
-  let early: number[] | undefined;
-  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { early = ids; });
-  await settled();
-  assert.equal(pi.sent.length, 0);
-  assert.equal(early, undefined);
-  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
-  assert.equal(pi.compactions.length, 1);
-  let acked: number[] | undefined;
-  void batches[0]!([{ id: 2, text: 'b' }]).then(ids => { acked = ids; });
-  await settled();
-  assert.equal(pi.sent.length, 0);
-  assert.equal(early, undefined);
-  assert.equal(acked, undefined);
-  pi.compactions[0].onError(new Error('Nothing to compact (session too small)'));
-  await settled();
-  assert.deepEqual(pi.sent, [['/skill:flow fx MP-1', { deliverAs: 'followUp', expandPromptTemplates: true }]]);
-  assert.equal(early, undefined);
-  assert.equal(acked, undefined);
-  pi.state.idle = false;
-  await pi.handlers.get('agent_start')!(undefined, pi.ctx);
-  await settled();
-  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
-  assert.deepEqual(early, [1]);
-  assert.deepEqual(acked, [2]);
+  install(pi.api, root, serve, undefined);
+  pi.state.usage = { percent: 30 };
+  assert.equal(turnEnd(pi), undefined);
+  pi.state.usage = { percent: 50 };
+  assert.deepEqual(turnEnd(pi)!.entries.map(draft => draft.targetId), ['r']);
+  const low = stub();
+  install(low.api, root, serve, undefined, process.pid, undefined, Date.now, '20');
+  low.state.usage = { percent: 30 };
+  assert.deepEqual(turnEnd(low)!.entries.map(draft => draft.targetId), ['r']);
 });
 
-test('pi extension sends an event delivered again during a compaction once', async t => {
+test('pi extension adds the mypi block with the session\'s project', async () => {
   const pi = stub();
-  const { run, batches, serve } = sockets(t);
-  install(pi.api, root, serve, run);
-  pi.state.key = 'MP';
-  pi.state.result = (command, args) => command === 'git' || command === 'bash' ? { code: 0, killed: false, stdout: '', stderr: '' }
-    : args[1] === 'task' ? { code: 0, killed: false, stdout: JSON.stringify({ contextDir: 'projects/yokeloop/mypi/tasks/MP-1-one' }), stderr: '' }
-    : args[1] === 'session' ? pi.registration() : { code: 0, killed: false, stdout: '', stderr: '' };
+  install(pi.api, root, serve, undefined);
+  pi.state.key = 'FX';
+  pi.state.result = (_command, args) => args[1] === 'session' ? pi.registration() : args[1] === 'project'
+    ? { code: 0, killed: false, stdout: JSON.stringify({ projects: [{ id: 1, org: 'fx', slug: 'fixture', code: 'FX', checkoutPath: null, repository: null }] }), stderr: '' }
+    : { code: 0, killed: false, stdout: '# mypi warmup\n', stderr: '' };
   await pi.start('startup');
-  await pi.tools.get('mypi_compact').execute('call-1', { key: 'MP-1', resume: '/flow fx MP-1', focus: 'next' });
-  await pi.handlers.get('agent_settled')!(undefined, pi.ctx);
-  const acked: number[][] = [];
-  void batches[0]!([{ id: 1, text: 'a' }]).then(ids => { acked.push(ids); });
-  void batches[0]!([{ id: 1, text: 'a' }, { id: 2, text: 'b' }]).then(ids => { acked.push(ids); });
-  await settled();
-  assert.deepEqual(acked, []);
-  pi.compactions[0].onError(new Error('Already compacted'));
-  pi.state.idle = false;
-  await pi.handlers.get('agent_start')!(undefined, pi.ctx);
-  await settled();
-  assert.deepEqual(pi.sent.slice(1), [['a', { deliverAs: 'followUp' }], ['b', { deliverAs: 'followUp' }]]);
-  assert.deepEqual(acked, [[1], [1, 2]]);
+  pi.state.branch = [{ type: 'message', id: 's', message: { role: 'user', content: '<skill name="flow" location="/e/SKILL.md">\nbody\n</skill>\n\nfx' } }, { type: 'compaction', id: 'cp' }];
+  const output = await pi.handlers.get('context')!({ messages: [{ role: 'compactionSummary', summary: 'S', timestamp: 1 }, { role: 'user', content: 'go' }] }, pi.ctx) as unknown as { messages: { content: string }[] };
+  assert.ok(output.messages[1]!.content.includes(join(root, 'home/projects/fx/fixture/flows/fx.md')));
 });
 
 test('pi extension recognises the parent-message frame by the same pattern as the engine', () => {
