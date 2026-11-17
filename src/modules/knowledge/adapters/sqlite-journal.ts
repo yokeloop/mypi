@@ -1,4 +1,4 @@
-import type { Database } from 'better-sqlite3';
+import type { Database, Statement } from 'better-sqlite3';
 import { entryValue } from '../model.js';
 import type { ArtifactRef, Entry } from '../model.js';
 import type { JournalBrowseStore, JournalStore, JournalSummaryStore } from '../ports.js';
@@ -20,10 +20,11 @@ export function sqliteJournalStore(db: Database): JournalStore & JournalBrowseSt
   relocateFiles(from: string, to: string): { fingerprints: number; artifacts: number };
 } {
   const assertWritable = () => { if (db.readonly) throw new Error('Cannot mutate a readonly journal database'); };
-  const insert = db.prepare(`INSERT INTO knowledge_journal(at,scope_type,scope_key,event_type,text,artifacts_json,import_path,import_line)
-    VALUES (@at,@scopeType,@scopeKey,@eventType,@text,@artifactsJson,@importPath,@importLine)`);
+  let insert: Statement | undefined;
   function write(entry: Entry, importPath: string | null, importLine: number | null): void {
     const valid = entryValue(entry);
+    insert ??= db.prepare(`INSERT INTO knowledge_journal(at,scope_type,scope_key,event_type,text,artifacts_json,import_path,import_line)
+      VALUES (@at,@scopeType,@scopeKey,@eventType,@text,@artifactsJson,@importPath,@importLine)`);
     insert.run({ at: valid.at, scopeType: valid.scope.type, scopeKey: valid.scope.type === 'global' ? null : valid.scope.key,
       eventType: valid.event_type, text: valid.text, artifactsJson: valid.artifacts ? JSON.stringify(valid.artifacts) : null,
       importPath, importLine });
