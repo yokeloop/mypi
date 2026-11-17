@@ -11,6 +11,13 @@ after it) when given. Do not open anything else, do not retry and do not start
 work in the opened sessions — except that a message given with --message is
 delivered as the parent's instruction.
 
+Run these steps every time, also when this session is already in the requested
+scope: /open from a key's own session is a normal use — it may focus another
+session of the key, start a new one (another agent or `--new`) or resume one.
+Never answer from your own context or decide that nothing needs opening; the
+result comes only from the tools. Call `sessions` first when the rule below
+applies, then `open_session` exactly once.
+
 When there is one key and neither `--new` nor `--session` is given, first call
 `sessions` and find the node whose `key` equals the key (an organization, `CODE`
 or `CODE-N`; for the forms `org/project` and `org/project#N` no list is built).
