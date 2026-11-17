@@ -5,7 +5,8 @@ import type { AppCommand, RunContext } from './commands.js';
 import { createApp, engineRoot } from './create-app.js';
 import { deliverOnOpen, deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
-import { agentName, callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey, PERMISSION_MODES } from './open-session.js';
+import { agentName, callerMode, decideOpen, defaultAgent, heldNames, herdrName, launchArgs, openTarget, parseOpenKey, PERMISSION_MODES } from './open-session.js';
+import type { OpenRequest } from './open-session.js';
 import { callerKey } from './sessions.js';
 import { appendFact, keyScope, sendParentMessage } from './journal-facts.js';
 import { startMessage } from './start-message.js';
@@ -61,6 +62,12 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
           return { key: number === undefined ? project.code : project.code + '-' + number, label: project.org + '/' + project.slug,
             kind: number === undefined ? 'project' as const : 'task' as const, code: project.code, project };
         });
+        if (c.new && c.target !== undefined) throw new InputError('--new and --session cannot be used together');
+        if (c.target !== undefined) {
+          if (new Set(resolved.map(r => r.key)).size !== 1) throw new InputError('--session takes exactly one key');
+          const sessions = read.sessions(c.runtime, proc);
+          openTarget(sessions.lookup(resolved[0]!.key).rows, resolved[0]!.key, sessions.device(), c.target, c.agent);
+        }
         const chosen = c.agent ?? defaultAgent(readSettings(root));
         const mode = c.permissionMode ?? callerMode(read.sessions(c.runtime, proc), c.session) ?? null;
         const entries = new Map<string, typeof resolved[number]>();
@@ -70,6 +77,8 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       });
     } finally { read.close(); }
   })();
+  const request: OpenRequest = { chosen, ...(c.agent === undefined ? {} : { agent: c.agent }), ...(c.new ? { new: true } : {}),
+    ...(c.target === undefined ? {} : { target: c.target }) };
   let caller: string | undefined;
   if (c.message !== undefined) {
     if (keys.length !== 1) throw new InputError('--message takes exactly one key');
@@ -100,22 +109,26 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
   for (const [i, key] of keys.entries()) {
     try {
       const app = createApp(filename, true);
-      const found = (() => { try { return app.sessions(c.runtime, proc).lookup(key); } finally { app.close(); } })();
-      const decision = decideOpen(found, key, '', { chosen });
+      const { found, device, records } = (() => {
+        try {
+          const sessions = app.sessions(c.runtime, proc);
+          return { found: sessions.lookup(key), device: sessions.device(), records: sessions.liveRecords() };
+        } finally { app.close(); }
+      })();
+      const decision = decideOpen(found, key, device, request);
       const notes: string[] = [];
       const entry = entries.get(key)!;
       const note = entry.code === null ? undefined : prepared.get(entry.code);
       if (note !== undefined) notes.push(note);
-      const name = agentName(key, entry.kind);
-      if (c.agent !== undefined && c.agent !== decision.agent) {
-        notes.push(key + ' continues with its agent ' + decision.agent + '; --agent ' + c.agent + ' applies only to new sessions');
-      }
       if (decision.action === 'focus') {
+        const name = decision.live.herdrName ?? agentName(key, entry.kind);
         try { herdr.focusAgent(name); } catch (error) {
           if (!(error instanceof HerdrError)) throw error;
           throw new InputError(key + ' is live (' + decision.agent + ', pid ' + decision.live.pid + ') but Herdr cannot focus agent ' + name + ': '
             + error.message + '. It was not started by /open in this Herdr server or its agent was renamed; no new tab was created.');
         }
+        const writer = createApp(filename, false);
+        try { writer.sessions(c.runtime, proc).activate({ key, agent: decision.live.agent, nativeId: decision.live.nativeId }); } finally { writer.close(); }
         const message = enqueue(key);
         if (message !== null) {
           const app = createApp(filename, false);
@@ -130,8 +143,9 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       if (decision.action === 'start') {
         try { text = startFrame(key, startMessage(filename, key)); } catch (error) { reason = (error as Error).message; }
       }
+      const name = herdrName(agentName(key, entry.kind), decision.agent, heldNames(records));
       const label = entry.label;
-      const env = { MYPI_SCOPE: key, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };
+      const env = { MYPI_SCOPE: key, MYPI_HERDR_NAME: name, ...(c.stateHome === undefined ? {} : { XDG_STATE_HOME: c.stateHome }) };
       const existing = byLabel.get(label);
       let workspaceId: string, tabId: string, paneId: string;
       if (existing !== undefined) {
@@ -147,9 +161,11 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
         tabId = created.tabId;
         paneId = created.paneId;
       }
-      herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, randomUUID()));
+      const uuid = randomUUID();
+      herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, uuid));
       const writer = createApp(filename, false);
       try {
+        writer.sessions(c.runtime, proc).activate({ key, agent: decision.agent, nativeId: decision.action === 'start' ? uuid : decision.nativeId });
         appendFact(writer, keyScope(key), 'session_opened', (decision.action === 'resume' ? 'resumed ' : 'started ') + decision.agent
           + (worktreePath === null ? '' : ', worktree ' + worktreePath));
       } finally { writer.close(); }
