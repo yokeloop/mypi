@@ -12,8 +12,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
-    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }),
-    ...(command.repository === undefined ? {} : { repository: command.repository }) };
+    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }), repository: command.repository };
   if (command.type === 'update') return { name: 'project_update', identity: command.identity,
     ...(command.checkoutPath === undefined ? {} : { expectedCheckoutPath: command.expectedCheckoutPath ?? null, checkoutPath: command.checkoutPath }),
     ...(command.repository === undefined ? {} : { expectedRepository: command.expectedRepository ?? null, repository: command.repository }) };
