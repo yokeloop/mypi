@@ -45,8 +45,8 @@ function fixture(t: TestContext, slugs: string[]) {
   git('clone', '--quiet', bare, clone);
   const app = createApp(filename, false);
   try {
-    const projectId = app.projects.add('one/project', 'MP', clone).id;
-    app.projects.add('one/noclone', 'NC');
+    const projectId = app.projects.add('one/project', 'MP', clone, bare).id;
+    app.projects.add('one/noclone', 'NC', undefined, 'file:///nonexistent/one/noclone.git');
     for (const slug of slugs) app.tasks.create({ projectId, slug, title: slug, status: 'new' }, () => {});
   } finally { app.close(); }
   const base = realpathSync(clone);

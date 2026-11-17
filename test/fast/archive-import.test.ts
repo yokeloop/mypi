@@ -113,7 +113,7 @@ test('archive import resumes from the saved offset and rereads a shorter file', 
 test('archive import binds a key on a later pass without new bytes', t => {
   const { dir, filename } = state(t);
   const setup = createApp(filename, false);
-  try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
+  try { setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { setup.close(); }
   const folder = join(dir, 'claude');
   mkdirSync(folder);
   writeFileSync(join(folder, 'c1.jsonl'), jsonl([user('u1', null, 1)]));

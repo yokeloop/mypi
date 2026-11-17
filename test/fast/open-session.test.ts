@@ -109,7 +109,7 @@ test('launchArgs builds Claude and Pi arguments', () => {
 test("callerMode reads the caller's live permission mode and is null without a caller or a recorded mode", t => {
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
-  try { app.projects.add('one/project', 'MP'); } finally { app.close(); }
+  try { app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { app.close(); }
   const db = openDatabase(filename);
   try {
     db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)

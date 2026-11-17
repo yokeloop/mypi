@@ -20,7 +20,7 @@ test('backup uses real SQLite snapshot and Git bundle; restore validates source/
   // Tracked attributes must not normalize original CRLF bytes in a restored checkout.
   contextFiles(root).create('.gitattributes', '*.md text eol=lf\n');
   app.complete(['.gitattributes'], 'Fixture attributes');
-  app.projects.add('one/project', 'MP');
+  app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
   const card = app.tasks.create({ project: 'one/project', title: 'Backup', status: 'new', slug: 'backup', source: 'source\r\n' });
   app.tasks.progress(card.key, 'artifact', [{ path: 'artifacts/result.md', text: 'evidence' }]);
   contextFiles(root).create('INDEX.md', 'before\n');
@@ -75,16 +75,16 @@ test('project and org remove report remaining home folders and leave them in pla
   const app = createApp(filename, false);
   let id: number, other: number;
   try {
-    id = app.projects.add('one/project', 'MP').id;
-    other = app.projects.add('two/project', 'YM').id;
+    id = app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git').id;
+    other = app.projects.add('two/project', 'YM', undefined, 'file:///nonexistent/two/project.git').id;
   } finally { app.close(); }
   assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'one/project', expectedCode: 'MP' }, filename, root),
-    { removed: { project: { id, org: 'one', slug: 'project', code: 'MP', checkoutPath: null, repository: null } }, homeFolder: 'projects/one/project' });
+    { removed: { project: { id, org: 'one', slug: 'project', code: 'MP', checkoutPath: null, repository: 'file:///nonexistent/one/project.git' } }, homeFolder: 'projects/one/project' });
   assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'one' }, filename, root),
     { removed: { organization: 'one' }, homeFolder: 'projects/one' });
   assert(existsSync(join(root, 'projects', 'one', 'project')));
   assert.deepEqual(await executeCommand({ name: 'project_remove', identity: 'two/project', expectedCode: 'YM' }, filename, root),
-    { removed: { project: { id: other, org: 'two', slug: 'project', code: 'YM', checkoutPath: null, repository: null } }, homeFolder: null });
+    { removed: { project: { id: other, org: 'two', slug: 'project', code: 'YM', checkoutPath: null, repository: 'file:///nonexistent/two/project.git' } }, homeFolder: null });
   assert.deepEqual(await executeCommand({ name: 'org_remove', org: 'two' }, filename, root),
     { removed: { organization: 'two' }, homeFolder: null });
 });

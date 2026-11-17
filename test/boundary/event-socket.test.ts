@@ -34,7 +34,7 @@ function fixture(t: TestContext) {
   const filename = JSON.parse(ok(['db', 'init'])).database as string;
   ok(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task 1', '--slug', 'task-1', '--status', 'new']);
   const sock = join(dir, 'MP.sock');
   const listen = async (mode: 'ack' | 'silent' | 'claude', log = join(dir, 'server.log')) => {

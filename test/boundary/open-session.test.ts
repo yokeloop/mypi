@@ -429,7 +429,7 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
 
 test('open refuses an unknown organization, all, global and an organization without projects, leaving no tab or rows', t => {
   const { cli, failed, calls, rows } = fixture(t);
-  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO']).status, 0);
+  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO', '--repository', 'file:///nonexistent/empty/gone.git']).status, 0);
   assert.equal(cli(['project', 'remove', 'empty/gone', '--expected-code', 'GO']).status, 0);
   assert.match(failed(['open', 'nope']).message, /Unknown organization/);
   assert.match(failed(['open', 'one', 'nope']).message, /Unknown organization/);

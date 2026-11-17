@@ -81,7 +81,7 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   const pid = String(process.pid);
   ok(['db', 'init']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP' },
     '{"session_id":"c1","source":"startup","session_title":"t"}'), '{"key":"MP","registered":true}\n');
   assert.equal(statSync(join(runtime, 'mypi', 'sessions', 'MP~' + pid + '.json')).mode & 0o777, 0o600);
@@ -121,7 +121,7 @@ test('real CLI session prompt prints one line after a switch, nothing on a repea
   const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
   ok(['db', 'init']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
   ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
   assert.equal(active(), 'c1');
@@ -165,7 +165,7 @@ test('real CLI pointer counts the task journal and the commits of the task workt
   git('2025-12-31T00:00:00Z', '-C', wt, 'commit', '--quiet', '--allow-empty', '-m', 'seed');
   const filename = JSON.parse(ok(['db', 'init'])).database as string;
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   const write = (sql: string, ...params: string[]) => {
     const db = openDatabase(filename);
     try { db.prepare(sql).run(...params); } finally { db.close(); }
@@ -204,7 +204,7 @@ test('real CLI session prompt hook stays silent and exits 0 when the pointer fai
   const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
   const filename = JSON.parse(ok(['db', 'init'])).database as string;
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
   ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
   assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
@@ -241,7 +241,7 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   ok(['db', 'init']);
   ok(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   assert.equal(JSON.parse(ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new'])).key, 'MP-1');
   for (let i = 2; i <= 12; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP-12' },
@@ -299,7 +299,7 @@ test('real CLI task status queues one milestone unless the project chat changes 
   const filename = JSON.parse(ok(['db', 'init'])).database as string;
   ok(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   for (let i = 1; i <= 5; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   ok(['task', 'status', 'MP-1', 'review', '--reason', 'main chat']);
   ok(['task', 'status', 'MP-2', 'review', '--reason', 'task chat'], { MYPI_SCOPE: 'MP-2' });
@@ -366,7 +366,7 @@ test('real CLI send queues a message for a closed child and inbox of the child r
   const filename = JSON.parse(ok(['db', 'init'])).database as string;
   ok(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new']);
   writeFileSync(join(dir, 'step.txt'), 'сделай шаг');
   assert.equal(ok(['send', 'MP-1', '--file', join(dir, 'step.txt')], { MYPI_SCOPE: 'MP' }), '{"message":1,"delivered":false}\n');

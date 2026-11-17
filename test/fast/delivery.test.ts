@@ -18,8 +18,8 @@ function fixture(t: TestContext) {
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP');
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const db = openDatabase(filename);
   try {

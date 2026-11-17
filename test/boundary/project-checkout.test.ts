@@ -73,7 +73,7 @@ test('a project without a clone is cloned, initialized or adopted only when safe
 
   mkdirSync(join(root, 'one', 'taken'));
   const other = createApp(filename, false);
-  try { other.projects.add('two/other', 'OT', join(root, 'one', 'taken')); } finally { other.close(); }
+  try { other.projects.add('two/other', 'OT', join(root, 'one', 'taken'), 'file:///nonexistent/two/other.git'); } finally { other.close(); }
   await assert.rejects(prepareCheckout(filename, taken, root),
     /is ready \(cloned\) but registering it failed: Checkout path already registered.*--expected-unset --path /);
   assert.equal(git('-C', join(root, 'one', 'taken'), 'config', '--get', 'remote.origin.url'), url);

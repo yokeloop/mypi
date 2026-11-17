@@ -18,7 +18,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.ifError(result.error);
     return result;
   };
-  for (const args of [['db', 'init'], ['project', 'add', 'fx/one', '--code', 'FX', '--repository', 'local']]) {
+  for (const args of [['db', 'init'], ['project', 'add', 'fx/one', '--code', 'FX', '--repository', 'file:///nonexistent/fx/one.git']]) {
     const result = run(args);
     assert.equal(result.status, 0, result.stderr);
   }
