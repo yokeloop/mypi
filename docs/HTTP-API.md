@@ -177,7 +177,8 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `task_progress`, `journal_add`, `context_guard`, `context_base`, `session_key`,
   `session_save`, `session_forget_rows`, `session_activate`, `events_claim`,
   `events_settle`, `event_create`, `inbox_take`, `message_create`, `warmup_data`,
-  `events_mark`, `archive_offset`, `archive_record`, `archive_status`, `archive_search`,
+  `events_mark`, `open_snapshot`, `parent_check`, `session_open`, `worktree_record`,
+  `checkout_record`, `archive_offset`, `archive_record`, `archive_status`, `archive_search`,
   `archive_show`, `archive_forget`; any other answers 400
   `invalid_request` `Unknown operation: <op>`.
 - `input` holds the fields of the command of the same name, except `task_create` (no
@@ -197,7 +198,16 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   released}`; `event_create` `{from, kind, message, to?}` (`kind` is `turn_end` or
   `waiting`); `inbox_take` `{key, caller}`; `message_create` `{from, to, message}`;
   `warmup_data` `{key}`; `events_mark` `{ids, caller}`. In `inbox_take` and
-  `events_mark` `caller` is an identity or `null`.
+  `events_mark` `caller` is an identity or `null`. Opening from a device uses
+  `open_snapshot` `{orgs}` (answers `{projects, cards, rows, orgs}`, `orgs` being the named
+  organizations that exist); `parent_check` `{from, to}`; `session_open` `{agent, nativeId,
+  key, device, opened?}` (`opened` is `{action: started|resumed, worktree}` and adds the
+  `session_opened` journal entry); `worktree_record` `{key, worktreePath, created?}`
+  (`created` is `{branch, base}` and adds `worktree_created`); `checkout_record`
+  `{identity, checkoutPath, action, repository?}` (`action` is `cloned`, `initialized` or
+  `adopted`; answers `{checkoutPath}` and adds `clone_prepared`). `worktreePath` and
+  `checkoutPath` are paths on the device: the server stores them as text and never opens
+  them.
   The archive operations are the archive's own API on the same `/v1/ops`:
   `archive_offset` `{agent, nativeId}`; `archive_record` `{agent, nativeId, path,
   expectedOffset, newOffset, read}`; `archive_status`, `archive_search`, `archive_show`

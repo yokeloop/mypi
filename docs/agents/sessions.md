@@ -136,3 +136,7 @@ Read when: working with session registration, /open, start messages, events, mil
   (at least once): Pi drops ids it already showed, Claude may show a message twice. After a
   round that claimed events but delivered none (the socket refused or acknowledged
   nothing) the subscription waits the stream's `retry` before it claims again.
+  `/open`, `sessions` and `task worktree` work from a device: data on the server,
+  clones and worktrees on the device at the same paths. `live` is known only for this
+  device's sessions. On a device without its own sessions of the key `/open` starts a
+  new one and notes `sessions of <KEY> on <devices> stay there; started a new one`.
