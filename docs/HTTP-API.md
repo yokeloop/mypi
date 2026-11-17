@@ -22,7 +22,7 @@ mypi serve [--listen <IP>] [--port <n>]
   a second delivery (Ctrl+C reaches the whole process group) is harmless. The CLI exits
   with the child's exit code; a child killed by a signal gives 128 + the signal number.
 - It refuses to start without any API token, without an initialized database, or
-  with a database schema other than the one the engine expects (12).
+  with a database schema other than the one the engine expects (17).
 
 ## Network
 
