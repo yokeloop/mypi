@@ -12,6 +12,7 @@
     "noUnusedParameters": true,
     "verbatimModuleSyntax": true,
     "esModuleInterop": true,
+    "skipLibCheck": true,
     "rootDir": ".",
     "outDir": "dist",
     "types": [
