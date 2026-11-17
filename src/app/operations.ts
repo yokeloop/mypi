@@ -1,11 +1,19 @@
-import type { AppCommand, OperationName } from './commands.js';
+import type { AppCommand, OperationName, ScopeInput } from './commands.js';
 import { createApp } from './create-app.js';
 import { createWorkspace } from './create-workspace.js';
 import { resolveScope } from './resolve-scope.js';
 import { trustedCheckoutPaths } from '../infrastructure/filesystem/paths.js';
 
 export type { OperationName };
-export type OperationInput<K extends AppCommand['name']> = AppCommand extends infer C ? C extends { name: infer N } ? K extends N ? Omit<C, 'name'> : never : never : never;
+type CommandInput<K> = AppCommand extends infer C ? C extends { name: infer N } ? K extends N ? Omit<C, 'name'> : never : never : never;
+export type OperationInputs = {
+  task_create: { project: string; title: string; status: string; slug: string; parent?: string };
+  task_status: { key: string; status: string; reason: string; session?: { agent: 'claude' | 'pi'; nativeId: string; pid?: number; runtime?: string }; envScope?: string };
+  task_progress: { key: string; text: string; artifacts?: string[]; commit?: string };
+  context_guard: { paths?: string[] };
+  context_base: { scope: ScopeInput } | { project: string };
+};
+export type OperationInput<K extends OperationName> = K extends keyof OperationInputs ? OperationInputs[K] : CommandInput<K>;
 export type OperationTarget = { filename: string; root?: string; trustedPaths?: boolean };
 
 type App = ReturnType<typeof createApp>;
