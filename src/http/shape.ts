@@ -6,7 +6,8 @@ type CardRow = { projectId: number | null; number: number; title: string; parent
 type EventRow = { id: number; fromKey: string; toKey: string; kind: string; message: string; createdAt: string; deliveredAt: string | null };
 type JournalRow = { id: number; entry: { at: string; scope: { type: 'global' } | { type: string; key: string }; event_type: string; text: string;
   artifacts?: (string | { path: string; commit: string })[] } };
-type SessionNode = { key: string; session: { agent: string; nativeId: string; state: string } | null; children: SessionNode[] };
+type SessionNode = { key: string; session: { agent: string; nativeId: string; state: string } | null;
+  sessions: { agent: string; nativeId: string; device: string; activeAt: string | null; state: string }[]; children: SessionNode[] };
 type ContextRow = { path: string; revision?: string; text: string };
 
 export function project(p: ProjectRow) {
@@ -36,7 +37,9 @@ export function journal({ id, entry }: JournalRow) {
 
 export function session(node: SessionNode): unknown {
   return { key: node.key, session: node.session === null ? null
-    : { agent: node.session.agent, nativeId: node.session.nativeId, state: node.session.state }, children: node.children.map(session) };
+    : { agent: node.session.agent, nativeId: node.session.nativeId, state: node.session.state },
+    sessions: node.sessions.map(s => ({ agent: s.agent, nativeId: s.nativeId, device: s.device, activeAt: s.activeAt, state: s.state })),
+    children: node.children.map(session) };
 }
 
 export function context(r: ContextRow) {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 
@@ -75,13 +75,15 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   mkdirSync(join(dir, 'clone'));
   ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP' },
-    '{"session_id":"c1","source":"startup","session_title":"t"}'), '{"key":"MP","registered":true,"displaced":null}\n');
-  assert.equal(statSync(join(runtime, 'mypi', 'sessions', 'MP.json')).mode & 0o777, 0o600);
+    '{"session_id":"c1","source":"startup","session_title":"t"}'), '{"key":"MP","registered":true}\n');
+  assert.equal(statSync(join(runtime, 'mypi', 'sessions', 'MP~' + pid + '.json')).mode & 0o777, 0o600);
   assert.equal(statSync(join(runtime, 'mypi')).mode & 0o777, 0o700);
   assert.equal(statSync(join(runtime, 'mypi', 'sessions')).mode & 0o777, 0o700);
   assert.ok(ok(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }).startsWith('# mypi warmup: MP (one/project)'));
-  assert.deepEqual(JSON.parse(ok(['sessions'])).tree.children[0].children[0],
-    { key: 'MP', session: { agent: 'claude', nativeId: 'c1', state: 'live' }, children: [] });
+  const node = JSON.parse(ok(['sessions'])).tree.children[0].children[0];
+  assert.match(node.sessions[0].activeAt, /^\d{4}-\d\d-\d\dT/);
+  assert.deepEqual(node, { key: 'MP', session: { agent: 'claude', nativeId: 'c1', state: 'live' },
+    sessions: [{ agent: 'claude', nativeId: 'c1', device: hostname(), activeAt: node.sessions[0].activeAt, state: 'live' }], children: [] });
   assert.equal(ok(['session', 'unregister', '--pid', pid]), '{"removed":["MP"]}\n');
   assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.state, 'closed');
   assert.equal(ok(['session', 'forget', 'MP']), '{"forgotten":"MP","live":false}\n');
@@ -154,7 +156,7 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   assert.equal(JSON.parse(ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new'])).key, 'MP-1');
   for (let i = 2; i <= 12; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP-12' },
-    '{"session_id":"c1","source":"startup"}'), '{"key":"MP-12","registered":true,"displaced":null}\n');
+    '{"session_id":"c1","source":"startup"}'), '{"key":"MP-12","registered":true}\n');
   writeFileSync(join(dir, 't.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]\ngo' } }) + '\n');
   writeFileSync(join(dir, 'human.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } }) + '\n');
