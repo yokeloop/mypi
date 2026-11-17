@@ -100,7 +100,8 @@ test('prompt makes its row active and a row without a live record stays closed',
   const db = openDatabase(x.filename, true);
   let p2: number;
   try { p2 = db.prepare("SELECT id FROM sessions WHERE native_id = 'p2'").pluck().get() as number; } finally { db.close(); }
-  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })), { key: 'MP', active: true, id: p2 });
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })),
+    { key: 'MP', active: true, id: p2, previous: { agent: 'claude', device: hostname() }, since: null });
   const active = x.ts(s => s.lookup('MP'));
   assert.equal(active.row!.nativeId, 'p2');
   assert.equal(active.live!.pid, 202);
@@ -109,8 +110,21 @@ test('prompt makes its row active and a row without a live record stays closed',
   assert.equal(closed.live, undefined);
   assert.equal(closed.row!.nativeId, 'p2');
   const before = x.activity();
-  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false, id: null });
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false, id: null, previous: null, since: null });
   assert.deepEqual(x.activity(), before);
+});
+
+test('prompt reports the previous active row of another session and its own last activity', t => {
+  const x = twoLive(t);
+  const first = x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' }));
+  assert.deepEqual([first.previous, first.since], [{ agent: 'claude', device: hostname() }, null]);
+  const before = x.activity()['c1'];
+  assert.equal(typeof before, 'string');
+  const back = x.ts(s => s.prompt({ agent: 'claude', nativeId: 'c1' }));
+  assert.deepEqual([back.previous, back.since], [{ agent: 'pi', device: hostname() }, before]);
+  const last = x.activity()['c1'];
+  const again = x.ts(s => s.prompt({ agent: 'claude', nativeId: 'c1' }));
+  assert.deepEqual([again.previous, again.since], [null, last]);
 });
 
 test('ownRecord gives the live record of this session in its key and nothing for a closed session or a broken runtime', t => {

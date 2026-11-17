@@ -17,8 +17,8 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   } finally { app.close(); }
 }
 
-export async function promptSession(filename: string, c: Of<'session_prompt'>, transports: EventTransports = {}, proc = '/proc'): Promise<void> {
-  if (!c.counted) return;
+export async function promptSession(filename: string, c: Of<'session_prompt'>, transports: EventTransports = {}, proc = '/proc'): Promise<string> {
+  if (!c.counted) return '';
   const app = createApp(filename, false);
   try {
     const sessions = app.sessions(c.runtime, proc);
@@ -32,6 +32,7 @@ export async function promptSession(filename: string, c: Of<'session_prompt'>, t
       return events.length === 0 ? undefined : { sessionId: prompted.id, socket: own.socket, transport, events };
     });
     if (claim !== undefined) await sendClaimed(app, claim);
+    return '';
   } finally { app.close(); }
 }
 

@@ -93,7 +93,7 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
 });
 
-test("real CLI session prompt is silent, counts the engineer's prompt and ignores a mypi frame", t => {
+test('real CLI session prompt prints one line after a switch, nothing on a repeat, and ignores a mypi frame', t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const sleeper = spawn('/usr/bin/sleep', ['30']);
@@ -123,7 +123,88 @@ test("real CLI session prompt is silent, counts the engineer's prompt and ignore
   assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {},
     hook('[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]\ngo')), '');
   assert.equal(active(), 'p1');
-  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook('привет')), '');
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook('привет')),
+    '[mypi: с вашего прошлого хода в MP работала сессия pi на ' + hostname() + ': 0 записей журнала; подробнее — journal MP]\n');
+  assert.equal(active(), 'c1');
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook('ещё')), '');
+});
+
+test('real CLI pointer counts the task journal and the commits of the task worktree', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  t.after(() => { sleeper.kill(); });
+  const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
+  const runtime = join(dir, 'run');
+  mkdirSync(runtime, { mode: 0o700 });
+  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime,
+    GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
+    const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
+      ...(input === undefined ? {} : { input }) });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const git = (date: string, ...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args],
+      { encoding: 'utf8', timeout: 5000, env: { ...process.env, GIT_COMMITTER_DATE: date, GIT_AUTHOR_DATE: date } });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const wt = join(dir, 'wt');
+  git('2025-12-31T00:00:00Z', 'init', '--quiet', '--initial-branch=main', wt);
+  git('2025-12-31T00:00:00Z', '-C', wt, 'commit', '--quiet', '--allow-empty', '-m', 'seed');
+  const filename = JSON.parse(ok(['db', 'init'])).database as string;
+  mkdirSync(join(dir, 'clone'));
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  const write = (sql: string, ...params: string[]) => {
+    const db = openDatabase(filename);
+    try { db.prepare(sql).run(...params); } finally { db.close(); }
+  };
+  write(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
+    VALUES ((SELECT id FROM projects WHERE code = 'MP'), 1, 'task', (SELECT id FROM task_statuses WHERE code = 'new'),
+    'projects/one/project/tasks/MP-1-task', ?, '2025-12-01T00:00:00.000Z', '2025-12-01T00:00:00.000Z')`, wt);
+  ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP-1' }, '{"session_id":"c1","source":"startup"}');
+  ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP-1' });
+  assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
+  write("UPDATE sessions SET active_at = '2026-01-01T00:00:00.000Z' WHERE native_id = 'c1'");
+  write("INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES ('2026-01-02T00:00:00.000Z', 'task', 'MP-1', 'note', 'x')");
+  git('2026-01-02T00:00:00Z', '-C', wt, 'commit', '--quiet', '--allow-empty', '-m', 'work');
+  const hook = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt: 'привет' });
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook),
+    '[mypi: с вашего прошлого хода в MP-1 работала сессия pi на ' + hostname() + ': 1 записей журнала, 1 коммитов в ветке; подробнее — journal MP-1]\n');
+});
+
+test('real CLI session prompt hook stays silent and exits 0 when the pointer fails', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  t.after(() => { sleeper.kill(); });
+  const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
+  const runtime = join(dir, 'run');
+  mkdirSync(runtime, { mode: 0o700 });
+  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
+    const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
+      ...(input === undefined ? {} : { input }) });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
+  const filename = JSON.parse(ok(['db', 'init'])).database as string;
+  mkdirSync(join(dir, 'clone'));
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
+  ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
+  assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
+  assert.equal(active(), 'p1');
+  const db = openDatabase(filename);
+  try { db.exec('DROP TABLE knowledge_journal'); } finally { db.close(); }
+  const hook = JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt: 'привет' });
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook), '');
   assert.equal(active(), 'c1');
 });
 

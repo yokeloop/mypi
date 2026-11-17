@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
@@ -78,9 +79,15 @@ function fixture(t: TestContext) {
     const db = openDatabase(filename, true);
     try { return db.prepare('SELECT id FROM sessions WHERE native_id = ?').pluck().get(nativeId) as number; } finally { db.close(); }
   };
-  const promptAs = (nativeId: string, transports: EventTransports, agent: 'claude' | 'pi' = 'pi', counted = true) =>
-    promptSession(filename, { name: 'session_prompt', agent, nativeId, counted, runtime: run }, transports, proc);
-  return { filename, run, proc, die, register, prompt, delivered, journal, calls, transport, emit, claims, rowId, promptAs, tick };
+  const promptAs = (nativeId: string, transports: EventTransports, agent: 'claude' | 'pi' = 'pi', counted = true, noDeliver = false) =>
+    promptSession(filename, { name: 'session_prompt', agent, nativeId, counted, noDeliver, runtime: run }, transports, proc);
+  const journalAt = (scope: 'project' | 'task', key: string, at: string) => {
+    const db = openDatabase(filename);
+    try {
+      db.prepare("INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES (?, ?, ?, 'note', 'x')").run(at, scope, key);
+    } finally { db.close(); }
+  };
+  return { filename, run, proc, die, register, prompt, delivered, journal, calls, transport, emit, claims, rowId, promptAs, journalAt, tick };
 }
 
 test('an acknowledged event is marked delivered and the transport gets the socket and the framed text', async t => {
@@ -460,4 +467,70 @@ test('send from a session that is not the parent writes nothing', async t => {
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
   assert.deepEqual(journal(), []);
+});
+
+const activeOf = (filename: string, run: string, proc: string) => {
+  const app = createApp(filename, true);
+  try { return app.sessions(run, proc).lookup('MP').row!.nativeId; } finally { app.close(); }
+};
+
+test('switch gives one line and a repeat gives nothing', async t => {
+  const { register, promptAs, journalAt } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  register(102, null);
+  assert.equal(await promptAs('p102', {}), '');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  assert.equal(await promptAs('c1', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в MP работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal MP]\n');
+  assert.equal(await promptAs('c1', {}, 'claude'), '');
+  assert.equal(await promptAs('c1', {}, 'claude', false), '');
+});
+
+test('a new session gets no pointer', async t => {
+  const { register, promptAs } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  register(103, null, 'claude', 'c3');
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('another device gets сначала git pull', async t => {
+  const { filename, register, promptAs, journalAt } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  register(102, null);
+  assert.equal(await promptAs('p102', {}), '');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p102'").run(); } finally { db.close(); }
+  const line = await promptAs('c1', {}, 'claude');
+  assert.ok(line.endsWith(': 1 записей журнала, сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes(' на other-host: '), line);
+});
+
+test('no-deliver prints the pointer and neither claims nor sends', async t => {
+  const { filename, run, proc, register, promptAs, transport, emit, calls, claims, delivered } = fixture(t);
+  register(101, '/s/a.sock', 'claude', 'c1');
+  register(102, '/s/b.sock');
+  await promptAs('p102', { pi: transport(ids => ids) });
+  await emit({});
+  const line = await promptAs('c1', { claude: transport(ids => ids) }, 'claude', true, true);
+  assert.ok(line.includes(': 0 записей журнала'), line);
+  assert.deepEqual(calls, []);
+  assert.equal(claims()[0]!.claimedBy, null);
+  assert.deepEqual(delivered(), [[1, false]]);
+  assert.equal(activeOf(filename, run, proc), 'c1');
+});
+
+test('a pointer failure prints nothing and keeps the touch and the claim', async t => {
+  const { filename, run, proc, register, promptAs, transport, emit, claims, delivered, rowId } = fixture(t);
+  register(101, '/s/a.sock', 'claude', 'c1');
+  register(102, '/s/b.sock');
+  await promptAs('p102', {});
+  await emit({});
+  const db = openDatabase(filename);
+  try { db.exec('DROP TABLE knowledge_journal'); } finally { db.close(); }
+  assert.equal(await promptAs('c1', { claude: transport(ids => ids) }, 'claude'), '');
+  assert.equal(activeOf(filename, run, proc), 'c1');
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.equal(claims()[0]!.claimedBy, rowId('c1'));
 });

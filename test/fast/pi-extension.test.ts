@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { CODEMODE_GUIDELINE, install, isEscape } from '../../.pi/extensions/mypi-lib/install.js';
 import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
+import { pointerLine } from '../../src/shared/switch-pointer.js';
 
 const root = fileURLToPath(new URL('../../../', import.meta.url));
 const description = 'Local mypi tools for projects, tasks, history and knowledge. No automatic initialization or writes.';
@@ -571,20 +572,67 @@ test('pi extension marks only interactive input', async () => {
   await pi.start('startup');
   const before = pi.calls.length;
   assert.deepEqual(await input('interactive'), { action: 'continue' });
-  assert.deepEqual(pi.calls.slice(before), [['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }]]);
+  assert.deepEqual(pi.calls.slice(before), [
+    ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1', '--no-deliver'], { cwd: root, timeout: 2000 }],
+    ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }]]);
   for (const source of ['extension', 'rpc']) assert.deepEqual(await input(source), { action: 'continue' });
-  assert.equal(pi.calls.length, before + 1);
+  assert.equal(pi.calls.length, before + 2);
 });
 
-test('pi extension continues interactive input without waiting for session prompt', async () => {
+const delivery = ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }];
+const pointerAnswer = (answer: () => unknown) => (_command: string, args: string[]): unknown =>
+  args.includes('--no-deliver') ? answer() : new Promise<never>(() => {});
+
+test('pi extension waits only for the pointer call and never for delivery', async () => {
   const pi = stub();
   install(pi.api, root, serve, undefined);
   const input = (source: string) => (pi.handlers.get('input') as unknown as (event: { text: string; source: string }) => Promise<unknown>)({ text: 'hi', source });
   pi.state.key = 'MP';
   await pi.start('startup');
-  pi.state.result = () => new Promise<never>(() => {});
-  assert.deepEqual(await Promise.race([input('interactive'), Promise.resolve().then(() => 'still waiting')]), { action: 'continue' });
-  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }]);
+  pi.state.result = pointerAnswer(() => ({ code: 0, killed: false, stdout: '', stderr: '' }));
+  let waiting: Promise<unknown> = Promise.resolve();
+  for (let i = 0; i < 50; i++) waiting = waiting.then(() => undefined);
+  assert.deepEqual(await Promise.race([input('interactive'), waiting.then(() => 'still waiting')]), { action: 'continue' });
+  assert.deepEqual(pi.calls.at(-2), ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1', '--no-deliver'], { cwd: root, timeout: 2000 }]);
+  assert.deepEqual(pi.calls.at(-1), delivery);
+});
+
+test('pi extension puts the pointer before the text and after a slash command', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const input = (text: string, images?: unknown[]) => (pi.handlers.get('input') as unknown as
+    (event: { text: string; source: string; images?: unknown[] }) => Promise<unknown>)({ text, source: 'interactive', ...(images === undefined ? {} : { images }) });
+  pi.state.key = 'MP';
+  await pi.start('startup');
+  const line = pointerLine({ key: 'MP', agent: 'claude', device: 'laptop', entries: 1, commits: null });
+  pi.state.result = pointerAnswer(() => ({ code: 0, killed: false, stdout: line + '\n', stderr: '' }));
+  assert.deepEqual(await input('привет'), { action: 'transform', text: line + '\n\nпривет' });
+  assert.deepEqual(pi.calls.at(-1), delivery);
+  assert.deepEqual(await input('/skill:review x'), { action: 'transform', text: '/skill:review x\n\n' + line });
+  const images = [{ type: 'image', data: 'a', mimeType: 'image/png' }];
+  assert.deepEqual(await input('привет', images), { action: 'transform', text: line + '\n\nпривет', images });
+});
+
+test('pi extension continues when the pointer call fails', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const input = () => (pi.handlers.get('input') as unknown as (event: { text: string; source: string }) => Promise<unknown>)({ text: 'hi', source: 'interactive' });
+  pi.state.key = 'MP';
+  await pi.start('startup');
+  const line = pointerLine({ key: 'MP', agent: 'claude', device: 'laptop', entries: 1, commits: null });
+  const answers: (() => unknown)[] = [
+    () => ({ code: 1, killed: false, stdout: line, stderr: '' }),
+    () => ({ code: 0, killed: true, stdout: line, stderr: '' }),
+    () => ({ code: 0, killed: false, stdout: '{"key":"MP"}', stderr: '' }),
+    () => Promise.reject(new Error('boom')),
+  ];
+  for (const answer of answers) {
+    const before = pi.calls.length;
+    pi.state.result = pointerAnswer(answer);
+    assert.deepEqual(await input(), { action: 'continue' });
+    assert.deepEqual(pi.calls.slice(before).at(-1), delivery);
+    assert.equal(pi.calls.length, before + 2);
+  }
 });
 
 test('pi extension warns when its event socket cannot open and does not register a socket', async t => {

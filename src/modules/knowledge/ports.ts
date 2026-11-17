@@ -10,4 +10,5 @@ export interface JournalBrowseStore {
 export interface JournalSummaryStore {
   stats(project: string, tasks: readonly string[]): { count: number; lastAt: string | null };
   last(scope: Scope, limit: number): Entry[];
+  countSince(scope: Scope, at: string): number;
 }

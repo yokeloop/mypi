@@ -76,3 +76,21 @@ test('stats counts the project and the named tasks only and last returns the new
     assert.deepEqual(journal.last({ type: 'task', key: 'MP-9' }, 5), []);
   } finally { db.close(); }
 });
+
+test('countSince counts one scope after a time, exclusive', t => {
+  const { filename } = state(t), db = openDatabase(filename), journal = sqliteJournalStore(db);
+  const one = { type: 'task' as const, key: 'MP-1' };
+  try {
+    db.transaction(() => {
+      journal.append({ at: '2026-10-31T08:00:00.000Z', scope: one, event_type: 'note', text: 'a' });
+      journal.append({ at: '2026-10-31T09:00:00.000Z', scope: one, event_type: 'note', text: 'b' });
+      journal.append({ at: '2026-10-31T10:00:00.000Z', scope: one, event_type: 'note', text: 'c' });
+      journal.append({ at: '2026-10-31T10:00:00.000Z', scope: { type: 'task', key: 'MP-2' }, event_type: 'note', text: 'other task' });
+      journal.append({ at: '2026-10-31T10:00:00.000Z', scope: { type: 'project', key: 'MP' }, event_type: 'note', text: 'project' });
+      journal.append({ at: '2026-10-31T10:00:00.000Z', scope: { type: 'global' }, event_type: 'note', text: 'global' });
+    }).immediate();
+    assert.equal(journal.countSince(one, '2026-10-31T09:00:00.000Z'), 1);
+    assert.equal(journal.countSince(one, '2026-10-31T07:00:00.000Z'), 3);
+    assert.equal(journal.countSince({ type: 'global' }, '2026-10-31T09:00:00.000Z'), 1);
+  } finally { db.close(); }
+});

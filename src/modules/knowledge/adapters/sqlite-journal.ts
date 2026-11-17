@@ -60,6 +60,7 @@ export function sqliteJournalStore(db: Database): JournalStore & JournalBrowseSt
         .all(scope.type, scope.type === 'global' ? null : scope.key, limit);
       return rows.map(decode).reverse();
     },
+    countSince() { return 0; },
     importEntry(path, line, entry) { assertWritable(); if (!path || !Number.isSafeInteger(line) || line < 1) throw new Error('Invalid journal import location'); write(entry, path, line); },
     journalImport(path) {
       const row = db.prepare('SELECT path,sha256,byte_length AS byteLength,imported_at AS importedAt FROM knowledge_journal_imports WHERE path=?').get(path) as JournalImport | undefined;
