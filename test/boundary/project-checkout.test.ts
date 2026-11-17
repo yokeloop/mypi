@@ -4,6 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
+import { seedRepository } from '../support/repository.js';
 import { createApp } from '../../src/app/create-app.js';
 import { inspectCheckout, prepareCheckout, prepareCheckouts } from '../../src/app/project-checkout.js';
 import { planCheckout } from '../../src/modules/projects/public.js';
@@ -27,13 +28,15 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   const url = 'file://' + bare;
   const app = createApp(filename, false);
   const add = (identity: string, code: string, repository: string) => app.projects.add(identity, code, undefined, repository);
-  const [remote, adopted, busy, foreign, empty, missing, taken, local, second, blocked] = (() => {
+  const [remote, adopted, busy, foreign, empty, missing, taken] = (() => {
     try {
       return [add('one/remote', 'RE', url), add('one/adopted', 'AD', url), add('one/busy', 'BU', url), add('one/foreign', 'FO', url),
         add('one/empty', 'EM', url), add('one/missing', 'MI', join(dir, 'missing.git')), add('one/taken', 'TA', url),
-        add('one/local', 'LO', 'local'), add('one/second', 'SE', 'local'), add('file/blocked', 'FB', 'local')];
+        add('one/local', 'LO', url), add('one/second', 'SE', url), add('file/blocked', 'FB', url)];
     } finally { app.close(); }
   })();
+  const local = seedRepository(filename, 'LO', 'local'), second = seedRepository(filename, 'SE', 'local'),
+    blocked = seedRepository(filename, 'FB', 'local');
   const checkout = (code: string) => {
     const read = createApp(filename, true);
     try { return read.projects.list().find(p => p.code === code)!.checkoutPath; } finally { read.close(); }

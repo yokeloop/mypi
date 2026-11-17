@@ -43,9 +43,11 @@ test('archive path sits beside the state file and stays outside the engine', t =
 });
 
 test('CLI parsing is strict without invoking a process for the validation matrix', () => {
-  assert.deepEqual(parseCommand(['project', 'add', 'one/project', '--code', 'MP']), {
-    type: 'add', identity: 'one/project', code: 'MP',
+  assert.deepEqual(parseCommand(['project', 'add', 'one/project', '--code', 'MP', '--repository', 'file:///nonexistent/one/project.git']), {
+    type: 'add', identity: 'one/project', code: 'MP', repository: 'file:///nonexistent/one/project.git',
   });
+  assert.throws(() => parseCommand(['project', 'add', 'one/project', '--code', 'MP']),
+    { name: 'InputError', message: 'project add requires org/project, --code and --repository <git-url>' });
   assert.deepEqual(parseCommand(['project', 'list', '--org', 'one']), { type: 'list', org: 'one' });
   assert.deepEqual(parseCommand(['db', 'init']), { type: 'initialize' });
   assert.deepEqual(parseCommand(['--help']), { type: 'help' });

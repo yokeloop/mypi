@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { LOCAL_REPOSITORY, checkoutTarget, cloneStaging, noRepositoryError, planCheckout, stagingPid, validateRepository } from '../../src/modules/projects/public.js';
 
-test('a repository is a Git remote URL, an absolute path or local', () => {
+test('a repository is a Git remote URL or an absolute path, and local is refused', () => {
   assert.equal(LOCAL_REPOSITORY, 'local');
-  for (const value of ['local', 'https://github.com/o/r.git', 'ssh://git@host/o/r.git', 'git@github.com:o/r.git',
+  for (const value of ['https://github.com/o/r.git', 'ssh://git@host/o/r.git', 'git@github.com:o/r.git',
     'host:path', 'file:///srv/r.git', '/srv/r.git']) assert.doesNotThrow(() => validateRepository(value), value);
   const cases: [string, string][] = [
     ['', 'must not be empty'],
+    ['local', 'local is no longer accepted; give the Git remote URL'],
     ['-uhttps://x', 'must not start with -'],
     ['ext::sh -c x', 'must not contain spaces or control characters'],
     ['a::b', 'transport helpers (::) are not allowed'],
@@ -21,7 +22,7 @@ test('a repository is a Git remote URL, an absolute path or local', () => {
     assert.throws(() => validateRepository(value), {
       name: 'InputError',
       message: 'Invalid repository ' + JSON.stringify(value) + ': ' + reason
-        + '; use https://, ssh://, file://, [user@]host:path, an absolute path or local',
+        + '; use https://, ssh://, file://, [user@]host:path or an absolute path',
     }, value);
   }
 });
@@ -33,7 +34,7 @@ test('a checkout is planned from the repository and the state of its target', ()
   const local = { ...url, repository: 'local' };
   const none = { ...url, repository: null };
   assert.throws(() => planCheckout(none, target, { kind: 'missing' }), { message: noRepositoryError(none).message });
-  assert.match(noRepositoryError(none).message, /^Project one\/project \(MP\) has no clone and no repository to clone it from; set it with projects \{"action":"update","identity":"one\/project","expectedRepository":null,"repository":"<git-url\|local>"\} \(CLI: mypi project update one\/project --expected-repository-unset --repository <git-url\|local>\), then open it again$/);
+  assert.match(noRepositoryError(none).message, /^Project one\/project \(MP\) has no clone and no repository to clone it from; set it with projects \{"action":"update","identity":"one\/project","expectedRepository":null,"repository":"<git-url>"\} \(CLI: mypi project update one\/project --expected-repository-unset --repository <git-url>\), then open it again$/);
   assert.equal(planCheckout(url, target, { kind: 'missing' }), 'clone');
   assert.equal(planCheckout(url, target, { kind: 'empty' }), 'clone');
   assert.equal(planCheckout(local, target, { kind: 'missing' }), 'init');

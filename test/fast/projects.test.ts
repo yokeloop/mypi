@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { state } from '../support/state.js';
+import { seedRepository } from '../support/repository.js';
 
 test('registered scope, independent organizations and duplicate rollback through the public API', t => {
   const { dir, filename } = state(t);
@@ -108,18 +109,70 @@ test('project repository is validated, stored, listed, resolved and updated with
     assert.equal(app.projects.list()[0]!.repository, url);
     assert.throws(() => app.projects.add('one/bad', 'BD', undefined, 'ext::sh'), /Invalid repository/);
     assert.deepEqual(app.projects.list().map(p => p.code), ['MP']);
-    assert.throws(() => app.projects.update('one/project', { repository: { expected: null, value: 'local' } }), /Stale project repository/);
-    assert.equal(app.projects.update('one/project', { repository: { expected: url, value: 'local' } }).repository, 'local');
-    assert.throws(() => app.projects.update('one/project', { repository: { expected: 'local', value: 'ext::sh' } }), /Invalid repository/);
+    const other = 'ssh://git@host/one/project.git';
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: null, value: other } }), /Stale project repository/);
+    assert.equal(app.projects.update('one/project', { repository: { expected: url, value: other } }).repository, other);
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: other, value: 'ext::sh' } }), /Invalid repository/);
     const before = app.projects.list();
     assert.throws(() => app.projects.update('one/project', { checkout: { expected: path, path },
-      repository: { expected: 'local', value: '/srv/r.git' } }), /Stale project checkout path/);
+      repository: { expected: other, value: '/srv/r.git' } }), /Stale project checkout path/);
     assert.deepEqual(app.projects.list(), before);
     const both = app.projects.update('one/project', { checkout: { expected: null, path },
-      repository: { expected: 'local', value: '/srv/r.git' } });
+      repository: { expected: other, value: '/srv/r.git' } });
     assert.deepEqual([both.checkoutPath, both.repository], [path, '/srv/r.git']);
     assert.equal(app.projects.resolveCheckout(path).repository, '/srv/r.git');
     assert.throws(() => app.projects.update('one/project', {}), /needs a checkout path or a repository/);
+  } finally { app.close(); }
+});
+
+test('project add without a repository is refused and creates no row', t => {
+  const { dir, filename } = state(t);
+  const path = join(dir, 'checkout');
+  mkdirSync(path);
+  const app = createApp(filename, false);
+  try {
+    const refusal = { name: 'InputError',
+      message: 'Project add requires a repository: the Git remote URL (CLI --repository <git-url>, MCP "repository":"<git-url>")' };
+    // @ts-expect-error repository is required
+    assert.throws(() => app.projects.add('one/project', 'MP'), refusal);
+    // @ts-expect-error repository is required
+    assert.throws(() => app.projects.add('one/project', 'MP', path), refusal);
+    assert.deepEqual(app.projects.list(), []);
+  } finally { app.close(); }
+});
+
+test('local is refused as a new repository in add and update', t => {
+  const { filename } = state(t);
+  const app = createApp(filename, false);
+  try {
+    const refusal = /^Invalid repository "local": local is no longer accepted; give the Git remote URL; use https:\/\/, ssh:\/\/, file:\/\/, \[user@\]host:path or an absolute path$/;
+    assert.throws(() => app.projects.add('one/local', 'LC', undefined, 'local'), refusal);
+    assert.deepEqual(app.projects.list(), []);
+    const url = 'git@github.com:one/project.git';
+    app.projects.add('one/project', 'MP', undefined, url);
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: url, value: 'local' } }), refusal);
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: null, value: 'local' } }), refusal);
+    assert.equal(app.projects.list()[0]!.repository, url);
+  } finally { app.close(); }
+});
+
+test('an existing row with local or without a repository is listed and updated away with its expected value', t => {
+  const { filename } = state(t);
+  const url = 'git@github.com:one/project.git';
+  const write = createApp(filename, false);
+  try {
+    write.projects.add('one/project', 'MP', undefined, url);
+    write.projects.add('one/noclone', 'NC', undefined, 'file:///nonexistent/one/noclone.git');
+  } finally { write.close(); }
+  seedRepository(filename, 'MP', 'local');
+  seedRepository(filename, 'NC', null);
+  const app = createApp(filename, false);
+  try {
+    assert.deepEqual(app.projects.list().map(p => [p.code, p.repository]), [['NC', null], ['MP', 'local']]);
+    assert.throws(() => app.projects.update('one/project', { repository: { expected: 'local', value: 'local' } }), /local is no longer accepted/);
+    assert.equal(app.projects.update('one/project', { repository: { expected: 'local', value: url } }).repository, url);
+    const remote = 'https://example.test/one/noclone.git';
+    assert.equal(app.projects.update('one/noclone', { repository: { expected: null, value: remote } }).repository, remote);
   } finally { app.close(); }
 });
 

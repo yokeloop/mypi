@@ -6,6 +6,7 @@ import { existsSync, mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { state } from '../support/state.js';
 import { legacyTask } from '../support/legacy-task.js';
+import { seedRepository } from '../support/repository.js';
 import { createApp } from '../../src/app/create-app.js';
 import { createJournal } from '../../src/modules/knowledge/public.js';
 import { sameScope } from '../../src/shared/scope.js';
@@ -116,7 +117,8 @@ test('task worktree fast-forwards main, creates the branch beside the base clone
 test('a local project gets task worktrees from its local main without origin', async t => {
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
-  const project = (() => { try { return app.projects.add('one/local', 'LO', undefined, 'local'); } finally { app.close(); } })();
+  try { app.projects.add('one/local', 'LO', undefined, 'file:///nonexistent/one/local.git'); } finally { app.close(); }
+  const project = seedRepository(filename, 'LO', 'local');
   const clone = (await prepareCheckout(filename, project, join(realpathSync(dir), 'projects'))).checkoutPath;
   const setup = createApp(filename, false);
   try { setup.tasks.create({ projectId: project.id, slug: 'local', title: 'local', status: 'new' }, () => {}); } finally { setup.close(); }
