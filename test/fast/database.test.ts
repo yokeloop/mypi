@@ -51,7 +51,7 @@ test('readonly connection observes committed rows in an active writer WAL withou
       assert.equal(reader.pragma('journal_mode', { simple: true }), 'wal');
       assert.deepEqual(reader.prepare('SELECT slug FROM organizations WHERE slug = ?').get('visible'), { slug: 'visible' });
       assert.throws(() => reader.prepare("INSERT INTO organizations(slug) VALUES ('forbidden')").run(), /readonly/i);
-      assert.equal((reader.pragma('user_version', { simple: true }) as number), 16);
+      assert.equal((reader.pragma('user_version', { simple: true }) as number), 17);
     } finally { reader.close(); }
   } finally { writer.close(); }
 });
@@ -73,8 +73,8 @@ test('initialization is a no-op on a current database and rejects a newer schema
   db = openDatabase(filename);
   try {
     assert.deepEqual(db.prepare('SELECT * FROM task_statuses ORDER BY id').all(), expected);
-    assert.equal(db.pragma('user_version', { simple: true }), 16);
-    db.pragma('user_version = 17');
+    assert.equal(db.pragma('user_version', { simple: true }), 17);
+    db.pragma('user_version = 18');
     assert.equal(db.pragma('journal_mode = DELETE', { simple: true }), 'delete');
   } finally { db.close(); }
   assert.throws(() => initializeDatabase(filename), /newer/);
@@ -82,7 +82,7 @@ test('initialization is a no-op on a current database and rejects a newer schema
   const unsupported = new Database(filename, { readonly: true, fileMustExist: true });
   try {
     assert.equal(unsupported.pragma('journal_mode', { simple: true }), 'delete');
-    assert.equal(unsupported.pragma('user_version', { simple: true }), 17);
+    assert.equal(unsupported.pragma('user_version', { simple: true }), 18);
   } finally { unsupported.close(); }
 });
 
@@ -156,7 +156,7 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   t.diagnostic('migrations 006+007 on 50 tasks and ' + seed.length + ' journal rows: ' + Math.round(performance.now() - started) + ' ms');
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     const names = (upgraded.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
     for (const name of ['tasks', 'task_statuses', 'tasks_unassigned_number', 'used_status_terminality', 'used_project_code',
       'preserve_task_numbers', 'knowledge_journal', 'knowledge_journal_order']) assert.ok(names.includes(name), name);
@@ -188,11 +188,11 @@ test('schemas 6 and 7 upgrade a v0.7.0 database: work_chats dropped, requests re
   assert.equal(existsSync(join(dir, 'snapshot.sqlite3')), true);
 });
 
-test('empty database initializes at schema 16 with the tasks, sessions and events tables', t => {
+test('empty database initializes at schema 17 with the tasks, sessions and events tables', t => {
   const { filename } = state(t);
   const db = openDatabase(filename);
   try {
-    assert.equal(db.pragma('user_version', { simple: true }), 16);
+    assert.equal(db.pragma('user_version', { simple: true }), 17);
     assert.deepEqual((db.prepare('PRAGMA table_info(sessions)').all() as { name: string }[]).map(c => c.name),
       ['id', 'key', 'scope_type', 'org_id', 'project_id', 'task_id', 'agent', 'native_id', 'device', 'created_at', 'active_at', 'ended_at']);
     const names = (db.prepare('SELECT name FROM sqlite_master').all() as { name: string }[]).map(x => x.name);
@@ -227,8 +227,8 @@ test('schema 9 upgrades a schema 8 database and keeps its events', t => {
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
-    assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
+    assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before.map(row => ({ ...(row as object), claimed_by: null, claimed_at: null })));
     upgraded.prepare("INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP-1', 'MP', 'milestone', 'review', '2026-10-30T00:00:00.000Z')").run();
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
   } finally { upgraded.close(); }
@@ -256,8 +256,8 @@ test('schema 10 upgrades a schema 9 database and keeps its events', t => {
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
-    assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
+    assert.deepEqual(upgraded.prepare('SELECT * FROM events ORDER BY id').all(), before.map(row => ({ ...(row as object), claimed_by: null, claimed_at: null })));
     upgraded.prepare("INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('MP', 'MP-1', 'message', 'go', '2026-10-31T00:00:00.000Z')").run();
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
   } finally { upgraded.close(); }
@@ -282,7 +282,7 @@ test('schema 12 adds projects.repository and keeps the projects of a schema 11 d
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     assert.deepEqual(upgraded.prepare('SELECT * FROM projects').all(),
       [{ id: 2, org_id: 1, slug: 'project', code: 'MP', checkout_path: '/srv/one/project', repository: null }]);
     assert.throws(() => upgraded.prepare("INSERT INTO projects(org_id, slug, code, repository) VALUES (1, 'blank', 'BL', ' ')").run(), /CHECK constraint failed/);
@@ -312,7 +312,7 @@ test('schema 13 adds tasks.parent_id and keeps the tasks of a schema 12 database
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     assert.deepEqual(upgraded.prepare('SELECT id, parent_id FROM tasks').all(), [{ id: 3, parent_id: null }]);
     assert.throws(() => upgraded.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, created_at, updated_at, parent_id)
       VALUES (2, 2, 'Orphan', (SELECT id FROM task_statuses WHERE code = 'new'), 'projects/one/project/tasks/MP-2-orphan',
@@ -352,7 +352,7 @@ test('schema 14 upgrades a schema 13 database, keeps its sessions and lets a ses
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     assert.deepEqual(upgraded.prepare('SELECT id, parent_id FROM tasks ORDER BY id').all(), [{ id: 3, parent_id: null }, { id: 4, parent_id: 3 }]);
     assert.deepEqual(upgraded.prepare('SELECT key, scope_type, org_id, project_id, task_id, agent, native_id, created_at FROM sessions ORDER BY key').all(),
       before.map(row => ({
@@ -397,7 +397,7 @@ test('schema 15 upgrades a schema 14 database, keeps its journal rows and accept
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     assert.deepEqual(upgraded.prepare('SELECT * FROM knowledge_journal ORDER BY id').all(), before);
     const names = upgraded.prepare("SELECT name FROM sqlite_master WHERE name IN ('knowledge_journal', 'knowledge_journal_order', 'knowledge_journal_next') ORDER BY name").pluck().all();
     assert.deepEqual(names, ['knowledge_journal', 'knowledge_journal_order']);
@@ -436,7 +436,7 @@ test('schema 16 upgrades a schema 15 database, keeps every session as one row of
   initializeDatabase(filename);
   const upgraded = openDatabase(filename);
   try {
-    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
     const rows = upgraded.prepare(`SELECT id, key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at, active_at, ended_at
       FROM sessions ORDER BY key`).all() as Record<string, unknown>[];
     assert.deepEqual(rows.map(({ id: _, ...row }) => row), [

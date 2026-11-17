@@ -1,0 +1,2 @@
+ALTER TABLE events ADD COLUMN claimed_by INTEGER REFERENCES sessions(id) ON DELETE SET NULL;
+ALTER TABLE events ADD COLUMN claimed_at TEXT;
