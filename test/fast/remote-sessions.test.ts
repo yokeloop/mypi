@@ -89,6 +89,7 @@ test('session prompt on device 1 after device 2 was active prints the pointer wi
   const x = fixture(t);
   await x.register(x.dev1, x.run1, 101, 'p1');
   await x.register(x.dev2, x.run2, 201, 'p2');
+  assert.equal(await promptSession(x.dev2, { name: 'session_prompt', agent: 'pi', nativeId: 'p2', counted: true, runtime: x.run2 }, {}, x.proc), '');
   const line = await promptSession(x.dev1, { name: 'session_prompt', agent: 'pi', nativeId: 'p1', counted: true, runtime: x.run1 }, {}, x.proc);
   assert.match(line, /^\[mypi: с вашего прошлого хода в MP-12 работала сессия pi на dev2: \d+ записей журнала, сначала git pull; подробнее — journal MP-12\]\n$/);
 });

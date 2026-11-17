@@ -461,11 +461,65 @@ test('switch gives one line and a repeat gives nothing', async t => {
   assert.equal(await promptAs('c1', {}, 'claude', false), '');
 });
 
-test('a new session gets no pointer', async t => {
+test('the first session of a scope gets no pointer', async t => {
   const { register, promptAs } = fixture(t);
   register(101, null);
   assert.equal(await promptAs('p101', {}), '');
+  assert.equal(await promptAs('p101', {}), '');
+});
+
+test('a new session after another active session gets the pointer once', async t => {
+  const { register, promptAs, journalAt } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
   register(103, null, 'claude', 'c3');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  assert.equal(await promptAs('c3', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в MP работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal MP]\n');
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session alone on its device after a session on another device gets сначала git pull', async t => {
+  const { filename, run, proc, die, register, promptAs, journalAt } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  die(101);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p101'").run(); } finally { db.close(); }
+  const app = createApp(filename, false);
+  try { app.sessions(run, proc).activate({ key: 'MP', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  register(103, null, 'claude', 'c3');
+  assert.equal(activeOf(filename, run, proc), 'c3');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  const line = await promptAs('c3', {}, 'claude');
+  assert.ok(line.endsWith(': 1 записей журнала, сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes('работала сессия pi на other-host: '), line);
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session that registers alone after a turn of a closed session gets the pointer', async t => {
+  const { die, register, promptAs } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  die(101);
+  register(103, null, 'claude', 'c3');
+  assert.ok((await promptAs('c3', {}, 'claude')).startsWith('[mypi: с вашего прошлого хода в MP работала сессия pi на '));
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a clear in the active session after a turn gives no pointer', async t => {
+  const { filename, run, proc, register, promptAs } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  assert.equal(await promptAs('c1', {}, 'claude'), '');
+  register(101, null, 'claude', 'c2');
+  assert.equal(activeOf(filename, run, proc), 'c2');
+  assert.equal(await promptAs('c2', {}, 'claude'), '');
+});
+
+test('a new session registered alone without an earlier active session gets no pointer', async t => {
+  const { register, promptAs } = fixture(t);
+  register(103, null, 'claude', 'c3');
+  register(101, null);
   assert.equal(await promptAs('c3', {}, 'claude'), '');
 });
 
