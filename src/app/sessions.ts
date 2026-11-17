@@ -13,6 +13,12 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   } finally { app.close(); }
 }
 
+export function promptSession(filename: string, c: Of<'session_prompt'>, proc = '/proc') {
+  if (!c.counted) return;
+  const app = createApp(filename, false);
+  try { app.sessions(c.runtime, proc).prompt({ agent: c.agent, nativeId: c.nativeId }); } finally { app.close(); }
+}
+
 export function unregisterSession(filename: string, c: Of<'session_unregister'>, proc = '/proc') {
   const app = createApp(filename, false);
   try { return app.sessions(c.runtime, proc).unregister(c.pid); } finally { app.close(); }

@@ -45,6 +45,7 @@ export type AppCommand =
   | { name: 'restore_published'; repository: string; commit: string }
   | { name: 'home_migrate_tasks'; dryRun?: boolean }
   | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; runtime?: string }
+  | { name: 'session_prompt'; agent: 'claude' | 'pi'; nativeId: string; counted: boolean; runtime?: string }
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }

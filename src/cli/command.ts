@@ -20,6 +20,7 @@ mypi project flow <CODE|org/project> (the project's branch flow from home/projec
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
 mypi bootstrap | warmup [-s global|org|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
+mypi session prompt --agent claude --hook | --agent pi --native-id <id> (marks the engineer's input: the session becomes the scope's active one; prints nothing)
 mypi session unregister --pid <pid> | forget <key>
 mypi sessions
 mypi archive import [--dir <directory> --agent claude|pi]... | status (conversation archive archive.sqlite3 beside the state DB: import reads the engine root's Claude and Pi transcripts, or each --dir with its --agent, from each file's saved offset; status counts sessions, messages and bound keys and never creates the file)
