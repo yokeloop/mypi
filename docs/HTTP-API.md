@@ -428,16 +428,23 @@ never moves it on its own.
    makes:
 
    ```sh
-   S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
-   mkdir -p "$(dirname "$S")" && mkdir -m 700 "$S" && cp -n <dir>/*.sqlite3 "$S/" && chmod 600 "$S"/*.sqlite3
-   for f in "$S"/*.sqlite3; do
-     sqlite3 "$f" 'PRAGMA integrity_check;' 'PRAGMA foreign_key_check;' 'PRAGMA user_version;'
-   done
-   mypi db init
+   (
+     set -e
+     S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
+     mkdir -p "$(dirname "$S")"
+     mkdir -m 700 "$S"
+     cp <dir>/*.sqlite3 "$S/"
+     chmod 600 "$S"/*.sqlite3
+     for f in "$S"/*.sqlite3; do
+       sqlite3 "$f" 'PRAGMA integrity_check;' 'PRAGMA foreign_key_check;' 'PRAGMA user_version;'
+     done
+     mypi db init
+   )
    ```
 
-   Each database prints `ok`, nothing, then `17` for `state.sqlite3` and `1` for
-   `archive.sqlite3`; `mypi db init` changes nothing on the same schema.
+   The block stops at `mkdir` when the state directory already exists. Each database prints
+   `ok`, nothing, then `17` for `state.sqlite3` and `1` for `archive.sqlite3`; `mypi db init`
+   changes nothing on the same schema.
 4. On the server: a `device` token per device and the unit ([Server](#server)).
 5. On the device: `server.json` ([Devices](#devices)), then move the old state directory
    aside instead of deleting it:
