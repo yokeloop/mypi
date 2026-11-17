@@ -125,8 +125,8 @@ test('archive import binds a key on a later pass without new bytes', t => {
   assert.deepEqual([first.boundSessions, first.unboundSessions, first.keys, first.keySources], [1, 1, 1, { sessions: 0, name: 1 }]);
   const stateDb = openDatabase(filename);
   try {
-    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
-      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', ?)`).run(at(0));
+    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', 'host', ?)`).run(at(0));
   } finally { stateDb.close(); }
   assert.equal(run().inserted, 0);
   assert.deepEqual([sessionRow(filename, 'c1').key, sessionRow(filename, 'c1').keySource], ['global', 'sessions']);

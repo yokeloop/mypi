@@ -149,8 +149,8 @@ test('key binding prefers the sessions row, then a registered name, else NULL', 
   try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
   const stateDb = openDatabase(filename);
   try {
-    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
-      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'n1', ?)`).run(at);
+    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'n1', 'host', ?)`).run(at);
   } finally { stateDb.close(); }
   const reader = createApp(filename, true);
   try {
