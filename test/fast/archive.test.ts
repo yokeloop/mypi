@@ -43,7 +43,7 @@ test('archive opens beside the state file with mode 0600 and its own user_versio
   for (const name of ['archive_sessions', 'archive_messages', 'archive_messages_at', 'archive_fts',
     'archive_messages_ai', 'archive_messages_ad', 'archive_messages_au']) assert.ok(before.includes(name), name);
   const stateDb = openDatabase(filename, true);
-  try { assert.equal(stateDb.pragma('user_version', { simple: true }), 15); } finally { stateDb.close(); }
+  try { assert.equal(stateDb.pragma('user_version', { simple: true }), 16); } finally { stateDb.close(); }
   initializeArchive(path);
   assert.deepEqual(names(), before);
 });
