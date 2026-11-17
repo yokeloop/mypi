@@ -64,14 +64,19 @@ Read when: working with session registration, /open, start messages, events, mil
   each node with its active `session` and all its `sessions`;
   `mypi session forget <key>` drops every row of the key on the user's request.
   Without `XDG_RUNTIME_DIR` or an initialized schema 16 database registration fails
-  and the warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
-  session's Herdr tab (the active session's, else the live session of the key that
-  was active last; otherwise it resumes the active row) or opens a new tab in its project's Herdr workspace (label
+  and the warmup still runs. /open (MCP open_session, CLI mypi open) works on the
+  sessions of this device: it focuses a live session's Herdr tab (the active
+  session's, else the live session active last; otherwise it resumes the session
+  active last); `--agent` limits this to that agent and starts it when it has no
+  session, `--new` starts a new session and `--session <native-id>` returns to a
+  session of the key on this device (another device's is refused before Herdr and
+  clones); a second session of a key gets the Herdr name `<key>-<agent>` (passed as
+  `MYPI_HERDR_NAME`, kept in the registry record, used for focus). It opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
   the project session; an organization key, the bare slug `tb-ff`, gets the tab
   `org-<slug>` in the workspace `<slug>`, with no clone or worktree, and an
   organization without registered projects is refused) in the engine root with MYPI_SCOPE and starts or resumes
-  the agent; it writes no session rows. A project without a clone is first cloned
+  the agent, writing `active_at` of the opened session before delivery. A project without a clone is first cloned
   from its registered `repository` (`local`: `git init`) into
   `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
   `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
