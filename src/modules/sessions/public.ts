@@ -162,7 +162,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const now = clock();
         const existing = store.byNative(input.agent, input.nativeId);
         const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: input.device ?? device(), createdAt: now });
-        if (store.active(input.key)?.id !== id) raise(existing, id, now);
+        raise(existing, id, now);
       });
     },
     ownRecord(key: string, session: { agent: Agent; nativeId: string }): RegistryRecord | undefined {

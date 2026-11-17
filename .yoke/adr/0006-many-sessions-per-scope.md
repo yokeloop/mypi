@@ -77,8 +77,7 @@ between Claude and Pi, and later between devices.
    a row without a turn active, in either order, both its `created_at` and its
    `active_at` take the current time, so the first live session on its device
    stays active (decision 4) and still gets the line, which names the other session
-   with the latest turn and counts from the new session's start; /open of a row
-   that is already active leaves it as it is. After
+   with the latest turn and counts from the new session's start. After
    `/clear` in the active session the new row takes the previous row's `active_at`
    and gets nothing; when the previous row had no turn yet, the new row stays new
    and keeps its pointer. A resume of an existing row in the same process gets the
