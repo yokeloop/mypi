@@ -335,7 +335,7 @@ test('over budget the last reports shrink first, then drop with a line naming th
     const base = readWarmup(filename, root, 'MP').length;
     emit(filename, 'MP-7', 'turn_end', 'a'.repeat(3000));
     emit(filename, 'MP-12', 'turn_end', 'b'.repeat(3000));
-    await readInbox(filename, { name: 'inbox', key: 'MP' });
+    await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' });
     emit(filename, 'MP-7', 'waiting', 'new seven');
     emit(filename, 'MP-12', 'turn_end', 'new twelve');
     const clipped = readWarmup(filename, root, 'MP', base + 1500);
@@ -370,7 +370,7 @@ test('over budget the last reports shrink first, then drop with a line naming th
     assert.deepEqual(shown, Array.from({ length: shown.length }, (_, i) => i + 1));
     assert(out.includes('> Ещё ' + (40 - shown.length) + ' событий не поместились и остались недоставленными: /inbox (MCP inbox, CLI mypi inbox MP).\n'));
     assert.deepEqual(delivered(filename).filter(row => row.at !== null).map(row => row.id), shown);
-    assert.deepEqual((await readInbox(filename, { name: 'inbox', key: 'MP' })).events.map(e => e.id),
+    assert.deepEqual((await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events.map(e => e.id),
       Array.from({ length: 40 - shown.length }, (_, i) => shown.length + i + 1));
   }
 });

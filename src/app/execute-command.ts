@@ -89,10 +89,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'archive_search') return searchArchive(filename, c);
   if (c.name === 'archive_show') return showArchive(filename, c);
   if (c.name === 'archive_forget') return forgetArchive(filename, c);
-  if (c.name === 'event_emit') return emitEvent(filename, c, transports);
-  if (c.name === 'turn_end') return turnEnd(filename, c, transports);
-  if (c.name === 'inbox') return readInbox(filename, c);
-  if (c.name === 'message_send') return sendMessage(filename, c, transports);
+  if (c.name === 'event_emit') return emitEvent(runner, c, transports);
+  if (c.name === 'turn_end') return turnEnd(runner, c, transports);
+  if (c.name === 'inbox') return readInbox(runner, c);
+  if (c.name === 'message_send') return sendMessage(runner, c, transports);
   if (c.name === 'project_flow') {
     const { projects } = await backend.run('project_list', {}) as { projects: Project[] };
     return projectFlow(projects, root ?? defaultContextRoot(), c.project);

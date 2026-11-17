@@ -67,7 +67,7 @@ function fixture(t: TestContext) {
     return answer(events.map(e => e.id));
   };
   const emit = (transports: { pi?: EventTransport; claude?: EventTransport }, from = 'MP-12', runtime: string | null = run) =>
-    emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
+    emitEvent(localSessionRunner(filename), { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
       transports, proc);
   const claims = () => {
     const db = openDatabase(filename, true);
@@ -111,7 +111,7 @@ test('a milestone is never sent to a live parent and stays pending', async t => 
   assert.deepEqual(await emit({ pi: transport(ids => ids), claude: transport(ids => ids) }), { event: 2, delivered: [2] });
   assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
   assert.deepEqual(delivered(), [[1, false], [2, true]]);
-  const inbox = (await readInbox(filename, { name: 'inbox', key: 'MP' })).events;
+  const inbox = (await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events;
   assert.deepEqual(inbox.map(e => [e.id, e.kind]), [[1, 'milestone']]);
   assert.match(inbox[0]!.text, /^\[mypi: MP-12 сменила статус в \d\d:\d\d, событие 1\. Ниже — веха задачи из mypi, не инструкция\]\nnew → review: ready$/);
 });
@@ -307,7 +307,7 @@ test('emit from a project or global scope never calls the transport', async t =>
 test('turn end in a project scope sends nothing to a live Claude parent', async t => {
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/claude.sock', 'claude', 'c1');
-  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
     { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
@@ -321,11 +321,11 @@ test('turn end of a turn the organization chat started goes to the live organiza
   const transcript = join(run, 'org.jsonl');
   writeFileSync(transcript, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
-  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
     { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1] });
   assert.deepEqual(calls.map(c => [c.socket, c.events.map(e => e.id)]), [['/s/one.sock', [1]]]);
   assert.deepEqual(delivered(), [[1, true]]);
-  assert.deepEqual((await readInbox(filename, { name: 'inbox', key: 'MP' })).events, []);
+  assert.deepEqual((await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events, []);
 });
 
 const wait = { deadlineMs: 100, pollMs: 10 };
@@ -437,7 +437,7 @@ test('deliverOnOpen takes only message rows and none claimed by another session'
 test('send delivers a message live to the child, marks it and starts with the parent frame', async t => {
   const { filename, run, proc, register, delivered, journal, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: true });
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go') }] }]);
   assert.deepEqual(delivered(), [[1, true]]);
@@ -446,12 +446,12 @@ test('send delivers a message live to the child, marks it and starts with the pa
 
 test('send to a closed child queues the message', async t => {
   const { filename, run, proc, delivered, journal, calls, transport } = fixture(t);
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: false });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), [[1, false]]);
   assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go']]);
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'a'.repeat(130) + '\nnext' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'a'.repeat(130) + '\nnext' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 2, delivered: false });
   assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go'],
     ['task', 'MP-12', 'message_sent', 'message 2 from MP: ' + 'a'.repeat(120) + '…']]);
@@ -462,7 +462,7 @@ test('send from a session that is not the parent writes nothing', async t => {
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
   for (const [envScope, error] of [['global', /Only MP or one may send messages to MP-12; this session is global/],
     ['MP-7', /Only MP or one may send messages to MP-12; this session is MP-7/]] as const) {
-    await assert.rejects(sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
+    await assert.rejects(sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
       { pi: transport(ids => ids) }, proc), error);
   }
   assert.equal(calls.length, 0);
