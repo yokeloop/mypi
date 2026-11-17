@@ -175,6 +175,11 @@ Never pushes. Run `backup` before and after.
    an invented status_changed event.
 5. If progress artifacts/journal/Git are saved but activity timestamp is missing,
    explicitly complete it with `task touch KEY`.
+6. In remote mode a `task create` partial means the card and its `task_created` entry
+   are on the server but `source.md` is missing in this home — write it at the reported
+   path. A `task progress` partial after the home commit (`saved` contains `git`) is
+   repaired by repeating `task progress KEY <text> --artifacts <file>` with the same
+   paths and no `text` in the artifacts — the commit is a no-op and returns HEAD.
 
 `context read path [--revision FULL_SHA]` does not create files; missing means error;
 with `--revision` it reads the file as committed there. `context restore path
@@ -301,9 +306,18 @@ A device works against the database of a `mypi serve` on another machine when it
   `task list|show`, `journal read` and `event list`, and the MCP tools over them, run
   on the server. The local database is neither opened nor created; project paths are
   canonicalized on the device.
+- `task create|status|title|parent|touch|progress`, `journal add`, `note`, `capture`,
+  `error` and `context read|commit|restore` work with this device's home (Git); their
+  database writes are operations on the server. `task create` first writes the card and
+  its `task_created` entry on the server, then `source.md` in home; `task progress
+  --artifacts` writes the files and their commit in home, then the journal entry with
+  `{path, commit}` and the activity timestamp on the server. Fingerprints of registered
+  files are read from the server and compared on the device. `--adopt-source` answers
+  `adopt-source is not available in remote mode`.
 - Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
-  `token`, `serve` and the commands with home, sessions, events, the archive and the
-  machine, answers `<command> is not available in remote mode`. The Claude and Pi
+  `token`, `serve`, `home migrate-tasks`, `journal import` and the commands with
+  sessions, events, the archive and the machine, answers `<command> is not available
+  in remote mode`. The Claude and Pi
   hooks fail silently in remote mode (their output is discarded) until MP-147 and
   MP-148.
 - A server that does not answer within 10 s ends the command with code 1 and
@@ -311,6 +325,9 @@ A device works against the database of a `mypi serve` on another machine when it
 - Device and server run one engine version, else
   `engine version <a> differs from server <b>`.
 - From MP-147 `device` replaces `os.hostname()` as the device name of new sessions.
+- In remote mode the home writes of one device are not serialized by a database lock
+  between processes: a concurrent `error` can lose an appended line and concurrent
+  commits fail on `index.lock`; repeat the command.
 
 ## Verification
 

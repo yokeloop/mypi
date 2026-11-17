@@ -7,10 +7,9 @@ import { pageTasks } from '../modules/tasks/public.js';
 import type { Card } from '../modules/tasks/public.js';
 import { isMilestone } from '../modules/events/public.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
+import { relativeContextPath } from '../infrastructure/filesystem/context-files.js';
 
-export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
-  store: ReturnType<typeof sqliteJournalStore>, journal: ReturnType<typeof createJournal>,
-  history: Pick<ContextHistory, 'commit'>, key: (card: Card) => string, clock: () => string) {
+export function taskRecords(core: ReturnType<typeof createApp>, journal: ReturnType<typeof createJournal>, key: (card: Card) => string) {
   function find(publicKey: string): Card {
     const result = core.tasks.list().find(card => key(card) === publicKey);
     if (!result) throw new InputError('Unknown task key');
@@ -21,6 +20,7 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
     return { ...card, parent: card.parentId === null ? null : key(byId.get(card.parentId)!) };
   }
   return {
+    find,
     get: (publicKey: string) => view(find(publicKey), parents()),
     list(options: { project?: string | undefined; status?: string | undefined } = {}) {
       const scope = options.project === undefined ? undefined : core.projects.resolveScope(options.project);
@@ -39,33 +39,20 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       }
       return pageTasks(this.list({ project, status: options.status }), { q: options.q, before: options.before, limit: options.limit });
     },
-    create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean; parent?: string }) {
-      if (typeof input.source !== 'string') throw new InputError('Source text required');
+    register(input: { project: string; title: string; status: string; slug: string; parent?: string }, saveSource: (contextDir: string) => void) {
       if (typeof input.project !== 'string') throw new InputError('Project identity required');
       const scope = core.projects.resolveScope(input.project);
       if (scope.type !== 'project') throw new InputError('Project identity required');
       const project = scope.project;
-      let path: string | undefined, saved = false;
-      try {
-        const parent = input.parent ?? null;
-        const card = core.serialize(() => {
-          const parentId = parent === null ? null : find(parent).id;
-          const result = core.tasks.create({ projectId: project.id, slug: input.slug, title: input.title, status: input.status, parentId }, dir => {
-            path = dir + '/source.md';
-            if (input.adoptSource) {
-              if (files.read(path) !== input.source) throw new InputError('Existing source differs/missing; inspect before adoption');
-            } else files.create(path, input.source);
-            saved = true;
-          });
-          journal.append(journal.record({ type: 'task', key: key(result) },
-            parent === null ? 'Task registered.' : 'Task registered. Parent: ' + parent + '.', 'task_created'));
-          return result;
-        });
-        return { ...card, key: key(card), parent };
-      } catch (e) {
-        if (path) throw new PartialError(String(e), saved ? ['source'] : [], ['inspect source', 'database', 'journal'], [path]);
-        throw e;
-      }
+      const parent = input.parent ?? null;
+      const card = core.serialize(() => {
+        const parentId = parent === null ? null : find(parent).id;
+        const result = core.tasks.create({ projectId: project.id, slug: input.slug, title: input.title, status: input.status, parentId }, saveSource);
+        journal.append(journal.record({ type: 'task', key: key(result) },
+          parent === null ? 'Task registered.' : 'Task registered. Parent: ' + parent + '.', 'task_created'));
+        return result;
+      });
+      return { ...card, key: key(card), parent };
     },
     change(publicKey: string, input: { status?: string; title?: string }, reason: string, caller?: string) {
       const card = find(publicKey);
@@ -103,6 +90,45 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
         return view(result.after, parents());
       });
     },
+    recordProgress(publicKey: string, text: string, artifacts: string[] = [], commit?: string) {
+      const card = find(publicKey), entry = journal.record({ type: 'task', key: publicKey }, text, 'note');
+      const paths = artifacts.map(p => card.contextDir + '/' + p);
+      for (const path of paths) relativeContextPath(path);
+      if (new Set(paths).size !== paths.length || artifacts.some(p => p === 'source.md')) throw new InputError('Invalid artifact set');
+      if ((paths.length > 0) !== (commit !== undefined)) throw new InputError('Artifacts and their commit go together');
+      return core.serialize(() => {
+        if (paths.length) entry.artifacts = paths.map(path => ({ path, commit: commit! }));
+        journal.append(entry);
+        return core.tasks.touch(card.id);
+      });
+    },
+    touch(publicKey: string) { return core.tasks.touch(find(publicKey).id); },
+  };
+}
+
+export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles & { path(path: string): string },
+  store: ReturnType<typeof sqliteJournalStore>, journal: ReturnType<typeof createJournal>,
+  history: Pick<ContextHistory, 'commit'>, key: (card: Card) => string, clock: () => string) {
+  const records = taskRecords(core, journal, key);
+  const find = records.find;
+  return {
+    ...records,
+    create(input: { project: string; title: string; status: string; slug: string; source: string; adoptSource?: boolean; parent?: string }) {
+      if (typeof input.source !== 'string') throw new InputError('Source text required');
+      let path: string | undefined, saved = false;
+      try {
+        return records.register(input, dir => {
+          path = dir + '/source.md';
+          if (input.adoptSource) {
+            if (files.read(path) !== input.source) throw new InputError('Existing source differs/missing; inspect before adoption');
+          } else files.create(path, input.source);
+          saved = true;
+        });
+      } catch (e) {
+        if (path) throw new PartialError(String(e), saved ? ['source'] : [], ['inspect source', 'database', 'journal'], [path]);
+        throw e;
+      }
+    },
     progress(publicKey: string, text: string, artifacts: { path: string; text?: string }[] = []) {
       const card = find(publicKey), entry = journal.record({ type: 'task', key: publicKey }, text, 'note');
       const paths = artifacts.map(a => card.contextDir + '/' + a.path);
@@ -129,6 +155,5 @@ export function taskWork(core: ReturnType<typeof createApp>, files: ContextFiles
       } catch (e) { throw new PartialError(String(e), created.length ? ['artifacts'] : [],
         ['inspect artifacts', 'git', 'journal', 'activity timestamp'], created.length ? created : [card.contextDir], card.id); }
     },
-    touch(publicKey: string) { return core.tasks.touch(find(publicKey).id); },
   };
 }
