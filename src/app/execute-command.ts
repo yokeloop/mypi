@@ -54,9 +54,12 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 }
 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
+const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
+  'event_emit', 'turn_end', 'inbox', 'message_send']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
-  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
+  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)
+    && !REMOTE_SESSION_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
   if (backend.remote && isRemoteHome(c)) return runRemoteHome(c, backend, root ?? defaultContextRoot());
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
   if (c.name === 'api_token_list') return listApiTokens(c.file);
