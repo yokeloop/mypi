@@ -57,6 +57,12 @@ export const operationInputs = {
   message_create: z.strictObject({ from: text, to: text, message: z.string() }),
   warmup_data: z.strictObject({ key: text }),
   events_mark: z.strictObject({ ids, caller: identity.nullable() }),
+  open_snapshot: z.strictObject({ orgs: z.array(text) }),
+  parent_check: z.strictObject({ from: text, to: text }),
+  session_open: z.strictObject({ key: text, agent, nativeId: text, device: text,
+    opened: z.strictObject({ action: z.enum(['started', 'resumed']), worktree: text.nullable() }).optional() }),
+  worktree_record: z.strictObject({ key: text, worktreePath: text, created: z.strictObject({ branch: text, base: text }).optional() }),
+  checkout_record: z.strictObject({ identity: text, checkoutPath: text, action: z.enum(['cloned', 'initialized', 'adopted']), repository: text.optional() }),
   archive_offset: z.strictObject({ agent, nativeId }),
   archive_record: z.strictObject({ agent, nativeId, path: text, expectedOffset: offset, newOffset: offset, read: z.strictObject({
     entries: z.array(z.strictObject({ entryId: text, parentEntryId: text.nullable(), at: z.string(), role: z.enum(['user', 'assistant']),
