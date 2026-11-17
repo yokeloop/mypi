@@ -71,9 +71,10 @@ export function createEvents(store: EventStore, scope: (key: string) => SessionS
       return store.transaction(() => store.add({ fromKey: input.from, toKey: input.to, kind: 'message', message: input.message, createdAt: clock() }));
     },
     lastDelivered: (toKey: string): EventRow[] => store.lastDelivered(toKey),
-    claim: (_toKey: string, _sessionId: number, _options: { messagesOnly?: boolean; takeOver?: boolean } = {}): EventRow[] => [],
-    release: (_ids: number[], _sessionId: number): void => {},
-    deliver: (ids: number[], _claimedBy?: number | null): void => store.deliver(ids, clock()),
+    claim: (toKey: string, sessionId: number, options: { messagesOnly?: boolean; takeOver?: boolean } = {}): EventRow[] =>
+      store.claim(toKey, sessionId, clock(), options),
+    release: (ids: number[], sessionId: number): void => store.release(ids, sessionId),
+    deliver: (ids: number[], claimedBy?: number | null): void => store.deliver(ids, clock(), claimedBy),
     browse(filter: { to?: string; from?: string; kind?: EventKind; delivered?: boolean; before?: number; q?: string; limit: number }): Page<EventRow> {
       const { q, limit, ...where } = filter;
       function* rows() { for (const e of store.browse(where)) if (matchesQuery(q, e.message)) yield e; }

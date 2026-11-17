@@ -13,9 +13,23 @@ export function sqliteEventStore(db: Database): EventStore {
       AND kind = 'turn_end' GROUP BY from_key) ORDER BY id`).all(toKey) as EventRow[],
     lastMessageSender: toKey => (db.prepare(`SELECT from_key AS fromKey FROM events WHERE to_key = ? AND kind = 'message'
       ORDER BY id DESC LIMIT 1`).get(toKey) as { fromKey: string } | undefined)?.fromKey,
-    deliver(ids, at) {
-      const update = db.prepare('UPDATE events SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL');
-      for (const id of ids) update.run(at, id);
+    claim: (toKey, sessionId, at, options) => (db.prepare(`UPDATE events SET claimed_by = ?, claimed_at = ?
+      WHERE to_key = ? AND delivered_at IS NULL AND kind <> 'milestone'` + (options.messagesOnly ? " AND kind = 'message'" : '')
+      + (options.takeOver ? '' : ' AND claimed_by IS NULL')
+      + ' RETURNING id, from_key AS fromKey, to_key AS toKey, kind, message, created_at AS createdAt, delivered_at AS deliveredAt')
+      .all(sessionId, at, toKey) as EventRow[]).sort((a, b) => a.id - b.id),
+    release(ids, sessionId) {
+      const update = db.prepare('UPDATE events SET claimed_by = NULL, claimed_at = NULL WHERE id = ? AND claimed_by = ? AND delivered_at IS NULL');
+      for (const id of ids) update.run(id, sessionId);
+    },
+    deliver(ids, at, claimedBy) {
+      if (claimedBy === undefined) {
+        const update = db.prepare('UPDATE events SET delivered_at = ? WHERE id = ? AND delivered_at IS NULL');
+        for (const id of ids) update.run(at, id);
+        return;
+      }
+      const update = db.prepare('UPDATE events SET delivered_at = ?, claimed_by = ?, claimed_at = ? WHERE id = ? AND delivered_at IS NULL');
+      for (const id of ids) update.run(at, claimedBy, claimedBy === null ? null : at, id);
     },
     browse: filter => {
       const to = filter.to ?? null, from = filter.from ?? null, kind = filter.kind ?? null, before = filter.before ?? null;
