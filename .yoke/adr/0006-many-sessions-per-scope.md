@@ -164,3 +164,30 @@ between Claude and Pi, and later between devices.
   `active_at` prints nothing, and so does a repeat prompt. With the previous
   session's `device` set to `other-host`, the line reads `…: 0 записей журнала,
   сначала git pull; …`.
+- Stand 2026-11-17 (MP-147; candidate cc2510f; Claude Code 2.1.326 on Haiku 4.5, Pi
+  1.5.2 on openai-codex/gpt-6-luna, thinking off; one `mypi serve` on 127.0.0.1 and
+  two devices on the same machine with their own `XDG_CONFIG_HOME`/`server.json`
+  (`device` dev1, dev2), `XDG_RUNTIME_DIR` and home, no local database): each
+  session's row carries the device from `server.json`, each device's registry holds
+  only its own record, and both sessions got `active_at` at registration because each
+  was the first live session on its own device. Latency by subscription, from the
+  event's `created_at` to `delivered_at`: 144 ms to Pi on dev2 (claimed after 135 ms)
+  and 905 ms to Claude on dev1 (claimed after 851 ms; the Claude subscription had
+  probably just finished an empty claim round and was waiting the stream's `retry`).
+  The Claude subscription lives in the stdio MCP process: with `--strict-mcp-config
+  --mcp-config .mcp.json` the project server `mypi` connected without an approval
+  prompt, its connection to `serve` is visible from the start, and it delivered the
+  message as a `turnOrigin: "peer"` turn. `send` from the other device answers
+  `delivered: false` although the subscription delivers the message a fraction of a
+  second later. After switching from Pi on dev2, Claude's first prompt got `[mypi: с
+  вашего прошлого хода в FX-1 работала сессия pi на dev2: 1 записей журнала, сначала
+  git pull; подробнее — journal FX-1]` as a `hook_success` attachment of
+  `UserPromptSubmit`. With `serve` stopped, every device command fails at once (≈0.1
+  s, connection refused) with `mypi server unreachable: <url>`, and the hooks exit 1
+  with empty stdout and stderr: the agent keeps working, but Claude Code shows the
+  engineer `UserPromptSubmit hook failed` and `Stop hook failed` (`No stderr output`);
+  in remote mode the `Stop` hook `archive capture` fails this way on every turn until
+  MP-148. A message written while `serve` was down (by the server's local CLI) was
+  claimed 0.09 s and delivered 0.14 s after `serve` listened again: both subscriptions
+  reconnected by themselves within the stream's `retry` (2 s), and only the active
+  session's subscription claimed it.
