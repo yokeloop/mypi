@@ -22,6 +22,7 @@ mypi bootstrap | warmup [-s global|org|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 mypi session prompt --agent claude --hook | --agent pi --native-id <id> [--no-deliver] (marks the engineer's input: the session becomes the scope's active one and takes the waiting events of the key; after a switch to a session that already had a turn prints one pointer line, else nothing; --no-deliver only marks and prints)
 mypi session unregister --pid <pid> | forget <key>
+mypi session subscribe --pid <pid> (remote mode: holds the Pi session's subscription to the server's changes and delivers its claimed events to its socket; exits at once without server.json)
 mypi sessions
 mypi archive import [--dir <directory> --agent claude|pi]... | status (conversation archive archive.sqlite3 beside the state DB: import reads the engine root's Claude and Pi transcripts, or each --dir with its --agent, from each file's saved offset; status counts sessions, messages and bound keys and never creates the file)
 mypi archive search [query] [-s global|org|CODE|CODE-N] [--agent claude|pi] [--from date|UTC] [--to date|UTC] [--limit n] [--include-peer] | show <id> [--before n --after n] | show --session <native-id> [--agent claude|pi] [--offset n --limit n] [--include-peer] (full-text search of the conversation archive: human turns and final answers, ranked, with snippets; without a query it lists sessions; show reads around a hit or pages a session)
