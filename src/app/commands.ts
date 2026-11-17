@@ -67,3 +67,5 @@ export type AppCommand =
   | { name: 'api_token_revoke'; file: string; tokenName: string }
   | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; new?: boolean; target?: string; permissionMode?: string;
       session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };
+export type OperationName = 'project_list' | 'project_add' | 'project_update' | 'project_resolve' | 'project_remove' | 'org_remove'
+  | 'status_list' | 'status_add' | 'status_rename' | 'status_terminal' | 'status_remove' | 'task_list' | 'task_show' | 'journal_read' | 'event_list';

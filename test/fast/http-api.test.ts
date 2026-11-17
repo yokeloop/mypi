@@ -14,7 +14,7 @@ const taskShape = { key: 'MP-1', project: 'MP', number: 1, title: 'Задача'
 const info = { version: '0.10.0', schemaVersion: 12, changeId: 4, instance: 'instance' };
 
 function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}, broken = false) {
-  const commands: AppCommand[] = [], logged: string[] = [];
+  const commands: AppCommand[] = [], logged: string[] = [], operations: [string, unknown][] = [];
   const fixtures: Record<string, (command: AppCommand) => unknown> = {
     task_page: () => ({ items: [{ ...card, key: 'MP-1' }], next: 3 }),
     task_show: () => card,
@@ -31,8 +31,10 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
   };
   const api = createApi({
     token: value => { if (broken) throw new InputError('Invalid API token file: /secret/config/mypi/api-tokens.json'); return value === 'r-token' ? { name: 'reader', permission: 'read', sender: null }
-      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' } : undefined; },
+      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' }
+      : value === 'd-token' ? { name: 'laptop', permission: 'device', sender: null } : undefined; },
     execute: async command => { commands.push(command); const fixture = fixtures[command.name]; return fixture === undefined ? {} : fixture(command); },
+    operate: async (name, input) => { operations.push([name, input]); return { projects: [] }; },
     info: () => info, runtime: '/run/u', log: line => { logged.push(line); },
   });
   const call = (method: string, url: string, options: { token?: string; authorization?: string; body?: unknown; contentType?: string; cookie?: string; forwardedProto?: string } = {}) => {
@@ -44,7 +46,7 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
       cookie: options.cookie, forwardedProto: options.forwardedProto };
     return api(request) as Promise<{ status: number; body: { apiVersion: number; data?: unknown; error?: { code: string; message: string; saved?: string[]; missing?: string[] } }; token?: string; stream?: string; setCookie?: string }>;
   };
-  return { commands, call, logged };
+  return { commands, call, logged, operations };
 }
 
 test('requests without a known bearer token get 401 before routing and run nothing', async () => {
@@ -238,4 +240,32 @@ test('browser session: login sets an HttpOnly SameSite=Strict cookie that authen
   assert.equal((await call('DELETE', '/v1/session')).status, 415);
   const stream = await call('GET', '/v1/changes', { cookie: 'mypi_session=r-token' });
   assert.deepEqual([stream.stream, stream.token], ['changes', 'reader']);
+});
+
+test('POST /v1/ops runs an allowed operation only for a device bearer token of the same engine version', async () => {
+  const { commands, call, operations } = harness();
+  const request = { op: 'project_list', input: {}, version: '0.10.0' };
+  const ok = await call('POST', '/v1/ops', { token: 'd-token', body: request });
+  assert.deepEqual([ok.status, ok.body.data, ok.token], [200, { projects: [] }, 'laptop']);
+  assert.deepEqual(operations, [['project_list', {}]]);
+  for (const options of [{ token: 'r-token', body: request }, { token: 'w-token', body: request }, { cookie: 'mypi_session=d-token', body: request }]) {
+    const refused = await call('POST', '/v1/ops', options);
+    assert.deepEqual([refused.status, refused.body.error?.code], [403, 'forbidden']);
+  }
+  const mismatch = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, version: '0.9.0' } });
+  assert.deepEqual([mismatch.status, mismatch.body.error?.code, mismatch.body.error?.message],
+    [409, 'version_mismatch', 'engine version 0.9.0 differs from server 0.10.0']);
+  for (const op of ['backup', 'api_token_create', 'warmup', 'session_register']) {
+    const unknown = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op } });
+    assert.deepEqual([unknown.status, unknown.body.error?.code, unknown.body.error?.message], [400, 'invalid_request', 'Unknown operation: ' + op]);
+  }
+  const extra = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op: 'project_add',
+    input: { identity: 'one/p', code: 'P', repository: 'https://example.com/p.git', file: '/etc/hostname' } } });
+  assert.deepEqual([extra.status, extra.body.error?.code], [400, 'invalid_request']);
+  const typed = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op: 'project_resolve', input: { path: 1 } } });
+  assert.deepEqual([typed.status, typed.body.error?.code], [400, 'invalid_request']);
+  const missing = await call('POST', '/v1/ops', { token: 'd-token', body: { op: 'project_list', input: {} } });
+  assert.deepEqual([missing.status, missing.body.error?.message], [400, 'Missing field: version']);
+  assert.equal(operations.length, 1);
+  assert.equal(commands.length, 0);
 });

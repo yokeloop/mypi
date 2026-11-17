@@ -58,6 +58,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   const instance = randomUUID(), version = engineVersion();
   const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
+    operate: async () => { throw new Error('Not implemented'); },
     info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
     log: options.log });
   const remoteMcp = createRemoteMcp({ token: v => verifyApiToken(options.tokensFile, v),

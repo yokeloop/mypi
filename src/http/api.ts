@@ -9,13 +9,14 @@ import * as shape from './shape.js';
 import { clearSessionCookie, readSessionCookie, sessionCookie } from './session.js';
 
 export const API_VERSION = 1;
-export type ApiToken = { name: string; permission: 'read' | 'write'; sender: string | null };
+export type ApiToken = { name: string; permission: 'read' | 'write' | 'device'; sender: string | null };
 export type ApiRequest = { method: string; path: string; query: URLSearchParams;
   authorization: string | undefined; contentType: string | undefined; body: string;
   cookie: string | undefined; forwardedProto: string | undefined };
 export type ApiResult = { status: number; body: unknown; token?: string; setCookie?: string } | { status: 200; stream: 'changes'; token: string };
 export type ApiInfo = { version: string; schemaVersion: number; changeId: number; instance: string };
 export type ApiDeps = { token(value: string): ApiToken | undefined; execute(command: AppCommand): Promise<unknown>;
+  operate(name: string, input: unknown): Promise<unknown>;
   info(): ApiInfo; runtime: string | undefined; log(line: string): void };
 
 type Caller = ApiToken & { via: 'bearer' | 'cookie' };

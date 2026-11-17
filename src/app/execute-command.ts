@@ -17,6 +17,7 @@ import { callerKey, forgetSession, listSessions, otherLiveSession, promptSession
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
 import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
+import type { Backend } from './backend.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
@@ -25,7 +26,7 @@ function homeFolder(root: string | undefined, path: string): string | null {
 
 const reads = new Set(['journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
-  transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
+  transports: EventTransports = {}, context: RunContext = {}, _backend?: Backend): Promise<unknown> {
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
   if (c.name === 'api_token_list') return listApiTokens(c.file);
   if (c.name === 'api_token_revoke') return revokeApiToken(c.file, c.tokenName);
