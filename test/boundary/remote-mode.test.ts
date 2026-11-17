@@ -57,9 +57,10 @@ test('remote mode refuses other commands and touches no local state', async t =>
     project_remove: { removed: { project: { id: 1, org: 'one', slug: 'project', code: 'MP', checkoutPath: null, repository: null } } },
     project_list: { projects: [{ id: 1, org: 'one', slug: 'project', code: 'MP', checkoutPath: null, repository: null }] },
   };
-  const backend: Backend = { remote: true, run: async (name, input) => { calls.push([name, input]); return fixtures[name]; } };
+  const backend: Backend = { remote: true, device: 'laptop', run: async (name, input) => { calls.push([name, input]); return fixtures[name]; } };
   const refused: AppCommand[] = [{ name: 'db_init' }, { name: 'backup', destination: '/tmp/x' }, { name: 'api_token_list', file: '/tmp/x' },
-    { name: 'warmup' }, { name: 'sessions' }, { name: 'task_worktree', key: 'MP-1' }, { name: 'home_migrate_tasks' }, { name: 'journal_import' }];
+    { name: 'sessions' }, { name: 'task_worktree', key: 'MP-1' }, { name: 'home_migrate_tasks' }, { name: 'journal_import' },
+    { name: 'open_session', keys: ['MP'] }, { name: 'archive_capture', agent: 'claude' }];
   for (const command of refused) {
     await assert.rejects(executeCommand(command, filename, root, {}, {}, backend),
       (error: unknown) => error instanceof InputError && error.message === command.name + ' is not available in remote mode');
@@ -88,7 +89,7 @@ test('the context guard reads registered fingerprints and the device compares th
     { frozen: string[]; fingerprints: { path: string }[] };
   assert.deepEqual(guard.frozen, ['notes/old.md']);
   assert.deepEqual(guard.fingerprints.map(f => f.path), ['notes/old.md']);
-  const backend: Backend = { remote: true, run: async (name, input) => runOperation({ filename, trustedPaths: true }, name, input) };
+  const backend: Backend = { remote: true, device: 'laptop', run: async (name, input) => runOperation({ filename, trustedPaths: true }, name, input) };
   const unused = join(dir, 'unused', 'state.sqlite3');
   writeFileSync(join(root, 'notes/old.md'), 'v2');
   await assert.rejects(executeCommand({ name: 'context_commit', paths: ['notes/old.md'], message: 'm' }, unused, root, {}, {}, backend),

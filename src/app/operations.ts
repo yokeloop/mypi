@@ -4,11 +4,13 @@ import { contextPathOf, createWorkspace, defaultContextRoot, workspaceRecords } 
 import { contextScope, resolveScope } from './resolve-scope.js';
 import { taskRecords } from './task-work.js';
 import { warmupScope } from './warmup.js';
+import { sessionOperations } from './session-operations.js';
+import type { OperationTarget, SessionOperationInput, SessionOperationName } from './session-operations.js';
 import { externalDatabasePath, trustedCheckoutPaths } from '../infrastructure/filesystem/paths.js';
 import { frozenArtifacts } from '../modules/knowledge/public.js';
 import { InputError } from '../shared/errors.js';
 
-export type { OperationName };
+export type { OperationName, OperationTarget };
 type CommandInput<K> = AppCommand extends infer C ? C extends { name: infer N } ? K extends N ? Omit<C, 'name'> : never : never : never;
 export type OperationInputs = {
   task_create: { project: string; title: string; status: string; slug: string; parent?: string };
@@ -17,8 +19,8 @@ export type OperationInputs = {
   context_guard: { paths?: string[] };
   context_base: { scope: ScopeInput } | { project: string };
 };
-export type OperationInput<K extends OperationName> = K extends keyof OperationInputs ? OperationInputs[K] : CommandInput<K>;
-export type OperationTarget = { filename: string; root?: string; trustedPaths?: boolean };
+export type OperationInput<K extends OperationName> = K extends SessionOperationName ? SessionOperationInput<K>
+  : K extends keyof OperationInputs ? OperationInputs[K] : CommandInput<K>;
 
 type App = ReturnType<typeof createApp>;
 type Workspace = ReturnType<typeof createWorkspace>;
@@ -89,6 +91,7 @@ const operations = {
     }
     return { path: contextPathOf(app.projects, contextScope(i.scope, app.projects)) };
   }),
+  ...sessionOperations,
 } satisfies { [K in OperationName]: (t: OperationTarget, i: OperationInput<K>) => unknown };
 
 export const OPERATION_NAMES: ReadonlySet<string> = new Set(Object.keys(operations));

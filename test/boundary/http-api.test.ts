@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -188,7 +188,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const device = (name: string, value: string) => {
     const config = join(dir, name + '-config');
     mkdirSync(join(config, 'mypi'), { recursive: true });
-    writeFileSync(join(config, 'mypi', 'server.json'), JSON.stringify({ url, token: value }), { mode: 0o600 });
+    writeFileSync(join(config, 'mypi', 'server.json'), JSON.stringify({ url, token: value, device: name }), { mode: 0o600 });
     return { ...env, XDG_CONFIG_HOME: config, XDG_STATE_HOME: join(dir, name + '-state') };
   };
   const laptop = device('laptop', laptopToken), phone = device('phone', phoneToken);
@@ -199,6 +199,19 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal((JSON.parse(added.stdout) as { project: { checkoutPath: string } }).project.checkoutPath, realpathSync(join(dir, 'device-clone')));
   const listed = run(['task', 'list'], laptop);
   assert.deepEqual([listed.status, listed.stdout], [0, '[]\n'], listed.stderr);
+  assert.equal(existsSync(join(dir, 'laptop-state')), false);
+  const laptopRuntime = join(dir, 'laptop-run');
+  mkdirSync(laptopRuntime, { mode: 0o700 });
+  const holder = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
+  t.after(() => { holder.kill('SIGKILL'); });
+  const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', 'r1'],
+    { ...laptop, XDG_RUNTIME_DIR: laptopRuntime, MYPI_SCOPE: 'FXT' });
+  assert.deepEqual([registered.status, registered.stdout], [0, '{"key":"FXT","registered":true}\n'], registered.stderr);
+  assert.deepEqual(readdirSync(join(laptopRuntime, 'mypi', 'sessions')), ['FXT~' + holder.pid + '.json']);
+  type Node = { key: string; sessions: { agent: string; nativeId: string; device: string }[]; children: Node[] };
+  const find = (node: Node, key: string): Node | undefined => node.key === key ? node : node.children.map(c => find(c, key)).find(n => n !== undefined);
+  const fxt = find((await get('/v1/sessions')).body.data as Node, 'FXT');
+  assert.deepEqual(fxt?.sessions.map(s => [s.agent, s.nativeId, s.device]), [['pi', 'r1', 'laptop']]);
   assert.equal(existsSync(join(dir, 'laptop-state')), false);
   const spawned = (args: string[], extra: Record<string, string>) => new Promise<number | null>((resolve, reject) => {
     const cli = spawn(process.execPath, [entry, ...args], { env: extra, cwd: dir, stdio: 'ignore' });
@@ -273,7 +286,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.ok(note.path.startsWith('projects/fx/two/notes/'), note.path);
   assert.ok(existsSync(join(deviceRoot, note.path)));
   assert.equal(lastSubject(), 'Create ' + note.path);
-  const failing: Backend = { remote: true, run: (name, input) => name === 'task_progress'
+  const failing: Backend = { remote: true, device: 'laptop', run: (name, input) => name === 'task_progress'
     ? Promise.reject(new Error('mypi server unreachable: ' + url)) : remote.run(name, input) };
   await assert.rejects(deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md', text: 'r1' }] }, failing),
     (error: unknown) => error instanceof PartialError && JSON.stringify([error.saved, error.missing, error.paths])

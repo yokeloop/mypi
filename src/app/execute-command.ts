@@ -13,15 +13,15 @@ import { openTaskWorktree } from './task-worktree.js';
 import { projectGit } from '../infrastructure/git/project-git.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
-import { forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { callerIdentity, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
 import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
-import { localBackend } from './backend.js';
+import { localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
 import { isOperation, OPERATION_NAMES } from './operations.js';
 import { isRemoteHome, REMOTE_HOME_COMMANDS, runRemoteHome } from './remote-home.js';
-import { canonicalAbsoluteDirectory, canonicalDirectory } from '../infrastructure/filesystem/paths.js';
+import { canonicalAbsoluteDirectory, canonicalDirectory, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import type { Project } from '../modules/projects/public.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
@@ -54,9 +54,12 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 }
 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
+const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
+  'event_emit', 'turn_end', 'inbox', 'message_send']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
-  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
+  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)
+    && !REMOTE_SESSION_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
   if (backend.remote && isRemoteHome(c)) return runRemoteHome(c, backend, root ?? defaultContextRoot());
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
   if (c.name === 'api_token_list') return listApiTokens(c.file);
@@ -70,17 +73,19 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
+  const runner = sessionRunner(backend);
   if (c.name === 'warmup') {
-    const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
-    const notice = c.caller === undefined ? undefined : otherLiveSession(filename, key, c.caller, c.session);
-    return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session);
+    if (!backend.remote) externalDatabasePath(filename, root ?? defaultContextRoot());
+    const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? await sessionKey(runner, c.session) : undefined);
+    const notice = c.caller === undefined ? undefined : otherLiveSession(runner.device, key, c.caller, c.session);
+    return readWarmup(runner, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session === undefined ? undefined : callerIdentity(c.session));
   }
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
-  if (c.name === 'session_register') return registerSession(filename, c);
-  if (c.name === 'session_prompt') return promptSession(filename, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
-  if (c.name === 'session_unregister') return unregisterSession(filename, c);
-  if (c.name === 'session_forget') return forgetSession(filename, c);
+  if (c.name === 'session_register') return registerSession(runner, c);
+  if (c.name === 'session_prompt') return promptSession(runner, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
+  if (c.name === 'session_unregister') return unregisterSession(c);
+  if (c.name === 'session_forget') return forgetSession(runner, c);
   if (c.name === 'sessions') return listSessions(filename, c);
   if (c.name === 'archive_import') return importArchive(filename, c);
   if (c.name === 'archive_status') return archiveStatus(filename);
@@ -88,10 +93,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'archive_search') return searchArchive(filename, c);
   if (c.name === 'archive_show') return showArchive(filename, c);
   if (c.name === 'archive_forget') return forgetArchive(filename, c);
-  if (c.name === 'event_emit') return emitEvent(filename, c, transports);
-  if (c.name === 'turn_end') return turnEnd(filename, c, transports);
-  if (c.name === 'inbox') return readInbox(filename, c);
-  if (c.name === 'message_send') return sendMessage(filename, c, transports);
+  if (c.name === 'event_emit') return emitEvent(runner, c, transports);
+  if (c.name === 'turn_end') return turnEnd(runner, c, transports);
+  if (c.name === 'inbox') return readInbox(runner, c);
+  if (c.name === 'message_send') return sendMessage(runner, c, transports);
   if (c.name === 'project_flow') {
     const { projects } = await backend.run('project_list', {}) as { projects: Project[] };
     return projectFlow(projects, root ?? defaultContextRoot(), c.project);

@@ -11,7 +11,8 @@ import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js'
 import { createProjects, validSlug } from '../modules/projects/public.js';
 import type { CheckoutPaths } from '../modules/projects/ports.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
-import { createSessions } from '../modules/sessions/public.js';
+import { createDeviceSessions, createSessions } from '../modules/sessions/public.js';
+import type { DeviceSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
 import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-store.js';
 import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
@@ -38,6 +39,10 @@ export function resolveStatePath(env: Readonly<Record<string, string | undefined
 
 export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
+}
+
+export function deviceSessions(runtime: string | undefined, proc = '/proc'): DeviceSessions {
+  return createDeviceSessions(() => fsRegistry(sessionRegistryDir(runtime), proc), () => new Date().toISOString());
 }
 
 export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString(),

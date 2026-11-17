@@ -120,3 +120,10 @@ Read when: working with session registration, /open, start messages, events, mil
   (one key; the caller must be its parent, else nothing opens) queues a parent
   message after the focus or start and delivers it live, after a resume or in the
   same message as the start text; `opened[].message` is its id.
+- Remote mode (`server.json`, [M1-CLI](../M1-CLI.md#remote-mode)): the `sessions`
+  and `events` rows live on the server; the registry
+  `$XDG_RUNTIME_DIR/mypi/sessions`, sockets and transcripts stay on the device. A
+  row's `device` is the `device` of `server.json`, else `os.hostname()`. A new
+  session becomes active when this device has no other live record of the key; the
+  server does not see other devices' registries. A sender claims only for the active
+  session that is live in its own device's registry.

@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import type { AppCommand } from '../../src/app/commands.js';
 import { createApi } from '../../src/http/api.js';
 import type { ApiRequest } from '../../src/http/api.js';
-import { decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.js';
+import { ApiError, decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.js';
+import { parseOperation } from '../../src/http/operations.js';
 import { InputError } from '../../src/shared/errors.js';
 import { PartialError } from '../../src/shared/context.js';
 
@@ -316,4 +317,28 @@ test('POST /v1/ops accepts the home operations only with strict inputs and no de
   }
   assert.equal(operations.length, accepted.length);
   assert.equal(commands.length, 0);
+});
+
+test('session and event operations accept exactly their fields', () => {
+  const identity = { agent: 'pi', nativeId: 'n1' };
+  const cases: [string, Record<string, unknown>, string][] = [
+    ['session_key', identity, 'nativeId'],
+    ['session_save', { ...identity, device: 'laptop', candidateKey: null, fork: false, envScope: 'MP', otherLive: [{ ...identity, key: 'MP' }], own: [] }, 'device'],
+    ['session_forget_rows', { key: 'MP' }, 'key'],
+    ['session_activate', { ...identity, claim: true }, 'claim'],
+    ['events_claim', { key: 'MP', live: [identity], messagesOnly: true }, 'live'],
+    ['events_settle', { sessionId: 1, acked: [2], released: [3] }, 'released'],
+    ['event_create', { from: 'MP-1', kind: 'turn_end', message: '', to: 'MP' }, 'kind'],
+    ['inbox_take', { key: 'MP', caller: null }, 'caller'],
+    ['message_create', { from: 'MP', to: 'MP-1', message: 'hi' }, 'to'],
+    ['warmup_data', { key: 'MP' }, 'key'],
+    ['events_mark', { ids: [1], caller: identity }, 'ids'],
+  ];
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  for (const [op, input, required] of cases) {
+    assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+    assert.throws(() => parseOperation(op, { ...input, path: '/etc/hostname' }), refused, op);
+    const { [required]: _, ...missing } = input;
+    assert.throws(() => parseOperation(op, missing), refused, op);
+  }
 });

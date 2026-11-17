@@ -5,6 +5,10 @@ import { ApiError } from './validate.js';
 
 const text = z.string().min(1);
 const positive = z.number().int().positive();
+const agent = z.enum(['claude', 'pi']);
+const identity = z.strictObject({ agent, nativeId: text });
+const keyed = z.strictObject({ agent, nativeId: text, key: text });
+const ids = z.array(positive);
 const scopeInput = z.union([z.strictObject({ reference: text }), z.strictObject({ type: z.literal('global') }),
   z.strictObject({ type: z.enum(['org', 'project', 'task']), key: text })]);
 
@@ -39,6 +43,18 @@ export const operationInputs = {
   journal_add: z.strictObject({ scope: scopeInput, text }),
   context_guard: z.strictObject({ paths: z.array(text).optional() }),
   context_base: z.union([z.strictObject({ scope: scopeInput }), z.strictObject({ project: text })]),
+  session_key: identity,
+  session_save: z.strictObject({ agent, nativeId: text, device: text, candidateKey: text.nullable(), fork: z.boolean(), envScope: text.optional(),
+    otherLive: z.array(keyed), own: z.array(keyed) }),
+  session_forget_rows: z.strictObject({ key: text }),
+  session_activate: z.strictObject({ agent, nativeId: text, claim: z.boolean() }),
+  events_claim: z.strictObject({ key: text, live: z.array(identity), messagesOnly: z.boolean().optional() }),
+  events_settle: z.strictObject({ sessionId: positive, acked: ids, released: ids }),
+  event_create: z.strictObject({ from: text, kind: z.enum(['turn_end', 'waiting']), message: z.string(), to: text.optional() }),
+  inbox_take: z.strictObject({ key: text, caller: identity.nullable() }),
+  message_create: z.strictObject({ from: text, to: text, message: z.string() }),
+  warmup_data: z.strictObject({ key: text }),
+  events_mark: z.strictObject({ ids, caller: identity.nullable() }),
 } satisfies Record<OperationName, z.ZodType>;
 
 export function parseOperation(op: string, input: unknown): { name: OperationName; input: unknown } {

@@ -1,12 +1,11 @@
 import type { AppCommand } from './commands.js';
-import { createApp } from './create-app.js';
 import { WAITING_NOTIFICATIONS } from './session-input.js';
-import { callerKey, sessionKey } from './sessions.js';
+import { callerIdentity, callerKey, sessionKey } from './sessions.js';
 import { localTime, warmupScope } from './warmup.js';
 import { deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
+import type { SessionRunner } from './session-operations.js';
 import { inputText } from './input-text.js';
-import { sendParentMessage } from './journal-facts.js';
 import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
 import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
@@ -14,10 +13,10 @@ import type { TurnPromptReader } from '../modules/events/public.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
 
-export async function emitEvent(filename: string, c: Of<'event_emit'>, transports: EventTransports = {},
+export async function emitEvent(runner: SessionRunner, c: Of<'event_emit'>, transports: EventTransports = {},
   proc = '/proc', readPrompt: TurnPromptReader = claudeTurnPrompt): Promise<{ event: number | null; delivered: number[] }> {
   if (c.notification !== undefined && !(WAITING_NOTIFICATIONS as readonly string[]).includes(c.notification)) return { event: null, delivered: [] };
-  const key = warmupScope(c.from, c.envScope, c.from === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
+  const key = warmupScope(c.from, c.envScope, c.from === undefined && c.session !== undefined ? await sessionKey(runner, c.session, proc) : undefined);
   const hooked = c.from === undefined && c.session !== undefined;
   let to = c.to;
   if (hooked) {
@@ -25,46 +24,33 @@ export async function emitEvent(filename: string, c: Of<'event_emit'>, transport
     if (parentKey(key) === undefined || !startedByParent(prompt)) return { event: null, delivered: [] };
     to = parentSender(prompt!.text);
   }
-  const app = createApp(filename, false);
-  try {
-    const result = app.events.emit({ from: key, kind: c.kind, message: c.message, to });
-    if (result.event === null) return { event: null, delivered: [] };
-    return { event: result.event, delivered: await deliverPending(app, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
-  } finally { app.close(); }
+  const result = await runner.run('event_create', { from: key, kind: c.kind, message: c.message, ...(to === undefined ? {} : { to }) });
+  if (result.event === null) return { event: null, delivered: [] };
+  return { event: result.event, delivered: await deliverPending(runner, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
 }
 
-export async function turnEnd(filename: string, c: Of<'turn_end'>, transports: EventTransports = {},
+export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, transports: EventTransports = {},
   proc = '/proc', readPrompt: TurnPromptReader = claudeTurnPrompt): Promise<{ event: number | null; delivered: number[] }> {
   if (c.active) return { event: null, delivered: [] };
-  return emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: c.message,
+  return emitEvent(runner, { name: 'event_emit', kind: 'turn_end', message: c.message,
     session: { agent: 'claude', nativeId: c.nativeId, pid: c.pid, ...(c.runtime === undefined ? {} : { runtime: c.runtime }) },
     ...(c.envScope === undefined ? {} : { envScope: c.envScope }),
     ...(c.transcript === undefined ? {} : { transcript: c.transcript }) }, transports, proc, readPrompt);
 }
 
-export function readInbox(filename: string, c: Of<'inbox'>) {
-  const key = c.key ?? warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
-  const app = createApp(filename, false);
-  try {
-    return app.serialize(() => {
-      const events = key === 'all' ? app.events.pending(null).filter(e => e.kind !== 'message') : app.events.pending(key);
-      const claimer = c.session === undefined ? null : app.sessions(c.session.runtime).callerRow(c.session) ?? null;
-      app.events.deliver(events.map(e => e.id), claimer);
-      return { events: events.map(e => ({ id: e.id, from: e.fromKey, to: e.toKey, kind: e.kind, createdAt: e.createdAt,
-        text: frame(e, localTime(e.createdAt)) })) };
-    });
-  } finally { app.close(); }
+export async function readInbox(runner: SessionRunner, c: Of<'inbox'>, proc = '/proc') {
+  const key = c.key ?? warmupScope(undefined, c.envScope, c.session === undefined ? undefined : await sessionKey(runner, c.session, proc));
+  const { events } = await runner.run('inbox_take', { key, caller: c.session === undefined ? null : callerIdentity(c.session, proc) });
+  return { events: events.map(e => ({ id: e.id, from: e.fromKey, to: e.toKey, kind: e.kind, createdAt: e.createdAt,
+    text: frame(e, localTime(e.createdAt)) })) };
 }
 
-export async function sendMessage(filename: string, c: Of<'message_send'>, transports: EventTransports = {},
+export async function sendMessage(runner: SessionRunner, c: Of<'message_send'>, transports: EventTransports = {},
   proc = '/proc'): Promise<{ message: number; delivered: boolean }> {
   const text = inputText(c.body);
-  const from = callerKey(filename, c);
+  const from = await callerKey(runner, c);
   if (from === undefined) throw new InputError('The calling session key could not be resolved');
-  const app = createApp(filename, false);
-  try {
-    const id = sendParentMessage(app, { from, to: c.key, message: text });
-    const acked = await deliverPending(app, c.key, c.runtime ?? c.session?.runtime, transports, proc);
-    return { message: id, delivered: acked.includes(id) };
-  } finally { app.close(); }
+  const { id } = await runner.run('message_create', { from, to: c.key, message: text });
+  const acked = await deliverPending(runner, c.key, c.runtime ?? c.session?.runtime, transports, proc);
+  return { message: id, delivered: acked.includes(id) };
 }

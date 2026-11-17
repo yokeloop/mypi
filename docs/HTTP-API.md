@@ -174,7 +174,10 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `project_remove`, `org_remove`, `status_list`, `status_add`, `status_rename`,
   `status_terminal`, `status_remove`, `task_list`, `task_show`, `journal_read`,
   `event_list`, `task_create`, `task_status`, `task_title`, `task_parent`, `task_touch`,
-  `task_progress`, `journal_add`, `context_guard`, `context_base`; any other answers 400
+  `task_progress`, `journal_add`, `context_guard`, `context_base`, `session_key`,
+  `session_save`, `session_forget_rows`, `session_activate`, `events_claim`,
+  `events_settle`, `event_create`, `inbox_take`, `message_create`, `warmup_data`,
+  `events_mark`; any other answers 400
   `invalid_request` `Unknown operation: <op>`.
 - `input` holds the fields of the command of the same name, except `task_create` (no
   `source` and no `adoptSource`: the device writes `source.md`), `task_status` (`session`
@@ -182,6 +185,18 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `envScope`) and `task_progress` (`artifacts` are paths relative to the task folder plus
   the home `commit`); `context_guard` `{paths?}` answers `{frozen, fingerprints}` and
   `context_base` `{scope} | {project}` answers `{path}` for the device's own home writes.
+  The session and event operations have no command of the same name; they take the
+  inputs of `SessionOperations` in `src/app/session-operations.ts` (`agent` and
+  `nativeId` identities, keys and event ids, never a path, pid or runtime):
+  `session_key` `{agent, nativeId}`; `session_save` `{agent, nativeId, device,
+  candidateKey, fork, envScope?, otherLive, own}` (`otherLive` and `own` are
+  `{agent, nativeId, key}` lists from the device registry); `session_forget_rows`
+  `{key}`; `session_activate` `{agent, nativeId, claim}`; `events_claim` `{key, live,
+  messagesOnly?}` (`live` is a list of identities); `events_settle` `{sessionId, acked,
+  released}`; `event_create` `{from, kind, message, to?}` (`kind` is `turn_end` or
+  `waiting`); `inbox_take` `{key, caller}`; `message_create` `{from, to, message}`;
+  `warmup_data` `{key}`; `events_mark` `{ids, caller}` (`caller` is an identity or
+  `null`).
   A missing, mistyped or extra field answers 400 `invalid_request` and nothing runs. No
   input names a server path; context paths are only lookup keys, the server never opens
   them.
@@ -191,7 +206,9 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
 The server runs the operation in its own process as one SQLite transaction, without
 queues or leases. The device sends project paths already canonicalized; the server
 stores them as sent and never looks at its own filesystem for them. `data` is the
-result in the engine's internal form, in the usual envelope.
+result in the engine's internal form, in the usual envelope. The session and event
+operations serve the device's CLI, MCP and hooks; the session registry, sockets,
+transcripts and the rendering of the warmup stay on the device.
 
 ## Pages and search
 
