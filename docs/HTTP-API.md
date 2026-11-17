@@ -391,8 +391,9 @@ how `server.json` is read. The session model is in
   MCP `task_create` write `source.md` into a non-Git `home/` on the server that no device
   sees, so create tasks from a device (`mypi task create` or stdio MCP `task_create`). The
   other `/v1` routes and every `POST /v1/ops` work without `home`.
-- `mypi backup` fails on a server without `home` (it takes a bundle of `home`); back the
-  server up with `sqlite3 .backup` ([Backup timer (example)](#backup-timer-example)).
+- `mypi backup` fails on a server without `home` (it checks every task's `source.md` and
+  artifacts in `home`); back the server up with `sqlite3 .backup`
+  ([Backup timer (example)](#backup-timer-example)).
 - Without the approved mypi MCP server in Claude there is no live delivery: messages wait for
   input, `/inbox` or warmup ([sessions](agents/sessions.md#session-registry-and-open)).
 - Server unreachable: a device command exits with code 1 and
@@ -417,19 +418,18 @@ never moves it on its own.
    S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
    mkdir -m 700 <dir>
    sqlite3 "$S/state.sqlite3" ".backup <dir>/state.sqlite3"
-   sqlite3 "$S/archive.sqlite3" ".backup <dir>/archive.sqlite3"
+   [ ! -e "$S/archive.sqlite3" ] || sqlite3 "$S/archive.sqlite3" ".backup <dir>/archive.sqlite3"
    ```
 
-   `archive.sqlite3` exists only after the first `archive import` or capture; without the
-   file, skip the last line.
+   `archive.sqlite3` exists only after the first `archive import` or capture; the last line
+   skips a missing file, since `sqlite3` would otherwise create an empty one.
 3. Copy `<dir>` to the server over a private channel (any way, for example `scp`) and lay it
    out into a server state directory that does not exist yet, with the checks `restore`
    makes:
 
    ```sh
    S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
-   mkdir -p -m 700 "$S"
-   cp <dir>/*.sqlite3 "$S/" && chmod 600 "$S"/*.sqlite3
+   mkdir -p "$(dirname "$S")" && mkdir -m 700 "$S" && cp -n <dir>/*.sqlite3 "$S/" && chmod 600 "$S"/*.sqlite3
    for f in "$S"/*.sqlite3; do
      sqlite3 "$f" 'PRAGMA integrity_check;' 'PRAGMA foreign_key_check;' 'PRAGMA user_version;'
    done
@@ -487,7 +487,7 @@ Description=mypi database snapshot
 
 [Service]
 Type=oneshot
-ExecStart=/bin/sh -c 'd=<backup-dir>/$(date +%%F); mkdir -p -m 700 "$d" && sqlite3 <state-dir>/state.sqlite3 ".backup $d/state.sqlite3" && sqlite3 <state-dir>/archive.sqlite3 ".backup $d/archive.sqlite3"'
+ExecStart=/bin/sh -c 'd=<backup-dir>/$(date +%%F); mkdir -p -m 700 "$d" && sqlite3 <state-dir>/state.sqlite3 ".backup $d/state.sqlite3" && { [ ! -e <state-dir>/archive.sqlite3 ] || sqlite3 <state-dir>/archive.sqlite3 ".backup $d/archive.sqlite3"; }'
 ```
 
 `~/.config/systemd/user/mypi-backup.timer`:
