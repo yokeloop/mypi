@@ -5,6 +5,7 @@ import { callerKey, sessionKey } from './sessions.js';
 import { localTime, warmupScope } from './warmup.js';
 import { deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
+import { localSessionRunner } from './session-operations.js';
 import type { SessionRunner } from './session-operations.js';
 import { inputText } from './input-text.js';
 import { sendParentMessage } from './journal-facts.js';
@@ -30,7 +31,7 @@ export async function emitEvent(filename: string, c: Of<'event_emit'>, transport
   try {
     const result = app.events.emit({ from: key, kind: c.kind, message: c.message, to });
     if (result.event === null) return { event: null, delivered: [] };
-    return { event: result.event, delivered: await deliverPending(app, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
+    return { event: result.event, delivered: await deliverPending(localSessionRunner(filename), result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
   } finally { app.close(); }
 }
 
@@ -67,7 +68,7 @@ export async function sendMessage(filename: string | SessionRunner, c: Of<'messa
   const app = createApp(filename, false);
   try {
     const id = sendParentMessage(app, { from, to: c.key, message: text });
-    const acked = await deliverPending(app, c.key, c.runtime ?? c.session?.runtime, transports, proc);
+    const acked = await deliverPending(localSessionRunner(filename), c.key, c.runtime ?? c.session?.runtime, transports, proc);
     return { message: id, delivered: acked.includes(id) };
   } finally { app.close(); }
 }

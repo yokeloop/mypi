@@ -8,6 +8,7 @@ import type { EventTransports } from './delivery.js';
 import { agentName, callerMode, decideOpen, defaultAgent, heldNames, herdrName, launchArgs, openTarget, parseOpenKey, PERMISSION_MODES } from './open-session.js';
 import type { OpenRequest } from './open-session.js';
 import { callerKey } from './sessions.js';
+import { localSessionRunner } from './session-operations.js';
 import { appendFact, keyScope, sendParentMessage } from './journal-facts.js';
 import { startMessage } from './start-message.js';
 import { prepareCheckouts } from './project-checkout.js';
@@ -131,8 +132,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
         try { writer.sessions(c.runtime, proc).activate({ key, agent: decision.live.agent, nativeId: decision.live.nativeId }); } finally { writer.close(); }
         const message = enqueue(key);
         if (message !== null) {
-          const app = createApp(filename, false);
-          const acked = await (async () => { try { return await deliverPending(app, key, c.runtime, transports, proc); } finally { app.close(); } })();
+          const acked = await deliverPending(localSessionRunner(filename), key, c.runtime, transports, proc);
           if (!acked.includes(message)) notes.push('message ' + message + ' queued: the live session did not take it');
         }
         opened.push({ key, agent: decision.agent, action: 'focused', workspaceId: null, tabId: null, worktreePath: null, notes, message });

@@ -1,41 +1,40 @@
-import { createApp } from './create-app.js';
+import { createApp, deviceSessions } from './create-app.js';
 import { localTime } from './warmup.js';
 import { frame } from '../modules/events/public.js';
 import type { EventRow, EventTransport } from '../modules/events/public.js';
 import type { Agent, RegistryRecord } from '../modules/sessions/public.js';
+import type { SessionRunner } from './session-operations.js';
 
 export type EventTransports = Partial<Record<Agent, EventTransport>> & { pause?: (ms: number) => Promise<void> };
 export type Claim = { sessionId: number; socket: string; transport: EventTransport; events: EventRow[] };
 
-export async function sendClaimed(app: ReturnType<typeof createApp>, claim: Claim): Promise<number[]> {
+export async function sendClaimed(runner: SessionRunner, claim: Claim): Promise<number[]> {
   const all = claim.events.map(e => e.id);
   let answer: number[];
   try {
     answer = await claim.transport(claim.socket, claim.events.map(e => ({ id: e.id, text: frame(e, localTime(e.createdAt)) })));
   } catch {
-    try { app.serialize(() => app.events.release(all, claim.sessionId)); } catch { return []; }
+    try { await runner.run('events_settle', { sessionId: claim.sessionId, acked: [], released: all }); } catch { return []; }
     return [];
   }
   const sent = new Set(all);
   const acked = answer.filter(id => sent.delete(id));
-  app.serialize(() => { app.events.deliver(acked); app.events.release([...sent], claim.sessionId); });
+  await runner.run('events_settle', { sessionId: claim.sessionId, acked, released: [...sent] });
   return acked;
 }
 
-export async function deliverPending(app: ReturnType<typeof createApp>, key: string, runtime: string | undefined,
+export async function claimFor(runner: SessionRunner, key: string, records: RegistryRecord[], transports: EventTransports): Promise<number[]> {
+  const usable = records.filter(r => r.socket && transports[r.agent] !== undefined);
+  if (usable.length === 0) return [];
+  const claimed = await runner.run('events_claim', { key, live: usable.map(({ agent, nativeId }) => ({ agent, nativeId })) });
+  if (claimed.sessionId === null || claimed.events.length === 0) return [];
+  const record = usable.find(r => r.agent === claimed.agent && r.nativeId === claimed.nativeId)!;
+  return sendClaimed(runner, { sessionId: claimed.sessionId, socket: record.socket!, transport: transports[record.agent]!, events: claimed.events });
+}
+
+export async function deliverPending(runner: SessionRunner, key: string, runtime: string | undefined,
   transports: EventTransports, proc = '/proc'): Promise<number[]> {
-  try {
-    const sessions = app.sessions(runtime, proc);
-    const claim = app.serialize((): Claim | undefined => {
-      const { row, live } = sessions.lookup(key);
-      const transport = live === undefined ? undefined : transports[live.agent];
-      if (row === undefined || !live?.socket || transport === undefined) return undefined;
-      const events = app.events.claim(key, row.id);
-      return events.length === 0 ? undefined : { sessionId: row.id, socket: live.socket, transport, events };
-    });
-    if (claim === undefined) return [];
-    return await sendClaimed(app, claim);
-  } catch { return []; }
+  try { return await claimFor(runner, key, deviceSessions(runtime, proc).liveOf(key), transports); } catch { return []; }
 }
 
 async function waitForLive(filename: string, key: string, transports: EventTransports, runtime: string | undefined, proc: string,

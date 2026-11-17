@@ -2,6 +2,7 @@ import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
+import { localSessionRunner } from './session-operations.js';
 import type { SessionRunner } from './session-operations.js';
 import { sendClaimed } from './delivery.js';
 import type { Claim, EventTransports } from './delivery.js';
@@ -69,7 +70,7 @@ export async function promptSession(filename: string | SessionRunner, c: Of<'ses
         line = pointerLine({ ...switched, commits });
       } catch { line = ''; }
     }
-    if (claim !== undefined) await sendClaimed(app, claim);
+    if (claim !== undefined) await sendClaimed(localSessionRunner(filename), claim);
     return line === '' ? '' : line + '\n';
   } finally { app.close(); }
 }
