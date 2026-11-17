@@ -13,7 +13,7 @@ import { openTaskWorktree } from './task-worktree.js';
 import { projectGit } from '../infrastructure/git/project-git.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
-import { forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { callerIdentity, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
 import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
@@ -21,7 +21,7 @@ import { localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
 import { isOperation, OPERATION_NAMES } from './operations.js';
 import { isRemoteHome, REMOTE_HOME_COMMANDS, runRemoteHome } from './remote-home.js';
-import { canonicalAbsoluteDirectory, canonicalDirectory } from '../infrastructure/filesystem/paths.js';
+import { canonicalAbsoluteDirectory, canonicalDirectory, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import type { Project } from '../modules/projects/public.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
@@ -72,9 +72,10 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     repository: c.repository, commit: c.commit });
   const runner = sessionRunner(backend);
   if (c.name === 'warmup') {
+    if (!backend.remote) externalDatabasePath(filename, root ?? defaultContextRoot());
     const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? await sessionKey(runner, c.session) : undefined);
     const notice = c.caller === undefined ? undefined : otherLiveSession(runner.device, key, c.caller, c.session);
-    return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session);
+    return readWarmup(runner, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session === undefined ? undefined : callerIdentity(c.session));
   }
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
