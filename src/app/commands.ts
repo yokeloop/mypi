@@ -65,5 +65,5 @@ export type AppCommand =
   | { name: 'api_token_create'; file: string; tokenName: string; permission: string; sender?: string }
   | { name: 'api_token_list'; file: string }
   | { name: 'api_token_revoke'; file: string; tokenName: string }
-  | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
+  | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; new?: boolean; target?: string; permissionMode?: string;
       session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };

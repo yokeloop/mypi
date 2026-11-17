@@ -55,7 +55,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'turn end': [0, 0, ['pid'], []],
   inbox: [0, 1, [], []],
   send: [1, 2, ['file'], []],
-  open: [1, Infinity, ['agent', 'permission-mode', 'message'], []],
+  open: [1, Infinity, ['agent', 'permission-mode', 'message', 'session'], ['new']],
   'token create': [1, 1, ['permission', 'sender'], []],
   'token list': [0, 0, [], []],
   'token revoke': [1, 1, [], []],

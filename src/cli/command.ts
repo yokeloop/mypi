@@ -32,7 +32,7 @@ mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|m
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
-mypi open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]
+mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
 mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
 mypi capture [text | --file source]

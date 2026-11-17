@@ -201,6 +201,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
       const hint = sessionHint(env, parentPid);
       return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
+        ...(o['new'] ? { new: true } : {}), ...(opt('session') === undefined ? {} : { target: opt('session')! }),
         ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
         ...(opt('message') === undefined ? {} : { message: opt('message')! }),
         ...(hint === undefined ? {} : { session: hint }),
