@@ -138,7 +138,7 @@ export function projectGit(clone: string) {
       return hasRef('refs/remotes/origin/main') ? 'main' : null;
     },
     commitsSince(at: string): number {
-      const count = git(['rev-list', '--count', '--since=' + at, 'HEAD'], 2_000).stdout.trim();
+      const count = git(['rev-list', '--count', '--since=' + at, 'HEAD'], 1_000).stdout.trim();
       if (!/^[0-9]+$/.test(count)) throw new Error('Git failed');
       return Number(count);
     },
