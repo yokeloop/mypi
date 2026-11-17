@@ -79,7 +79,8 @@ export async function importArchive(runner: ArchiveRunner, c: Of<'archive_import
         archive ??= result.archive;
         dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
       } catch (error) {
-        failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
+        if (!(error instanceof InputError)) throw error;
+        failed.push({ agent: folder.agent, path, error: error.message });
       }
     }
     total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;
