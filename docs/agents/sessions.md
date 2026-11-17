@@ -33,7 +33,8 @@ Read when: working with session registration, /open, start messages, events, mil
   only for a task with a recorded worktree. A new session counts from its start and
   names the other session with the latest turn, even when it became active at
   registration or by /open. An ordinary turn, a second message in a row, the first
-  session of a scope and the session after `/clear` in the active one get nothing;
+  session of a scope and the session after `/clear` in the active one after its
+  turn get nothing;
   a failure computing the line prints nothing
   and keeps the touch and the claim. Claude gets the line as the hook output, Pi by
   `transform` of the input (before the text, at the end for input starting with
@@ -85,7 +86,8 @@ Read when: working with session registration, /open, start messages, events, mil
   key to its own socket and prints the pointer line only after a switch; a prompt in
   a mypi frame does not count. A new row is active when the key has no other live
   session; Claude `/clear` and Pi `/new` keep the active role when the replaced
-  session had it. When another session of the key is live, the CLI warmup of a
+  session had it. A resume of an existing session in the same process makes it
+  active again. When another session of the key is live, the CLI warmup of a
   new session starts with `в этом скоупе уже есть живая сессия: <agent> на <device>`;
   one writer per worktree stays the rule. A fork started by hand without
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree,
