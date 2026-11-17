@@ -51,7 +51,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   if (isIP(host) === 0) throw new InputError('--listen must be an IP address');
   if (!/^[0-9]+$/.test(options.port) || Number(options.port) > 65535) throw new InputError('--port must be a number from 0 to 65535');
   if (listApiTokens(options.tokensFile).tokens.length === 0) {
-    throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write');
+    throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write|device');
   }
   const assets = readWebAssets(join(engineRoot(), 'dist', 'ui'));
   const feed = createChangeFeed(options.filename);

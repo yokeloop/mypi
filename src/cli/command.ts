@@ -34,7 +34,7 @@ mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelive
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
 mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
-mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+mypi token create <name> --permission read|write|device [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once; device tokens are for a device's server.json)
 mypi capture [text | --file source]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
