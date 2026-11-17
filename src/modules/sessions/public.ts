@@ -38,12 +38,12 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         return { key, registered: true };
       });
     },
-    prompt(input: { agent: Agent; nativeId: string }): { key: string | null; active: boolean } {
+    prompt(input: { agent: Agent; nativeId: string }): { key: string | null; active: boolean; id: number | null } {
       return store.transaction(() => {
         const row = store.byNative(input.agent, input.nativeId);
-        if (row === undefined) return { key: null, active: false };
+        if (row === undefined) return { key: null, active: false, id: null };
         store.touch(row.id, clock());
-        return { key: row.key, active: true };
+        return { key: row.key, active: true, id: row.id };
       });
     },
     unregister(pid: number): { removed: string[] } {
@@ -105,8 +105,21 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         store.touch(id, clock());
       });
     },
-    ownRecord(_key: string, _session: { agent: Agent; nativeId: string }): RegistryRecord | undefined { return undefined; },
-    callerRow(_hint: { agent: Agent; nativeId: string; pid: number }): number | undefined { return undefined; },
+    ownRecord(key: string, session: { agent: Agent; nativeId: string }): RegistryRecord | undefined {
+      try {
+        return registry().live().find(r => r.key === key && r.agent === session.agent && r.nativeId === session.nativeId);
+      } catch { return undefined; }
+    },
+    callerRow(hint: { agent: Agent; nativeId: string; pid: number }): number | undefined {
+      const id = store.byNative(hint.agent, hint.nativeId)?.id;
+      if (id !== undefined) return id;
+      try {
+        const reg = registry();
+        const start = reg.start(hint.pid);
+        const record = start === undefined ? undefined : reg.live().find(r => r.pid === hint.pid && r.start === start);
+        return record === undefined ? undefined : store.byNative(record.agent, record.nativeId)?.id;
+      } catch { return undefined; }
+    },
     resolve(hint: { agent: Agent; nativeId: string; pid: number }): string | undefined {
       const key = store.byNative(hint.agent, hint.nativeId)?.key;
       if (key !== undefined) return key;
