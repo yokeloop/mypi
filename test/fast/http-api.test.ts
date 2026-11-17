@@ -269,3 +269,51 @@ test('POST /v1/ops runs an allowed operation only for a device bearer token of t
   assert.equal(operations.length, 1);
   assert.equal(commands.length, 0);
 });
+
+test('POST /v1/ops accepts the home operations only with strict inputs and no device paths', async () => {
+  const { commands, call, operations } = harness();
+  const op = (name: string, input: unknown) => call('POST', '/v1/ops', { token: 'd-token', body: { op: name, input, version: '0.10.0' } });
+  const accepted: [string, unknown][] = [
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's' }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', parent: 'P-1' }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n' }, envScope: 'P' }],
+    ['task_title', { key: 'P-1', title: 't', reason: 'r' }],
+    ['task_parent', { key: 'P-2', parent: null, reason: 'r' }],
+    ['task_touch', { key: 'P-1' }],
+    ['task_progress', { key: 'P-1', text: 'x', artifacts: ['plan.md'], commit: 'a'.repeat(40) }],
+    ['task_progress', { key: 'P-1', text: 'x' }],
+    ['journal_add', { scope: { type: 'project', key: 'P' }, text: 'x' }],
+    ['journal_add', { scope: { reference: 'one/p' }, text: 'x' }],
+    ['context_guard', {}],
+    ['context_guard', { paths: ['a.md'] }],
+    ['context_base', { scope: { reference: 'one/p' } }],
+    ['context_base', { project: 'P' }],
+  ];
+  for (const [name, input] of accepted) {
+    const result = await op(name, input);
+    assert.equal(result.status, 200, name + ' ' + JSON.stringify(result.body));
+  }
+  assert.deepEqual(operations, accepted);
+  const invalid: [string, unknown][] = [
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', source: { text: 'x' } }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', source: { file: '/etc/hostname' } }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', adoptSource: true }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n', pid: 1 } }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n', runtime: '/run/user/1' } }],
+    ['task_progress', { key: 'P-1', text: 'x', artifacts: [{ path: 'plan.md', text: 'x' }] }],
+    ['task_progress', { key: 'P-1', text: 'x', commit: 'abc' }],
+    ['context_guard', { paths: ['a.md'], file: '/etc/hostname' }],
+    ['context_base', { scope: { reference: 'one/p' }, project: 'P' }],
+    ['context_base', {}],
+  ];
+  for (const [name, input] of invalid) {
+    const result = await op(name, input);
+    assert.deepEqual([result.status, result.body.error?.code], [400, 'invalid_request'], name + ' ' + JSON.stringify(input));
+  }
+  for (const name of ['note_add', 'capture', 'error_add', 'context_commit', 'context_restore', 'context_read', 'home_migrate_tasks', 'journal_import']) {
+    const unknown = await op(name, {});
+    assert.deepEqual([unknown.status, unknown.body.error?.code, unknown.body.error?.message], [400, 'invalid_request', 'Unknown operation: ' + name]);
+  }
+  assert.equal(operations.length, accepted.length);
+  assert.equal(commands.length, 0);
+});

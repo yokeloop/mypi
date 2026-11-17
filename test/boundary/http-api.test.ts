@@ -6,6 +6,13 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { AppCommand } from '../../src/app/commands.js';
+import { executeCommand } from '../../src/app/execute-command.js';
+import { remoteBackend } from '../../src/app/backend.js';
+import type { Backend } from '../../src/app/backend.js';
+import { contextGit } from '../../src/infrastructure/git/context-git.js';
+import { PartialError } from '../../src/shared/context.js';
+import { InputError } from '../../src/shared/errors.js';
 
 test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie, and MCP JSON-RPC on /mcp', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
@@ -235,6 +242,50 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.match(JSON.stringify(remoteSessions.structuredContent), /not available in remote mode/);
   } finally { await client.close(); }
 
+  const deviceRoot = join(dir, 'laptop-home');
+  contextGit(deviceRoot).initialize();
+  const unused = join(dir, 'laptop-unused', 'state.sqlite3');
+  const remote = remoteBackend({ url, token: laptopToken });
+  const deviceRun = (c: AppCommand, backend: Backend = remote) => executeCommand(c, unused, deviceRoot, {}, {}, backend);
+  const head = () => spawnSync('git', ['-C', deviceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+  const lastSubject = () => spawnSync('git', ['-C', deviceRoot, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).stdout.trim();
+  const remoteSource = { name: 'task_create', project: 'fx/two', title: 'Remote', status: 'new', slug: 'remote', source: { text: 'remote source' } } as const;
+  const created = await deviceRun(remoteSource) as { key: string; contextDir: string };
+  assert.equal(created.key, 'FXT-1');
+  assert.equal(readFileSync(join(deviceRoot, created.contextDir, 'source.md'), 'utf8'), 'remote source');
+  assert.equal((await deviceRun({ name: 'task_show', key: 'FXT-1' }) as { title: string }).title, 'Remote');
+  const taskJournal = async () => await deviceRun({ name: 'journal_read', scope: { type: 'task', key: 'FXT-1' } }) as
+    { event_type: string; text: string; artifacts?: unknown[] }[];
+  assert.equal((await taskJournal()).at(-1)!.event_type, 'task_created');
+  await assert.rejects(deviceRun({ ...remoteSource, slug: 'adopted', adoptSource: true }),
+    (error: unknown) => error instanceof InputError && error.message === 'adopt-source is not available in remote mode');
+  assert.equal((await deviceRun({ name: 'task_list', project: 'fx/two' }) as unknown[]).length, 1);
+  await deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'plan', artifacts: [{ path: 'plan.md', text: 'v1' }] });
+  assert.equal(readFileSync(join(deviceRoot, created.contextDir, 'plan.md'), 'utf8'), 'v1');
+  const planned = (await taskJournal()).at(-1)!;
+  assert.deepEqual([planned.text, planned.artifacts], ['plan', [{ path: created.contextDir + '/plan.md', commit: head() }]]);
+  assert.equal((await deviceRun({ name: 'task_status', key: 'FXT-1', status: 'review', reason: 'ready' }) as { status: string }).status, 'review');
+  const milestones = async () => (await deviceRun({ name: 'event_list', from: 'FXT-1', kind: 'milestone', limit: 10 }) as { items: { toKey: string }[] }).items;
+  assert.deepEqual((await milestones()).map(e => e.toKey), ['FXT']);
+  assert.equal((await deviceRun({ name: 'task_status', key: 'FXT-1', status: 'blocked', reason: 'wait', envScope: 'FXT' }) as { status: string }).status, 'blocked');
+  assert.equal((await milestones()).length, 1);
+  const note = await deviceRun({ name: 'note_add', scope: { reference: 'fx/two' }, title: 'Remote note', body: { text: 'body' } }) as { path: string };
+  assert.ok(note.path.startsWith('projects/fx/two/notes/'), note.path);
+  assert.ok(existsSync(join(deviceRoot, note.path)));
+  assert.equal(lastSubject(), 'Create ' + note.path);
+  const failing: Backend = { remote: true, run: (name, input) => name === 'task_progress'
+    ? Promise.reject(new Error('mypi server unreachable: ' + url)) : remote.run(name, input) };
+  await assert.rejects(deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md', text: 'r1' }] }, failing),
+    (error: unknown) => error instanceof PartialError && JSON.stringify([error.saved, error.missing, error.paths])
+      === JSON.stringify([['artifacts', 'git'], ['journal', 'activity timestamp'], [created.contextDir + '/review.md']]));
+  assert.equal(lastSubject(), 'Register artifacts of FXT-1');
+  assert.equal((await taskJournal()).some(e => e.text === 'second'), false);
+  const committed = head();
+  await deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md' }] });
+  assert.equal(head(), committed);
+  assert.deepEqual((await taskJournal()).at(-1)!.artifacts, [{ path: created.contextDir + '/review.md', commit: head() }]);
+  assert.equal(existsSync(join(dir, 'laptop-unused')), false);
+
   process.kill(-child.pid!, 'SIGINT');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
@@ -246,5 +297,5 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.match(stderr, / \/mcp 200 writer/);
   assert.match(stderr, / \/v1\/ops 200 laptop/);
   assert.match(stderr, / \/v1\/ops 403 reader/);
-  for (const secret of [reader, writer, viewer, laptopToken, phoneToken, 'один', 'два', 'Удалённая', 'с другой машины']) assert.equal(stderr.includes(secret), false, secret);
+  for (const secret of [reader, writer, viewer, laptopToken, phoneToken, 'один', 'два', 'Удалённая', 'с другой машины', 'remote source']) assert.equal(stderr.includes(secret), false, secret);
 });
