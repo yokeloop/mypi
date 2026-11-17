@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
-import { captureInput, hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
+import { captureInput, hookInput, notificationInput, promptInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { PAGE_LIMIT_DEFAULT } from '../shared/page.js';
@@ -43,7 +43,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
         ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }),
-        ...(hint === undefined ? {} : { session: hint }) };
+        ...(hint === undefined ? {} : { session: hint }), caller: { pid: parentPid, ...runtime } };
     }
     case 'journal add': return { name: 'journal_add', text: a[0]!, scope: journalScope };
     case 'journal import': return { name: 'journal_import' };
@@ -124,6 +124,17 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'session_register', agent, pid: Number(required('pid')), nativeId: session.nativeId,
         ...(session.name === undefined ? {} : { sessionName: session.name }), ...(socket === undefined ? {} : { socket }), fork: session.fork,
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+    }
+    case 'session prompt': {
+      const agent = required('agent');
+      if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      let input: { nativeId: string; counted: boolean };
+      if (o['hook']) {
+        if (agent !== 'claude') throw new InputError('--hook is only for --agent claude');
+        if (opt('native-id') !== undefined) throw new InputError('Use --hook or --native-id, not both');
+        input = promptInput(readInputFile(0));
+      } else input = { nativeId: required('native-id'), counted: true };
+      return { name: 'session_prompt', agent, nativeId: input.nativeId, counted: input.counted, ...runtime };
     }
     case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
     case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };

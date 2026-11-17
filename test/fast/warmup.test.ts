@@ -2,13 +2,15 @@ process.env.TZ = 'UTC';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
-import { existsSync, mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { dirname, join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { readWarmup, warmupScope, WARMUP_LIMIT, WARMUP_MAX_CHARS } from '../../src/app/warmup.js';
 import { readInbox } from '../../src/app/events.js';
+import { otherLiveSession } from '../../src/app/sessions.js';
 import type { Entry } from '../../src/modules/knowledge/public.js';
 
 function fixture(t: TestContext, personal?: string) {
@@ -81,6 +83,34 @@ test('global, one, MP and MP-12 warmups match the golden files and read nothing 
   const started = readWarmup(filename, root, 'MP-7');
   assert(started.includes('Path: ' + join(dir, 'clone--MP-7-started')));
   assert(!started.includes('Not created yet'));
+});
+
+test("a new session's warmup starts with a line about another live session of the key", t => {
+  const { dir, filename, root } = fixture(t, '# Personal instructions\n\n## Developer preferences\n\nPersonal rule: answer in English.\n');
+  const runtime = join(dir, 'run'), proc = join(dir, 'proc');
+  mkdirSync(runtime, { mode: 0o700 });
+  const alive = (pid: number) => {
+    mkdirSync(join(proc, String(pid)), { recursive: true });
+    writeFileSync(join(proc, String(pid), 'stat'), `${pid} (agent) S 1 ${'0 '.repeat(17)}1 0 0\n`);
+    writeFileSync(join(proc, String(pid), 'cmdline'), 'agent\0');
+  };
+  alive(301); alive(302);
+  const app = createApp(filename, false);
+  try {
+    app.sessions(runtime, proc).register({ agent: 'pi', nativeId: 'p1', pid: 301, name: null, socket: null, fork: false, envScope: 'MP-12' });
+    app.sessions(runtime, proc).register({ agent: 'claude', nativeId: 'c2', pid: 302, name: null, socket: null, fork: false, envScope: 'MP-12' });
+  } finally { app.close(); }
+  const notice = (agent: string) => 'в этом скоупе уже есть живая сессия: ' + agent + ' на ' + hostname();
+  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 302, runtime }, undefined, proc), notice('pi'));
+  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 301, runtime }, undefined, proc), notice('claude'));
+  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 999, runtime }, { agent: 'claude', nativeId: 'c2' }, proc), notice('pi'));
+  rmSync(join(proc, '302'), { recursive: true, force: true });
+  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 301, runtime }, undefined, proc), undefined);
+  const golden = readFileSync(new URL('../../../test/fixtures/warmup/MP-12.md', import.meta.url), 'utf8');
+  const out = readWarmup(filename, root, 'MP-12', undefined, notice('pi'));
+  assert.ok(out.startsWith(notice('pi') + '\n\n# mypi warmup: MP-12'));
+  assert.equal(normal(dir, out), notice('pi') + '\n\n' + golden);
+  assert.equal(normal(dir, readWarmup(filename, root, 'MP-12')), golden);
 });
 
 test('a flow file shows one flow line in the project warmup and the expected task branch; an invalid one is a visible line', t => {

@@ -3,12 +3,14 @@ import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { warmupScope } from '../../src/app/warmup.js';
 import { sessionKey } from '../../src/app/sessions.js';
-import { hookInput, sessionHint } from '../../src/app/session-input.js';
+import { hookInput, promptInput, sessionHint } from '../../src/app/session-input.js';
+import { InputError } from '../../src/shared/errors.js';
 
 const at = '2026-10-28T00:00:00.000Z';
 
@@ -45,6 +47,12 @@ function fixture(t: TestContext) {
     const app = createApp(filename, false, () => at);
     try { return fn(app.sessions(run, proc)); } finally { app.close(); }
   };
+  let now = Date.parse(at);
+  const tick = () => new Date(now += 1000).toISOString();
+  const ts = <T>(fn: (sessions: ReturnType<ReturnType<typeof createApp>['sessions']>) => T): T => {
+    const app = createApp(filename, false, tick);
+    try { return fn(app.sessions(run, proc)); } finally { app.close(); }
+  };
   const rows = () => {
     const db = openDatabase(filename, true);
     try {
@@ -55,47 +63,126 @@ function fixture(t: TestContext) {
   const record = (name: string) => JSON.parse(readFileSync(join(sessionsDir, name), 'utf8')) as Record<string, unknown>;
   const claude = (nativeId: string, pid: number, extra: { envScope?: string; fork?: boolean } = {}) =>
     ({ agent: 'claude' as const, nativeId, pid, name: null, socket: null, fork: false, ...extra });
-  return { dir, filename, run, proc, sessionsDir, alive, die, s, rows, files, record, claude };
+  const activity = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return Object.fromEntries((db.prepare('SELECT native_id AS nativeId, active_at AS activeAt FROM sessions').all() as { nativeId: string; activeAt: string | null }[])
+        .map(r => [r.nativeId, r.activeAt]));
+    } finally { db.close(); }
+  };
+  return { dir, filename, run, proc, sessionsDir, alive, die, s, ts, rows, files, record, claude, activity };
 }
+
+function twoLive(t: TestContext) {
+  const x = fixture(t);
+  x.alive(201); x.alive(202);
+  x.ts(s => s.register(x.claude('c1', 201, { envScope: 'MP' })));
+  x.ts(s => s.register({ agent: 'pi', nativeId: 'p2', pid: 202, name: null, socket: null, fork: false, envScope: 'MP' }));
+  return x;
+}
+
+test('two live sessions of one key are both in the registry and neither is displaced', t => {
+  const x = twoLive(t);
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+  for (const name of x.files()) assert.equal(Object.hasOwn(x.record(name), 'displacedAt'), false, name);
+  assert.deepEqual(x.rows().filter(r => r.key === 'MP').map(r => r.nativeId).sort(), ['c1', 'p2']);
+  const found = x.ts(s => s.lookup('MP'));
+  assert.deepEqual(found.records.map(r => [r.nativeId, r.pid]), [['c1', 201], ['p2', 202]]);
+  assert.equal(found.row!.nativeId, 'c1');
+  assert.equal(found.live!.pid, 201);
+  const activity = x.activity();
+  assert.equal(typeof activity['c1'], 'string');
+  assert.equal(activity['p2'], null);
+});
+
+test('prompt makes its row active and a row without a live record stays closed', t => {
+  const x = twoLive(t);
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })), { key: 'MP', active: true });
+  const active = x.ts(s => s.lookup('MP'));
+  assert.equal(active.row!.nativeId, 'p2');
+  assert.equal(active.live!.pid, 202);
+  x.die(202);
+  const closed = x.ts(s => s.lookup('MP'));
+  assert.equal(closed.live, undefined);
+  assert.equal(closed.row!.nativeId, 'p2');
+  const before = x.activity();
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false });
+  assert.deepEqual(x.activity(), before);
+});
+
+test('clear in the active session gives the new row active_at (decision 2)', t => {
+  const x = twoLive(t);
+  x.ts(s => s.register(x.claude('c3', 201, { envScope: 'MP' })));
+  assert.equal(x.rows().filter(r => r.key === 'MP').length, 3);
+  assert.equal(x.ts(s => s.lookup('MP')).row!.nativeId, 'c3');
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+  assert.equal(x.record('MP~201.json')['nativeId'], 'c3');
+});
+
+test('clear in an inactive session does not take the active row (decision 2)', t => {
+  const x = twoLive(t);
+  x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' }));
+  x.ts(s => s.register(x.claude('c3', 201, { envScope: 'MP' })));
+  assert.equal(x.ts(s => s.lookup('MP')).row!.nativeId, 'p2');
+  assert.equal(x.activity()['c3'], null);
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+});
+
+test("UserPromptSubmit input counts only the engineer's own prompt", () => {
+  const input = (extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt: 'привет', ...extra });
+  assert.deepEqual(promptInput(input()), { nativeId: 'c1', counted: true });
+  assert.deepEqual(promptInput(input({ source: 'user' })), { nativeId: 'c1', counted: true });
+  for (const source of ['system', 'sdk']) assert.deepEqual(promptInput(input({ source })), { nativeId: 'c1', counted: false }, source);
+  for (const prompt of ['[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение]\ngo', '  [mypi: MP-12 завершил ход',
+    'Another Claude session sent a message:\n[mypi: сообщение …']) assert.deepEqual(promptInput(input({ prompt })), { nativeId: 'c1', counted: false }, prompt);
+  assert.deepEqual(promptInput(input({ prompt: 'посмотри [mypi: x' })), { nativeId: 'c1', counted: true });
+  for (const text of ['not json', input({ hook_event_name: 'Stop' }), input({ session_id: '' }), input({ prompt: 1 }), input({ source: 1 })])
+    assert.throws(() => promptInput(text), (error: unknown) => error instanceof InputError && error.message === 'Invalid UserPromptSubmit hook input', text);
+});
 
 test('registry files are owner-only, liveness needs pid and start, dead and malformed records are removed only by writers', t => {
   const { run, sessionsDir, alive, s, files, record, claude } = fixture(t);
   alive(101, '500');
   assert.deepEqual(s(x => x.register({ agent: 'claude', nativeId: 'c1', pid: 101, name: 'mp-12', socket: '/run/s.sock', fork: false, envScope: 'MP-12' })),
-    { key: 'MP-12', registered: true, displaced: null });
+    { key: 'MP-12', registered: true });
   assert.equal(statSync(join(run, 'mypi')).mode & 0o777, 0o700);
   assert.equal(statSync(sessionsDir).mode & 0o777, 0o700);
-  assert.equal(statSync(join(sessionsDir, 'MP-12.json')).mode & 0o777, 0o600);
-  assert.deepEqual(record('MP-12.json'), { key: 'MP-12', agent: 'claude', nativeId: 'c1', pid: 101, start: '500', name: 'mp-12',
+  assert.equal(statSync(join(sessionsDir, 'MP-12~101.json')).mode & 0o777, 0o600);
+  assert.deepEqual(record('MP-12~101.json'), { key: 'MP-12', agent: 'claude', nativeId: 'c1', pid: 101, start: '500', name: 'mp-12',
     socket: '/run/s.sock', permissionMode: null, registeredAt: at });
   alive(101, '501');
-  writeFileSync(join(sessionsDir, 'OT.json'), 'not json');
+  alive(102);
+  writeFileSync(join(sessionsDir, 'OT~5.json'), 'not json');
+  writeFileSync(join(sessionsDir, 'MP.json'), JSON.stringify({ key: 'MP', agent: 'claude', nativeId: 'old', pid: 102, start: '1', name: null,
+    socket: null, permissionMode: null, registeredAt: at }));
   writeFileSync(join(sessionsDir, 'notes.txt'), 'keep');
   const tree = s(x => x.tree());
-  assert.deepEqual(tree.children[0]!.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' }, children: [] });
+  assert.deepEqual(tree.children[0]!.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' },
+    sessions: [{ agent: 'claude', nativeId: 'c1', device: hostname(), activeAt: at, state: 'closed' }], children: [] });
   assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), undefined);
-  assert.deepEqual(files(), ['MP-12.json', 'OT.json', 'notes.txt']);
-  alive(102);
+  assert.equal(s(x => x.lookup('MP')).live, undefined);
+  assert.deepEqual(files(), ['MP-12~101.json', 'MP.json', 'OT~5.json', 'notes.txt']);
   s(x => x.register(claude('g1', 102)));
-  assert.deepEqual(files(), ['global.json', 'notes.txt']);
+  assert.deepEqual(files(), ['global~102.json', 'notes.txt']);
 });
 
 test("permission mode is read only from the agent's own command line", t => {
   const { alive, s, record, sessionsDir, claude } = fixture(t);
   alive(102, '1', ['claude', '--permission-mode', 'plan', '--api-key', 'secret-value']);
   s(x => x.register(claude('c1', 102)));
-  assert.equal(record('global.json')['permissionMode'], 'plan');
-  assert.ok(!readFileSync(join(sessionsDir, 'global.json'), 'utf8').includes('secret-value'));
+  assert.equal(record('global~102.json')['permissionMode'], 'plan');
+  assert.ok(!readFileSync(join(sessionsDir, 'global~102.json'), 'utf8').includes('secret-value'));
   const cases: [string[], string | null][] = [[['claude', '--permission-mode=auto'], 'auto'],
     [['claude', '--dangerously-skip-permissions'], 'bypassPermissions'], [['claude'], null]];
   for (const [argv, mode] of cases) {
     alive(102, '1', argv);
     s(x => x.register(claude('c1', 102)));
-    assert.equal(record('global.json')['permissionMode'], mode, argv.join(' '));
+    assert.equal(record('global~102.json')['permissionMode'], mode, argv.join(' '));
   }
   alive(103, '1', ['pi', '--permission-mode', 'plan']);
   s(x => x.register({ agent: 'pi', nativeId: 'p1', pid: 103, name: null, socket: null, fork: false }));
-  assert.equal(record('global.json')['permissionMode'], null);
+  assert.equal(record('global~103.json')['permissionMode'], null);
 });
 
 test('the registry refuses an unsafe directory and a missing XDG_RUNTIME_DIR', t => {
@@ -135,15 +222,15 @@ test('register validates the process, the native id and the key', t => {
     assert.deepEqual(rows(), []);
     assert.deepEqual(files(), []);
   }
-  assert.deepEqual(s(x => x.register(claude('c1', 101, { envScope: 'one' }))), { key: 'one', registered: true, displaced: null });
+  assert.deepEqual(s(x => x.register(claude('c1', 101, { envScope: 'one' }))), { key: 'one', registered: true });
   const db = openDatabase(filename, true);
   try {
     assert.deepEqual(db.prepare('SELECT key, scope_type AS scopeType, org_id AS orgId, project_id AS projectId, task_id AS taskId FROM sessions').all(),
       [{ key: 'one', scopeType: 'org', orgId: (db.prepare("SELECT id FROM organizations WHERE slug = 'one'").get() as { id: number }).id,
         projectId: null, taskId: null }]);
   } finally { db.close(); }
-  assert.deepEqual(files(), ['one.json']);
-  assert.equal(record('one.json')['key'], 'one');
+  assert.deepEqual(files(), ['one~101.json']);
+  assert.equal(record('one~101.json')['key'], 'one');
   assert.equal(s(x => x.lookup('one')).live!.pid, 101);
   assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), 'one');
 });
@@ -154,7 +241,7 @@ test("unregister removes only the caller's own records and keeps the row", t => 
   s(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
   s(x => x.register(claude('g1', 201)));
   assert.deepEqual(s(x => x.unregister(101)), { removed: ['MP-12'] });
-  assert.deepEqual(files(), ['global.json']);
+  assert.deepEqual(files(), ['global~201.json']);
   assert.deepEqual(rows().map(r => r.key), ['MP-12', 'global']);
   assert.equal(s(x => x.tree()).children[0]!.children[0]!.children[0]!.session!.state, 'closed');
   assert.deepEqual(s(x => x.unregister(101)), { removed: [] });
@@ -162,45 +249,57 @@ test("unregister removes only the caller's own records and keeps the row", t => 
   assert.deepEqual(s(x => x.unregister(101)), { removed: [] });
   alive(202);
   s(x => x.register(claude('g2', 202)));
-  assert.deepEqual(files(), ['global.json', 'global~201.json']);
+  assert.deepEqual(files(), ['global~201.json', 'global~202.json']);
   assert.deepEqual(s(x => x.unregister(201)), { removed: ['global'] });
-  assert.deepEqual(files(), ['global.json']);
-  assert.equal(record('global.json')['pid'], 202);
+  assert.deepEqual(files(), ['global~202.json']);
+  assert.equal(record('global~202.json')['pid'], 202);
 });
 
-test('forget deletes the row and reports a live session without touching its record', t => {
+test('forget deletes every row of the key and reports a live session without touching its records', t => {
   const { alive, die, s, rows, files, claude } = fixture(t);
-  alive(101); alive(201);
+  alive(101); alive(102); alive(201);
   s(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
+  s(x => x.register({ agent: 'pi', nativeId: 'p2', pid: 102, name: null, socket: null, fork: false, envScope: 'MP-12' }));
   s(x => x.register(claude('g1', 201)));
+  die(101);
   assert.deepEqual(s(x => x.forget('MP-12')), { forgotten: 'MP-12', live: true });
   assert.deepEqual(rows().map(r => r.key), ['global']);
-  assert.deepEqual(files(), ['MP-12.json', 'global.json']);
+  assert.deepEqual(files(), ['MP-12~102.json', 'global~201.json']);
   assert.throws(() => s(x => x.forget('MP-12')), /Unknown session: MP-12/);
   die(201);
   s(x => x.tree());
-  assert.deepEqual(files(), ['MP-12.json', 'global.json']);
+  assert.deepEqual(files(), ['MP-12~102.json', 'global~201.json']);
   assert.deepEqual(s(x => x.forget('global')), { forgotten: 'global', live: false });
-  assert.deepEqual(files(), ['MP-12.json']);
+  assert.deepEqual(files(), ['MP-12~102.json']);
 });
 
-test('lookup returns the saved row and only the canonical live record', t => {
-  const { alive, die, s, claude } = fixture(t);
-  assert.deepEqual(s(x => x.lookup('MP-12')), { row: undefined, live: undefined });
+test('lookup returns the active row, its live record and every live record of the key', t => {
+  const { alive, die, ts, claude } = fixture(t);
+  assert.deepEqual(ts(x => x.lookup('MP-12')), { row: undefined, live: undefined, records: [], rows: [] });
   alive(101, '1', ['claude', '--permission-mode', 'plan']);
-  s(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
-  const first = s(x => x.lookup('MP-12'));
+  ts(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
+  const first = ts(x => x.lookup('MP-12'));
   assert.equal(first.row!.agent, 'claude');
   assert.equal(first.row!.nativeId, 'c1');
   assert.equal(first.live!.pid, 101);
   assert.equal(first.live!.permissionMode, 'plan');
+  assert.deepEqual(first.records.map(r => r.pid), [101]);
   alive(102);
-  s(x => x.register(claude('c2', 102, { envScope: 'MP-12' })));
-  assert.equal(s(x => x.lookup('MP-12')).live!.pid, 102);
+  ts(x => x.register(claude('c2', 102, { envScope: 'MP-12' })));
+  const second = ts(x => x.lookup('MP-12'));
+  assert.equal(second.row!.nativeId, 'c1');
+  assert.equal(second.live!.pid, 101);
+  assert.deepEqual(second.records.map(r => r.pid), [101, 102]);
+  ts(x => x.prompt({ agent: 'claude', nativeId: 'c2' }));
+  const prompted = ts(x => x.lookup('MP-12'));
+  assert.equal(prompted.row!.nativeId, 'c2');
+  assert.equal(prompted.live!.pid, 102);
+  assert.deepEqual(prompted.records.map(r => r.pid), [102, 101]);
   die(102);
-  const closed = s(x => x.lookup('MP-12'));
+  const closed = ts(x => x.lookup('MP-12'));
   assert.equal(closed.live, undefined);
   assert.equal(closed.row!.nativeId, 'c2');
+  assert.deepEqual(closed.records.map(r => r.pid), [101]);
 });
 
 test('sessions tree is global → org → project → task with live and closed', t => {
@@ -212,29 +311,45 @@ test('sessions tree is global → org → project → task with live and closed'
   s(x => x.register(claude('c7', 101, { envScope: 'MP-7' })));
   s(x => x.register({ agent: 'pi', nativeId: 'pot', pid: 401, name: null, socket: null, fork: false, envScope: 'OT' }));
   s(x => x.register(claude('c2', 501, { envScope: 'two' })));
-  const mp = { key: 'MP', session: null, children: [
-    { key: 'MP-7', session: { agent: 'claude', nativeId: 'c7', state: 'live' }, children: [] },
-    { key: 'MP-12', session: { agent: 'pi', nativeId: 'p12', state: 'closed' }, children: [] }] };
-  const ot = { key: 'OT', session: { agent: 'pi', nativeId: 'pot', state: 'live' }, children: [] };
-  assert.deepEqual(s(x => x.tree()), { key: 'global', session: { agent: 'claude', nativeId: 'g1', state: 'live' }, children: [
-    { key: 'one', session: null, children: [mp] },
-    { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'live' }, children: [ot] }] });
+  const one = (agent: 'claude' | 'pi', nativeId: string, state: 'live' | 'closed') =>
+    ({ session: { agent, nativeId, state }, sessions: [{ agent, nativeId, device: hostname(), activeAt: at, state }] });
+  const mp = { key: 'MP', session: null, sessions: [], children: [
+    { key: 'MP-7', ...one('claude', 'c7', 'live'), children: [] },
+    { key: 'MP-12', ...one('pi', 'p12', 'closed'), children: [] }] };
+  const ot = { key: 'OT', ...one('pi', 'pot', 'live'), children: [] };
+  assert.deepEqual(s(x => x.tree()), { key: 'global', ...one('claude', 'g1', 'live'), children: [
+    { key: 'one', session: null, sessions: [], children: [mp] },
+    { key: 'two', ...one('claude', 'c2', 'live'), children: [ot] }] });
   die(501);
-  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'closed' }, children: [ot] });
+  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', ...one('claude', 'c2', 'closed'), children: [ot] });
   s(x => x.forget('OT'));
-  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', session: { agent: 'claude', nativeId: 'c2', state: 'closed' }, children: [] });
+  assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', ...one('claude', 'c2', 'closed'), children: [] });
   const empty = fixture(t);
-  assert.deepEqual(empty.s(x => x.tree()), { key: 'global', session: null, children: [] });
+  assert.deepEqual(empty.s(x => x.tree()), { key: 'global', session: null, sessions: [], children: [] });
+});
+
+test('a task with two sessions is one node with both sessions, the active one first', t => {
+  const x = twoLive(t);
+  x.alive(301);
+  x.ts(s => s.register(x.claude('c7', 301, { envScope: 'MP-7' })));
+  x.alive(302);
+  x.ts(s => s.register({ agent: 'pi', nativeId: 'p7', pid: 302, name: null, socket: null, fork: false, envScope: 'MP-7' }));
+  x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p7' }));
+  const project = x.ts(s => s.tree()).children[0]!.children[0]!;
+  assert.deepEqual(project.sessions.map(r => [r.nativeId, r.state]), [['c1', 'live'], ['p2', 'live']]);
+  assert.deepEqual(project.children.map(c => c.key), ['MP-7']);
+  assert.deepEqual(project.children[0]!.session, { agent: 'pi', nativeId: 'p7', state: 'live' });
+  assert.deepEqual(project.children[0]!.sessions.map(r => r.nativeId), ['p7', 'c7']);
 });
 
 test('session key resolution scenarios', async t => {
   const setup = (t: TestContext) => {
     const f = fixture(t);
     const register = (agent: 'claude' | 'pi', nativeId: string, pid: number, extra: { envScope?: string; fork?: boolean } = {}) =>
-      f.s(x => x.register({ agent, nativeId, pid, name: null, socket: null, fork: false, ...extra }));
+      f.ts(x => x.register({ agent, nativeId, pid, name: null, socket: null, fork: false, ...extra }));
     const warm = (agent: 'claude' | 'pi', nativeId: string, pid: number, envScope?: string) =>
       warmupScope(undefined, envScope, sessionKey(f.filename, { agent, nativeId, pid, runtime: f.run }, f.proc));
-    const row = (key: string) => f.rows().find(r => r.key === key);
+    const row = (key: string) => f.ts(x => x.lookup(key)).row;
     return { ...f, register, warm, row };
   };
   const opened = (t: TestContext) => {
@@ -258,22 +373,23 @@ test('session key resolution scenarios', async t => {
   };
   await t.test('1: /open MP-12, a new session', t => {
     const x = opened(t);
-    assert.deepEqual(x.result, { key: 'MP-12', registered: true, displaced: null });
+    assert.deepEqual(x.result, { key: 'MP-12', registered: true });
     assert.equal(x.warm('claude', 'c1', 900, 'MP-12'), 'MP-12');
     assert.equal(x.row('MP-12')!.nativeId, 'c1');
   });
   await t.test('2: the /open session, then /clear', t => {
     const x = cleared(t);
-    assert.deepEqual(x.result, { key: 'MP-12', registered: true, displaced: null });
+    assert.deepEqual(x.result, { key: 'MP-12', registered: true });
     assert.equal(x.warm('claude', 'c2', 900, 'MP-12'), 'MP-12');
     assert.equal(x.row('MP-12')!.nativeId, 'c2');
-    assert.ok(!x.files().includes('MP-12~101.json'));
+    assert.deepEqual(x.files(), ['MP-12~101.json']);
   });
   await t.test('3: claude --resume of the task id by hand in the root', t => {
     const x = resumed(t);
     assert.equal(x.result.key, 'MP-12');
     assert.equal(x.warm('claude', 'c2', 900), 'MP-12');
-    assert.equal(x.record('MP-12.json')['pid'], 102);
+    assert.equal(x.record('MP-12~102.json')['nativeId'], 'c2');
+    assert.equal(x.row('MP-12')!.nativeId, 'c2');
   });
   await t.test('4: case 3, then /clear', t => {
     const x = resumedCleared(t);
@@ -289,13 +405,10 @@ test('session key resolution scenarios', async t => {
     const x = setup(t);
     x.alive(201); x.alive(202);
     assert.equal(x.register('claude', 'g1', 201).key, 'global');
-    const second = x.register('claude', 'g2', 202);
-    assert.equal(second.key, 'global');
-    assert.equal(second.displaced!.pid, 201);
-    assert.equal(typeof second.displaced!.displacedAt, 'string');
-    assert.equal(x.record('global.json')['pid'], 202);
-    assert.ok(x.files().includes('global~201.json'));
-    assert.equal(x.row('global')!.nativeId, 'g2');
+    assert.deepEqual(x.register('claude', 'g2', 202), { key: 'global', registered: true });
+    assert.deepEqual(x.files(), ['global~201.json', 'global~202.json']);
+    assert.equal(x.record('global~202.json')['nativeId'], 'g2');
+    assert.equal(x.row('global')!.nativeId, 'g1');
     assert.equal(x.warm('claude', 'g2', 900), 'global');
   });
   await t.test('7: Pi /new in a task session', t => {
@@ -303,8 +416,9 @@ test('session key resolution scenarios', async t => {
     x.alive(300);
     x.register('pi', 'p0', 300, { envScope: 'MP-12' });
     x.die(300); x.alive(301);
-    assert.deepEqual(x.register('pi', 'p0', 301), { key: 'MP-12', registered: true, displaced: null });
-    assert.deepEqual(x.register('pi', 'p1', 301), { key: 'MP-12', registered: true, displaced: null });
+    assert.deepEqual(x.register('pi', 'p0', 301), { key: 'MP-12', registered: true });
+    assert.deepEqual(x.register('pi', 'p1', 301), { key: 'MP-12', registered: true });
+    assert.deepEqual(x.files(), ['MP-12~301.json']);
     assert.equal(x.row('MP-12')!.nativeId, 'p1');
     assert.equal(x.warm('pi', 'p1', 301), 'MP-12');
   });
@@ -313,16 +427,17 @@ test('session key resolution scenarios', async t => {
     x.alive(201);
     x.register('claude', 'g1', 201);
     x.alive(401);
-    assert.deepEqual(x.register('claude', 'f1', 401, { fork: true }), { key: 'global', registered: false, displaced: null });
-    assert.equal(x.record('global.json')['pid'], 201);
+    assert.deepEqual(x.register('claude', 'f1', 401, { fork: true }), { key: 'global', registered: false });
+    assert.deepEqual(x.files(), ['global~201.json']);
     assert.equal(x.rows().some(r => r.nativeId === 'f1'), false);
     assert.equal(x.warm('claude', 'f1', 401), 'global');
     x.alive(101);
     x.register('claude', 'c1', 101, { envScope: 'MP-12' });
     x.alive(402);
     const fork = x.register('claude', 'f2', 402, { fork: true, envScope: 'MP-12' });
-    assert.equal(fork.registered, true);
-    assert.equal(fork.displaced!.pid, 101);
+    assert.deepEqual(fork, { key: 'MP-12', registered: true });
+    assert.deepEqual(x.files(), ['MP-12~101.json', 'MP-12~402.json', 'global~201.json']);
+    assert.equal(x.row('MP-12')!.nativeId, 'c1');
   });
   await t.test('9: claude --resume of the MP-7 id in an MP-12 tab', t => {
     const x = setup(t);
@@ -331,9 +446,9 @@ test('session key resolution scenarios', async t => {
     x.die(501); x.alive(101);
     x.register('claude', 'c1', 101, { envScope: 'MP-12' });
     x.alive(502);
-    assert.deepEqual(x.register('claude', 'c7', 502, { envScope: 'MP-12' }), { key: 'MP-7', registered: true, displaced: null });
+    assert.deepEqual(x.register('claude', 'c7', 502, { envScope: 'MP-12' }), { key: 'MP-7', registered: true });
     assert.equal(x.warm('claude', 'c7', 502, 'MP-12'), 'MP-7');
-    assert.equal(x.record('MP-12.json')['pid'], 101);
+    assert.equal(x.record('MP-12~101.json')['nativeId'], 'c1');
   });
   assert.equal(warmupScope('MP', 'MP-12', 'MP-7'), 'MP');
   const x = opened(t);

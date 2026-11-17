@@ -3,6 +3,7 @@ import { initializeArchive, openArchive } from '../infrastructure/database/archi
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { archiveDatabasePath, canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
@@ -89,7 +90,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock),
+    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock, () => hostname()),
     events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     archiveKeys,
     close: () => db.close(),

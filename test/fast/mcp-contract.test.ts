@@ -14,7 +14,10 @@ const g = { type: 'global' };
 const cli = (argv: string[]) => {
   const parsed = parseCommand(argv);
   if (parsed.type === 'help') throw new Error('Unexpected help');
-  return appCommand(parsed, {});
+  const command = appCommand(parsed, {});
+  if (command.name !== 'warmup') return command;
+  const { caller: _, ...rest } = command;
+  return rest;
 };
 test('MCP lists exactly seventeen agent tools; maintenance and replaced names are unknown tools', () => {
   assert.deepEqual(Object.keys(tools).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
@@ -132,9 +135,10 @@ test('CLI translates to the same subject commands without changing text or defau
     if (parsed.type === 'help') throw new Error('Unexpected help');
     return appCommand(parsed, env, parentPid);
   };
-  assert.deepEqual(translate(['warmup']), { name: 'warmup' });
-  assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
-  assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500 });
+  const caller = { pid: process.ppid };
+  assert.deepEqual(translate(['warmup']), { name: 'warmup', caller });
+  assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12', caller });
+  assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500, caller });
   assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), [{ name: 'warmup', envScope: 'MP-12' }]);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
@@ -184,7 +188,8 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.throws(() => translate(['session', 'register', '--agent', 'claude', '--pid', '42', '--hook', '--native-id', 'x']), /not both/);
   assert.deepEqual(translate(['session', 'unregister', '--pid', '7']), { name: 'session_unregister', pid: 7 });
   assert.deepEqual(translate(['session', 'forget', 'MP-12']), { name: 'session_forget', key: 'MP-12' });
-  assert.deepEqual(translate(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }, 42), { name: 'warmup', session: { agent: 'claude', nativeId: 'c1', pid: 42 } });
+  assert.deepEqual(translate(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }, 42), { name: 'warmup', session: { agent: 'claude', nativeId: 'c1', pid: 42 }, caller: { pid: 42 } });
+  assert.deepEqual(translate(['warmup'], { XDG_RUNTIME_DIR: '/run/user/1' }, 42), { name: 'warmup', caller: { pid: 42, runtime: '/run/user/1' } });
   assert.deepEqual(toolCommand('warmup', {}, { PI_SESSION_ID: 'p1', XDG_RUNTIME_DIR: '/run/user/1' }, 7),
     [{ name: 'warmup', session: { agent: 'pi', nativeId: 'p1', pid: 7, runtime: '/run/user/1' } }]);
   assert.deepEqual(toolCommand('sessions', {}, { XDG_RUNTIME_DIR: '/run/user/1' }), [{ name: 'sessions', runtime: '/run/user/1' }]);

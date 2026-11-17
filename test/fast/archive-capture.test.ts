@@ -69,8 +69,8 @@ test('archive capture records a transcript from its saved offset and writes noth
   assert.equal(existsSync(archivePath(filename)), false);
   const stateDb = openDatabase(filename);
   try {
-    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
-      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', ?)`).run(at(0));
+    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', 'host', ?)`).run(at(0));
   } finally { stateDb.close(); }
   const file = join(dir, 'c1.jsonl');
   writeFileSync(file, jsonl([user('u1', null, 1), assistant('a1', 'u1', 2)]));

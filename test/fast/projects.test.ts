@@ -175,8 +175,8 @@ test('project remove deletes only an unreferenced registration and refuses every
       ['tasks', 'TA', 'tasks 1', [`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
         VALUES ((SELECT id FROM projects WHERE code = 'TA'), 1, 'Task', (SELECT id FROM task_statuses WHERE code = 'new'),
         'projects/two/tasks/tasks/TA-1-task', NULL, ?, ?)`, [at, at]]],
-      ['sessions', 'SE', 'sessions 1', [`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, created_at)
-        VALUES ('SE', 'project', (SELECT id FROM projects WHERE code = 'SE'), NULL, 'claude', 'native', ?)`, [at]]],
+      ['sessions', 'SE', 'sessions 1', [`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, device, created_at)
+        VALUES ('SE', 'project', (SELECT id FROM projects WHERE code = 'SE'), NULL, 'claude', 'native', 'host', ?)`, [at]]],
       ['project-journal', 'PJ', 'project journal entries 1', [`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text)
         VALUES (?, 'project', 'PJ', 'note', 'Note')`, [at]]],
       ['task-journal', 'TJ', 'task journal entries 1', [`INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text)
@@ -210,8 +210,8 @@ test('org remove deletes only an organization without projects', t => {
     assert.throws(() => app.projects.removeOrganization('absent'), /Unknown organization/);
     assert.throws(() => app.projects.removeOrganization('Bad'), /Invalid organization slug/);
     app.projects.remove('one/project', 'MP');
-    seed(filename, [[`INSERT INTO sessions(key, scope_type, org_id, agent, native_id, created_at)
-      VALUES ('one', 'org', (SELECT id FROM organizations WHERE slug = 'one'), 'claude', 'c1', ?)`, [at]]]);
+    seed(filename, [[`INSERT INTO sessions(key, scope_type, org_id, agent, native_id, device, created_at)
+      VALUES ('one', 'org', (SELECT id FROM organizations WHERE slug = 'one'), 'claude', 'c1', 'host', ?)`, [at]]]);
     assert.throws(() => app.projects.removeOrganization('one'), /Organization one is referenced by: sessions 1$/);
     seed(filename, [[`DELETE FROM sessions WHERE key = 'one'`, []],
       [`INSERT INTO events(from_key, to_key, kind, message, created_at) VALUES ('one', 'MP-1', 'message', 'Go', ?)`, [at]],

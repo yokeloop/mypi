@@ -24,7 +24,9 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
     journal_page: () => ({ items: [{ id: 5, entry: { at: 'b', scope: { type: 'project', key: 'MP' }, event_type: 'note', text: 't', artifacts: ['x.md', { path: 'y.md', commit: 'c' }] } }], next: null }),
     message_send: () => ({ message: 7, delivered: false }),
     journal_add: () => ({ saved: '12' }),
-    sessions: () => ({ tree: { key: 'global', session: null, children: [] } }),
+    sessions: () => ({ tree: { key: 'global', session: { agent: 'claude', nativeId: 'g1', state: 'live' },
+      sessions: [{ agent: 'claude', nativeId: 'g1', device: 'host', activeAt: 'a', state: 'live' }, { agent: 'pi', nativeId: 'p1', device: 'host', activeAt: null, state: 'closed' }],
+      children: [] } }),
     ...outcomes,
   };
   const api = createApi({
@@ -106,6 +108,10 @@ test('responses use the stable envelope and map fields explicitly', async () => 
   assert.deepEqual(tasks.body, { apiVersion: 1, data: { items: [taskShape], next: encodeCursor(3) } });
   assert.equal(decodeCursor((tasks.body.data as { next: string }).next), 3);
   assert.deepEqual((await call('GET', '/v1/tasks/MP-1', { token: 'r-token' })).body, { apiVersion: 1, data: taskShape });
+  assert.deepEqual((await call('GET', '/v1/sessions', { token: 'r-token' })).body, { apiVersion: 1, data: { key: 'global',
+    session: { agent: 'claude', nativeId: 'g1', state: 'live' },
+    sessions: [{ agent: 'claude', nativeId: 'g1', device: 'host', activeAt: 'a', state: 'live' }, { agent: 'pi', nativeId: 'p1', device: 'host', activeAt: null, state: 'closed' }],
+    children: [] } });
   assert.deepEqual((await call('GET', '/v1/events', { token: 'r-token' })).body, { apiVersion: 1, data: { items: [
     { id: 9, from: 'global', to: 'MP', kind: 'message', text: 'go', createdAt: 'a', deliveredAt: null }], next: null } });
   assert.deepEqual((await call('GET', '/v1/journal', { token: 'r-token' })).body, { apiVersion: 1, data: { items: [

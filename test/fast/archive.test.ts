@@ -43,7 +43,7 @@ test('archive opens beside the state file with mode 0600 and its own user_versio
   for (const name of ['archive_sessions', 'archive_messages', 'archive_messages_at', 'archive_fts',
     'archive_messages_ai', 'archive_messages_ad', 'archive_messages_au']) assert.ok(before.includes(name), name);
   const stateDb = openDatabase(filename, true);
-  try { assert.equal(stateDb.pragma('user_version', { simple: true }), 15); } finally { stateDb.close(); }
+  try { assert.equal(stateDb.pragma('user_version', { simple: true }), 16); } finally { stateDb.close(); }
   initializeArchive(path);
   assert.deepEqual(names(), before);
 });
@@ -149,8 +149,8 @@ test('key binding prefers the sessions row, then a registered name, else NULL', 
   try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
   const stateDb = openDatabase(filename);
   try {
-    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
-      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'n1', ?)`).run(at);
+    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'n1', 'host', ?)`).run(at);
   } finally { stateDb.close(); }
   const reader = createApp(filename, true);
   try {

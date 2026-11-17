@@ -254,9 +254,9 @@ test('turn end and hook events emit only in a parent-started turn of a task chat
   const { dir, filename, rows } = fixture(t);
   const db = openDatabase(filename);
   try {
-    db.prepare(`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, created_at) VALUES ('MP-12', 'task',
+    db.prepare(`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, device, created_at) VALUES ('MP-12', 'task',
       (SELECT id FROM projects WHERE code = 'MP'), (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.code = 'MP' AND t.number = 12),
-      'claude', 'c1', ?)`).run(at);
+      'claude', 'c1', 'host', ?)`).run(at);
   } finally { db.close(); }
   const parent = join(dir, 'parent.jsonl'), person = join(dir, 'person.jsonl');
   writeFileSync(parent, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',

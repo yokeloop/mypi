@@ -150,7 +150,9 @@ Response shapes:
 - `event`: `{ id, from, to, kind, text, createdAt, deliveredAt }`
 - `journal`: `{ id, at, scope: { type, key? }, type, text, artifacts: [{ path, commit }] }`
   (`commit` is `null` for historical path-only artifacts)
-- `session`: `{ key, session: { agent, nativeId, state } | null, children: session[] }`
+- `session`: `{ key, session: { agent, nativeId, state } | null, sessions: [{ agent, nativeId, device, activeAt, state }], children: session[] }`
+  (`session` is the active session of the key, where the engineer wrote last; `sessions` lists every session of
+  the key, last active first)
 - `context`: `{ path, revision, text }`
 
 Reading events never marks them delivered; `/inbox` and the warmup work as before.
@@ -191,7 +193,7 @@ field or route needs `/v2`.
 
 ## Engine updates and migrations
 
-The server opens a database of schema 15 and keeps its code in memory. After an
+The server opens a database of schema 16 and keeps its code in memory. After an
 engine update or a migration, restart it.
 
 ## Access log

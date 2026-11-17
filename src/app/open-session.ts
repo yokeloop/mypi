@@ -49,8 +49,10 @@ export function defaultAgent(settings: string | undefined): Agent {
 export type OpenDecision = { action: 'focus'; agent: Agent; live: RegistryRecord }
   | { action: 'resume'; agent: Agent; nativeId: string } | { action: 'start'; agent: Agent };
 
-export function decideOpen(found: { row: SessionRow | undefined; live: RegistryRecord | undefined }, chosen: Agent): OpenDecision {
+export function decideOpen(found: { row: SessionRow | undefined; live: RegistryRecord | undefined; records: RegistryRecord[] }, chosen: Agent): OpenDecision {
   if (found.live) return { action: 'focus', agent: found.live.agent, live: found.live };
+  const other = found.records[0];
+  if (other) return { action: 'focus', agent: other.agent, live: other };
   if (found.row) return { action: 'resume', agent: found.row.agent, nativeId: found.row.nativeId };
   return { action: 'start', agent: chosen };
 }
@@ -66,5 +68,9 @@ export function callerMode(sessions: Sessions, hint: SessionHint | undefined): s
   if (hint === undefined) return undefined;
   const key = sessions.resolve(hint);
   if (key === undefined) return null;
-  try { return sessions.lookup(key).live?.permissionMode ?? null; } catch { return null; }
+  try {
+    const records = sessions.lookup(key).records;
+    const own = records.find(r => r.agent === hint.agent && r.nativeId === hint.nativeId) ?? records.find(r => r.pid === hint.pid);
+    return own?.permissionMode ?? null;
+  } catch { return null; }
 }

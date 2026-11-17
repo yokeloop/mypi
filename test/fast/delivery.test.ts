@@ -35,10 +35,16 @@ function fixture(t: TestContext) {
     writeFileSync(join(proc, String(pid), 'cmdline'), 'pi\0');
   };
   const die = (pid: number) => rmSync(join(proc, String(pid)), { recursive: true, force: true });
+  let now = Date.parse('2026-10-28T00:00:00.000Z');
+  const tick = () => new Date(now += 1000).toISOString();
   const register = (pid: number, socket: string | null, agent: 'claude' | 'pi' = 'pi', nativeId = 'p' + pid, key = 'MP') => {
     alive(pid);
-    const app = createApp(filename, false);
+    const app = createApp(filename, false, tick);
     try { app.sessions(run, proc).register({ agent, nativeId, pid, name: null, socket, fork: false, envScope: key }); } finally { app.close(); }
+  };
+  const prompt = (nativeId: string, agent: 'claude' | 'pi' = 'pi') => {
+    const app = createApp(filename, false, tick);
+    try { return app.sessions(run, proc).prompt({ agent, nativeId }); } finally { app.close(); }
   };
   const delivered = () => {
     const db = openDatabase(filename, true);
@@ -59,7 +65,7 @@ function fixture(t: TestContext) {
   const emit = (transports: { pi?: EventTransport; claude?: EventTransport }, from = 'MP-12', runtime: string | null = run) =>
     emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
       transports, proc);
-  return { filename, run, proc, die, register, delivered, journal, calls, transport, emit };
+  return { filename, run, proc, die, register, prompt, delivered, journal, calls, transport, emit };
 }
 
 test('an acknowledged event is marked delivered and the transport gets the socket and the framed text', async t => {
@@ -139,12 +145,34 @@ test('a Claude record with a socket gets the events through the claude transport
   assert.deepEqual(delivered(), [[1, true], [2, true]]);
 });
 
-test('only the canonical session gets events after a newer one displaces it', async t => {
+test('the first live session stays active when a second one registers', async t => {
   const { register, calls, transport, emit } = fixture(t);
   register(101, '/s/a.sock');
   register(102, '/s/b.sock');
   assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [1] });
-  assert.deepEqual(calls.map(c => c.socket), ['/s/b.sock']);
+  assert.deepEqual(calls.map(c => c.socket), ['/s/a.sock']);
+});
+
+test('the message goes to the socket of the session with the last input', async t => {
+  const { register, prompt, delivered, calls, transport, emit } = fixture(t);
+  register(101, '/s/a.sock');
+  register(102, '/s/b.sock');
+  prompt('p102');
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [1] });
+  prompt('p101');
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 2, delivered: [2] });
+  assert.deepEqual(calls.map(c => c.socket), ['/s/b.sock', '/s/a.sock']);
+  assert.deepEqual(delivered(), [[1, true], [2, true]]);
+});
+
+test('without a live active session nothing is sent or marked', async t => {
+  const { die, register, delivered, calls, transport, emit } = fixture(t);
+  register(101, '/s/a.sock');
+  register(102, '/s/b.sock');
+  die(101);
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [] });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(delivered(), [[1, false]]);
 });
 
 test('a throwing transport delivers nothing and unknown ids in the answer are ignored', async t => {

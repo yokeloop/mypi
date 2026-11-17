@@ -93,7 +93,7 @@ function expectedBranch(files: FlowFiles, project: Project, key: string, card: C
   return '\nExpected branch: ' + taskBranchName(read.flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
 }
 
-export function readWarmup(filename: string, root: string, key: string, maxChars?: number): string {
+export function readWarmup(filename: string, root: string, key: string, maxChars?: number, notice?: string): string {
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 1 && maxChars <= WARMUP_MAX_CHARS)) {
     throw new InputError('Warmup max-chars must be an integer from 1 to ' + WARMUP_MAX_CHARS);
   }
@@ -193,7 +193,7 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         throw new InputError('Invalid scope key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
-      const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
+      const head = [...(notice === undefined ? [] : [notice]), header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
       let clipped = false, dropped = 0, cut = 0, trimmed = 0;
       const cardClip: Clip | undefined = body === undefined ? undefined : { points: [...body.text], shortened: 0,

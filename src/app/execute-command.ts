@@ -12,7 +12,7 @@ import { readWarmup, warmupScope } from './warmup.js';
 import { openTaskWorktree } from './task-worktree.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
-import { callerKey, forgetSession, listSessions, registerSession, sessionKey, unregisterSession } from './sessions.js';
+import { callerKey, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
 import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
@@ -37,11 +37,15 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
-  if (c.name === 'warmup') return readWarmup(filename, root ?? defaultContextRoot(),
-    warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined), c.maxChars);
+  if (c.name === 'warmup') {
+    const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
+    const notice = c.caller === undefined ? undefined : otherLiveSession(filename, key, c.caller, c.session);
+    return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice);
+  }
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
   if (c.name === 'session_register') return registerSession(filename, c);
+  if (c.name === 'session_prompt') { promptSession(filename, c); return ''; }
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
   if (c.name === 'sessions') return listSessions(filename, c);

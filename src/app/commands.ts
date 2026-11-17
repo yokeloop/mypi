@@ -18,7 +18,7 @@ export type AppCommand =
   | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
-  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint }
+  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint; caller?: { pid: number; runtime?: string } }
   | { name: 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
@@ -45,6 +45,7 @@ export type AppCommand =
   | { name: 'restore_published'; repository: string; commit: string }
   | { name: 'home_migrate_tasks'; dryRun?: boolean }
   | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; runtime?: string }
+  | { name: 'session_prompt'; agent: 'claude' | 'pi'; nativeId: string; counted: boolean; runtime?: string }
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }
