@@ -9,6 +9,8 @@ const agent = z.enum(['claude', 'pi']);
 const identity = z.strictObject({ agent, nativeId: text });
 const keyed = z.strictObject({ agent, nativeId: text, key: text });
 const ids = z.array(positive);
+const nativeId = z.string().min(1).max(256);
+const offset = z.number().int().nonnegative();
 const scopeInput = z.union([z.strictObject({ reference: text }), z.strictObject({ type: z.literal('global') }),
   z.strictObject({ type: z.enum(['org', 'project', 'task']), key: text })]);
 
@@ -55,6 +57,18 @@ export const operationInputs = {
   message_create: z.strictObject({ from: text, to: text, message: z.string() }),
   warmup_data: z.strictObject({ key: text }),
   events_mark: z.strictObject({ ids, caller: identity.nullable() }),
+  archive_offset: z.strictObject({ agent, nativeId }),
+  archive_record: z.strictObject({ agent, nativeId, path: text, expectedOffset: offset, newOffset: offset, read: z.strictObject({
+    entries: z.array(z.strictObject({ entryId: text, parentEntryId: text.nullable(), at: z.string(), role: z.enum(['user', 'assistant']),
+      origin: z.enum(['human', 'peer', 'task_notification', 'frame']), text })),
+    name: z.string().nullable(), cwd: z.string().nullable(), parentNativeId: z.string().nullable() }) }),
+  archive_status: z.strictObject({}),
+  archive_search: z.strictObject({ q: z.string().optional(), scope: z.string().optional(), agent: z.enum(['claude', 'pi']).optional(),
+    from: z.string().optional(), to: z.string().optional(), includePeer: z.boolean().optional(), limit: z.number().int().positive().optional() }),
+  archive_show: z.strictObject({ id: z.number().int().positive().optional(), before: z.number().int().nonnegative().optional(),
+    after: z.number().int().nonnegative().optional(), session: z.string().optional(), agent: z.enum(['claude', 'pi']).optional(),
+    offset: z.number().int().nonnegative().optional(), limit: z.number().int().positive().optional(), includePeer: z.boolean().optional() }),
+  archive_forget: z.strictObject({ session: z.string().optional(), key: z.string().optional(), before: z.string().optional() }),
 } satisfies Record<OperationName, z.ZodType>;
 
 export function parseOperation(op: string, input: unknown): { name: OperationName; input: unknown } {
