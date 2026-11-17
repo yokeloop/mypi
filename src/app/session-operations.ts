@@ -1,12 +1,15 @@
 import { hostname } from 'node:os';
 import { createApp } from './create-app.js';
-import { keyScope, sendParentMessage } from './journal-facts.js';
+import { appendFact, keyScope, sendParentMessage } from './journal-facts.js';
+import { trustedCheckoutPaths } from '../infrastructure/filesystem/paths.js';
 import type { EventRow } from '../modules/events/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
 import { validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
-import type { Agent } from '../modules/sessions/public.js';
+import type { Agent, SessionRow } from '../modules/sessions/public.js';
 import type { Card } from '../modules/tasks/public.js';
+import { InputError } from '../shared/errors.js';
+import type { Page } from '../shared/page.js';
 
 export type OperationTarget = { filename: string; root?: string; trustedPaths?: boolean };
 type Identity = { agent: Agent; nativeId: string };
@@ -27,6 +30,15 @@ export type SessionOperations = {
   message_create: { input: { from: string; to: string; message: string }; output: { id: number } };
   warmup_data: { input: { key: string }; output: WarmupData };
   events_mark: { input: { ids: number[]; caller: Identity | null }; output: { status: 'ok' } };
+  open_snapshot: { input: { orgs: string[] }; output: { projects: Project[]; cards: Card[]; rows: SessionRow[]; orgs: string[] } };
+  parent_check: { input: { from: string; to: string }; output: { status: 'ok' } };
+  session_open: { input: Identity & { key: string; device: string; opened?: { action: 'started' | 'resumed'; worktree: string | null } };
+    output: { status: 'ok' } };
+  worktree_record: { input: { key: string; worktreePath: string; created?: { branch: string; base: string } }; output: { status: 'ok' } };
+  checkout_record: { input: { identity: string; checkoutPath: string; action: 'cloned' | 'initialized' | 'adopted'; repository?: string };
+    output: { checkoutPath: string } };
+  event_list: { input: { to?: string; from?: string; kind?: 'turn_end' | 'waiting' | 'milestone' | 'message'; delivered?: boolean;
+    q?: string; before?: number; limit: number }; output: Page<EventRow> };
 };
 export type SessionOperationName = keyof SessionOperations;
 export type SessionOperationInput<K extends SessionOperationName> = SessionOperations[K]['input'];
@@ -39,8 +51,12 @@ export type WarmupData = { projects: Project[]; cards: Card[]; orgProjects: Proj
 type App = ReturnType<typeof createApp>;
 
 function db<T>(t: OperationTarget, readonly: boolean, fn: (app: App) => T): T {
-  const app = createApp(t.filename, readonly);
+  const app = createApp(t.filename, readonly, undefined, t.trustedPaths ? trustedCheckoutPaths : undefined);
   try { return fn(app); } finally { app.close(); }
+}
+
+function known(app: App, slug: string): boolean {
+  try { app.projects.list(slug); return true; } catch (e) { if (e instanceof InputError) return false; throw e; }
 }
 
 function warmupData(app: App, key: string): WarmupData {
@@ -118,6 +134,33 @@ export const sessionOperations = {
       return { status: 'ok' };
     });
   },
+  open_snapshot: (t, i) => db(t, true, app => app.readSnapshot(() => ({ projects: app.projects.list(), cards: app.tasks.list(),
+    rows: app.sessions(undefined).rows(), orgs: i.orgs.filter(slug => known(app, slug)) }))),
+  parent_check: (t, i) => db(t, true, app => { app.events.assertParent(i.from, i.to); return { status: 'ok' }; }),
+  session_open: (t, i) => db(t, false, app => app.serialize(() => {
+    app.sessions(undefined).activate({ key: i.key, agent: i.agent, nativeId: i.nativeId, device: i.device });
+    if (i.opened) appendFact(app, keyScope(i.key), 'session_opened', (i.opened.action === 'resumed' ? 'resumed ' : 'started ') + i.agent
+      + (i.opened.worktree === null ? '' : ', worktree ' + i.opened.worktree));
+    return { status: 'ok' };
+  })),
+  worktree_record: (t, i) => db(t, false, app => app.serialize(() => {
+    const match = /^([A-Z]+)-([1-9][0-9]*)$/.exec(i.key);
+    if (!match) throw new InputError('Invalid task key: ' + i.key + '; use CODE-N (MP-12)');
+    const project = app.projects.list().find(p => p.code === match[1]);
+    const card = project && app.tasks.list().find(c => c.projectId === project.id && c.number === Number(match[2]));
+    if (!project || !card) throw new InputError('Unknown task: ' + i.key);
+    app.tasks.recordWorktree(card.id, i.worktreePath);
+    if (i.created) appendFact(app, { type: 'task', key: i.key }, 'worktree_created',
+      'worktree ' + i.worktreePath + ', branch ' + i.created.branch + ', base ' + i.created.base);
+    return { status: 'ok' };
+  })),
+  checkout_record: (t, i) => db(t, false, app => app.serialize(() => {
+    const result = app.projects.updateCheckout(i.identity, null, i.checkoutPath);
+    appendFact(app, { type: 'project', key: result.code }, 'clone_prepared', 'clone prepared: ' + i.action + ' ' + result.checkoutPath!
+      + (i.action === 'cloned' ? ' from ' + i.repository : ''));
+    return { checkoutPath: result.checkoutPath! };
+  })),
+  event_list: (t, i) => db(t, true, app => app.readSnapshot(() => app.events.browse(i))),
 } satisfies { [K in SessionOperationName]: (t: OperationTarget, i: SessionOperationInput<K>) => SessionOperationOutput<K> };
 
 export function runSessionOperation<K extends SessionOperationName>(t: OperationTarget, name: K, input: SessionOperationInput<K>): SessionOperationOutput<K> {
