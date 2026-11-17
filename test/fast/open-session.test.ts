@@ -47,9 +47,11 @@ const live = (agent: 'claude' | 'pi'): RegistryRecord => ({ key: 'MP-12', agent,
 
 test('decideOpen focuses a live session, resumes a saved row with its own agent and starts the chosen agent otherwise', () => {
   const record = live('claude');
-  assert.deepEqual(decideOpen({ row: row('claude', 'c1'), live: record }, 'pi'), { action: 'focus', agent: 'claude', live: record });
-  assert.deepEqual(decideOpen({ row: row('pi', 'p1'), live: undefined }, 'claude'), { action: 'resume', agent: 'pi', nativeId: 'p1' });
-  assert.deepEqual(decideOpen({ row: undefined, live: undefined }, 'pi'), { action: 'start', agent: 'pi' });
+  const other: RegistryRecord = { ...live('pi'), nativeId: 'p2', pid: 102 };
+  assert.deepEqual(decideOpen({ row: row('claude', 'c1'), live: record, records: [record, other] }, 'pi'), { action: 'focus', agent: 'claude', live: record });
+  assert.deepEqual(decideOpen({ row: row('claude', 'c1'), live: undefined, records: [other] }, 'claude'), { action: 'focus', agent: 'pi', live: other });
+  assert.deepEqual(decideOpen({ row: row('pi', 'p1'), live: undefined, records: [] }, 'claude'), { action: 'resume', agent: 'pi', nativeId: 'p1' });
+  assert.deepEqual(decideOpen({ row: undefined, live: undefined, records: [] }, 'pi'), { action: 'start', agent: 'pi' });
 });
 
 test('launchArgs builds Claude and Pi arguments', () => {
@@ -90,11 +92,15 @@ test("callerMode reads the caller's live permission mode and is null without a c
   alive(101, ['claude', '--permission-mode', 'plan']);
   alive(102, ['claude']);
   alive(103, ['pi', '--permission-mode', 'plan']);
+  alive(104, ['claude', '--permission-mode', 'auto']);
   session('claude', 'c1', 101, 'MP-12');
+  session('claude', 'c4', 104, 'MP-12');
   session('claude', 'c2', 102, 'MP');
   session('pi', 'p1', 103, 'global');
   assert.equal(s(x => callerMode(x, undefined)), undefined);
   assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c1', pid: 900 })), 'plan');
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c4', pid: 900 })), 'auto');
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'unknown', pid: 104 })), 'auto');
   assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c2', pid: 900 })), null);
   assert.equal(s(x => callerMode(x, { agent: 'pi', nativeId: 'p1', pid: 900 })), null);
 });

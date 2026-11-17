@@ -145,12 +145,12 @@ test('a Claude record with a socket gets the events through the claude transport
   assert.deepEqual(delivered(), [[1, true], [2, true]]);
 });
 
-test('only the canonical session gets events after a newer one displaces it', async t => {
+test('the first live session stays active when a second one registers', async t => {
   const { register, calls, transport, emit } = fixture(t);
   register(101, '/s/a.sock');
   register(102, '/s/b.sock');
   assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [1] });
-  assert.deepEqual(calls.map(c => c.socket), ['/s/b.sock']);
+  assert.deepEqual(calls.map(c => c.socket), ['/s/a.sock']);
 });
 
 test('the message goes to the socket of the session with the last input', async t => {
