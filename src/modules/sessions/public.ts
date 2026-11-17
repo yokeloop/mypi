@@ -1,14 +1,16 @@
 import { InputError } from '../../shared/errors.js';
 import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, SessionStore } from './ports.js';
 export type { Agent, RegistryRecord, SessionRow, SessionScope } from './ports.js';
-export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null; children: SessionNode[] };
+export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null;
+  sessions: { agent: Agent; nativeId: string; device: string; activeAt: string | null; state: 'live' | 'closed' }[]; children: SessionNode[] };
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
   orgOf: (code: string) => string | undefined, clock: () => string, device: () => string) {
   const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;
-  const canonical = (records: RegistryRecord[], key: string) => records.find(r => r.key === key);
+  const matches = (record: { agent: Agent; nativeId: string }, row: { agent: Agent; nativeId: string } | undefined) =>
+    row !== undefined && record.agent === row.agent && record.nativeId === row.nativeId;
   return {
     register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string }):
-      { key: string; registered: boolean; displaced: RegistryRecord | null } {
+      { key: string; registered: boolean } {
       if (typeof input.nativeId !== 'string' || input.nativeId === '' || input.nativeId.length > 256
         || /[\u0000-\u001f\u007f]/.test(input.nativeId)) throw new InputError('Invalid native session id');
       if (!Number.isSafeInteger(input.pid) || input.pid <= 0) throw new InputError('--pid must be a positive integer');
@@ -20,16 +22,27 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const records = reg.live(true);
         let key = store.byNative(input.agent, input.nativeId)?.key ?? records.find(r => same(r, self))?.key;
         if (key === undefined) {
-          if (input.fork && !input.envScope) return { key: 'global', registered: false, displaced: null };
+          if (input.fork && !input.envScope) return { key: 'global', registered: false };
           key = input.envScope || 'global';
         }
         const target = scope(key);
         for (const r of records) if (same(r, self) && r.key !== key) reg.remove(r);
-        const displaced = null;
+        const previous = records.find(r => same(r, self) && r.key === key);
+        const others = records.filter(r => r.key === key && !same(r, self));
+        const wasActive = previous !== undefined && matches(previous, store.active(key));
         reg.write({ key, agent: input.agent, nativeId: input.nativeId, pid: input.pid, start, name: input.name, socket: input.socket,
           permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock() });
-        store.touch(store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() }), clock());
-        return { key, registered: true, displaced };
+        const id = store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
+        if (others.length === 0 || wasActive) store.touch(id, clock());
+        return { key, registered: true };
+      });
+    },
+    prompt(input: { agent: Agent; nativeId: string }): { key: string | null; active: boolean } {
+      return store.transaction(() => {
+        const row = store.byNative(input.agent, input.nativeId);
+        if (row === undefined) return { key: null, active: false };
+        store.touch(row.id, clock());
+        return { key: row.key, active: true };
       });
     },
     unregister(pid: number): { removed: string[] } {
@@ -44,20 +57,28 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     },
     forget(key: string): { forgotten: string; live: boolean } {
       return store.transaction(() => {
-        if (!store.active(key)) throw new InputError('Unknown session: ' + key);
-        const live = canonical(registry().live(true), key) !== undefined;
+        if (store.rows(key).length === 0) throw new InputError('Unknown session: ' + key);
+        const live = registry().live(true).some(r => r.key === key);
         store.removeKey(key);
         return { forgotten: key, live };
       });
     },
-    lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined } {
-      return { row: store.active(key), live: canonical(registry().live(), key) };
+    lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined; records: RegistryRecord[] } {
+      const rows = store.rows(key);
+      const row = rows[0];
+      const position = (r: RegistryRecord) => { const i = rows.findIndex(x => matches(r, x)); return i === -1 ? rows.length : i; };
+      const records = registry().live().filter(r => r.key === key)
+        .sort((a, b) => position(a) - position(b) || b.registeredAt.localeCompare(a.registeredAt));
+      return { row, live: records.find(r => matches(r, row)), records };
     },
     tree(): SessionNode {
       const rows = store.list(), records = registry().live();
+      const state = (row: SessionRow): 'live' | 'closed' => records.some(r => r.key === row.key && matches(r, row)) ? 'live' : 'closed';
       const node = (key: string): SessionNode => {
-        const row = rows.find(r => r.key === key);
-        return { key, session: row ? { agent: row.agent, nativeId: row.nativeId, state: canonical(records, key) ? 'live' : 'closed' } : null, children: [] };
+        const own = rows.filter(r => r.key === key);
+        const row = own[0];
+        return { key, session: row ? { agent: row.agent, nativeId: row.nativeId, state: state(row) } : null,
+          sessions: own.map(r => ({ agent: r.agent, nativeId: r.nativeId, device: r.device, activeAt: r.activeAt, state: state(r) })), children: [] };
       };
       const root = node('global');
       const codes = [...new Set(rows.map(r => /^[A-Z]+/.exec(r.key)?.[0]).filter((code): code is string => code !== undefined))].sort();
@@ -67,7 +88,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const org = node(slug);
         for (const code of codes.filter(c => orgOf(c) === slug)) {
           const project = node(code);
-          project.children = rows.map(r => r.key).filter(key => key.startsWith(code + '-'))
+          project.children = [...new Set(rows.map(r => r.key).filter(key => key.startsWith(code + '-')))]
             .sort((a, b) => Number(a.slice(code.length + 1)) - Number(b.slice(code.length + 1))).map(node);
           org.children.push(project);
         }
