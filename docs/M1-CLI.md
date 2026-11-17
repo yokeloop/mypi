@@ -236,6 +236,15 @@ configure. It is not part of `backup`, `backup --publish` or `restore`. Text is 
 written: secrets pasted into a chat are in the archive as they are in the transcript.
 Deleting the file is safe; the next import or capture recreates it.
 
+In remote mode the same commands work with the server's archive beside its database.
+`capture` and `import` read transcripts on the device and write to the server with an
+offset check: when another capture moved the offset in between, the write is refused
+with `Archive offset of <agent> <id> changed: expected <a>, found <b>; capture again`
+and the next capture continues without duplicates. A large tail goes in records of
+about 512 KiB, and a single turn larger than that is cut with a visible
+`[mypi: truncated N bytes]` marker. `search`, `show`, `status` and `forget` work with
+the server's archive from any device.
+
 ## Backup and restore
 
 `backup /existing-parent/new-backup-directory` uses SQLite backup API, a separate Git
@@ -322,12 +331,15 @@ A device works against the database of a `mypi serve` on another machine when it
   `session prompt` waits for the server at most 1.5 s. `session subscribe --pid <pid>`
   holds the Pi session's subscription to the server's changes and delivers its claimed
   events to its socket; without `server.json` it exits at once with code 0.
+- `archive import|capture|status|search|show|forget`, and the MCP tools
+  `archive_search` and `archive_show`, run on the server's archive; transcripts are
+  read on the device. The archive hooks (`Stop`/`SessionEnd` `archive capture` and the
+  Pi extension on `agent_settled`) work in remote mode.
 - Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
   `token`, `serve`, `home migrate-tasks`, `journal import`, `sessions`, `open`,
-  `task worktree` and the archive commands, answers `<command> is not available in
-  remote mode`. The session and event hooks of Claude and Pi work in remote mode; only
-  the archive hooks (`Stop`/`SessionEnd` `archive capture`) fail silently until MP-148,
-  and `sessions`, `open` and `task worktree` are refused until MP-149.
+  `task worktree`, answers `<command> is not available in remote mode`. The session,
+  event and archive hooks of Claude and Pi work in remote mode; `sessions`, `open` and
+  `task worktree` are refused until MP-149.
 - A server that does not answer within 10 s ends the command with code 1 and
   `mypi server unreachable: <url>`.
 - Device and server run one engine version, else
