@@ -1,5 +1,6 @@
 import type { AppCommand } from './commands.js';
-import { createApp, deviceSessions } from './create-app.js';
+import { deviceSessions } from './create-app.js';
+import { sessionTree } from '../modules/sessions/public.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
 import type { SessionRunner } from './session-operations.js';
@@ -59,9 +60,9 @@ export async function forgetSession(runner: SessionRunner, c: Of<'session_forget
   return { forgotten, live };
 }
 
-export function listSessions(filename: string, c: Of<'sessions'>, proc = '/proc') {
-  const app = createApp(filename, true);
-  try { return { tree: app.sessions(c.runtime, proc).tree() }; } finally { app.close(); }
+export async function listSessions(runner: SessionRunner, c: Of<'sessions'>, proc = '/proc') {
+  const { projects, rows } = await runner.run('open_snapshot', { orgs: [] });
+  return { tree: sessionTree(rows, deviceSessions(c.runtime, proc).records(), code => projects.find(p => p.code === code)?.org) };
 }
 
 export async function sessionKey(runner: SessionRunner, hint: SessionHint, proc = '/proc'): Promise<string | undefined> {

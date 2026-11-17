@@ -87,7 +87,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'session_prompt') return promptSession(runner, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
   if (c.name === 'session_unregister') return unregisterSession(c);
   if (c.name === 'session_forget') return forgetSession(runner, c);
-  if (c.name === 'sessions') return listSessions(filename, c);
+  if (c.name === 'sessions') return listSessions(runner, c);
   if (c.name === 'archive_import') return importArchive(archiveRunner(backend), c);
   if (c.name === 'archive_capture') return captureArchive(archiveRunner(backend), c);
   if (c.name === 'event_emit') return emitEvent(runner, c, transports);
