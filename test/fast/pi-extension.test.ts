@@ -538,6 +538,27 @@ test('pi extension opens its event socket for the key, re-registers with it and 
   assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'unregister', '--pid', String(process.pid)], { cwd: root, timeout: 5000 }]);
 });
 
+test('pi extension subscribes from session_start after the socket and aborts on shutdown', async t => {
+  const pi = stub();
+  const { run, serve } = sockets(t);
+  const runs: { args: string[]; signal: AbortSignal; after: unknown[] }[] = [];
+  const fake: RunCli = (args, { signal }) => {
+    runs.push({ args, signal, after: pi.calls.at(-1)! });
+    return new Promise(resolve => signal.addEventListener('abort', () => resolve({ code: 0, signal: null, stdout: '', stderr: '' })));
+  };
+  install(pi.api, root, serve, run, process.pid, fake);
+  pi.state.key = 'MP';
+  const path = join(run, 'mypi', `MP-${process.pid}.sock`);
+  await pi.start('startup');
+  assert.deepEqual(runs.map(r => r.args), [[cli, 'session', 'subscribe', '--pid', String(process.pid)]]);
+  assert.deepEqual(runs[0]!.after, reg('s1', '--socket', path));
+  await pi.start('reload');
+  assert.equal(runs.length, 2);
+  assert.deepEqual([runs[0]!.signal.aborted, runs[1]!.signal.aborted], [true, false]);
+  await pi.stop('quit');
+  assert.equal(runs[1]!.signal.aborted, true);
+});
+
 test('pi extension gives each process its own socket', async t => {
   const { run } = sockets(t);
   const served: string[] = [];
