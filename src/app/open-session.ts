@@ -1,10 +1,7 @@
-import type { createApp } from './create-app.js';
 import type { SessionHint } from './session-input.js';
 import type { Agent, RegistryRecord, SessionRow } from '../modules/sessions/public.js';
 import { validSlug } from '../modules/projects/public.js';
 import { InputError } from '../shared/errors.js';
-
-type Sessions = ReturnType<ReturnType<typeof createApp>['sessions']>;
 
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'auto', 'bypassPermissions', 'dontAsk', 'plan'] as const;
 
@@ -79,6 +76,15 @@ export function decideOpen(found: { rows: SessionRow[]; records: RegistryRecord[
   return { action: 'start', agent: request.chosen };
 }
 
+export function otherDevicesNote(rows: SessionRow[], key: string, device: string, request: OpenRequest): string | null {
+  if (request.new || request.target !== undefined) return null;
+  const match = (r: SessionRow) => request.agent === undefined || r.agent === request.agent;
+  if (rows.some(r => r.device === device && match(r))) return null;
+  const devices = [...new Set(rows.filter(r => r.device !== device && match(r)).map(r => r.device))];
+  if (devices.length === 0) return null;
+  return 'sessions of ' + key + ' on ' + devices.join(', ') + ' stay there; started a new one';
+}
+
 export function herdrName(base: string, agent: Agent, held: ReadonlySet<string>): string {
   if (!held.has(base)) return base;
   for (let n = 1; ; n++) {
@@ -99,12 +105,10 @@ export function launchArgs(decision: Exclude<OpenDecision, { action: 'focus' }>,
   return [...session, ...(mode === null ? [] : ['--permission-mode', mode]), '--settings', '{"crossSessionInbound":"accept"}'];
 }
 
-export function callerMode(sessions: Sessions, hint: SessionHint | undefined): string | null | undefined {
+export function callerMode(sessions: { liveRecords(): RegistryRecord[] }, hint: SessionHint | undefined): string | null | undefined {
   if (hint === undefined) return undefined;
-  const key = sessions.resolve(hint);
-  if (key === undefined) return null;
   try {
-    const records = sessions.lookup(key).records;
+    const records = sessions.liveRecords();
     const own = records.find(r => r.agent === hint.agent && r.nativeId === hint.nativeId) ?? records.find(r => r.pid === hint.pid);
     return own?.permissionMode ?? null;
   } catch { return null; }

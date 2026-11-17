@@ -55,7 +55,7 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
 const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
-  'event_emit', 'turn_end', 'inbox', 'message_send']);
+  'event_emit', 'turn_end', 'inbox', 'message_send', 'sessions', 'task_worktree', 'open_session']);
 const REMOTE_ARCHIVE_COMMANDS: ReadonlySet<string> = new Set(['archive_capture', 'archive_import']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
@@ -81,13 +81,13 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     const notice = c.caller === undefined ? undefined : otherLiveSession(runner.device, key, c.caller, c.session);
     return readWarmup(runner, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session === undefined ? undefined : callerIdentity(c.session));
   }
-  if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
-  if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
+  if (c.name === 'task_worktree') return openTaskWorktree(runner, root ?? defaultContextRoot(), c.key);
+  if (c.name === 'open_session') return openSession(runner, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
   if (c.name === 'session_register') return registerSession(runner, c);
   if (c.name === 'session_prompt') return promptSession(runner, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
   if (c.name === 'session_unregister') return unregisterSession(c);
   if (c.name === 'session_forget') return forgetSession(runner, c);
-  if (c.name === 'sessions') return listSessions(filename, c);
+  if (c.name === 'sessions') return listSessions(runner, c);
   if (c.name === 'archive_import') return importArchive(archiveRunner(backend), c);
   if (c.name === 'archive_capture') return captureArchive(archiveRunner(backend), c);
   if (c.name === 'event_emit') return emitEvent(runner, c, transports);

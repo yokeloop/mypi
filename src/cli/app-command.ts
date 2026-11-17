@@ -205,7 +205,8 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(opt('message') === undefined ? {} : { message: opt('message')! }),
         ...(hint === undefined ? {} : { session: hint }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
-        ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
+        ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}),
+        ...(env['XDG_CONFIG_HOME'] ? { configHome: env['XDG_CONFIG_HOME'] } : {}), ...runtime };
     }
     case 'token create': return { name: 'api_token_create', file: resolveApiTokensPath(env), tokenName: a[0]!, permission: required('permission'),
       ...(opt('sender') === undefined ? {} : { sender: opt('sender')! }) };

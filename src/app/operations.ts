@@ -73,7 +73,6 @@ const operations = {
     ...(i.from === undefined ? {} : { from: i.from }), ...(i.to === undefined ? {} : { to: i.to }),
     ...(i.eventType === undefined ? {} : { type: i.eventType }), ...(i.limit === undefined ? {} : { limit: i.limit }),
   }))),
-  event_list: (t, i) => db(t, true, app => app.readSnapshot(() => app.events.browse(i))),
   task_create: (t, i) => records(t, (_, __, tasks) => tasks.register(i, () => undefined)),
   task_status: (t, i) => records(t, (app, __, tasks) => tasks.change(i.key, { status: i.status }, i.reason, callerOf(app, i))),
   task_title: (t, i) => records(t, (_, __, tasks) => tasks.change(i.key, { title: i.title }, i.reason)),

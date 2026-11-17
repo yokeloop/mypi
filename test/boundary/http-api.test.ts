@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -193,9 +193,20 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     return { ...env, XDG_CONFIG_HOME: config, XDG_STATE_HOME: join(dir, name + '-state') };
   };
   const laptop = device('laptop', laptopToken), phone = device('phone', phoneToken);
-  mkdirSync(join(dir, 'device-clone'));
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { encoding: 'utf8', timeout: 5000 });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const origin = join(dir, 'origin.git'), seed = join(dir, 'seed');
+  git('init', '--bare', '--quiet', '--initial-branch=main', origin);
+  git('init', '--quiet', '--initial-branch=main', seed);
+  writeFileSync(join(seed, 'README.md'), 'seed');
+  git('-C', seed, 'add', 'README.md');
+  git('-C', seed, 'commit', '--quiet', '-m', 'seed');
+  git('-C', seed, 'push', '--quiet', origin, 'main');
+  git('clone', '--quiet', origin, join(dir, 'device-clone'));
   symlinkSync(join(dir, 'device-clone'), join(dir, 'device-link'));
-  const added = run(['project', 'add', 'fx/two', '--code', 'FXT', '--path', join(dir, 'device-link'), '--repository', 'file:///nonexistent/fx/two.git'], laptop);
+  const added = run(['project', 'add', 'fx/two', '--code', 'FXT', '--path', join(dir, 'device-link'), '--repository', 'file://' + origin], laptop);
   assert.equal(added.status, 0, added.stderr);
   assert.equal((JSON.parse(added.stdout) as { project: { checkoutPath: string } }).project.checkoutPath, realpathSync(join(dir, 'device-clone')));
   const listed = run(['task', 'list'], laptop);
@@ -313,8 +324,10 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.equal((remoteProjects.structuredContent as { status: string }).status, 'ok');
     assert.match(JSON.stringify(remoteProjects.structuredContent), /"FXT"/);
     const remoteSessions = await client.callTool({ name: 'sessions', arguments: {} });
-    assert.equal(remoteSessions.isError, true);
-    assert.match(JSON.stringify(remoteSessions.structuredContent), /not available in remote mode/);
+    assert.notEqual(remoteSessions.isError, true);
+    assert.equal((remoteSessions.structuredContent as { status: string }).status, 'ok');
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"nativeId":"r1"/);
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"device":"laptop"/);
   } finally { await client.close(); }
 
   const deviceRoot = join(dir, 'laptop-home');
@@ -359,6 +372,12 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   await deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md' }] });
   assert.equal(head(), committed);
   assert.deepEqual((await taskJournal()).at(-1)!.artifacts, [{ path: created.contextDir + '/review.md', commit: head() }]);
+  const opened = await deviceRun({ name: 'task_worktree', key: 'FXT-1' }) as { worktreePath: string; created: boolean };
+  const worktree = realpathSync(join(dir, 'device-clone')) + '--' + basename(created.contextDir);
+  assert.deepEqual([opened.worktreePath, opened.created, existsSync(worktree)], [worktree, true, true]);
+  assert.equal((await deviceRun({ name: 'task_show', key: 'FXT-1' }) as { worktreePath: string }).worktreePath, worktree);
+  const recorded = (await taskJournal()).at(-1)!;
+  assert.deepEqual([recorded.event_type, recorded.text], ['worktree_created', 'worktree ' + worktree + ', branch task/FXT-1-remote, base main']);
   assert.equal(existsSync(join(dir, 'laptop-unused')), false);
 
   process.kill(-child.pid!, 'SIGINT');

@@ -6,15 +6,17 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { localSessionRunner } from '../../src/app/session-operations.js';
+import { runSessionOperation } from '../../src/app/session-operations.js';
 import type { SessionRunner } from '../../src/app/session-operations.js';
 import { promptSession, registerSession } from '../../src/app/sessions.js';
 import { readInbox, sendMessage } from '../../src/app/events.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
+import { InputError } from '../../src/shared/errors.js';
 
 function fakeRemote(filename: string, device: string): SessionRunner {
   return { remote: true, device,
-    run: async (n, i) => JSON.parse(JSON.stringify(await localSessionRunner(filename).run(n, JSON.parse(JSON.stringify(i))))) };
+    run: async (n, i) => JSON.parse(JSON.stringify(runSessionOperation({ filename, ...(n === 'checkout_record' ? { trustedPaths: true } : {}) }, n,
+      JSON.parse(JSON.stringify(i))))) };
 }
 
 function fixture(t: TestContext) {
@@ -128,4 +130,38 @@ test('inbox on device 2 records the caller row found through device 2\'s registr
   const p2 = x.rows().find(r => r.nativeId === 'p2')!.id;
   assert.equal(x.events()[0]!.claimedBy, p2);
   assert.notEqual(x.events()[0]!.deliveredAt, null);
+});
+
+test('open operations round-trip as JSON from device 2', async t => {
+  const x = fixture(t);
+  await x.register(x.dev1, x.run1, 101, 'p1');
+  const snapshot = await x.dev2.run('open_snapshot', { orgs: ['one', 'nope'] });
+  assert.deepEqual(snapshot.orgs, ['one']);
+  assert.deepEqual(snapshot.projects.map(p => p.code), ['MP']);
+  assert.deepEqual(snapshot.cards.map(c => c.number), [12]);
+  assert.deepEqual(snapshot.rows.map(r => [r.nativeId, r.device]), [['p1', 'dev1']]);
+  await assert.rejects(x.dev2.run('parent_check', { from: 'global', to: 'MP-12' }),
+    (error: unknown) => error instanceof InputError && error.message === 'Only MP or one may send messages to MP-12; this session is global');
+  assert.deepEqual(await x.dev2.run('parent_check', { from: 'MP', to: 'MP-12' }), { status: 'ok' });
+  const journal = (type: string, key: string) => {
+    const db = openDatabase(x.filename, true);
+    try {
+      return db.prepare('SELECT event_type, text FROM knowledge_journal WHERE scope_type = ? AND scope_key = ? ORDER BY id').raw().all(type, key);
+    } finally { db.close(); }
+  };
+  assert.deepEqual(await x.dev2.run('session_open', { key: 'MP-12', agent: 'claude', nativeId: 'u2', device: 'dev2',
+    opened: { action: 'started', worktree: '/w/x--MP-12-remote' } }), { status: 'ok' });
+  assert.deepEqual(x.rows().filter(r => r.nativeId === 'u2').map(r => [r.key, r.agent, r.device]), [['MP-12', 'claude', 'dev2']]);
+  const read = createApp(x.filename, true);
+  try { assert.equal(read.sessions(undefined).activeRow('MP-12')?.nativeId, 'u2'); } finally { read.close(); }
+  assert.deepEqual(journal('task', 'MP-12').at(-1), ['session_opened', 'started claude, worktree /w/x--MP-12-remote']);
+  assert.deepEqual(await x.dev2.run('worktree_record', { key: 'MP-12', worktreePath: '/w/x--MP-12-remote',
+    created: { branch: 'task/MP-12-remote', base: 'main' } }), { status: 'ok' });
+  const show = createApp(x.filename, true);
+  try { assert.equal(show.tasks.list().find(c => c.number === 12)!.worktreePath, '/w/x--MP-12-remote'); } finally { show.close(); }
+  assert.deepEqual(journal('task', 'MP-12').at(-1), ['worktree_created', 'worktree /w/x--MP-12-remote, branch task/MP-12-remote, base main']);
+  assert.deepEqual(await x.dev2.run('checkout_record', { identity: 'one/project', checkoutPath: '/nowhere/one/project', action: 'cloned',
+    repository: 'file:///nonexistent/one/project.git' }), { checkoutPath: '/nowhere/one/project' });
+  assert.deepEqual(journal('project', 'MP').at(-1),
+    ['clone_prepared', 'clone prepared: cloned /nowhere/one/project from file:///nonexistent/one/project.git']);
 });

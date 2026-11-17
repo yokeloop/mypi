@@ -54,6 +54,30 @@ export function createDeviceSessions(registry: () => Registry, clock: () => stri
     start(pid: number): string | undefined { return registry().start(pid); },
   };
 }
+export function sessionTree(rows: SessionRow[], records: RegistryRecord[], orgOf: (code: string) => string | undefined): SessionNode {
+  const state = (row: SessionRow): 'live' | 'closed' => records.some(r => r.key === row.key && matches(r, row)) ? 'live' : 'closed';
+  const node = (key: string): SessionNode => {
+    const own = rows.filter(r => r.key === key);
+    const row = own[0];
+    return { key, session: row ? { agent: row.agent, nativeId: row.nativeId, state: state(row) } : null,
+      sessions: own.map(r => ({ agent: r.agent, nativeId: r.nativeId, device: r.device, activeAt: r.activeAt, state: state(r) })), children: [] };
+  };
+  const root = node('global');
+  const codes = [...new Set(rows.map(r => /^[A-Z]+/.exec(r.key)?.[0]).filter((code): code is string => code !== undefined))].sort();
+  const orgs = [...new Set([...rows.filter(r => r.scopeType === 'org').map(r => r.key),
+    ...codes.map(orgOf).filter((slug): slug is string => slug !== undefined)])].sort();
+  for (const slug of orgs) {
+    const org = node(slug);
+    for (const code of codes.filter(c => orgOf(c) === slug)) {
+      const project = node(code);
+      project.children = [...new Set(rows.map(r => r.key).filter(key => key.startsWith(code + '-')))]
+        .sort((a, b) => Number(a.slice(code.length + 1)) - Number(b.slice(code.length + 1))).map(node);
+      org.children.push(project);
+    }
+    root.children.push(org);
+  }
+  return root;
+}
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
   orgOf: (code: string) => string | undefined, clock: () => string, device: () => string) {
   const half = createDeviceSessions(registry, clock);
@@ -120,36 +144,13 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         .sort((a, b) => position(a) - position(b) || b.registeredAt.localeCompare(a.registeredAt));
       return { row, live: records.find(r => matches(r, row)), records, rows };
     },
-    tree(): SessionNode {
-      const rows = store.list(), records = registry().live();
-      const state = (row: SessionRow): 'live' | 'closed' => records.some(r => r.key === row.key && matches(r, row)) ? 'live' : 'closed';
-      const node = (key: string): SessionNode => {
-        const own = rows.filter(r => r.key === key);
-        const row = own[0];
-        return { key, session: row ? { agent: row.agent, nativeId: row.nativeId, state: state(row) } : null,
-          sessions: own.map(r => ({ agent: r.agent, nativeId: r.nativeId, device: r.device, activeAt: r.activeAt, state: state(r) })), children: [] };
-      };
-      const root = node('global');
-      const codes = [...new Set(rows.map(r => /^[A-Z]+/.exec(r.key)?.[0]).filter((code): code is string => code !== undefined))].sort();
-      const orgs = [...new Set([...rows.filter(r => r.scopeType === 'org').map(r => r.key),
-        ...codes.map(orgOf).filter((slug): slug is string => slug !== undefined)])].sort();
-      for (const slug of orgs) {
-        const org = node(slug);
-        for (const code of codes.filter(c => orgOf(c) === slug)) {
-          const project = node(code);
-          project.children = [...new Set(rows.map(r => r.key).filter(key => key.startsWith(code + '-')))]
-            .sort((a, b) => Number(a.slice(code.length + 1)) - Number(b.slice(code.length + 1))).map(node);
-          org.children.push(project);
-        }
-        root.children.push(org);
-      }
-      return root;
-    },
+    tree(): SessionNode { return sessionTree(store.list(), registry().live(), orgOf); },
+    rows(): SessionRow[] { return store.list(); },
     device(): string { return device(); },
     liveRecords(): RegistryRecord[] { return registry().live(); },
-    activate(input: { key: string; agent: Agent; nativeId: string }): void {
+    activate(input: { key: string; agent: Agent; nativeId: string; device?: string }): void {
       store.transaction(() => {
-        const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
+        const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: input.device ?? device(), createdAt: clock() });
         store.touch(id, clock());
       });
     },

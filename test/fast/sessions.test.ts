@@ -11,6 +11,8 @@ import { warmupScope } from '../../src/app/warmup.js';
 import { sessionKey } from '../../src/app/sessions.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
 import { hookInput, promptInput, sessionHint } from '../../src/app/session-input.js';
+import { sessionTree } from '../../src/modules/sessions/public.js';
+import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
 const at = '2026-10-28T00:00:00.000Z';
@@ -398,6 +400,19 @@ test('sessions tree is global → org → project → task with live and closed'
   assert.deepEqual(s(x => x.tree()).children[1], { key: 'two', ...one('claude', 'c2', 'closed'), children: [] });
   const empty = fixture(t);
   assert.deepEqual(empty.s(x => x.tree()), { key: 'global', session: null, sessions: [], children: [] });
+});
+
+test("sessionTree marks a row live only by a record in this device's registry", () => {
+  const row = (id: number, agent: 'claude' | 'pi', nativeId: string, device: string): SessionRow =>
+    ({ id, key: 'MP-12', scopeType: 'task', orgId: null, projectId: 1, taskId: 1, agent, nativeId, device, createdAt: at, activeAt: at, endedAt: null });
+  const record: RegistryRecord = { key: 'MP-12', agent: 'claude', nativeId: 'c1', pid: 101, start: '1', name: null, socket: null,
+    permissionMode: null, registeredAt: at };
+  const tree = sessionTree([row(1, 'claude', 'c1', 'host'), row(2, 'pi', 'p9', 'elsewhere')], [record], c => c === 'MP' ? 'one' : undefined);
+  const task = { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'live' }, sessions: [
+    { agent: 'claude', nativeId: 'c1', device: 'host', activeAt: at, state: 'live' },
+    { agent: 'pi', nativeId: 'p9', device: 'elsewhere', activeAt: at, state: 'closed' }], children: [] };
+  assert.deepEqual(tree, { key: 'global', session: null, sessions: [], children: [
+    { key: 'one', session: null, sessions: [], children: [{ key: 'MP', session: null, sessions: [], children: [task] }] }] });
 });
 
 test('a task with two sessions is one node with both sessions, the active one first', t => {
