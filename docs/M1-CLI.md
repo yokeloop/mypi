@@ -314,17 +314,22 @@ A device works against the database of a `mypi serve` on another machine when it
   `{path, commit}` and the activity timestamp on the server. Fingerprints of registered
   files are read from the server and compared on the device. `--adopt-source` answers
   `adopt-source is not available in remote mode`.
+- `session register|unregister|prompt|forget`, `warmup`, `event emit`, `turn end`,
+  `inbox` and `send`, and the MCP tools `warmup`, `inbox` and `send_message`, run their
+  database work as operations on the server. The session registry, sockets, transcripts,
+  home and Git stay on the device; session rows and events live on the server.
+  `session prompt` waits for the server at most 1.5 s.
 - Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
-  `token`, `serve`, `home migrate-tasks`, `journal import` and the commands with
-  sessions, events, the archive and the machine, answers `<command> is not available
-  in remote mode`. The Claude and Pi
-  hooks fail silently in remote mode (their output is discarded) until MP-147 and
-  MP-148.
+  `token`, `serve`, `home migrate-tasks`, `journal import`, `sessions`, `open`,
+  `task worktree` and the archive commands, answers `<command> is not available in
+  remote mode`. The session and event hooks of Claude and Pi work in remote mode; only
+  the archive hooks (`Stop`/`SessionEnd` `archive capture`) fail silently until MP-148,
+  and `sessions`, `open` and `task worktree` are refused until MP-149.
 - A server that does not answer within 10 s ends the command with code 1 and
   `mypi server unreachable: <url>`.
 - Device and server run one engine version, else
   `engine version <a> differs from server <b>`.
-- From MP-147 `device` replaces `os.hostname()` as the device name of new sessions.
+- `device` replaces `os.hostname()` as the device name of the session rows this device saves.
 - In remote mode the home writes of one device are not serialized by a database lock
   between processes: a concurrent `error` can lose an appended line and concurrent
   commits fail on `index.lock`; repeat the command.

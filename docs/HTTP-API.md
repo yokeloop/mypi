@@ -174,7 +174,10 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `project_remove`, `org_remove`, `status_list`, `status_add`, `status_rename`,
   `status_terminal`, `status_remove`, `task_list`, `task_show`, `journal_read`,
   `event_list`, `task_create`, `task_status`, `task_title`, `task_parent`, `task_touch`,
-  `task_progress`, `journal_add`, `context_guard`, `context_base`; any other answers 400
+  `task_progress`, `journal_add`, `context_guard`, `context_base`, `session_key`,
+  `session_save`, `session_forget_rows`, `session_activate`, `events_claim`,
+  `events_settle`, `event_create`, `inbox_take`, `message_create`, `warmup_data`,
+  `events_mark`; any other answers 400
   `invalid_request` `Unknown operation: <op>`.
 - `input` holds the fields of the command of the same name, except `task_create` (no
   `source` and no `adoptSource`: the device writes `source.md`), `task_status` (`session`
@@ -191,7 +194,9 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
 The server runs the operation in its own process as one SQLite transaction, without
 queues or leases. The device sends project paths already canonicalized; the server
 stores them as sent and never looks at its own filesystem for them. `data` is the
-result in the engine's internal form, in the usual envelope.
+result in the engine's internal form, in the usual envelope. The session and event
+operations serve the device's CLI, MCP and hooks; the session registry, sockets,
+transcripts and the rendering of the warmup stay on the device.
 
 ## Pages and search
 
