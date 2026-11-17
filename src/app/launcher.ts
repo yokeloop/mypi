@@ -163,14 +163,15 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
       }
       const uuid = randomUUID();
       herdr.startAgent(name, decision.agent, paneId, launchArgs(decision, key, decision.agent === 'pi' ? null : mode, uuid));
+      const openedSession = { agent: decision.agent, nativeId: decision.action === 'start' ? uuid : decision.nativeId };
       const writer = createApp(filename, false);
       try {
-        writer.sessions(c.runtime, proc).activate({ key, agent: decision.agent, nativeId: decision.action === 'start' ? uuid : decision.nativeId });
+        writer.sessions(c.runtime, proc).activate({ key, ...openedSession });
         appendFact(writer, keyScope(key), 'session_opened', (decision.action === 'resume' ? 'resumed ' : 'started ') + decision.agent
           + (worktreePath === null ? '' : ', worktree ' + worktreePath));
       } finally { writer.close(); }
       const message = enqueue(key);
-      const { rows, failure } = await deliverOnOpen(filename, key, text, transports, c.runtime, proc);
+      const { rows, failure } = await deliverOnOpen(localSessionRunner(filename), key, openedSession, text, transports, c.runtime, proc);
       if (decision.action === 'start') {
         if (failure !== null && text !== null) reason = failure;
         if (reason !== null) notes.push('start message not delivered: ' + reason);
