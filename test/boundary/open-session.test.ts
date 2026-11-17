@@ -17,23 +17,40 @@ const accept = '{"crossSessionInbound":"accept"}';
 const herdr = `#!/usr/bin/bash
 (IFS=$'\\037'; printf '%s\\n' "$*") >> "$HERDR_LOG"
 if [ "\${HERDR_FAKE:-}" = down ]; then echo '{"error":{"code":"server_not_running","message":"server is not running"}}'; exit 1; fi
+pane_env() {
+  : > "$HERDR_PANE_ENV"; previous=
+  for arg in "$@"; do
+    if [ "$previous" = --env ]; then case "$arg" in MYPI_SCOPE=*|MYPI_HERDR_NAME=*) printf '%s\\n' "$arg" >> "$HERDR_PANE_ENV" ;; esac; fi
+    previous="$arg"
+  done
+}
 case "$1 $2" in
   'workspace list') echo "{\\"result\\":{\\"type\\":\\"workspace_list\\",\\"workspaces\\":\${HERDR_FAKE_WORKSPACES:-[]}}}" ;;
   'workspace create')
     label=; previous=
     for arg in "$@"; do [ "$previous" = --label ] && label="$arg"; previous="$arg"; done
+    pane_env "$@"
     echo "{\\"result\\":{\\"workspace\\":{\\"workspace_id\\":\\"w-$label\\",\\"label\\":\\"$label\\"},\\"tab\\":{\\"tab_id\\":\\"t-$label\\"},\\"root_pane\\":{\\"pane_id\\":\\"p-$label\\"}}}" ;;
   'tab create')
     label=; previous=
     for arg in "$@"; do [ "$previous" = --label ] && label="$arg"; previous="$arg"; done
     if [ -n "\${HERDR_FAKE_TAB_FAIL:-}" ] && [ "$label" = "$HERDR_FAKE_TAB_FAIL" ]; then echo '{"error":{"code":"tab_failed","message":"boom"}}'; exit 1; fi
+    pane_env "$@"
     echo '{"result":{"tab":{"tab_id":"t1","workspace_id":"w1"},"root_pane":{"pane_id":"p1"}}}' ;;
   'tab rename') echo '{"result":{"type":"ok"}}' ;;
   'agent start')
+    if [ -n "\${HERDR_FAKE_UNIQUE:-}" ] && grep -qxF "$3" "$HERDR_NAMES" 2> /dev/null; then echo '{"error":{"code":"agent_name_taken","message":"name taken"}}'; exit 1; fi
+    printf '%s\\n' "$3" >> "$HERDR_NAMES"
+    native=; previous=; after=
+    for arg in "$@"; do
+      if [ -n "$after" ] && { [ "$previous" = --session-id ] || [ "$previous" = --resume ]; }; then native="$arg"; fi
+      [ "$arg" = -- ] && after=1
+      previous="$arg"
+    done
+    scope="$(sed -n 's/^MYPI_SCOPE=//p' "$HERDR_PANE_ENV")"; hname="$(sed -n 's/^MYPI_HERDR_NAME=//p' "$HERDR_PANE_ENV")"
     sleep 1000 < /dev/null > /dev/null 2>&1 &
     echo "$!" >> "$HERDR_CHILDREN"
-    case "$3" in org-*) scope="\${3#org-}" ;; *) scope="\${3^^}" ;; esac
-    MYPI_SCOPE="$scope" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "fake-$3" --pid "$!" \\
+    MYPI_SCOPE="$scope" MYPI_HERDR_NAME="$hname" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$!" \\
       \${HERDR_FAKE_SOCKET:+--socket "$HERDR_FAKE_SOCKET"} > /dev/null
     echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
   'agent focus')
@@ -144,10 +161,11 @@ function fixture(t: TestContext) {
     worktree: realpathSync(clone) + '--MP-1-open', names: env['HERDR_NAMES']! };
 }
 
-const workspace = (label: string, key: string, state: string) =>
-  ['workspace', 'create', '--cwd', root, '--label', label, '--env', 'MYPI_SCOPE=' + key, '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
-const tab = (workspace: string, label: string, key: string, state: string) =>
-  ['tab', 'create', '--workspace', workspace, '--cwd', root, '--label', label, '--env', 'MYPI_SCOPE=' + key, '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
+const workspace = (label: string, key: string, name: string, state: string) =>
+  ['workspace', 'create', '--cwd', root, '--label', label, '--env', 'MYPI_SCOPE=' + key, '--env', 'MYPI_HERDR_NAME=' + name, '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
+const tab = (workspace: string, name: string, key: string, state: string) =>
+  ['tab', 'create', '--workspace', workspace, '--cwd', root, '--label', name, '--env', 'MYPI_SCOPE=' + key, '--env', 'MYPI_HERDR_NAME=' + name,
+    '--env', 'XDG_STATE_HOME=' + state, '--no-focus'];
 
 test('open puts a project and its task into one project workspace whatever HERDR_WORKSPACE_ID says', t => {
   const { env, ok, calls, rows, journal, worktree } = fixture(t);
@@ -161,7 +179,7 @@ test('open puts a project and its task into one project workspace whatever HERDR
   assert.notEqual(uuids[0], uuids[1]);
   assert.deepEqual(log, [
     ['workspace', 'list'],
-    workspace('one/project', 'MP', env['XDG_STATE_HOME']!),
+    workspace('one/project', 'MP', 'mp', env['XDG_STATE_HOME']!),
     ['tab', 'rename', 't-one/project', 'mp'],
     ['agent', 'start', 'mp', '--kind', 'claude', '--pane', 'p-one/project', '--', '--session-id', uuids[0]!, '--name', 'MP', '--settings', accept],
     tab('w-one/project', 'mp-1', 'MP-1', env['XDG_STATE_HOME']!),
@@ -182,7 +200,7 @@ test('open finds the project workspace by its label and gives another project it
     ['workspace', 'list'],
     tab('w9', 'mp', 'MP', env['XDG_STATE_HOME']!),
     ['agent', 'start', 'mp', '--kind', 'claude', '--pane', 'p1'],
-    workspace('two/other', 'OT', env['XDG_STATE_HOME']!),
+    workspace('two/other', 'OT', 'ot', env['XDG_STATE_HOME']!),
     ['tab', 'rename', 't-two/other', 'ot'],
     ['agent', 'start', 'ot', '--kind', 'claude', '--pane', 'p-two/other'],
   ]);
@@ -196,24 +214,27 @@ test('open of a task without its project workspace creates the workspace with on
     [['MP-1', ['start message not delivered: the session has no event socket']]]);
   assert.deepEqual(calls().map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
     ['workspace', 'list'],
-    workspace('one/project', 'MP-1', env['XDG_STATE_HOME']!),
+    workspace('one/project', 'MP-1', 'mp-1', env['XDG_STATE_HOME']!),
     ['tab', 'rename', 't-one/project', 'mp-1'],
     ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p-one/project'],
   ]);
 });
 
-test('open focuses a live session and continues it with its own agent', t => {
-  const { cli, ok, failed, calls, reset, pid } = fixture(t);
+test('open focuses a live session by its Herdr name and --agent of another agent starts that agent', async t => {
+  const { cli, ok, failed, calls, reset, listen, sock, pid } = fixture(t);
   assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid], { MYPI_SCOPE: 'MP-1' }).status, 0);
-  const result = ok(['open', 'MP-1', '--agent', 'pi']);
-  assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.notes]),
-    [['MP-1', 'claude', 'focused', ['MP-1 continues with its agent claude; --agent pi applies only to new sessions']]]);
+  assert.deepEqual(ok(['open', 'MP-1']).opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP-1', 'claude', 'focused', []]]);
   assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1']]);
   reset();
   const error = failed(['open', 'MP-1'], { HERDR_FAKE_FOCUS: 'fail' });
   assert.ok(error.message.includes('is live (claude, pid ' + pid + ')'), error.message);
   assert.ok(error.message.includes('no new tab was created'), error.message);
   assert.ok(!calls().some(c => c[0] === 'tab'));
+  reset();
+  await listen('ack');
+  const result = ok(['open', 'MP-1', '--agent', 'pi'], { HERDR_FAKE_SOCKET: sock });
+  assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP-1', 'pi', 'started', []]]);
+  assert.deepEqual(calls().find(c => c[0] === 'agent')!.slice(0, 5), ['agent', 'start', 'mp-1-pi', '--kind', 'pi']);
 });
 
 test('open resumes a closed session with its saved agent and passes the requested mode', t => {
@@ -380,9 +401,10 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
   const result = ok(['open', 'one']);
   assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.worktreePath]), [['one', 'claude', 'started', null]]);
   const log = calls();
+  const uuid = log[3]![9]!;
   assert.deepEqual(log.map(c => c[0] === 'agent' ? c.slice(0, 7) : c), [
     ['workspace', 'list'],
-    workspace('one', 'one', env['XDG_STATE_HOME']!),
+    workspace('one', 'one', 'org-one', env['XDG_STATE_HOME']!),
     ['tab', 'rename', 't-one', 'org-one'],
     ['agent', 'start', 'org-one', '--kind', 'claude', '--pane', 'p-one'],
   ]);
@@ -399,7 +421,7 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
   reset();
   assert.deepEqual(ok(['open', 'one']).opened.map(o => [o.key, o.action]), [['one', 'resumed']]);
   assert.deepEqual(journal('session_opened'), [['org', 'one', 'started claude'], ['org', 'one', 'resumed claude']]);
-  assert.deepEqual(calls().at(-1), ['agent', 'start', 'org-one', '--kind', 'claude', '--pane', 'p-one', '--', '--resume', 'fake-org-one',
+  assert.deepEqual(calls().at(-1), ['agent', 'start', 'org-one', '--kind', 'claude', '--pane', 'p-one', '--', '--resume', uuid,
     '--settings', accept]);
 });
 

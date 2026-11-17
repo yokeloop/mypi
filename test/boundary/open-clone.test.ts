@@ -15,7 +15,13 @@ case "$1 $2" in
   'workspace create') echo '{"result":{"workspace":{"workspace_id":"w1","label":"fx/big"},"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
   'tab rename') echo '{"result":{"type":"ok"}}' ;;
   'agent start')
-    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "fake-$3" --pid "$PPID" > /dev/null
+    native=; previous=; after=
+    for arg in "$@"; do
+      if [ -n "$after" ] && { [ "$previous" = --session-id ] || [ "$previous" = --resume ]; }; then native="$arg"; fi
+      [ "$arg" = -- ] && after=1
+      previous="$arg"
+    done
+    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$PPID" > /dev/null
     echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
 esac
 `;
