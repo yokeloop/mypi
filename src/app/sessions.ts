@@ -1,7 +1,7 @@
 import { hostname } from 'node:os';
 import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
-import type { Agent, SessionNode } from '../modules/sessions/public.js';
+import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
 import { warmupScope } from './warmup.js';
 
@@ -47,11 +47,11 @@ export function otherLiveSession(filename: string, key: string, caller: { pid: n
     const app = createApp(filename, true);
     try {
       const sessions = app.sessions(caller.runtime, proc);
-      const other = sessions.lookup(key).records.find(r => r.pid !== caller.pid
+      const { records, rows } = sessions.lookup(key);
+      const other = records.find(r => r.pid !== caller.pid
         && !(hint !== undefined && r.agent === hint.agent && r.nativeId === hint.nativeId));
       if (other === undefined) return undefined;
-      const find = (node: SessionNode): SessionNode | undefined => node.key === key ? node : node.children.map(find).find(n => n !== undefined);
-      const device = find(sessions.tree())?.sessions.find(s => s.agent === other.agent && s.nativeId === other.nativeId)?.device ?? hostname();
+      const device = rows.find(x => x.agent === other.agent && x.nativeId === other.nativeId)?.device ?? hostname();
       return 'в этом скоупе уже есть живая сессия: ' + other.agent + ' на ' + device;
     } finally { app.close(); }
   } catch { return undefined; }

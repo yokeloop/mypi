@@ -275,7 +275,7 @@ test('forget deletes every row of the key and reports a live session without tou
 
 test('lookup returns the active row, its live record and every live record of the key', t => {
   const { alive, die, ts, claude } = fixture(t);
-  assert.deepEqual(ts(x => x.lookup('MP-12')), { row: undefined, live: undefined, records: [] });
+  assert.deepEqual(ts(x => x.lookup('MP-12')), { row: undefined, live: undefined, records: [], rows: [] });
   alive(101, '1', ['claude', '--permission-mode', 'plan']);
   ts(x => x.register(claude('c1', 101, { envScope: 'MP-12' })));
   const first = ts(x => x.lookup('MP-12'));

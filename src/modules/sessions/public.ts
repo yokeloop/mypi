@@ -63,13 +63,13 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         return { forgotten: key, live };
       });
     },
-    lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined; records: RegistryRecord[] } {
+    lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined; records: RegistryRecord[]; rows: SessionRow[] } {
       const rows = store.rows(key);
       const row = rows[0];
       const position = (r: RegistryRecord) => { const i = rows.findIndex(x => matches(r, x)); return i === -1 ? rows.length : i; };
       const records = registry().live().filter(r => r.key === key)
         .sort((a, b) => position(a) - position(b) || b.registeredAt.localeCompare(a.registeredAt));
-      return { row, live: records.find(r => matches(r, row)), records };
+      return { row, live: records.find(r => matches(r, row)), records, rows };
     },
     tree(): SessionNode {
       const rows = store.list(), records = registry().live();
