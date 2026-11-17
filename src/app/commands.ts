@@ -2,6 +2,7 @@ import type { Scope } from '../shared/scope.js';
 import type { SessionHint } from './session-input.js';
 import type { EventType } from '../modules/knowledge/public.js';
 import type { SessionOperationName } from './session-operations.js';
+import type { ArchiveOperationName } from './archive-operations.js';
 export { EVENT_TYPES } from '../modules/knowledge/public.js';
 export type { EventType } from '../modules/knowledge/public.js';
 
@@ -71,4 +72,4 @@ export type AppCommand =
 export type OperationName = 'project_list' | 'project_add' | 'project_update' | 'project_resolve' | 'project_remove' | 'org_remove'
   | 'status_list' | 'status_add' | 'status_rename' | 'status_terminal' | 'status_remove' | 'task_list' | 'task_show' | 'journal_read' | 'event_list'
   | 'task_create' | 'task_status' | 'task_title' | 'task_parent' | 'task_touch' | 'task_progress' | 'journal_add' | 'context_guard' | 'context_base'
-  | SessionOperationName;
+  | SessionOperationName | ArchiveOperationName;

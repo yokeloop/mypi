@@ -7,6 +7,8 @@ import { engineVersion } from './create-app.js';
 import { runOperation } from './operations.js';
 import type { OperationInput, OperationName } from './operations.js';
 import type { SessionRunner } from './session-operations.js';
+import { ARCHIVE_CHUNK_BYTES } from './archive-operations.js';
+import type { ArchiveRunner } from './archive-operations.js';
 
 export type { ServerConfig };
 export type Backend = { remote: boolean; device: string; run<K extends OperationName>(name: K, input: OperationInput<K>): Promise<unknown> };
@@ -50,4 +52,8 @@ export function deviceName(config: ServerConfig | undefined): string {
 
 export function sessionRunner(backend: Backend): SessionRunner {
   return { remote: backend.remote, device: backend.device, run: (name, input) => backend.run(name, input as never) as Promise<never> };
+}
+
+export function archiveRunner(backend: Backend): ArchiveRunner {
+  return { remote: backend.remote, chunkBytes: backend.remote ? ARCHIVE_CHUNK_BYTES : null, run: (name, input) => backend.run(name, input as never) as Promise<never> };
 }

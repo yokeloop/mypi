@@ -177,7 +177,8 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `task_progress`, `journal_add`, `context_guard`, `context_base`, `session_key`,
   `session_save`, `session_forget_rows`, `session_activate`, `events_claim`,
   `events_settle`, `event_create`, `inbox_take`, `message_create`, `warmup_data`,
-  `events_mark`; any other answers 400
+  `events_mark`, `archive_offset`, `archive_record`, `archive_status`, `archive_search`,
+  `archive_show`, `archive_forget`; any other answers 400
   `invalid_request` `Unknown operation: <op>`.
 - `input` holds the fields of the command of the same name, except `task_create` (no
   `source` and no `adoptSource`: the device writes `source.md`), `task_status` (`session`
@@ -197,9 +198,13 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `waiting`); `inbox_take` `{key, caller}`; `message_create` `{from, to, message}`;
   `warmup_data` `{key}`; `events_mark` `{ids, caller}`. In `inbox_take` and
   `events_mark` `caller` is an identity or `null`.
+  The archive operations are the archive's own API on the same `/v1/ops`:
+  `archive_offset` `{agent, nativeId}`; `archive_record` `{agent, nativeId, path,
+  expectedOffset, newOffset, read}`; `archive_status`, `archive_search`, `archive_show`
+  and `archive_forget` take the fields of the command of the same name.
   A missing, mistyped or extra field answers 400 `invalid_request` and nothing runs. No
-  input names a server path; context paths are only lookup keys, the server never opens
-  them.
+  input names a server path; context paths are only lookup keys and `archive_record.path`
+  is a device label, the server never opens them.
 - `version` must equal the server's engine version, else 409 `version_mismatch`
   `engine version <a> differs from server <b>`.
 

@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { archivePath, createApp, createArchiveApp } from '../../src/app/create-app.js';
 import { archiveStatus, forgetArchive, importArchive, searchArchive } from '../../src/app/archive.js';
+import { localArchiveRunner } from '../../src/app/archive-operations.js';
 import { forgetFilter } from '../../src/modules/archive/public.js';
 import type { ArchiveEntry, ArchiveHit, ArchiveRead } from '../../src/modules/archive/public.js';
 import { openArchive } from '../../src/infrastructure/database/archive.js';
@@ -87,14 +88,14 @@ test('archive forget without a match changes nothing', t => {
   assert.deepEqual(status(), before);
 });
 
-test('archive forget keeps the session row so a later import does not bring the text back', t => {
+test('archive forget keeps the session row so a later import does not bring the text back', async t => {
   const { dir, filename } = state(t);
   const folder = join(dir, 'claude');
   mkdirSync(folder);
   const file = join(folder, 'c3.jsonl');
   writeFileSync(file, jsonl([user('u1', null, 1), assistant('a1', 'u1', 2)]));
   const command = { name: 'archive_import' as const, home: dir, dirs: [{ agent: 'claude' as const, path: folder }] };
-  assert.equal(importArchive(filename, command).inserted, 2);
+  assert.equal((await importArchive(localArchiveRunner(filename), command)).inserted, 2);
   assert.equal(forget(filename, { session: 'c3' }).messages, 2);
   const rows = () => {
     const db = openArchive(archivePath(filename), true);
@@ -106,10 +107,10 @@ test('archive forget keeps the session row so a later import does not bring the 
     } finally { db.close(); }
   };
   assert.deepEqual(rows(), { session: { bytesRead: statSync(file).size }, messages: [] });
-  assert.equal(importArchive(filename, command).inserted, 0);
+  assert.equal((await importArchive(localArchiveRunner(filename), command)).inserted, 0);
   assert.deepEqual(rows().messages, []);
   appendFileSync(file, jsonl([user('u2', 'a1', 3)]));
-  assert.equal(importArchive(filename, command).inserted, 1);
+  assert.equal((await importArchive(localArchiveRunner(filename), command)).inserted, 1);
   assert.deepEqual(rows().messages, ['u2']);
 });
 

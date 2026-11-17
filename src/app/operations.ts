@@ -5,6 +5,8 @@ import { contextScope, resolveScope } from './resolve-scope.js';
 import { taskRecords } from './task-work.js';
 import { warmupScope } from './warmup.js';
 import { sessionOperations } from './session-operations.js';
+import { archiveOperations } from './archive-operations.js';
+import type { ArchiveOperationInput, ArchiveOperationName } from './archive-operations.js';
 import type { OperationTarget, SessionOperationInput, SessionOperationName } from './session-operations.js';
 import { externalDatabasePath, trustedCheckoutPaths } from '../infrastructure/filesystem/paths.js';
 import { frozenArtifacts } from '../modules/knowledge/public.js';
@@ -19,7 +21,7 @@ export type OperationInputs = {
   context_guard: { paths?: string[] };
   context_base: { scope: ScopeInput } | { project: string };
 };
-export type OperationInput<K extends OperationName> = K extends SessionOperationName ? SessionOperationInput<K>
+export type OperationInput<K extends OperationName> = K extends ArchiveOperationName ? ArchiveOperationInput<K> : K extends SessionOperationName ? SessionOperationInput<K>
   : K extends keyof OperationInputs ? OperationInputs[K] : CommandInput<K>;
 
 type App = ReturnType<typeof createApp>;
@@ -92,6 +94,7 @@ const operations = {
     return { path: contextPathOf(app.projects, contextScope(i.scope, app.projects)) };
   }),
   ...sessionOperations,
+  ...archiveOperations,
 } satisfies { [K in OperationName]: (t: OperationTarget, i: OperationInput<K>) => unknown };
 
 export const OPERATION_NAMES: ReadonlySet<string> = new Set(Object.keys(operations));

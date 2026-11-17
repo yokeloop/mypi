@@ -60,7 +60,7 @@ test('remote mode refuses other commands and touches no local state', async t =>
   const backend: Backend = { remote: true, device: 'laptop', run: async (name, input) => { calls.push([name, input]); return fixtures[name]; } };
   const refused: AppCommand[] = [{ name: 'db_init' }, { name: 'backup', destination: '/tmp/x' }, { name: 'api_token_list', file: '/tmp/x' },
     { name: 'sessions' }, { name: 'task_worktree', key: 'MP-1' }, { name: 'home_migrate_tasks' }, { name: 'journal_import' },
-    { name: 'open_session', keys: ['MP'] }, { name: 'archive_capture', agent: 'claude' }];
+    { name: 'open_session', keys: ['MP'] }];
   for (const command of refused) {
     await assert.rejects(executeCommand(command, filename, root, {}, {}, backend),
       (error: unknown) => error instanceof InputError && error.message === command.name + ' is not available in remote mode');

@@ -14,10 +14,10 @@ import { projectGit } from '../infrastructure/git/project-git.js';
 import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerIdentity, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
-import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
+import { captureArchive, importArchive } from './archive.js';
 import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
-import { localBackend, sessionRunner } from './backend.js';
+import { archiveRunner, localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
 import { isOperation, OPERATION_NAMES } from './operations.js';
 import { isRemoteHome, REMOTE_HOME_COMMANDS, runRemoteHome } from './remote-home.js';
@@ -56,10 +56,11 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
 const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
   'event_emit', 'turn_end', 'inbox', 'message_send']);
+const REMOTE_ARCHIVE_COMMANDS: ReadonlySet<string> = new Set(['archive_capture', 'archive_import']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
   if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)
-    && !REMOTE_SESSION_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
+    && !REMOTE_SESSION_COMMANDS.has(c.name) && !REMOTE_ARCHIVE_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
   if (backend.remote && isRemoteHome(c)) return runRemoteHome(c, backend, root ?? defaultContextRoot());
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
   if (c.name === 'api_token_list') return listApiTokens(c.file);
@@ -87,12 +88,8 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'session_unregister') return unregisterSession(c);
   if (c.name === 'session_forget') return forgetSession(runner, c);
   if (c.name === 'sessions') return listSessions(filename, c);
-  if (c.name === 'archive_import') return importArchive(filename, c);
-  if (c.name === 'archive_status') return archiveStatus(filename);
-  if (c.name === 'archive_capture') return captureArchive(filename, c);
-  if (c.name === 'archive_search') return searchArchive(filename, c);
-  if (c.name === 'archive_show') return showArchive(filename, c);
-  if (c.name === 'archive_forget') return forgetArchive(filename, c);
+  if (c.name === 'archive_import') return importArchive(archiveRunner(backend), c);
+  if (c.name === 'archive_capture') return captureArchive(archiveRunner(backend), c);
   if (c.name === 'event_emit') return emitEvent(runner, c, transports);
   if (c.name === 'turn_end') return turnEnd(runner, c, transports);
   if (c.name === 'inbox') return readInbox(runner, c);

@@ -267,6 +267,26 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const projects = run(['project', 'list'], phone);
   assert.equal(projects.status, 0, projects.stderr);
   assert.deepEqual((JSON.parse(projects.stdout) as { projects: { code: string }[] }).projects.map(p => p.code).sort(), ['FX', 'FXC', 'FXD', 'FXT']);
+  const transcripts = join(dir, 'laptop-transcripts');
+  mkdirSync(transcripts);
+  const arch1 = join(transcripts, 'arch1.jsonl');
+  writeFileSync(arch1, [
+    { type: 'user', uuid: 'au1', parentUuid: null, timestamp: '2026-11-07T10:00:00.000Z', turnOrigin: 'human', message: { role: 'user', content: 'архивслово вопрос' } },
+    { type: 'assistant', uuid: 'aa1', parentUuid: 'au1', timestamp: '2026-11-07T10:01:00.000Z',
+      message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'архивслово ответ' }] } },
+  ].map(r => JSON.stringify(r) + '\n').join(''));
+  const captured = run(['archive', 'capture', '--agent', 'claude', '--file', arch1], laptop);
+  assert.equal(captured.status, 0, captured.stderr);
+  assert.match(captured.stdout, /"captured":true/);
+  assert.match(captured.stdout, /"inserted":2/);
+  const searched = run(['archive', 'search', 'архивслово'], phone);
+  assert.equal(searched.status, 0, searched.stderr);
+  assert.ok((JSON.parse(searched.stdout) as { hits: { session: string }[] }).hits.some(h => h.session === 'arch1'));
+  const archiveStatus = run(['archive', 'status'], phone);
+  assert.equal(archiveStatus.status, 0, archiveStatus.stderr);
+  const remoteArchive = JSON.parse(archiveStatus.stdout) as { path: string; exists: boolean };
+  assert.deepEqual([remoteArchive.exists, remoteArchive.path], [true, join(realpathSync(join(dir, 'state', 'mypi')), 'archive.sqlite3')]);
+  for (const name of ['laptop', 'phone']) assert.equal(existsSync(join(dir, name + '-state', 'mypi', 'archive.sqlite3')), false);
   const remoteInit = run(['db', 'init'], laptop);
   assert.equal(remoteInit.status, 1);
   assert.match(remoteInit.stderr, /db_init is not available in remote mode/);
