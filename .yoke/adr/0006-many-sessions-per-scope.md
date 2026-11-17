@@ -91,6 +91,12 @@ between Claude and Pi, and later between devices.
 
 ## Stand facts
 
-- Whether Claude's `UserPromptSubmit` hook fires on a message that arrived through
-  the session's inbox socket, and with which `source`: to be recorded by the MP-140
-  stand acceptance.
+- Stand 2026-11-17 (Claude Code 2.1.326): a message delivered into the Claude
+  inbox socket fires `UserPromptSubmit`. The hook input has no `source` field, and
+  neither does the engineer's typed prompt. Its `prompt` is the raw frame text
+  starting with `[mypi: `, without the `Another Claude session sent a message:`
+  wrapper that the screen and transcript show. The transcript marks it
+  `promptSource: "system"`, `turnOrigin: "peer"`. `session prompt --agent claude
+  --hook` therefore excludes it by the mypi frame, not by `source`; the active
+  session did not change. `/clear` does not fire `UserPromptSubmit`; the new row
+  became active by decision 2.
