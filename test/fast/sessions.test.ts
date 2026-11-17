@@ -8,7 +8,8 @@ import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { warmupScope } from '../../src/app/warmup.js';
 import { sessionKey } from '../../src/app/sessions.js';
-import { hookInput, sessionHint } from '../../src/app/session-input.js';
+import { hookInput, promptInput, sessionHint } from '../../src/app/session-input.js';
+import { InputError } from '../../src/shared/errors.js';
 
 const at = '2026-10-28T00:00:00.000Z';
 
@@ -45,6 +46,12 @@ function fixture(t: TestContext) {
     const app = createApp(filename, false, () => at);
     try { return fn(app.sessions(run, proc)); } finally { app.close(); }
   };
+  let now = Date.parse(at);
+  const tick = () => new Date(now += 1000).toISOString();
+  const ts = <T>(fn: (sessions: ReturnType<ReturnType<typeof createApp>['sessions']>) => T): T => {
+    const app = createApp(filename, false, tick);
+    try { return fn(app.sessions(run, proc)); } finally { app.close(); }
+  };
   const rows = () => {
     const db = openDatabase(filename, true);
     try {
@@ -55,8 +62,83 @@ function fixture(t: TestContext) {
   const record = (name: string) => JSON.parse(readFileSync(join(sessionsDir, name), 'utf8')) as Record<string, unknown>;
   const claude = (nativeId: string, pid: number, extra: { envScope?: string; fork?: boolean } = {}) =>
     ({ agent: 'claude' as const, nativeId, pid, name: null, socket: null, fork: false, ...extra });
-  return { dir, filename, run, proc, sessionsDir, alive, die, s, rows, files, record, claude };
+  const activity = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return Object.fromEntries((db.prepare('SELECT native_id AS nativeId, active_at AS activeAt FROM sessions').all() as { nativeId: string; activeAt: string | null }[])
+        .map(r => [r.nativeId, r.activeAt]));
+    } finally { db.close(); }
+  };
+  return { dir, filename, run, proc, sessionsDir, alive, die, s, ts, rows, files, record, claude, activity };
 }
+
+function twoLive(t: TestContext) {
+  const x = fixture(t);
+  x.alive(201); x.alive(202);
+  x.ts(s => s.register(x.claude('c1', 201, { envScope: 'MP' })));
+  x.ts(s => s.register({ agent: 'pi', nativeId: 'p2', pid: 202, name: null, socket: null, fork: false, envScope: 'MP' }));
+  return x;
+}
+
+test('two live sessions of one key are both in the registry and neither is displaced', t => {
+  const x = twoLive(t);
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+  for (const name of x.files()) assert.equal(Object.hasOwn(x.record(name), 'displacedAt'), false, name);
+  assert.deepEqual(x.rows().filter(r => r.key === 'MP').map(r => r.nativeId).sort(), ['c1', 'p2']);
+  const found = x.ts(s => s.lookup('MP'));
+  assert.deepEqual(found.records.map(r => [r.nativeId, r.pid]), [['c1', 201], ['p2', 202]]);
+  assert.equal(found.row!.nativeId, 'c1');
+  assert.equal(found.live!.pid, 201);
+  const activity = x.activity();
+  assert.equal(typeof activity['c1'], 'string');
+  assert.equal(activity['p2'], null);
+});
+
+test('prompt makes its row active and a row without a live record stays closed', t => {
+  const x = twoLive(t);
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })), { key: 'MP', active: true });
+  const active = x.ts(s => s.lookup('MP'));
+  assert.equal(active.row!.nativeId, 'p2');
+  assert.equal(active.live!.pid, 202);
+  x.die(202);
+  const closed = x.ts(s => s.lookup('MP'));
+  assert.equal(closed.live, undefined);
+  assert.equal(closed.row!.nativeId, 'p2');
+  const before = x.activity();
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false });
+  assert.deepEqual(x.activity(), before);
+});
+
+test('clear in the active session gives the new row active_at (decision 2)', t => {
+  const x = twoLive(t);
+  x.ts(s => s.register(x.claude('c3', 201, { envScope: 'MP' })));
+  assert.equal(x.rows().filter(r => r.key === 'MP').length, 3);
+  assert.equal(x.ts(s => s.lookup('MP')).row!.nativeId, 'c3');
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+  assert.equal(x.record('MP~201.json')['nativeId'], 'c3');
+});
+
+test('clear in an inactive session does not take the active row (decision 2)', t => {
+  const x = twoLive(t);
+  x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' }));
+  x.ts(s => s.register(x.claude('c3', 201, { envScope: 'MP' })));
+  assert.equal(x.ts(s => s.lookup('MP')).row!.nativeId, 'p2');
+  assert.equal(x.activity()['c3'], null);
+  assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
+});
+
+test("UserPromptSubmit input counts only the engineer's own prompt", () => {
+  const input = (extra: Record<string, unknown> = {}) =>
+    JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt: 'привет', ...extra });
+  assert.deepEqual(promptInput(input()), { nativeId: 'c1', counted: true });
+  assert.deepEqual(promptInput(input({ source: 'user' })), { nativeId: 'c1', counted: true });
+  for (const source of ['system', 'sdk']) assert.deepEqual(promptInput(input({ source })), { nativeId: 'c1', counted: false }, source);
+  for (const prompt of ['[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение]\ngo', '  [mypi: MP-12 завершил ход',
+    'Another Claude session sent a message:\n[mypi: сообщение …']) assert.deepEqual(promptInput(input({ prompt })), { nativeId: 'c1', counted: false }, prompt);
+  assert.deepEqual(promptInput(input({ prompt: 'посмотри [mypi: x' })), { nativeId: 'c1', counted: true });
+  for (const text of ['not json', input({ hook_event_name: 'Stop' }), input({ session_id: '' }), input({ prompt: 1 }), input({ source: 1 })])
+    assert.throws(() => promptInput(text), (error: unknown) => error instanceof InputError && error.message === 'Invalid UserPromptSubmit hook input', text);
+});
 
 test('registry files are owner-only, liveness needs pid and start, dead and malformed records are removed only by writers', t => {
   const { run, sessionsDir, alive, s, files, record, claude } = fixture(t);

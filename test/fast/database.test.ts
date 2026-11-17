@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { initializeDatabase, openDatabase } from '../../src/infrastructure/database/database.js';
 import { snapshotDatabase } from '../../src/infrastructure/database/backup.js';
 import { createApp } from '../../src/app/create-app.js';
@@ -408,6 +408,51 @@ test('schema 15 upgrades a schema 14 database, keeps its journal rows and accept
     assert.throws(() => insert.run('task', 'MP-1', 'request_created', null, null), /CHECK/);
     assert.throws(() => insert.run('project', 'MP', 'note', 'journal/2026-10.jsonl', 1), /UNIQUE/);
     assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
+  } finally { upgraded.close(); }
+});
+
+test('schema 16 upgrades a schema 15 database, keeps every session as one row of its key and keeps UNIQUE(agent, native_id)', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const filename = join(dir, 'v15.sqlite3');
+  const db = new Database(filename);
+  db.pragma('foreign_keys = ON');
+  for (const migration of ['001-initial.sql', '002-knowledge-journal.sql', '003-work-chats.sql',
+    '004-work-chat-auth-pending.sql', '005-work-chat-process-origin.sql', '006-drop-work-chats.sql',
+    '007-rename-requests-tasks.sql', '008-sessions-events.sql', '009-milestone-events.sql',
+    '010-parent-messages.sql', '011-artifact-version-refs.sql', '012-project-repository.sql', '013-task-parent.sql',
+    '014-org-sessions.sql', '015-journal-event-types.sql']) {
+    db.exec(readFileSync(new URL('../../src/infrastructure/database/migrations/' + migration, import.meta.url), 'utf8'));
+  }
+  db.pragma('user_version = 15');
+  db.prepare("INSERT INTO organizations(id, slug) VALUES (1, 'one')").run();
+  db.prepare("INSERT INTO projects(id, org_id, slug, code) VALUES (2, 1, 'project', 'MP')").run();
+  const old = db.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
+    VALUES (?, ?, NULL, ?, NULL, ?, ?, ?)`);
+  old.run('MP', 'project', 2, 'claude', 'c1', '2026-10-28T00:00:00.000Z');
+  old.run('global', 'global', null, 'pi', 'p1', '2026-10-29T00:00:00.000Z');
+  db.close();
+  initializeDatabase(filename);
+  const upgraded = openDatabase(filename);
+  try {
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 16);
+    const rows = upgraded.prepare(`SELECT id, key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at, active_at, ended_at
+      FROM sessions ORDER BY key`).all() as Record<string, unknown>[];
+    assert.deepEqual(rows.map(({ id: _, ...row }) => row), [
+      { key: 'MP', scope_type: 'project', org_id: null, project_id: 2, task_id: null, agent: 'claude', native_id: 'c1', device: hostname(),
+        created_at: '2026-10-28T00:00:00.000Z', active_at: '2026-10-28T00:00:00.000Z', ended_at: null },
+      { key: 'global', scope_type: 'global', org_id: null, project_id: null, task_id: null, agent: 'pi', native_id: 'p1', device: hostname(),
+        created_at: '2026-10-29T00:00:00.000Z', active_at: '2026-10-29T00:00:00.000Z', ended_at: null }]);
+    assert.ok(rows.every(row => Number.isSafeInteger(row['id'])));
+    assert.equal(new Set(rows.map(row => row['id'])).size, 2);
+    const insert = upgraded.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('MP', 'project', NULL, 2, NULL, 'claude', ?, 'host', '2026-10-30T00:00:00.000Z')`);
+    assert.throws(() => insert.run('c1'), /UNIQUE constraint failed/);
+    insert.run('c2');
+    assert.equal(upgraded.prepare("SELECT count(*) FROM sessions WHERE key = 'MP'").pluck().get(), 2);
+    assert.throws(() => upgraded.prepare("UPDATE projects SET code = 'MQ' WHERE id = 2").run(), /Cannot rename a project code with tasks or sessions/);
+    assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
+    assert.deepEqual(upgraded.pragma('foreign_key_check'), []);
   } finally { upgraded.close(); }
 });
 

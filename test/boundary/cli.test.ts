@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -89,6 +89,40 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   const missing = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, bare);
   assert.equal(missing.status, 1);
   assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
+});
+
+test("real CLI session prompt is silent, counts the engineer's prompt and ignores a mypi frame", t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  t.after(() => { sleeper.kill(); });
+  const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
+  const runtime = join(dir, 'run');
+  mkdirSync(runtime, { mode: 0o700 });
+  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
+    const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
+      ...(input === undefined ? {} : { input }) });
+    assert.ifError(result.error);
+    assert.equal(result.signal, null);
+    assert.equal(result.status, 0, result.stderr);
+    return result.stdout;
+  };
+  const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
+  ok(['db', 'init']);
+  mkdirSync(join(dir, 'clone'));
+  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone')]);
+  ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
+  ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
+  assert.equal(active(), 'c1');
+  assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
+  assert.equal(active(), 'p1');
+  const hook = (prompt: string) => JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt });
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {},
+    hook('[mypi: сообщение родительской сессии MP для MP-12. Ниже — поручение родительской сессии]\ngo')), '');
+  assert.equal(active(), 'p1');
+  assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook('привет')), '');
+  assert.equal(active(), 'c1');
 });
 
 test('real CLI turns parent-started Stop and Notification hook input into one event each and inbox delivers them once', t => {
