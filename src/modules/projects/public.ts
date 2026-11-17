@@ -21,12 +21,14 @@ export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
     return store.update({ org, slug, ...(checkout ? { checkout } : {}), ...(change.repository ? { repository: change.repository } : {}) });
   }
   return {
-    add(identity: string, code: string, checkoutPath?: string, repository?: string) {
+    add(identity: string, code: string, checkoutPath: string | undefined, repository: string) {
       const { org, slug } = parseIdentity(identity);
       validateCode(code);
-      if (repository !== undefined) validateRepository(repository);
+      if (repository === undefined) throw new InputError(
+        'Project add requires a repository: the Git remote URL (CLI --repository <git-url>, MCP "repository":"<git-url>")');
+      validateRepository(repository);
       const canonical = checkoutPath === undefined ? null : paths.canonicalDirectory(checkoutPath);
-      return store.add({ org, slug, code, checkoutPath: canonical, repository: repository ?? null });
+      return store.add({ org, slug, code, checkoutPath: canonical, repository });
     },
     update,
     updateCheckout(identity: string, expectedCheckoutPath: string | null, checkoutPath: string) {

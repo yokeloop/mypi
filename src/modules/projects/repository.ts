@@ -10,7 +10,7 @@ export type CheckoutState =
   | { kind: 'other'; reason: string };
 
 function repositoryProblem(value: string): string | undefined {
-  if (value === LOCAL_REPOSITORY) return undefined;
+  if (value === LOCAL_REPOSITORY) return 'local is no longer accepted; give the Git remote URL';
   if (value === '') return 'must not be empty';
   if (/[\s\u0000-\u001f\u007f]/.test(value)) return 'must not contain spaces or control characters';
   if (value.startsWith('-')) return 'must not start with -';
@@ -28,7 +28,7 @@ export function validateRepository(value: string): void {
   const reason = repositoryProblem(value);
   if (reason !== undefined) {
     throw new InputError('Invalid repository ' + JSON.stringify(value) + ': ' + reason
-      + '; use https://, ssh://, file://, [user@]host:path, an absolute path or local');
+      + '; use https://, ssh://, file://, [user@]host:path or an absolute path');
   }
 }
 
@@ -51,8 +51,8 @@ export function stagingPid(target: string, name: string): number | null {
 export function noRepositoryError(project: { org: string; slug: string; code: string }): InputError {
   const identity = project.org + '/' + project.slug;
   return new InputError('Project ' + identity + ' (' + project.code + ') has no clone and no repository to clone it from; '
-    + 'set it with projects {"action":"update","identity":"' + identity + '","expectedRepository":null,"repository":"<git-url|local>"} '
-    + '(CLI: mypi project update ' + identity + ' --expected-repository-unset --repository <git-url|local>), then open it again');
+    + 'set it with projects {"action":"update","identity":"' + identity + '","expectedRepository":null,"repository":"<git-url>"} '
+    + '(CLI: mypi project update ' + identity + ' --expected-repository-unset --repository <git-url>), then open it again');
 }
 
 export function planCheckout(project: Pick<Project, 'org' | 'slug' | 'code' | 'repository'>, target: string,
