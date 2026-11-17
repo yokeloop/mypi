@@ -4,7 +4,7 @@ import { appendFileSync, existsSync, mkdirSync, statSync, writeFileSync } from '
 import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { archivePath, createApp } from '../../src/app/create-app.js';
-import { captureArchive } from '../../src/app/archive.js';
+import { captureArchive, importArchive } from '../../src/app/archive.js';
 import { ARCHIVE_CHUNK_BYTES, runArchiveOperation } from '../../src/app/archive-operations.js';
 import type { ArchiveOperationInput, ArchiveRunner } from '../../src/app/archive-operations.js';
 import type { ArchiveHit } from '../../src/modules/archive/public.js';
@@ -154,4 +154,26 @@ test('an entry over the budget is truncated with a visible marker', async t => {
   assert.equal(Number(match[2]), original.length - k);
   for (const entry of records.flatMap(r => r.read.entries)) assert.ok(Buffer.byteLength(JSON.stringify(entry)) <= 4096);
   assert.equal(row.bytesRead, statSync(file).size);
+});
+
+test('archive import checks the backend once before its files and lists a failing file in failed', async t => {
+  const { dir, filename } = state(t);
+  const { dev1 } = devices(dir);
+  writeFileSync(join(dev1, 'c1.jsonl'), jsonl([user('u1', null, 1)]));
+  writeFileSync(join(dev1, 'c2.jsonl'), jsonl([user('u2', null, 1)]));
+  const command = { name: 'archive_import' as const, home: dir, dirs: [{ agent: 'claude' as const, path: dev1 }] };
+  let calls = 0;
+  const mismatch: ArchiveRunner = { remote: true, chunkBytes: ARCHIVE_CHUNK_BYTES, run: async () => {
+    calls++;
+    throw new InputError('engine version 1.0.0 differs from server 2.0.0');
+  } };
+  await assert.rejects(importArchive(mismatch, command), /engine version 1\.0\.0 differs/);
+  assert.equal(calls, 1);
+  const remote = fakeRemote(filename);
+  const busy: ArchiveRunner = { ...remote, run: async (n, i) => {
+    if (n === 'archive_record' && (i as ArchiveOperationInput<'archive_record'>).nativeId === 'c1') throw new Error('database is locked');
+    return remote.run(n, i);
+  } };
+  const result = await importArchive(busy, command);
+  assert.deepEqual([result.files, result.inserted, result.failed], [1, 1, [{ agent: 'claude', path: join(dev1, 'c1.jsonl'), error: 'database is locked' }]]);
 });

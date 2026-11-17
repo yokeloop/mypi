@@ -71,16 +71,18 @@ export async function importArchive(runner: ArchiveRunner, c: Of<'archive_import
   const total = { files: 0, inserted: 0, skipped: 0 };
   const failed: { agent: ArchiveAgent; path: string; error: string }[] = [];
   const dirs: { agent: ArchiveAgent; path: string; files: number; inserted: number; skipped: number }[] = [];
-  for (const folder of folders) {
+  const listed = folders.map(folder => ({ folder, paths: listTranscripts(folder.path) }));
+  const first = listed.find(l => l.paths.length > 0);
+  if (first) await runner.run('archive_offset', { agent: first.folder.agent, nativeId: nativeIdOf(first.folder.agent, first.paths[0]!) });
+  for (const { folder, paths } of listed) {
     const dir = { agent: folder.agent, path: folder.path, files: 0, inserted: 0, skipped: 0 };
-    for (const path of listTranscripts(folder.path)) {
+    for (const path of paths) {
       try {
         const result = await recordFile(runner, folder.agent, path);
         archive ??= result.archive;
         dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
       } catch (error) {
-        if (!(error instanceof InputError)) throw error;
-        failed.push({ agent: folder.agent, path, error: error.message });
+        failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
       }
     }
     total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;

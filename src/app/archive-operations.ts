@@ -44,7 +44,10 @@ export function archiveScope(filename: string, key: string): ArchiveKeys {
 
 export const archiveOperations = {
   archive_offset: (t, i) => {
-    if (!existsSync(archivePath(t.filename))) return { offset: 0 };
+    if (!existsSync(archivePath(t.filename))) {
+      createApp(t.filename, true).close();
+      return { offset: 0 };
+    }
     const { archive, close } = createArchiveApp(t.filename, true);
     try {
       return { offset: archive.offset(i.agent, i.nativeId) };
