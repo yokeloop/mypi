@@ -97,9 +97,14 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
       }
       return root;
     },
-    device(): string { return ''; },
-    liveRecords(): RegistryRecord[] { return []; },
-    activate(_input: { key: string; agent: Agent; nativeId: string }): void {},
+    device(): string { return device(); },
+    liveRecords(): RegistryRecord[] { return registry().live(); },
+    activate(input: { key: string; agent: Agent; nativeId: string }): void {
+      store.transaction(() => {
+        const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
+        store.touch(id, clock());
+      });
+    },
     resolve(hint: { agent: Agent; nativeId: string; pid: number }): string | undefined {
       const key = store.byNative(hint.agent, hint.nativeId)?.key;
       if (key !== undefined) return key;
