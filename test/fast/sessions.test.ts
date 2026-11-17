@@ -147,19 +147,22 @@ test('registry files are owner-only, liveness needs pid and start, dead and malf
     { key: 'MP-12', registered: true, displaced: null });
   assert.equal(statSync(join(run, 'mypi')).mode & 0o777, 0o700);
   assert.equal(statSync(sessionsDir).mode & 0o777, 0o700);
-  assert.equal(statSync(join(sessionsDir, 'MP-12.json')).mode & 0o777, 0o600);
-  assert.deepEqual(record('MP-12.json'), { key: 'MP-12', agent: 'claude', nativeId: 'c1', pid: 101, start: '500', name: 'mp-12',
+  assert.equal(statSync(join(sessionsDir, 'MP-12~101.json')).mode & 0o777, 0o600);
+  assert.deepEqual(record('MP-12~101.json'), { key: 'MP-12', agent: 'claude', nativeId: 'c1', pid: 101, start: '500', name: 'mp-12',
     socket: '/run/s.sock', permissionMode: null, registeredAt: at });
   alive(101, '501');
-  writeFileSync(join(sessionsDir, 'OT.json'), 'not json');
+  alive(102);
+  writeFileSync(join(sessionsDir, 'OT~5.json'), 'not json');
+  writeFileSync(join(sessionsDir, 'MP.json'), JSON.stringify({ key: 'MP', agent: 'claude', nativeId: 'old', pid: 102, start: '1', name: null,
+    socket: null, permissionMode: null, registeredAt: at }));
   writeFileSync(join(sessionsDir, 'notes.txt'), 'keep');
   const tree = s(x => x.tree());
   assert.deepEqual(tree.children[0]!.children[0]!.children[0], { key: 'MP-12', session: { agent: 'claude', nativeId: 'c1', state: 'closed' }, children: [] });
   assert.equal(s(x => x.resolve({ agent: 'claude', nativeId: 'other', pid: 101 })), undefined);
-  assert.deepEqual(files(), ['MP-12.json', 'OT.json', 'notes.txt']);
-  alive(102);
+  assert.equal(s(x => x.lookup('MP')).live, undefined);
+  assert.deepEqual(files(), ['MP-12~101.json', 'MP.json', 'OT~5.json', 'notes.txt']);
   s(x => x.register(claude('g1', 102)));
-  assert.deepEqual(files(), ['global.json', 'notes.txt']);
+  assert.deepEqual(files(), ['global~102.json', 'notes.txt']);
 });
 
 test("permission mode is read only from the agent's own command line", t => {

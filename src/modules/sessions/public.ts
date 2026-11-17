@@ -5,7 +5,7 @@ export type SessionNode = { key: string; session: { agent: Agent; nativeId: stri
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
   orgOf: (code: string) => string | undefined, clock: () => string, device: () => string) {
   const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;
-  const canonical = (records: RegistryRecord[], key: string) => records.find(r => r.key === key && r.displacedAt === undefined);
+  const canonical = (records: RegistryRecord[], key: string) => records.find(r => r.key === key);
   return {
     register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string }):
       { key: string; registered: boolean; displaced: RegistryRecord | null } {
@@ -24,9 +24,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
           key = input.envScope || 'global';
         }
         const target = scope(key);
-        for (const r of records) if (same(r, self) && (r.key !== key || r.displacedAt !== undefined)) reg.remove(r);
-        const current = canonical(records, key);
-        const displaced = current !== undefined && !same(current, self) ? reg.displace(current, clock()) : null;
+        for (const r of records) if (same(r, self) && r.key !== key) reg.remove(r);
+        const displaced = null;
         reg.write({ key, agent: input.agent, nativeId: input.nativeId, pid: input.pid, start, name: input.name, socket: input.socket,
           permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock() });
         store.touch(store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() }), clock());
