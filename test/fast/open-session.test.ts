@@ -40,7 +40,8 @@ test('defaultAgent reads home/settings.json and falls back to claude', () => {
 });
 
 const row = (agent: 'claude' | 'pi', nativeId: string): SessionRow =>
-  ({ key: 'MP-12', scopeType: 'task', orgId: null, projectId: 1, taskId: 1, agent, nativeId, createdAt: '2026-10-28T00:00:00.000Z' });
+  ({ id: 1, key: 'MP-12', scopeType: 'task', orgId: null, projectId: 1, taskId: 1, agent, nativeId, device: 'host',
+    createdAt: '2026-10-28T00:00:00.000Z', activeAt: '2026-10-28T00:00:00.000Z', endedAt: null });
 const live = (agent: 'claude' | 'pi'): RegistryRecord => ({ key: 'MP-12', agent, nativeId: 'c1', pid: 101, start: '1', name: null,
   socket: null, permissionMode: null, registeredAt: '2026-10-28T00:00:00.000Z' });
 

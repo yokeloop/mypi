@@ -3,7 +3,7 @@ import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, Session
 export type { Agent, RegistryRecord, SessionRow, SessionScope } from './ports.js';
 export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null; children: SessionNode[] };
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
-  orgOf: (code: string) => string | undefined, clock: () => string) {
+  orgOf: (code: string) => string | undefined, clock: () => string, device: () => string) {
   const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;
   const canonical = (records: RegistryRecord[], key: string) => records.find(r => r.key === key && r.displacedAt === undefined);
   return {
@@ -29,7 +29,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const displaced = current !== undefined && !same(current, self) ? reg.displace(current, clock()) : null;
         reg.write({ key, agent: input.agent, nativeId: input.nativeId, pid: input.pid, start, name: input.name, socket: input.socket,
           permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock() });
-        store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, createdAt: store.get(key)?.createdAt ?? clock() });
+        store.touch(store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() }), clock());
         return { key, registered: true, displaced };
       });
     },
@@ -45,14 +45,14 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     },
     forget(key: string): { forgotten: string; live: boolean } {
       return store.transaction(() => {
-        if (!store.get(key)) throw new InputError('Unknown session: ' + key);
+        if (!store.active(key)) throw new InputError('Unknown session: ' + key);
         const live = canonical(registry().live(true), key) !== undefined;
-        store.remove(key);
+        store.removeKey(key);
         return { forgotten: key, live };
       });
     },
     lookup(key: string): { row: SessionRow | undefined; live: RegistryRecord | undefined } {
-      return { row: store.get(key), live: canonical(registry().live(), key) };
+      return { row: store.active(key), live: canonical(registry().live(), key) };
     },
     tree(): SessionNode {
       const rows = store.list(), records = registry().live();
