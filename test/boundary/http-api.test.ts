@@ -313,8 +313,10 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.equal((remoteProjects.structuredContent as { status: string }).status, 'ok');
     assert.match(JSON.stringify(remoteProjects.structuredContent), /"FXT"/);
     const remoteSessions = await client.callTool({ name: 'sessions', arguments: {} });
-    assert.equal(remoteSessions.isError, true);
-    assert.match(JSON.stringify(remoteSessions.structuredContent), /not available in remote mode/);
+    assert.notEqual(remoteSessions.isError, true);
+    assert.equal((remoteSessions.structuredContent as { status: string }).status, 'ok');
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"nativeId":"r1"/);
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"device":"laptop"/);
   } finally { await client.close(); }
 
   const deviceRoot = join(dir, 'laptop-home');

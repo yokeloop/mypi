@@ -55,7 +55,7 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
 const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
-  'event_emit', 'turn_end', 'inbox', 'message_send']);
+  'event_emit', 'turn_end', 'inbox', 'message_send', 'sessions', 'task_worktree', 'open_session']);
 const REMOTE_ARCHIVE_COMMANDS: ReadonlySet<string> = new Set(['archive_capture', 'archive_import']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
