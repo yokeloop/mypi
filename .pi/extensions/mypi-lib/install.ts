@@ -96,6 +96,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   let starting: Promise<void> | undefined;
   let started: (() => void) | undefined;
   const injected = new Set<number>();
+  let subscription: AbortController | undefined;
   let parentTurn = false;
   let parentFrom: string | undefined;
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
@@ -159,7 +160,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       const { dev, ino } = statSync(path);
       socket.dev = dev;
       socket.ino = ino;
-      await register(ctx, session, fork, path);
+      if (await register(ctx, session, fork, path) !== undefined) {
+        subscription?.abort();
+        const ctl = subscription = new AbortController();
+        void runCli([cli, 'session', 'subscribe', '--pid', String(pid)], { cwd: root, signal: ctl.signal, onLine: () => undefined }).catch(() => undefined);
+      }
     } catch (error) {
       if (ctx.hasUI) ctx.ui.notify(`mypi event socket failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     }
@@ -214,6 +219,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
+    subscription?.abort();
+    subscription = undefined;
     const open = socket;
     socket = undefined;
     current = undefined;

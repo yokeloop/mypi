@@ -4,6 +4,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import type { AppCommand } from '../../src/app/commands.js';
@@ -202,7 +203,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(existsSync(join(dir, 'laptop-state')), false);
   const laptopRuntime = join(dir, 'laptop-run');
   mkdirSync(laptopRuntime, { mode: 0o700 });
-  const holder = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
+  const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => { holder.kill('SIGKILL'); });
   const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', 'r1'],
     { ...laptop, XDG_RUNTIME_DIR: laptopRuntime, MYPI_SCOPE: 'FXT' });
@@ -213,6 +214,47 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const fxt = find((await get('/v1/sessions')).body.data as Node, 'FXT');
   assert.deepEqual(fxt?.sessions.map(s => [s.agent, s.nativeId, s.device]), [['pi', 'r1', 'laptop']]);
   assert.equal(existsSync(join(dir, 'laptop-state')), false);
+  const live = async (name: string, env: Record<string, string>, nativeId: string) => {
+    const runtime = join(dir, name + '-live'), sock = join(dir, name + '.sock'), log = join(dir, name + '.log');
+    mkdirSync(runtime, { mode: 0o700 });
+    const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+    t.after(() => { holder.kill('SIGKILL'); });
+    const listener = spawn(process.execPath, ['--v8-pool-size=1', '/work/dist/test/support/event-socket-server.js', sock, 'ack', log],
+      { env: { ...process.env, UV_THREADPOOL_SIZE: '1' }, stdio: ['ignore', 'pipe', 'ignore'] });
+    t.after(() => { listener.kill('SIGKILL'); });
+    await new Promise<void>((resolve, reject) => {
+      listener.once('exit', code => reject(new Error('Socket server exited: ' + code)));
+      let out = '';
+      listener.stdout.setEncoding('utf8').on('data', (chunk: string) => { out += chunk; if (out.includes('ready\n')) resolve(); });
+    });
+    const device = { ...env, XDG_RUNTIME_DIR: runtime };
+    const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', nativeId, '--socket', sock],
+      { ...device, MYPI_SCOPE: 'FXT' });
+    assert.equal(registered.status, 0, registered.stderr);
+    return { device, pid: holder.pid!, log };
+  };
+  const s1 = await live('laptop', laptop, 's1'), s2 = await live('phone', phone, 's2');
+  const prompted = run(['session', 'prompt', '--agent', 'pi', '--native-id', 's2'], s2.device);
+  assert.equal(prompted.status, 0, prompted.stderr);
+  const subscribers = [s1, s2].map(s => {
+    const subscriber = spawn(process.execPath, ['--v8-pool-size=1', entry, 'session', 'subscribe', '--pid', String(s.pid)],
+      { env: { ...s.device, UV_THREADPOOL_SIZE: '1' }, cwd: dir, stdio: 'ignore' });
+    t.after(() => { subscriber.kill('SIGKILL'); });
+    return { subscriber, exited: new Promise<number | null>(resolve => subscriber.once('exit', code => resolve(code))) };
+  });
+  const sentHi = run(['send', 'FXT', 'hi'], { ...s1.device, MYPI_SCOPE: '' });
+  assert.equal(sentHi.status, 0, sentHi.stderr);
+  const received = (log: string) => existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(line => line.includes('"text"')) : [];
+  const deadline = Date.now() + 5000;
+  while (received(s2.log).length === 0 && Date.now() < deadline) await sleep(50);
+  assert.equal(received(s2.log).length, 1);
+  assert.match(received(s2.log)[0]!, /hi/);
+  assert.deepEqual(received(s1.log), []);
+  const deliveredHi = run(['event', 'list', '--to', 'FXT', '--delivered', 'true'], s1.device);
+  assert.equal(deliveredHi.status, 0, deliveredHi.stderr);
+  assert.ok((JSON.parse(deliveredHi.stdout) as { items: { kind: string; message: string }[] }).items.some(e => e.kind === 'message' && e.message === 'hi'));
+  for (const { subscriber } of subscribers) subscriber.kill('SIGTERM');
+  assert.deepEqual(await Promise.all(subscribers.map(s => s.exited)), [0, 0]);
   const spawned = (args: string[], extra: Record<string, string>) => new Promise<number | null>((resolve, reject) => {
     const cli = spawn(process.execPath, [entry, ...args], { env: extra, cwd: dir, stdio: 'ignore' });
     cli.once('error', reject);

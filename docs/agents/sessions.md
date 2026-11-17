@@ -126,4 +126,13 @@ Read when: working with session registration, /open, start messages, events, mil
   row's `device` is the `device` of `server.json`, else `os.hostname()`. A new
   session becomes active when this device has no other live record of the key; the
   server does not see other devices' registries. A sender claims only for the active
-  session that is live in its own device's registry.
+  session that is live in its own device's registry. In remote mode messages are taken by the
+  active live session through its own subscription to `GET /v1/changes`, on any
+  device: the Pi extension holds it (`mypi session subscribe --pid`, from
+  `session_start` to `session_shutdown`) and so does Claude's stdio MCP process.
+  Without an approved mypi MCP server in Claude, messages wait for the engineer's
+  input, `/inbox` or the warmup. With the server unreachable the subscription
+  reconnects after the stream's `retry`. A takeover during a send can deliver twice
+  (at least once): Pi drops ids it already showed, Claude may show a message twice. After a
+  round that claimed events but delivered none (the socket refused or acknowledged
+  nothing) the subscription waits the stream's `retry` before it claims again.

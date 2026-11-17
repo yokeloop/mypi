@@ -33,6 +33,7 @@ error org/project "error or dead end"
 warmup [-s global | org | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
+session subscribe --pid <pid>
 sessions
 archive import [--dir <directory> --agent claude|pi]...
 archive status
@@ -318,7 +319,9 @@ A device works against the database of a `mypi serve` on another machine when it
   `inbox` and `send`, and the MCP tools `warmup`, `inbox` and `send_message`, run their
   database work as operations on the server. The session registry, sockets, transcripts,
   home and Git stay on the device; session rows and events live on the server.
-  `session prompt` waits for the server at most 1.5 s.
+  `session prompt` waits for the server at most 1.5 s. `session subscribe --pid <pid>`
+  holds the Pi session's subscription to the server's changes and delivers its claimed
+  events to its socket; without `server.json` it exits at once with code 0.
 - Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
   `token`, `serve`, `home migrate-tasks`, `journal import`, `sessions`, `open`,
   `task worktree` and the archive commands, answers `<command> is not available in
