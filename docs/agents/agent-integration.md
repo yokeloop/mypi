@@ -16,7 +16,10 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   tool guideline to every turn: `searchTools()`, `describeTool()` and
   `describeNamespace()` return Promises and must be awaited; Pi shows it in the
   prompt rules only while codemode is active. The key is the one saved for
-  this conversation, else `MYPI_SCOPE`, else `global`.
+  this conversation, else `MYPI_SCOPE`, else `global`. On every `input` with
+  `source: "interactive"` (the engineer's own prompt, not socket messages or RPC)
+  it runs `mypi session prompt --agent pi --native-id <id>`, which makes this
+  session the active one of its key, and always continues the input unchanged.
   It also registers the /open command (`/open <key...> [--message text]`, the
   rest of the line after --message is the text), which runs mypi open
   and suggests keys while its arguments are typed (the session's project and its
@@ -95,7 +98,10 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   into the conversation archive from its saved offset, so an answer the file had
   not yet written at Stop arrives on the next Stop or at SessionEnd. Without a
   transcript it writes nothing; its output is discarded, and its failure (exit 1,
-  never 2) blocks neither Stop nor exit.
+  never 2) blocks neither Stop nor exit. The UserPromptSubmit hook runs
+  `mypi session prompt --agent claude --hook` (5 s, output discarded): the
+  engineer's prompt makes this session the active one of its key; a prompt in a
+  mypi frame or with a `source` other than `user` is not counted.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project

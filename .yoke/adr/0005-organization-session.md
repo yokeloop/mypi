@@ -1,7 +1,7 @@
 # ADR 0005: Organization session
 
 Date: 2026-11-05
-Status: accepted
+Status: accepted; amended by ADR 0006
 
 Supplements ADR 0001, ADR 0003 and ADR 0004.
 

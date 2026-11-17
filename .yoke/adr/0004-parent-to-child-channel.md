@@ -1,7 +1,7 @@
 # ADR 0004: Parent-to-child channel
 
 Date: 2026-11-01
-Status: accepted
+Status: accepted; amended by ADR 0006
 
 ## Context
 
