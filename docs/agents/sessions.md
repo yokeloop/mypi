@@ -24,6 +24,16 @@ Read when: working with session registration, /open, start messages, events, mil
   every undelivered event of the key except milestones, claimed but unacknowledged
   ones included, and sends them to its own socket; so a row left claimed by a
   crashed sender waits for the next input, /inbox or warmup, without a timer.
+  After a switch to a session of the key that already had a turn, the same call
+  prints one pointer line of at most 200 characters, `[mypi: с вашего прошлого
+  хода в <KEY> работала сессия <agent> на <device>: <n> записей журнала, <m>
+  коммитов в ветке; подробнее — journal <KEY>]`; with another device of the
+  previous session the commit part is `сначала git pull`, and commits are counted
+  only for a task with a recorded worktree. An ordinary turn, a second message in
+  a row and a new session get nothing; a failure computing the line prints nothing
+  and keeps the touch and the claim. Claude gets the line as the hook output, Pi by
+  `transform` of the input (before the text, at the end for input starting with
+  `/`); `--no-deliver` only marks and prints.
   /open claims the queued messages of the opened session after its record
   appears, just before the send. /inbox and the warmup take every undelivered row,
   claimed ones included, and record the calling session in `claimed_by` (`NULL`
@@ -68,7 +78,7 @@ Read when: working with session registration, /open, start messages, events, mil
   active session of a key is the row where the engineer wrote last: Claude's
   `UserPromptSubmit` hook and the Pi extension's interactive `input` run
   `mypi session prompt`, which writes `active_at`, takes the waiting events of the
-  key to its own socket and prints nothing; a prompt in
+  key to its own socket and prints the pointer line only after a switch; a prompt in
   a mypi frame does not count. A new row is active when the key has no other live
   session; Claude `/clear` and Pi `/new` keep the active role when the replaced
   session had it. When another session of the key is live, the CLI warmup of a
