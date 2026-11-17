@@ -18,7 +18,7 @@ export type AppCommand =
   | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
-  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint }
+  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint; caller?: { pid: number; runtime?: string } }
   | { name: 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }

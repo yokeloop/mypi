@@ -43,7 +43,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
         ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }),
-        ...(hint === undefined ? {} : { session: hint }) };
+        ...(hint === undefined ? {} : { session: hint }), caller: { pid: parentPid, ...runtime } };
     }
     case 'journal add': return { name: 'journal_add', text: a[0]!, scope: journalScope };
     case 'journal import': return { name: 'journal_import' };
