@@ -44,16 +44,24 @@ between Claude and Pi, and later between devices.
    key has no other live record besides this process's own. Claude `/clear` and Pi
    `/new` replace the process's own record; the new row becomes active when the
    replaced record's row was the active one, otherwise it stays inactive.
-5. Delivery. `deliverPending` and the start message go to the socket of the live
-   record of the active row. When the active session is not live, nothing is sent
-   and nothing is marked: the events wait. In remote mode a live session subscribes
+5. Delivery. `deliverPending` claims the events of the key for the active row
+   when its record is live, then sends them to that socket; the start message goes
+   to the socket of the live record of the active row. When the active session is
+   not live, nothing is sent and nothing is marked: the events wait. In remote mode a live session subscribes
    to `GET /v1/changes` and claims its own events (MP-147).
 6. Incoming events of a scope and atomic claim. Events stay addressed to the key.
-   A later migration adds `events.claimed_by` and `claimed_at`; the active session
-   claims unmarked, unclaimed events of its key in one transaction, sends them to
-   its socket, marks acknowledged ones delivered and releases the rest; the first
-   session where the engineer writes takes over events that were claimed but never
-   acknowledged (MP-142). At-least-once from ADR 0001 stays.
+   Migration 017 adds `events.claimed_by` (session row, `ON DELETE SET NULL`) and
+   `claimed_at`. A claim is one transaction: only the live active session of the
+   key takes undelivered, unclaimed rows except milestones; the send runs outside
+   the transaction; acknowledged rows get `delivered_at` and keep `claimed_by`, the
+   rest are released. `session prompt` makes the session active and, when it has
+   its own socket and transport, takes every undelivered row of the key except
+   milestones, claimed ones included, and sends them to its own socket. `/open`
+   claims only message rows after the started record appears, just before the
+   send. `/inbox` and the warmup take every undelivered row and write the caller's
+   row (or `NULL`). A row left claimed by a crashed process waits for the next
+   engineer prompt, `/inbox` or warmup, no timer; a takeover during a send in
+   flight can repeat a row (at-least-once). At-least-once from ADR 0001 stays.
 7. Pointer after a switch. When the engineer writes to a session that was not the
    active one and it already had a turn, one line tells it which session worked in
    the scope since its last turn and where to read more (MP-143). Until then the
@@ -88,11 +96,12 @@ between Claude and Pi, and later between devices.
   first registry write after the update.
 - `register` no longer returns `displaced`; `mypi session forget <key>` deletes
   every row of the key.
+- Schema 17: the installed engine needs `mypi db init` once after the update.
 - ADR 0001: decision 27 (the newest live session is canonical, the older one
   stops receiving events) is replaced by points 3–5; the Pi socket stays one per
   process; the event contract, frames and key resolution do not change.
-- ADR 0004: a closed child still gets its queue at the next `/open`; with MP-142
-  also at the engineer's first input in any of its sessions.
+- ADR 0004: a closed child gets its queue at the next `/open` or at the
+  engineer's first input in any of its sessions.
 - ADR 0005: point 7 is superseded by migration 016 for the shape of `sessions`;
   the organization scope and report routing do not change.
 - ADR 0002 and ADR 0003 do not change.

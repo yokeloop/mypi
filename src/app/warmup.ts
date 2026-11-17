@@ -12,6 +12,7 @@ import { frame } from '../modules/events/public.js';
 import type { EventRow } from '../modules/events/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
 import { InputError } from '../shared/errors.js';
+import type { SessionHint } from './session-input.js';
 
 export const WARMUP_LIMIT = 64 * 1024;
 export const WARMUP_MAX_CHARS = Math.floor(WARMUP_LIMIT / 3);
@@ -93,7 +94,7 @@ function expectedBranch(files: FlowFiles, project: Project, key: string, card: C
   return '\nExpected branch: ' + taskBranchName(read.flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
 }
 
-export function readWarmup(filename: string, root: string, key: string, maxChars?: number, notice?: string): string {
+export function readWarmup(filename: string, root: string, key: string, maxChars?: number, notice?: string, caller?: SessionHint): string {
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 1 && maxChars <= WARMUP_MAX_CHARS)) {
     throw new InputError('Warmup max-chars must be an integer from 1 to ' + WARMUP_MAX_CHARS);
   }
@@ -253,7 +254,10 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         else { out = render(true); break; }
         out = render(false);
       }
-      if (delivers) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));
+      if (delivers) {
+        const claimer = caller === undefined ? null : app.sessions(caller.runtime).callerRow(caller) ?? null;
+        app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id), claimer);
+      }
       return out;
     });
   } finally { app.close(); }

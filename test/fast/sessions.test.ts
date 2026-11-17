@@ -97,7 +97,10 @@ test('two live sessions of one key are both in the registry and neither is displ
 
 test('prompt makes its row active and a row without a live record stays closed', t => {
   const x = twoLive(t);
-  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })), { key: 'MP', active: true });
+  const db = openDatabase(x.filename, true);
+  let p2: number;
+  try { p2 = db.prepare("SELECT id FROM sessions WHERE native_id = 'p2'").pluck().get() as number; } finally { db.close(); }
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'pi', nativeId: 'p2' })), { key: 'MP', active: true, id: p2 });
   const active = x.ts(s => s.lookup('MP'));
   assert.equal(active.row!.nativeId, 'p2');
   assert.equal(active.live!.pid, 202);
@@ -106,8 +109,30 @@ test('prompt makes its row active and a row without a live record stays closed',
   assert.equal(closed.live, undefined);
   assert.equal(closed.row!.nativeId, 'p2');
   const before = x.activity();
-  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false });
+  assert.deepEqual(x.ts(s => s.prompt({ agent: 'claude', nativeId: 'nobody' })), { key: null, active: false, id: null });
   assert.deepEqual(x.activity(), before);
+});
+
+test('ownRecord gives the live record of this session in its key and nothing for a closed session or a broken runtime', t => {
+  const x = twoLive(t);
+  assert.equal(x.ts(s => s.ownRecord('MP', { agent: 'pi', nativeId: 'p2' }))?.pid, 202);
+  assert.equal(x.ts(s => s.ownRecord('OT', { agent: 'pi', nativeId: 'p2' })), undefined);
+  x.die(202);
+  assert.equal(x.ts(s => s.ownRecord('MP', { agent: 'pi', nativeId: 'p2' })), undefined);
+  const app = createApp(x.filename, false);
+  try { assert.equal(app.sessions(undefined, x.proc).ownRecord('MP', { agent: 'claude', nativeId: 'c1' }), undefined); } finally { app.close(); }
+});
+
+test('callerRow resolves the row by native id, else by the live record of the caller pid', t => {
+  const x = twoLive(t);
+  const db = openDatabase(x.filename, true);
+  let p2: number;
+  try { p2 = db.prepare("SELECT id FROM sessions WHERE native_id = 'p2'").pluck().get() as number; } finally { db.close(); }
+  assert.equal(x.ts(s => s.callerRow({ agent: 'pi', nativeId: 'p2', pid: 1 })), p2);
+  assert.equal(x.ts(s => s.callerRow({ agent: 'pi', nativeId: 'unknown', pid: 202 })), p2);
+  assert.equal(x.ts(s => s.callerRow({ agent: 'pi', nativeId: 'unknown', pid: 999 })), undefined);
+  const app = createApp(x.filename, false);
+  try { assert.equal(app.sessions(undefined, x.proc).callerRow({ agent: 'pi', nativeId: 'unknown', pid: 202 }), undefined); } finally { app.close(); }
 });
 
 test('clear in the active session gives the new row active_at (decision 2)', t => {

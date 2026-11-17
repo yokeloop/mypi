@@ -2,6 +2,8 @@ import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
+import { sendClaimed } from './delivery.js';
+import type { Claim, EventTransports } from './delivery.js';
 import { warmupScope } from './warmup.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
@@ -15,10 +17,22 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   } finally { app.close(); }
 }
 
-export function promptSession(filename: string, c: Of<'session_prompt'>, proc = '/proc') {
+export async function promptSession(filename: string, c: Of<'session_prompt'>, transports: EventTransports = {}, proc = '/proc'): Promise<void> {
   if (!c.counted) return;
   const app = createApp(filename, false);
-  try { app.sessions(c.runtime, proc).prompt({ agent: c.agent, nativeId: c.nativeId }); } finally { app.close(); }
+  try {
+    const sessions = app.sessions(c.runtime, proc);
+    const claim = app.serialize((): Claim | undefined => {
+      const prompted = sessions.prompt({ agent: c.agent, nativeId: c.nativeId });
+      if (prompted.id === null) return undefined;
+      const own = sessions.ownRecord(prompted.key!, { agent: c.agent, nativeId: c.nativeId });
+      const transport = own === undefined ? undefined : transports[own.agent];
+      if (!own?.socket || transport === undefined) return undefined;
+      const events = app.events.claim(prompted.key!, prompted.id, { takeOver: true });
+      return events.length === 0 ? undefined : { sessionId: prompted.id, socket: own.socket, transport, events };
+    });
+    if (claim !== undefined) await sendClaimed(app, claim);
+  } finally { app.close(); }
 }
 
 export function unregisterSession(filename: string, c: Of<'session_unregister'>, proc = '/proc') {

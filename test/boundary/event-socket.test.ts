@@ -71,7 +71,15 @@ function fixture(t: TestContext) {
   const received = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '')
     .map(line => (JSON.parse(line) as { id?: number }).id).filter(id => id !== undefined);
   const lines = (log = join(dir, 'server.log')) => readFileSync(log, 'utf8').split('\n').filter(line => line !== '');
-  return { dir, sock, listen, register, emit, emitShort, delivered, received, lines };
+  const claimedBy = () => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT id, claimed_by AS claimedBy FROM events ORDER BY id').raw().all(); } finally { db.close(); }
+  };
+  const rowId = (nativeId: string) => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT id FROM sessions WHERE native_id = ?').pluck().get(nativeId) as number; } finally { db.close(); }
+  };
+  return { dir, sock, ok, listen, register, emit, emitShort, delivered, received, lines, claimedBy, rowId };
 }
 
 test('a real Pi socket that acknowledges gets the event and it is marked delivered', async t => {
@@ -84,11 +92,22 @@ test('a real Pi socket that acknowledges gets the event and it is marked deliver
 });
 
 test('a silent socket leaves the event undelivered after the deadline', async t => {
-  const { listen, register, emitShort, delivered, received } = fixture(t);
+  const { listen, register, emitShort, delivered, received, claimedBy } = fixture(t);
   register((await listen('silent')).pid!);
   assert.deepEqual(emitShort('готово'), { event: 1, delivered: [] });
   assert.deepEqual(delivered(), [[1, false]]);
   assert.deepEqual(received(), [1]);
+  assert.deepEqual(claimedBy(), [[1, null]]);
+});
+
+test('real CLI session prompt sends the waiting event to its own Pi socket and marks it', async t => {
+  const { ok, listen, register, emit, delivered, received, claimedBy, rowId } = fixture(t);
+  assert.deepEqual(emit('готово'), { event: 1, delivered: [] });
+  register((await listen('ack')).pid!);
+  assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.deepEqual(received(), [1]);
+  assert.deepEqual(claimedBy(), [[1, rowId('p1')]]);
 });
 
 test('a missing socket file delivers nothing and the emit still succeeds', t => {

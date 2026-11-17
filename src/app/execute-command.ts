@@ -40,12 +40,12 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'warmup') {
     const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
     const notice = c.caller === undefined ? undefined : otherLiveSession(filename, key, c.caller, c.session);
-    return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice);
+    return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session);
   }
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
   if (c.name === 'session_register') return registerSession(filename, c);
-  if (c.name === 'session_prompt') { promptSession(filename, c); return ''; }
+  if (c.name === 'session_prompt') { await promptSession(filename, c, transports); return ''; }
   if (c.name === 'session_unregister') return unregisterSession(filename, c);
   if (c.name === 'session_forget') return forgetSession(filename, c);
   if (c.name === 'sessions') return listSessions(filename, c);

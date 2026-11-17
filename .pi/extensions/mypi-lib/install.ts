@@ -172,7 +172,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   });
   pi.on('input', async event => {
     if (event.source === 'interactive' && key !== undefined && registered !== undefined) {
-      await pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', registered], { cwd: root, timeout: 5000 }).catch(() => undefined);
+      void pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', registered], { cwd: root, timeout: 5000 }).catch(() => undefined);
     }
     return { action: 'continue' };
   });

@@ -6,7 +6,9 @@ export interface EventStore {
   pending(toKey: string | null): EventRow[];
   lastDelivered(toKey: string): EventRow[];
   lastMessageSender(toKey: string): string | undefined;
-  deliver(ids: number[], at: string): void;
+  claim(toKey: string, sessionId: number, at: string, options: { messagesOnly?: boolean; takeOver?: boolean }): EventRow[];
+  release(ids: number[], sessionId: number): void;
+  deliver(ids: number[], at: string, claimedBy?: number | null): void;
   browse(filter: { to?: string; from?: string; kind?: EventKind; delivered?: boolean; before?: number }): Iterable<EventRow>;
 }
 export type EventTransport = (socket: string, events: { id: number; text: string }[]) => Promise<number[]>;
