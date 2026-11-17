@@ -5,6 +5,7 @@ import { callerKey, sessionKey } from './sessions.js';
 import { localTime, warmupScope } from './warmup.js';
 import { deliverPending } from './delivery.js';
 import type { EventTransports } from './delivery.js';
+import type { SessionRunner } from './session-operations.js';
 import { inputText } from './input-text.js';
 import { sendParentMessage } from './journal-facts.js';
 import { InputError } from '../shared/errors.js';
@@ -42,7 +43,8 @@ export async function turnEnd(filename: string, c: Of<'turn_end'>, transports: E
     ...(c.transcript === undefined ? {} : { transcript: c.transcript }) }, transports, proc, readPrompt);
 }
 
-export function readInbox(filename: string, c: Of<'inbox'>) {
+export function readInbox(filename: string | SessionRunner, c: Of<'inbox'>, _proc = '/proc') {
+  if (typeof filename !== 'string') throw new Error('Not implemented');
   const key = c.key ?? warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
   const app = createApp(filename, false);
   try {
@@ -56,8 +58,9 @@ export function readInbox(filename: string, c: Of<'inbox'>) {
   } finally { app.close(); }
 }
 
-export async function sendMessage(filename: string, c: Of<'message_send'>, transports: EventTransports = {},
+export async function sendMessage(filename: string | SessionRunner, c: Of<'message_send'>, transports: EventTransports = {},
   proc = '/proc'): Promise<{ message: number; delivered: boolean }> {
+  if (typeof filename !== 'string') throw new Error('Not implemented');
   const text = inputText(c.body);
   const from = callerKey(filename, c);
   if (from === undefined) throw new InputError('The calling session key could not be resolved');

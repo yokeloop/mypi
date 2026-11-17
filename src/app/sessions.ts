@@ -2,6 +2,7 @@ import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
+import type { SessionRunner } from './session-operations.js';
 import { sendClaimed } from './delivery.js';
 import type { Claim, EventTransports } from './delivery.js';
 import { warmupScope } from './warmup.js';
@@ -10,7 +11,8 @@ import { pointerLine } from '../shared/switch-pointer.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
 
-export function registerSession(filename: string, c: Of<'session_register'>, proc = '/proc') {
+export function registerSession(filename: string | SessionRunner, c: Of<'session_register'>, proc = '/proc') {
+  if (typeof filename !== 'string') throw new Error('Not implemented');
   const app = createApp(filename, false);
   try {
     return app.sessions(c.runtime, proc).register({ agent: c.agent, nativeId: c.nativeId, pid: c.pid, name: c.sessionName ?? null,
@@ -27,8 +29,9 @@ function commitsOrNull(commitsSince: CommitsSince, worktree: string, since: stri
   try { return commitsSince(worktree, since); } catch { return null; }
 }
 
-export async function promptSession(filename: string, c: Of<'session_prompt'>, transports: EventTransports = {}, proc = '/proc',
+export async function promptSession(filename: string | SessionRunner, c: Of<'session_prompt'>, transports: EventTransports = {}, proc = '/proc',
   commitsSince?: CommitsSince): Promise<string> {
+  if (typeof filename !== 'string') throw new Error('Not implemented');
   if (!c.counted) return '';
   const app = createApp(filename, false);
   try {
