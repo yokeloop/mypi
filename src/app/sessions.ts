@@ -2,6 +2,7 @@ import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { SessionHint } from './session-input.js';
+import type { EventTransports } from './delivery.js';
 import { warmupScope } from './warmup.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
@@ -15,7 +16,7 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   } finally { app.close(); }
 }
 
-export function promptSession(filename: string, c: Of<'session_prompt'>, proc = '/proc') {
+export function promptSession(filename: string, c: Of<'session_prompt'>, _transports: EventTransports = {}, proc = '/proc') {
   if (!c.counted) return;
   const app = createApp(filename, false);
   try { app.sessions(c.runtime, proc).prompt({ agent: c.agent, nativeId: c.nativeId }); } finally { app.close(); }

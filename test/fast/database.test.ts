@@ -457,6 +457,46 @@ test('schema 16 upgrades a schema 15 database, keeps every session as one row of
   } finally { upgraded.close(); }
 });
 
+test('schema 17 upgrades a schema 16 database and keeps every event row with empty claim columns', t => {
+  const dir = mkdtempSync(join(tmpdir(), 'mypi-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const filename = join(dir, 'v16.sqlite3');
+  const db = new Database(filename);
+  db.pragma('foreign_keys = ON');
+  db.function('mypi_device', () => 'host');
+  for (const migration of ['001-initial.sql', '002-knowledge-journal.sql', '003-work-chats.sql',
+    '004-work-chat-auth-pending.sql', '005-work-chat-process-origin.sql', '006-drop-work-chats.sql',
+    '007-rename-requests-tasks.sql', '008-sessions-events.sql', '009-milestone-events.sql',
+    '010-parent-messages.sql', '011-artifact-version-refs.sql', '012-project-repository.sql', '013-task-parent.sql',
+    '014-org-sessions.sql', '015-journal-event-types.sql', '016-many-sessions.sql']) {
+    db.exec(readFileSync(new URL('../../src/infrastructure/database/migrations/' + migration, import.meta.url), 'utf8'));
+  }
+  db.pragma('user_version = 16');
+  db.prepare("INSERT INTO organizations(id, slug) VALUES (1, 'one')").run();
+  db.prepare("INSERT INTO projects(id, org_id, slug, code) VALUES (2, 1, 'project', 'MP')").run();
+  const session = Number(db.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+    VALUES ('MP', 'project', NULL, 2, NULL, 'claude', 'c1', 'host', '2026-10-28T00:00:00.000Z')`).run().lastInsertRowid);
+  const event = db.prepare('INSERT INTO events(from_key, to_key, kind, message, created_at, delivered_at) VALUES (?, ?, ?, ?, ?, ?)');
+  event.run('MP-1', 'MP', 'turn_end', 'done', '2026-10-28T00:00:01.000Z', null);
+  event.run('MP', 'MP-1', 'message', 'go', '2026-10-28T00:00:02.000Z', '2026-10-28T00:00:03.000Z');
+  const columns = 'id, from_key, to_key, kind, message, created_at, delivered_at';
+  const before = db.prepare('SELECT ' + columns + ' FROM events ORDER BY id').all();
+  db.close();
+  initializeDatabase(filename);
+  const upgraded = openDatabase(filename);
+  try {
+    assert.equal(upgraded.pragma('user_version', { simple: true }), 17);
+    assert.deepEqual(upgraded.prepare('SELECT ' + columns + ' FROM events ORDER BY id').all(), before);
+    assert.deepEqual(upgraded.prepare('SELECT claimed_by, claimed_at FROM events ORDER BY id').raw().all(), [[null, null], [null, null]]);
+    upgraded.prepare('UPDATE events SET claimed_by = ?').run(session);
+    assert.throws(() => upgraded.prepare('UPDATE events SET claimed_by = 999').run(), /FOREIGN KEY/);
+    upgraded.prepare('DELETE FROM sessions').run();
+    assert.deepEqual(upgraded.prepare('SELECT claimed_by FROM events ORDER BY id').pluck().all(), [null, null]);
+    assert.equal(upgraded.pragma('integrity_check', { simple: true }), 'ok');
+    assert.deepEqual(upgraded.pragma('foreign_key_check'), []);
+  } finally { upgraded.close(); }
+});
+
 test('sessions rows keep the scope shape, one native id per agent and the project code', t => {
   const { filename } = state(t);
   const app = createApp(filename, false);

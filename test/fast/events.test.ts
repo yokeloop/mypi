@@ -46,7 +46,32 @@ function fixture(t: TestContext) {
         FROM events ORDER BY id`).all();
     } finally { db.close(); }
   };
-  return { dir, filename, e, rows };
+  const session = (nativeId: string, key = 'MP') => {
+    const app = createApp(filename, false, () => at);
+    try { app.sessions(undefined).activate({ key, agent: 'claude', nativeId }); } finally { app.close(); }
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT id FROM sessions WHERE native_id = ?').pluck().get(nativeId) as number; } finally { db.close(); }
+  };
+  const insert = (from: string, to: string, kind: string, delivered = false) => {
+    const db = openDatabase(filename);
+    try {
+      return Number(db.prepare('INSERT INTO events(from_key, to_key, kind, message, created_at, delivered_at) VALUES (?, ?, ?, ?, ?, ?)')
+        .run(from, to, kind, 'text', at, delivered ? at : null).lastInsertRowid);
+    } finally { db.close(); }
+  };
+  const claims = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return db.prepare('SELECT id, claimed_by AS claimedBy, claimed_at AS claimedAt FROM events ORDER BY id').all() as
+        { id: number; claimedBy: number | null; claimedAt: string | null }[];
+    } finally { db.close(); }
+  };
+  const marked = () => {
+    const db = openDatabase(filename, true);
+    try { return (db.prepare('SELECT id, delivered_at AS deliveredAt FROM events ORDER BY id').all() as { id: number; deliveredAt: string | null }[])
+      .map(r => [r.id, r.deliveredAt !== null]); } finally { db.close(); }
+  };
+  return { dir, filename, e, rows, session, insert, claims, marked };
 }
 
 test('emit from a task chat writes one event addressed to its project', t => {
@@ -375,4 +400,70 @@ test('CLI event emit, turn end and inbox parse into their commands and refuse wr
   assert.throws(() => cli(['send', 'MP-12']), /Text or --file required/);
   assert.deepEqual(cli(['open', 'MP-12', '--message', 'go'], { MYPI_SCOPE: 'MP' }),
     { name: 'open_session', keys: ['MP-12'], message: 'go', envScope: 'MP' });
+});
+
+test('claim takes the undelivered unclaimed rows of the key except milestones, once, in id order', t => {
+  const { e, session, insert, claims } = fixture(t);
+  const A = session('a'), B = session('b');
+  insert('MP-12', 'MP', 'turn_end');
+  insert('MP-12', 'MP', 'milestone');
+  insert('MP-12', 'MP', 'waiting');
+  insert('OT-3', 'OT', 'turn_end');
+  insert('MP-12', 'MP', 'turn_end', true);
+  insert('MP', 'MP-12', 'message');
+  assert.deepEqual(e(x => x.claim('MP', A)).map(r => r.id), [1, 3]);
+  const first = claims();
+  assert.deepEqual(first.map(r => [r.id, r.claimedBy]), [[1, A], [2, null], [3, A], [4, null], [5, null], [6, null]]);
+  assert.ok(first[0]!.claimedAt !== null && first[2]!.claimedAt !== null);
+  assert.deepEqual(e(x => x.claim('MP', B)).map(r => r.id), []);
+  assert.deepEqual(e(x => x.claim('MP', B, { takeOver: true })).map(r => r.id), [1, 3]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, B], [2, null], [3, B], [4, null], [5, null], [6, null]]);
+  assert.deepEqual(e(x => x.claim('MP-12', A, { messagesOnly: true })).map(r => r.id), [6]);
+});
+
+test('a late release by A does not wipe the takeover of B', t => {
+  const { e, session, insert, claims } = fixture(t);
+  const A = session('a'), B = session('b');
+  insert('MP-12', 'MP', 'turn_end');
+  assert.deepEqual(e(x => x.claim('MP', A)).map(r => r.id), [1]);
+  e(x => x.claim('MP', B, { takeOver: true }));
+  e(x => x.release([1], A));
+  assert.equal(claims()[0]!.claimedBy, B);
+  e(x => x.release([1], B));
+  assert.deepEqual(claims()[0], { id: 1, claimedBy: null, claimedAt: null });
+  insert('MP-12', 'MP', 'turn_end');
+  assert.deepEqual(e(x => x.claim('MP', A)).map(r => r.id), [1, 2]);
+  e(x => x.deliver([2]));
+  e(x => x.release([2], A));
+  assert.equal(claims()[1]!.claimedBy, A);
+});
+
+test('deliver keeps claimed_by, and deliver with a claimer overwrites it', t => {
+  const { e, session, insert, claims, marked } = fixture(t);
+  const A = session('a'), B = session('b');
+  for (let i = 0; i < 4; i++) insert('MP-12', 'MP', 'turn_end');
+  assert.deepEqual(e(x => x.claim('MP', A)).map(r => r.id), [1, 2, 3, 4]);
+  e(x => x.deliver([1]));
+  e(x => x.deliver([3], B));
+  e(x => x.deliver([4], null));
+  assert.deepEqual(marked(), [[1, true], [2, false], [3, true], [4, true]]);
+  const after = claims();
+  assert.deepEqual(after.map(r => [r.id, r.claimedBy]), [[1, A], [2, A], [3, B], [4, null]]);
+  assert.ok(after[2]!.claimedAt !== null);
+  assert.equal(after[3]!.claimedAt, null);
+});
+
+test('inbox writes claimed_by of the calling session and NULL for an unresolved caller', t => {
+  const { e, filename, session, insert, claims, marked } = fixture(t);
+  const A = session('a');
+  const C = session('c1');
+  insert('MP-12', 'MP', 'turn_end');
+  e(x => x.claim('MP', A));
+  insert('MP-12', 'MP', 'turn_end');
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP', session: { agent: 'claude', nativeId: 'c1', pid: process.pid } }).events.map(x => x.id), [1, 2]);
+  assert.deepEqual(marked(), [[1, true], [2, true]]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, C], [2, C]]);
+  insert('MP-12', 'MP', 'turn_end');
+  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events.map(x => x.id), [3]);
+  assert.deepEqual(claims()[2], { id: 3, claimedBy: null, claimedAt: null });
 });

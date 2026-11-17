@@ -472,3 +472,31 @@ test('over budget a task warmup clips the end of its card after the entries and 
   assert(tilde.length <= 9500);
   assert(/\necho long card line ж\n[^\n]*\n~~~~\n\n> The card is clipped/.test(tilde));
 });
+
+test('project warmup writes claimed_by of the calling session on the events it marks', t => {
+  const { filename, root } = fixture(t);
+  const app = createApp(filename, false, () => '2026-10-28T14:02:00.000Z');
+  try {
+    app.sessions(undefined).activate({ key: 'MP', agent: 'claude', nativeId: 'c1' });
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'сделай шаг' });
+  } finally { app.close(); }
+  emit(filename, 'MP-12', 'turn_end', 'готово');
+  const claims = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return db.prepare('SELECT id, claimed_by AS claimedBy, claimed_at AS claimedAt FROM events ORDER BY id').all() as
+        { id: number; claimedBy: number | null; claimedAt: string | null }[];
+    } finally { db.close(); }
+  };
+  const db = openDatabase(filename, true);
+  let row: number;
+  try { row = db.prepare("SELECT id FROM sessions WHERE native_id = 'c1'").pluck().get() as number; } finally { db.close(); }
+  const caller = { agent: 'claude' as const, nativeId: 'c1', pid: process.pid };
+  readWarmup(filename, root, 'MP-12', undefined, undefined, caller);
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }, { id: 2, claimedBy: null, claimedAt: null }]);
+  readWarmup(filename, root, 'MP', undefined, undefined, caller);
+  assert.deepEqual(delivered(filename).map(r => [r.id, r.at !== null]), [[1, false], [2, true]]);
+  const after = claims();
+  assert.deepEqual(after.map(r => [r.id, r.claimedBy]), [[1, null], [2, row]]);
+  assert.ok(after[1]!.claimedAt !== null);
+});

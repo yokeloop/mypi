@@ -576,6 +576,17 @@ test('pi extension marks only interactive input', async () => {
   assert.equal(pi.calls.length, before + 1);
 });
 
+test('pi extension continues interactive input without waiting for session prompt', async () => {
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const input = (source: string) => (pi.handlers.get('input') as unknown as (event: { text: string; source: string }) => Promise<unknown>)({ text: 'hi', source });
+  pi.state.key = 'MP';
+  await pi.start('startup');
+  pi.state.result = () => new Promise<never>(() => {});
+  assert.deepEqual(await input('interactive'), { action: 'continue' });
+  assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }]);
+});
+
 test('pi extension warns when its event socket cannot open and does not register a socket', async t => {
   const pi = stub();
   const { run, fake, serve } = sockets(t);

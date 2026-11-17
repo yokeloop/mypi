@@ -105,6 +105,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         store.touch(id, clock());
       });
     },
+    ownRecord(_key: string, _session: { agent: Agent; nativeId: string }): RegistryRecord | undefined { return undefined; },
+    callerRow(_hint: { agent: Agent; nativeId: string; pid: number }): number | undefined { return undefined; },
     resolve(hint: { agent: Agent; nativeId: string; pid: number }): string | undefined {
       const key = store.byNative(hint.agent, hint.nativeId)?.key;
       if (key !== undefined) return key;
