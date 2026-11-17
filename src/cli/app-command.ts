@@ -135,7 +135,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         if (opt('native-id') !== undefined) throw new InputError('Use --hook or --native-id, not both');
         input = promptInput(readInputFile(0));
       } else input = { nativeId: required('native-id'), counted: true };
-      return { name: 'session_prompt', agent, nativeId: input.nativeId, counted: input.counted, ...runtime };
+      return { name: 'session_prompt', agent, nativeId: input.nativeId, counted: input.counted, ...(o['no-deliver'] ? { noDeliver: true } : {}), ...runtime };
     }
     case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
     case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };

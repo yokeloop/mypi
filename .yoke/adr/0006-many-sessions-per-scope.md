@@ -64,8 +64,20 @@ between Claude and Pi, and later between devices.
    flight can repeat a row (at-least-once). At-least-once from ADR 0001 stays.
 7. Pointer after a switch. When the engineer writes to a session that was not the
    active one and it already had a turn, one line tells it which session worked in
-   the scope since its last turn and where to read more (MP-143). Until then the
-   `session prompt` hook prints nothing.
+   the scope since its last turn and where to read more (MP-143):
+   `[mypi: с вашего прошлого хода в <KEY> работала сессия <agent> на <device>: <n>
+   записей журнала, <m> коммитов в ветке; подробнее — journal <KEY>]`, at most 200
+   characters (the device is shortened with `…`). With another device of the
+   previous session the commit part is `сначала git pull`; commits are counted only
+   for a task key with a recorded worktree. Entries and commits are counted after
+   the session's own last `active_at`. An ordinary turn, a second message in a row
+   and a new session get nothing; a failure computing the line prints nothing and
+   rolls back neither `active_at` nor the claim. Claude gets the line as the stdout
+   of the `UserPromptSubmit` hook. Pi waits for `session prompt --no-deliver` and
+   returns `transform`: the line and a blank line before the engineer's text, or
+   after a blank line at the end for input starting with `/`, so a command still
+   expands; delivery runs after it without waiting. The Pi archive strips the line
+   from the engineer's message, which stays `human`.
 8. `/open`. Without flags it works on the sessions of this device: focus the live
    record of the device's active row; else the live record whose row has the latest
    `active_at`; else resume the device's row active last; else start a new session.

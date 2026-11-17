@@ -38,12 +38,15 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         return { key, registered: true };
       });
     },
-    prompt(input: { agent: Agent; nativeId: string }): { key: string | null; active: boolean; id: number | null } {
+    prompt(input: { agent: Agent; nativeId: string }):
+      { key: string | null; active: boolean; id: number | null; previous: { agent: Agent; device: string } | null; since: string | null } {
       return store.transaction(() => {
         const row = store.byNative(input.agent, input.nativeId);
-        if (row === undefined) return { key: null, active: false, id: null };
+        if (row === undefined) return { key: null, active: false, id: null, previous: null, since: null };
+        const before = store.active(row.key);
+        const previous = before !== undefined && before.id !== row.id ? { agent: before.agent, device: before.device } : null;
         store.touch(row.id, clock());
-        return { key: row.key, active: true, id: row.id };
+        return { key: row.key, active: true, id: row.id, previous, since: row.activeAt };
       });
     },
     unregister(pid: number): { removed: string[] } {

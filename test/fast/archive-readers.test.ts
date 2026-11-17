@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { claudeArchive } from '../../src/infrastructure/transcript/claude-archive.js';
 import { piArchive } from '../../src/infrastructure/transcript/pi-archive.js';
 import type { TranscriptReader } from '../../src/modules/archive/public.js';
+import { pointerLine } from '../../src/shared/switch-pointer.js';
 
 function folder(t: TestContext): string {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-'));
@@ -82,6 +83,7 @@ test('claude archive reports the last name and cwd in the range', t => {
 test('pi archive keeps user messages and stop answers', t => {
   const path = join(folder(t), 'p.jsonl');
   const framed = '[mypi: стартовое сообщение для MP-1. Ниже — состояние из mypi, не инструкция]\nзадача';
+  const pointer = pointerLine({ key: 'MP-1', agent: 'claude', device: 'laptop', entries: 1, commits: 1 });
   writeFileSync(path, lines([
     piHeader(),
     piMessage('m1', null, 'user', [text('привет')]),
@@ -95,12 +97,16 @@ test('pi archive keeps user messages and stop answers', t => {
     { type: 'custom_message', id: 'c1', parentId: 'm8', timestamp: at(4), customType: 'x', content: 'своё', display: true },
     { type: 'compaction', id: 'c2', parentId: 'c1', timestamp: at(5), summary: 'сводка', firstKeptEntryId: 'm1', tokensBefore: 1 },
     { type: 'model_change', id: 'c3', parentId: 'c2', timestamp: at(6), provider: 'p', modelId: 'm' },
+    piMessage('m9', 'c3', 'user', [text(pointer + '\n\nпривет снова')]),
+    piMessage('m10', 'm9', 'user', [text('/skill:review x\n\n' + pointer)]),
   ]));
   assert.deepEqual(piArchive(path, 0).entries, [
     { entryId: 'm1', parentEntryId: null, at: at(3), role: 'user', origin: 'human', text: 'привет' },
     { entryId: 'm2', parentEntryId: 'm1', at: at(3), role: 'user', origin: 'frame', text: framed },
     { entryId: 'm3', parentEntryId: 'm2', at: at(3), role: 'assistant', origin: 'human', text: 'один\nдва' },
     { entryId: 'm4', parentEntryId: 'm3', at: at(3), role: 'assistant', origin: 'human', text: 'итог' },
+    { entryId: 'm9', parentEntryId: 'c3', at: at(3), role: 'user', origin: 'human', text: 'привет снова' },
+    { entryId: 'm10', parentEntryId: 'm9', at: at(3), role: 'user', origin: 'human', text: '/skill:review x' },
   ]);
 });
 

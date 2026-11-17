@@ -33,7 +33,7 @@ export interface ExtensionAPI {
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
-  on(name: 'input', handler: (event: { text: string; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' }>): void;
+  on(name: 'input', handler: (event: { text: string; images?: unknown[]; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' } | { action: 'transform'; text: string; images?: unknown[] }>): void;
   registerTool(tool: AskTool): void;
 }
 
@@ -171,10 +171,17 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     done?.();
   });
   pi.on('input', async event => {
-    if (event.source === 'interactive' && key !== undefined && registered !== undefined) {
-      void pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', registered], { cwd: root, timeout: 5000 }).catch(() => undefined);
-    }
-    return { action: 'continue' };
+    if (event.source !== 'interactive' || key === undefined || registered === undefined) return { action: 'continue' };
+    const id = registered;
+    let line = '';
+    try {
+      const result = await pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', id, '--no-deliver'], { cwd: root, timeout: 2000 });
+      if (result.code === 0 && result.killed !== true && result.stdout.startsWith('[mypi: ')) line = result.stdout.trimEnd();
+    } catch { line = ''; }
+    void pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', id], { cwd: root, timeout: 5000 }).catch(() => undefined);
+    if (line === '') return { action: 'continue' };
+    const text = event.text.startsWith('/') ? event.text + '\n\n' + line : line + '\n\n' + event.text;
+    return { action: 'transform', text, ...(event.images === undefined ? {} : { images: event.images }) };
   });
   pi.on('before_agent_start', event => {
     const options = event.systemPromptOptions;

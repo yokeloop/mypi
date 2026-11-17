@@ -67,7 +67,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" session prompt --agent claude --hook >/dev/null 2>&1",
+            "command": "node \"$CLAUDE_PROJECT_DIR/dist/src/cli/main.js\" session prompt --agent claude --hook 2>/dev/null",
             "timeout": 5
           }
         ]

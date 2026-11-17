@@ -27,6 +27,6 @@ test("Claude settings allow exactly the mypi MCP tools, run session registration
     Notification: [{ matcher: 'permission_prompt|elicitation_dialog', hooks: [{ type: 'command',
       command: 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" event emit --waiting --hook --pid "$PPID" >/dev/null 2>&1', timeout: 10 }] }],
     UserPromptSubmit: [{ hooks: [{ type: 'command',
-      command: 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" session prompt --agent claude --hook >/dev/null 2>&1', timeout: 5 }] }],
+      command: 'node "$CLAUDE_PROJECT_DIR/dist/src/cli/main.js" session prompt --agent claude --hook 2>/dev/null', timeout: 5 }] }],
     SessionEnd: [{ hooks: [capture] }] });
 });

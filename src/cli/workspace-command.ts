@@ -47,7 +47,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'archive capture': [0, 0, ['agent', 'file'], ['hook']],
   'archive forget': [0, 0, ['session', 'key', 'before'], []],
   'session register': [0, 0, ['agent', 'pid', 'native-id', 'name', 'socket'], ['hook', 'fork']],
-  'session prompt': [0, 0, ['agent', 'native-id'], ['hook']],
+  'session prompt': [0, 0, ['agent', 'native-id'], ['hook', 'no-deliver']],
   'session unregister': [0, 0, ['pid'], []],
   'session forget': [1, 1, [], []],
   'event emit': [0, 0, ['from', 'to', 'message', 'pid'], ['waiting', 'hook']],
