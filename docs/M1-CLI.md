@@ -18,8 +18,8 @@ initializes only DB; `bootstrap` initializes DB/context Git, without fetch/pull/
 Use only with explicit intent; stop other writers for bootstrap/restore.
 
 ```text
-project add org/project --code MP [--path /absolute/checkout] [--repository <git-url|local>]
-project update org/project [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url|local>]
+project add org/project --code MP --repository <git-url> [--path /absolute/checkout]
+project update org/project [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 project list [--org org]
 project resolve /absolute/existing-directory
 project flow MP|org/project
@@ -66,6 +66,7 @@ recorded) and parent (the key of the parent task, or null).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
+`project add` requires `--repository`, the project's Git remote URL (https://, ssh://, file://, [user@]host:path or an absolute path); `local` is refused in `add` and `update`. A row registered earlier without a repository gets one with `project update <org/project> --expected-repository-unset --repository <url>`; a row registered as `local` with `project update <org/project> --expected-repository local --repository <url>`. Until then both keep working: `open` refuses the first with "no repository to clone it from" and runs `git init` for the second.
 `project remove` deletes a registration only when its code matches `--expected-code`
 and no tasks, sessions, journal entries of the project or its tasks, or events
 reference it; otherwise it exits 1 and lists each kind of reference with its count.
