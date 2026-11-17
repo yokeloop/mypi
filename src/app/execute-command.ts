@@ -81,7 +81,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     const notice = c.caller === undefined ? undefined : otherLiveSession(runner.device, key, c.caller, c.session);
     return readWarmup(runner, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session === undefined ? undefined : callerIdentity(c.session));
   }
-  if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
+  if (c.name === 'task_worktree') return openTaskWorktree(runner, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
   if (c.name === 'session_register') return registerSession(runner, c);
   if (c.name === 'session_prompt') return promptSession(runner, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));

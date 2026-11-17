@@ -138,7 +138,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
         opened.push({ key, agent: decision.agent, action: 'focused', workspaceId: null, tabId: null, worktreePath: null, notes, message });
         continue;
       }
-      const worktreePath = entry.kind === 'task' ? openTaskWorktree(filename, root, key).worktreePath : null;
+      const worktreePath = entry.kind === 'task' ? (await openTaskWorktree(localSessionRunner(filename), root, key)).worktreePath : null;
       let text: string | null = null, reason: string | null = null;
       if (decision.action === 'start') {
         try { text = startFrame(key, startMessage(filename, key)); } catch (error) { reason = (error as Error).message; }
