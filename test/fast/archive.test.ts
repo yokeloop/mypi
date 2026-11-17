@@ -97,6 +97,26 @@ test('recording the same read twice inserts nothing new and keeps the offset', t
   } finally { app.close(); }
 });
 
+test('record refuses a changed expected offset and writes nothing', t => {
+  const { filename } = state(t);
+  const app = createArchiveApp(filename, false, () => at);
+  try {
+    const { archive } = app;
+    const input = { agent: 'claude' as const, nativeId: 'n1', path: '/transcripts/n1.jsonl' };
+    archive.record({ ...input, read: read([entry('e1', 10)], 120) });
+    const count = () => {
+      const db = openArchive(app.path, true);
+      try { return (db.prepare('SELECT count(*) AS n FROM archive_messages').get() as { n: number }).n; } finally { db.close(); }
+    };
+    assert.throws(() => archive.record({ ...input, read: read([entry('e9', 20)], 200), expectedOffset: 0 }),
+      (error: unknown) => error instanceof InputError && error.message === 'Archive offset of claude n1 changed: expected 0, found 120; capture again');
+    assert.equal(archive.offset('claude', 'n1'), 120);
+    assert.equal(count(), 1);
+    assert.equal(archive.record({ ...input, read: read([entry('e9', 20)], 200), expectedOffset: 120 }).inserted, 1);
+    assert.equal(archive.offset('claude', 'n1'), 200);
+  } finally { app.close(); }
+});
+
 test('archive schema enforces checks, uniqueness and cascade', t => {
   const { filename } = state(t);
   const app = createArchiveApp(filename, false, () => at);

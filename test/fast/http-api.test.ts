@@ -342,3 +342,27 @@ test('session and event operations accept exactly their fields', () => {
     assert.throws(() => parseOperation(op, missing), refused, op);
   }
 });
+
+test('archive operations accept exactly their fields', () => {
+  const identity = { agent: 'claude', nativeId: 'c1' };
+  const entry = { entryId: 'u1', parentEntryId: null, at: '2026-11-07T10:00:00.000Z', role: 'user', origin: 'human', text: 'synthetic' };
+  const record = { ...identity, path: '/device/c1.jsonl', expectedOffset: 0, newOffset: 10, read: { entries: [entry], name: null, cwd: null, parentNativeId: null } };
+  const cases: [string, Record<string, unknown>][] = [
+    ['archive_offset', identity],
+    ['archive_record', record],
+    ['archive_status', {}],
+    ['archive_search', { q: 'synthetic', scope: 'MP', agent: 'pi', from: '2026-11-01', to: '2026-11-07', includePeer: true, limit: 5 }],
+    ['archive_show', { id: 3, before: 1, after: 1, includePeer: true }],
+    ['archive_forget', { session: 'c1', key: 'MP', before: '2026-11-07' }],
+  ];
+  for (const [op, input] of cases) assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  const { expectedOffset: _, ...unexpected } = record;
+  for (const [op, input] of [
+    ['archive_record', { ...record, file: '/etc/hostname' }],
+    ['archive_status', { home: '/home/user' }],
+    ['archive_offset', { ...identity, dirs: [] }],
+    ['archive_record', { ...record, read: { ...record.read, entries: [{ ...entry, origin: 'tool' }] } }],
+    ['archive_record', unexpected],
+  ] as [string, unknown][]) assert.throws(() => parseOperation(op, input), refused, op);
+});
