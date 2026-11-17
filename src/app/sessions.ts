@@ -40,7 +40,7 @@ export async function promptSession(filename: string, c: Of<'session_prompt'>, t
       if (prompted.previous !== null && prompted.since !== null) {
         try {
           const key = prompted.key!;
-          const entries = app.journalStore.countSince(keyScope(key), prompted.since);
+          const entries = app.journalStore.countSince(key === 'global' ? { type: 'global' } : keyScope(key), prompted.since);
           const match = /^([A-Z]+)-([1-9][0-9]*)$/.exec(key);
           let worktree: string | null = null;
           if (match) {

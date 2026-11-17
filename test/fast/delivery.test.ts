@@ -534,3 +534,16 @@ test('a pointer failure prints nothing and keeps the touch and the claim', async
   assert.deepEqual(delivered(), [[1, true]]);
   assert.equal(claims()[0]!.claimedBy, rowId('c1'));
 });
+
+test('a global session counts the global journal', async t => {
+  const { filename, register, promptAs } = fixture(t);
+  register(101, null, 'claude', 'c1', 'global');
+  register(102, null, 'pi', 'p102', 'global');
+  assert.equal(await promptAs('p102', {}), '');
+  const db = openDatabase(filename);
+  try {
+    db.prepare("INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES ('2999-01-01T00:00:00.000Z', 'global', NULL, 'note', 'x')").run();
+  } finally { db.close(); }
+  assert.equal(await promptAs('c1', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в global работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal global]\n');
+});
