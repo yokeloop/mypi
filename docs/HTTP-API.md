@@ -189,14 +189,14 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   inputs of `SessionOperations` in `src/app/session-operations.ts` (`agent` and
   `nativeId` identities, keys and event ids, never a path, pid or runtime):
   `session_key` `{agent, nativeId}`; `session_save` `{agent, nativeId, device,
-  candidateKey, fork, envScope?, otherLive, own}` (`otherLive` and `own` are
-  `{agent, nativeId, key}` lists from the device registry); `session_forget_rows`
+  candidateKey, fork, envScope?, otherLive, own}` (`candidateKey` may be `null`;
+  `otherLive` and `own` are `{agent, nativeId, key}` lists from the device registry); `session_forget_rows`
   `{key}`; `session_activate` `{agent, nativeId, claim}`; `events_claim` `{key, live,
   messagesOnly?}` (`live` is a list of identities); `events_settle` `{sessionId, acked,
   released}`; `event_create` `{from, kind, message, to?}` (`kind` is `turn_end` or
   `waiting`); `inbox_take` `{key, caller}`; `message_create` `{from, to, message}`;
-  `warmup_data` `{key}`; `events_mark` `{ids, caller}` (`caller` is an identity or
-  `null`).
+  `warmup_data` `{key}`; `events_mark` `{ids, caller}`. In `inbox_take` and
+  `events_mark` `caller` is an identity or `null`.
   A missing, mistyped or extra field answers 400 `invalid_request` and nothing runs. No
   input names a server path; context paths are only lookup keys, the server never opens
   them.
@@ -234,7 +234,9 @@ agents, this server) increments `changeId`, a counter kept in the server process
   data: {"changeId":7}
   ```
 
-  A `: keepalive` comment follows every 25 s.
+  A `: keepalive` comment follows every 25 s. A `device` token reads it too: the live
+  session of a device in remote mode is subscribed and calls `events_claim` on every
+  change.
 - Clients reread what they show when an event arrives. `changeId` is monotonic only
   within one process: when `instance` changes, the server restarted and the client
   rereads everything.
