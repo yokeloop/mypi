@@ -343,6 +343,23 @@ test('session and event operations accept exactly their fields', () => {
   }
 });
 
+test('open operations accept exactly their fields', () => {
+  const cases: [string, Record<string, unknown>, string][] = [
+    ['open_snapshot', { orgs: ['one'] }, 'orgs'],
+    ['parent_check', { from: 'MP', to: 'MP-1' }, 'to'],
+    ['session_open', { key: 'MP-1', agent: 'pi', nativeId: 'n1', device: 'laptop', opened: { action: 'started', worktree: null } }, 'device'],
+    ['worktree_record', { key: 'MP-1', worktreePath: '/p/x--MP-1-a', created: { branch: 'task/MP-1-a', base: 'main' } }, 'worktreePath'],
+    ['checkout_record', { identity: 'one/project', checkoutPath: '/p/one/project', action: 'cloned', repository: 'file:///r.git' }, 'action'],
+  ];
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  for (const [op, input, required] of cases) {
+    assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+    assert.throws(() => parseOperation(op, { ...input, path: '/etc/hostname' }), refused, op);
+    const { [required]: _, ...missing } = input;
+    assert.throws(() => parseOperation(op, missing), refused, op);
+  }
+});
+
 test('archive operations accept exactly their fields', () => {
   const identity = { agent: 'claude', nativeId: 'c1' };
   const entry = { entryId: 'u1', parentEntryId: null, at: '2026-11-07T10:00:00.000Z', role: 'user', origin: 'human', text: 'synthetic' };

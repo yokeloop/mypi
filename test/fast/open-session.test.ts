@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { agentName, callerMode, decideOpen, defaultAgent, heldNames, herdrName, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
+import { agentName, callerMode, decideOpen, defaultAgent, heldNames, herdrName, launchArgs, otherDevicesNote, parseOpenKey } from '../../src/app/open-session.js';
 import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -78,6 +78,23 @@ test("decideOpen --session refuses another device, an unknown id and a mismatchi
   const record = live('claude', 'c1');
   assert.deepEqual(decideOpen({ rows, records: [record] }, 'MP-12', 'host', { chosen: 'claude', target: 'c1' }), { action: 'focus', agent: 'claude', live: record });
   assert.deepEqual(decideOpen(found, 'MP-12', 'host', { chosen: 'pi', target: 'c1' }), { action: 'resume', agent: 'claude', nativeId: 'c1' });
+});
+
+test('otherDevicesNote names the other devices only when this device has no session of the key', () => {
+  const rows = [row('pi', 'p1', 'elsewhere', 1), row('claude', 'c3', 'third', 2), row('claude', 'c4', 'elsewhere', 3)];
+  const note = (rows: SessionRow[], request: Parameters<typeof decideOpen>[3]) => {
+    assert.deepEqual(decideOpen({ rows, records: [] }, 'MP-12', 'host', request), { action: 'start', agent: request.chosen });
+    return otherDevicesNote(rows, 'MP-12', 'host', request);
+  };
+  assert.equal(note(rows, { chosen: 'claude' }), 'sessions of MP-12 on elsewhere, third stay there; started a new one');
+  assert.equal(otherDevicesNote([...rows, row('claude', 'c5', 'host', 4)], 'MP-12', 'host', { chosen: 'claude' }), null);
+  assert.equal(note(rows, { chosen: 'claude', new: true }), null);
+  assert.equal(otherDevicesNote(rows, 'MP-12', 'host', { chosen: 'claude', target: 'p1' }), null);
+  assert.equal(note([], { chosen: 'claude' }), null);
+  const claudeOnly = [row('claude', 'c3', 'third', 2), row('claude', 'c4', 'elsewhere', 3)];
+  assert.equal(note(claudeOnly, { chosen: 'pi', agent: 'pi' }), null);
+  assert.equal(note([...claudeOnly, row('pi', 'p1', 'elsewhere', 1)], { chosen: 'pi', agent: 'pi' }),
+    'sessions of MP-12 on elsewhere stay there; started a new one');
 });
 
 test('herdrName gives the base, then <base>-<agent>, then a number, within 32 characters', () => {

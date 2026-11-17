@@ -434,6 +434,23 @@ test('deliverOnOpen takes only message rows and none claimed by another session'
   assert.equal(claims()[1]!.claimedBy, rowId('x1'));
 });
 
+test('deliverOnOpen waits for the record of the opened session, not another live session of the key', async t => {
+  const { filename, run, proc, register, delivered, calls, transport, claims, rowId, tick } = fixture(t);
+  register(101, '/s/p101.sock', 'pi', 'p101', 'MP-12');
+  const app = createApp(filename, false, tick);
+  try {
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' });
+    app.sessions(undefined).activate({ key: 'MP-12', agent: 'pi', nativeId: 'p102' });
+  } finally { app.close(); }
+  let pauses = 0;
+  const appear = async () => { if (++pauses === 2) register(102, '/s/p102.sock', 'pi', 'p102', 'MP-12'); };
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p102' }, null,
+    { pi: transport(ids => ids), pause: appear }, run, proc, wait), { rows: [1], failure: null });
+  assert.deepEqual(calls, [{ socket: '/s/p102.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go on') }] }]);
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.equal(claims()[0]!.claimedBy, rowId('p102'));
+});
+
 test('send delivers a message live to the child, marks it and starts with the parent frame', async t => {
   const { filename, run, proc, register, delivered, journal, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
