@@ -33,6 +33,7 @@ export interface ExtensionAPI {
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
+  on(name: 'input', handler: (event: { text: string; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' }>): void;
   registerTool(tool: AskTool): void;
 }
 
@@ -168,6 +169,12 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     starting = undefined;
     started = undefined;
     done?.();
+  });
+  pi.on('input', async event => {
+    if (event.source === 'interactive' && key !== undefined && registered !== undefined) {
+      await pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', registered], { cwd: root, timeout: 5000 }).catch(() => undefined);
+    }
+    return { action: 'continue' };
   });
   pi.on('before_agent_start', event => {
     const options = event.systemPromptOptions;
