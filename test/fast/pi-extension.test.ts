@@ -583,7 +583,7 @@ test('pi extension continues interactive input without waiting for session promp
   pi.state.key = 'MP';
   await pi.start('startup');
   pi.state.result = () => new Promise<never>(() => {});
-  assert.deepEqual(await input('interactive'), { action: 'continue' });
+  assert.deepEqual(await Promise.race([input('interactive'), Promise.resolve().then(() => 'still waiting')]), { action: 'continue' });
   assert.deepEqual(pi.calls.at(-1), ['node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', 's1'], { cwd: root, timeout: 5000 }]);
 });
 
