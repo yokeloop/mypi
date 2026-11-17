@@ -1,8 +1,7 @@
 import { existsSync, lstatSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { throttleProgress } from './clone-progress.js';
-import { createApp } from './create-app.js';
-import { appendFact } from './journal-facts.js';
+import type { SessionRunner } from './session-operations.js';
 import { cloneRepository, initRepository, projectGit } from '../infrastructure/git/project-git.js';
 import { checkoutTarget, cloneStaging, planCheckout, stagingPid } from '../modules/projects/public.js';
 import type { CheckoutState, Project } from '../modules/projects/public.js';
@@ -50,7 +49,7 @@ function describe(state: CheckoutState, expected: string | null): string {
     : state.kind === 'other' ? state.reason : state.kind;
 }
 
-export async function prepareCheckout(filename: string, project: Project, projectsRoot: string, options: PrepareOptions = {}): Promise<PreparedCheckout> {
+export async function prepareCheckout(runner: SessionRunner, project: Project, projectsRoot: string, options: PrepareOptions = {}): Promise<PreparedCheckout> {
   const identity = project.org + '/' + project.slug;
   if (options.signal?.aborted) throw new CancelledError('open cancelled while preparing ' + identity + '; nothing was registered');
   const target = checkoutTarget(projectsRoot, project);
@@ -96,33 +95,23 @@ export async function prepareCheckout(filename: string, project: Project, projec
     }
   }
   const action = plan === 'clone' ? 'cloned' : plan === 'init' ? 'initialized' : 'adopted';
-  const app = createApp(filename, false);
   try {
-    const registered = (() => {
-      try {
-        return app.serialize(() => {
-          const result = app.projects.updateCheckout(identity, null, target);
-          appendFact(app, { type: 'project', key: project.code }, 'clone_prepared',
-            'clone prepared: ' + action + ' ' + result.checkoutPath! + (action === 'cloned' ? ' from ' + repository : ''));
-          return result;
-        });
-      } catch (error) {
-        if (!(error instanceof InputError)) throw error;
-        throw new InputError(target + ' is ready (' + action + ') but registering it failed: ' + error.message
-          + '; the directory was kept; register it with mypi project update ' + identity + ' --expected-unset --path ' + target
-          + ' (projects {"action":"update","identity":"' + identity + '","expectedCheckoutPath":null,"checkoutPath":"' + target + '"})');
-      }
-    })();
-    return { code: project.code, checkoutPath: registered.checkoutPath!, action };
-  } finally { app.close(); }
+    const { checkoutPath } = await runner.run('checkout_record', { identity, checkoutPath: target, action, ...(action === 'cloned' ? { repository } : {}) });
+    return { code: project.code, checkoutPath, action };
+  } catch (error) {
+    if (!(error instanceof InputError)) throw error;
+    throw new InputError(target + ' is ready (' + action + ') but registering it failed: ' + error.message
+      + '; the directory was kept; register it with mypi project update ' + identity + ' --expected-unset --path ' + target
+      + ' (projects {"action":"update","identity":"' + identity + '","expectedCheckoutPath":null,"checkoutPath":"' + target + '"})');
+  }
 }
 
-export async function prepareCheckouts(filename: string, projects: Project[], projectsRoot: string,
+export async function prepareCheckouts(runner: SessionRunner, projects: Project[], projectsRoot: string,
   options: PrepareOptions = {}): Promise<PreparedCheckout[]> {
   const unique = projects.filter((p, i) => projects.findIndex(q => q.id === p.id) === i);
   const done: PreparedCheckout[] = [];
   for (const project of unique) {
-    try { done.push(await prepareCheckout(filename, project, projectsRoot, options)); } catch (error) {
+    try { done.push(await prepareCheckout(runner, project, projectsRoot, options)); } catch (error) {
       if (done.length === 0) throw error;
       const message = (error as Error).message + '; already prepared and registered: '
         + done.map(d => d.code + ' at ' + d.checkoutPath).join(', ') + '; nothing was opened';
