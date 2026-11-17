@@ -49,12 +49,22 @@ export function defaultAgent(settings: string | undefined): Agent {
 export type OpenDecision = { action: 'focus'; agent: Agent; live: RegistryRecord }
   | { action: 'resume'; agent: Agent; nativeId: string } | { action: 'start'; agent: Agent };
 
-export function decideOpen(found: { row: SessionRow | undefined; live: RegistryRecord | undefined; records: RegistryRecord[] }, chosen: Agent): OpenDecision {
-  if (found.live) return { action: 'focus', agent: found.live.agent, live: found.live };
-  const other = found.records[0];
-  if (other) return { action: 'focus', agent: other.agent, live: other };
-  if (found.row) return { action: 'resume', agent: found.row.agent, nativeId: found.row.nativeId };
-  return { action: 'start', agent: chosen };
+export type OpenRequest = { chosen: Agent; agent?: Agent; new?: boolean; target?: string };
+
+export function decideOpen(found: { rows: SessionRow[]; records: RegistryRecord[] }, _key: string, _device: string, request: OpenRequest): OpenDecision {
+  const row = found.rows[0];
+  const live = found.records.find(r => row !== undefined && r.agent === row.agent && r.nativeId === row.nativeId) ?? found.records[0];
+  if (live) return { action: 'focus', agent: live.agent, live };
+  if (row) return { action: 'resume', agent: row.agent, nativeId: row.nativeId };
+  return { action: 'start', agent: request.chosen };
+}
+
+export function herdrName(base: string, _agent: Agent, _held: ReadonlySet<string>): string {
+  return base;
+}
+
+export function heldNames(_records: RegistryRecord[]): Set<string> {
+  return new Set();
 }
 
 export function launchArgs(decision: Exclude<OpenDecision, { action: 'focus' }>, key: string, mode: string | null, uuid: string): string[] {

@@ -101,7 +101,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
     try {
       const app = createApp(filename, true);
       const found = (() => { try { return app.sessions(c.runtime, proc).lookup(key); } finally { app.close(); } })();
-      const decision = decideOpen(found, chosen);
+      const decision = decideOpen(found, key, '', { chosen });
       const notes: string[] = [];
       const entry = entries.get(key)!;
       const note = entry.code === null ? undefined : prepared.get(entry.code);

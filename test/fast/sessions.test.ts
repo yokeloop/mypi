@@ -128,6 +128,38 @@ test('clear in an inactive session does not take the active row (decision 2)', t
   assert.deepEqual(x.files(), ['MP~201.json', 'MP~202.json']);
 });
 
+test('a registry record without herdrName stays live and one with a non-string herdrName is pruned', t => {
+  const x = fixture(t);
+  x.alive(101); x.alive(102); x.alive(103);
+  mkdirSync(join(x.run, 'mypi'), { mode: 0o700 });
+  mkdirSync(x.sessionsDir, { mode: 0o700 });
+  const stored = (key: string, nativeId: string, pid: number) => ({ key, agent: 'claude', nativeId, pid, start: '1', name: null, socket: null,
+    permissionMode: null, registeredAt: at });
+  writeFileSync(join(x.sessionsDir, 'MP~101.json'), JSON.stringify(stored('MP', 'c1', 101)) + '\n', { mode: 0o600 });
+  writeFileSync(join(x.sessionsDir, 'OT~102.json'), JSON.stringify({ ...stored('OT', 'o2', 102), herdrName: 5 }) + '\n', { mode: 0o600 });
+  x.s(s => s.register(x.claude('g3', 103)));
+  assert.ok(x.files().includes('MP~101.json'));
+  assert.ok(!x.files().includes('OT~102.json'));
+  assert.deepEqual(x.s(s => s.lookup('MP')).records.map(r => [r.nativeId, r.pid]), [['c1', 101]]);
+});
+
+test('register stores herdrName and activate makes the row active', t => {
+  const x = fixture(t);
+  x.alive(101); x.alive(102); x.alive(103);
+  x.ts(s => s.register({ ...x.claude('c1', 101, { envScope: 'MP-12' }), herdrName: 'mp-12' }));
+  assert.equal(x.record('MP-12~101.json')['herdrName'], 'mp-12');
+  x.ts(s => s.register({ agent: 'pi', nativeId: 'p2', pid: 102, name: null, socket: null, fork: false, envScope: 'MP-12' }));
+  assert.equal(x.ts(s => s.lookup('MP-12')).row!.nativeId, 'c1');
+  x.ts(s => s.activate({ key: 'MP-12', agent: 'pi', nativeId: 'p2' }));
+  assert.equal(x.ts(s => s.lookup('MP-12')).row!.nativeId, 'p2');
+  x.ts(s => s.activate({ key: 'MP-12', agent: 'claude', nativeId: 'u1' }));
+  const u1 = x.ts(s => s.lookup('MP-12')).row!;
+  assert.deepEqual([u1.key, u1.agent, u1.nativeId, u1.device], ['MP-12', 'claude', 'u1', hostname()]);
+  const count = x.rows().length;
+  x.ts(s => s.register(x.claude('u1', 103, { envScope: 'MP-12' })));
+  assert.equal(x.rows().length, count);
+});
+
 test("UserPromptSubmit input counts only the engineer's own prompt", () => {
   const input = (extra: Record<string, unknown> = {}) =>
     JSON.stringify({ hook_event_name: 'UserPromptSubmit', session_id: 'c1', prompt: 'привет', ...extra });

@@ -9,7 +9,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
   const matches = (record: { agent: Agent; nativeId: string }, row: { agent: Agent; nativeId: string } | undefined) =>
     row !== undefined && record.agent === row.agent && record.nativeId === row.nativeId;
   return {
-    register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string }):
+    register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string; herdrName?: string }):
       { key: string; registered: boolean } {
       if (typeof input.nativeId !== 'string' || input.nativeId === '' || input.nativeId.length > 256
         || /[\u0000-\u001f\u007f]/.test(input.nativeId)) throw new InputError('Invalid native session id');
@@ -96,6 +96,9 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
       }
       return root;
     },
+    device(): string { return ''; },
+    liveRecords(): RegistryRecord[] { return []; },
+    activate(_input: { key: string; agent: Agent; nativeId: string }): void {},
     resolve(hint: { agent: Agent; nativeId: string; pid: number }): string | undefined {
       const key = store.byNative(hint.agent, hint.nativeId)?.key;
       if (key !== undefined) return key;

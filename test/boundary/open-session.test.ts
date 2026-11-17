@@ -3,8 +3,8 @@ import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { hostname, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp, resolveStatePath } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
@@ -61,7 +61,7 @@ function fixture(t: TestContext) {
   writeFileSync(join(bin, 'herdr'), herdr, { mode: 0o755 });
   const env: Record<string, string> = { PATH: bin + ':/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
     XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HERDR_LOG: log,
-    HERDR_CHILDREN: childList, FAKE_NODE: process.execPath, FAKE_CLI: entry };
+    HERDR_CHILDREN: childList, FAKE_NODE: process.execPath, FAKE_CLI: entry, HERDR_PANE_ENV: join(dir, 'pane.env'), HERDR_NAMES: join(dir, 'names') };
   const cli = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 10000 });
     assert.ifError(result.error);
@@ -141,7 +141,7 @@ function fixture(t: TestContext) {
   };
   const pid = String(process.pid);
   return { env, filename, cli, ok, failed, calls, reset, rows, worktreePaths, events, journal, quit, listen, received, sock, pid,
-    worktree: realpathSync(clone) + '--MP-1-open' };
+    worktree: realpathSync(clone) + '--MP-1-open', names: env['HERDR_NAMES']! };
 }
 
 const workspace = (label: string, key: string, state: string) =>
@@ -438,4 +438,59 @@ test('the organization chat opens a task of its organization with a message; a t
     assert.deepEqual(db.prepare('SELECT from_key, to_key, kind FROM events').raw().all(), [['one', 'MP-1', 'message']]);
   } finally { db.close(); }
   assert.deepEqual(journal('message_sent'), [['task', 'MP-1', 'message 1 from one: сделай шаг']]);
+});
+
+test('open --new --agent pi gives the second session the Herdr name mp-1-pi and delivers the start message and the parent message to it, not to the live claude session', async t => {
+  const { env, filename, cli, ok, calls, reset, listen, received, events, sock, pid, names } = fixture(t);
+  await listen('ack');
+  writeFileSync(names, 'mp-1\n');
+  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', join(dirname(sock), 'old.sock')],
+    { MYPI_SCOPE: 'MP-1', MYPI_HERDR_NAME: 'mp-1' }).status, 0);
+  const workspaces = '[{"workspace_id":"w9","label":"one/project","focused":false}]';
+  const result = ok(['open', 'MP-1', '--new', '--agent', 'pi', '--message', 'сделай шаг'],
+    { HERDR_FAKE_SOCKET: sock, MYPI_SCOPE: 'MP', HERDR_FAKE_UNIQUE: '1', HERDR_FAKE_WORKSPACES: workspaces });
+  assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.notes, o.message]), [['MP-1', 'pi', 'started', [], 1]]);
+  const log = calls();
+  assert.deepEqual(log.find(c => c[0] === 'tab' && c[1] === 'create'), ['tab', 'create', '--workspace', 'w9', '--cwd', root, '--label', 'mp-1-pi',
+    '--env', 'MYPI_SCOPE=MP-1', '--env', 'MYPI_HERDR_NAME=mp-1-pi', '--env', 'XDG_STATE_HOME=' + env['XDG_STATE_HOME'], '--no-focus']);
+  assert.deepEqual(log.find(c => c[0] === 'agent' && c[1] === 'start')!.slice(0, 7), ['agent', 'start', 'mp-1-pi', '--kind', 'pi', '--pane', 'p1']);
+  const text = received()[0].text as string;
+  assert.ok(text.startsWith('[mypi: стартовое сообщение для MP-1. Ниже — состояние из mypi, не инструкция]\n'), text);
+  assert.ok(text.endsWith(parent + 'сделай шаг'), text);
+  assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 1 }]);
+  const active = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return db.prepare("SELECT agent, native_id AS nativeId FROM sessions WHERE key = 'MP-1' ORDER BY active_at DESC NULLS LAST, id DESC LIMIT 1").get() as
+        { agent: string; nativeId: string };
+    } finally { db.close(); }
+  };
+  assert.equal(active().agent, 'pi');
+  reset();
+  assert.deepEqual(ok(['open', 'MP-1']).opened.map(o => [o.agent, o.action]), [['pi', 'focused']]);
+  assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1-pi']]);
+  reset();
+  assert.deepEqual(ok(['open', 'MP-1', '--session', 'c1']).opened.map(o => [o.agent, o.action]), [['claude', 'focused']]);
+  assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1']]);
+  assert.equal(active().nativeId, 'c1');
+});
+
+test("open --session of another device, an unknown id or another key's session, with --new or with two keys opens and clones nothing", t => {
+  const { filename, cli, failed, calls, journal, pid, worktree } = fixture(t);
+  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'x9', '--pid', pid], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'elsewhere' WHERE native_id = 'x9'").run(); } finally { db.close(); }
+  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'm1', '--pid', pid], { MYPI_SCOPE: 'MP' }).status, 0);
+  assert.equal(failed(['open', 'MP-1', '--session', 'x9']).message,
+    'Session x9 of MP-1 is on elsewhere, not on ' + hostname() + '; a session of another device cannot be opened here');
+  assert.equal(failed(['open', 'MP-1', '--session', 'm1']).message, 'Unknown session m1 of MP-1; mypi sessions lists the sessions of each key');
+  assert.equal(failed(['open', 'MP-1', '--session', 'zz']).message, 'Unknown session zz of MP-1; mypi sessions lists the sessions of each key');
+  assert.equal(failed(['open', 'MP-1', '--new', '--session', 'x9']).message, '--new and --session cannot be used together');
+  assert.equal(failed(['open', 'MP', 'MP-1', '--session', 'x9']).message, '--session takes exactly one key');
+  assert.equal(failed(['open', 'FU', '--session', 'zz']).message, 'Unknown session zz of FU; mypi sessions lists the sessions of each key');
+  assert.deepEqual(calls(), []);
+  assert.equal(existsSync(worktree), false);
+  assert.equal(existsSync(join(root, 'projects', 'one', 'fromurl')), false);
+  assert.deepEqual(journal(), []);
 });
