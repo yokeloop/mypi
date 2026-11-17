@@ -64,15 +64,24 @@ between Claude and Pi, and later between devices.
    engineer prompt, `/inbox` or warmup, no timer; a takeover during a send in
    flight can repeat a row (at-least-once). At-least-once from ADR 0001 stays.
 7. Pointer after a switch. When the engineer writes to a session that was not the
-   active one and it already had a turn, one line tells it which session worked in
-   the scope since its last turn and where to read more (MP-143):
+   active one and it already had a turn, or writes the first time to a new session
+   after another session of the scope had a turn, one line tells it which session
+   worked in the scope since its last turn and where to read more (MP-143):
    `[mypi: с вашего прошлого хода в <KEY> работала сессия <agent> на <device>: <n>
    записей журнала, <m> коммитов в ветке; подробнее — journal <KEY>]`, at most 200
    characters (the device is shortened with `…`). With another device of the
    previous session the commit part is `сначала git pull`; commits are counted only
    for a task key with a recorded worktree. Entries and commits are counted after
-   the session's own last `active_at`. An ordinary turn, a second message in a row
-   and a new session get nothing; a failure computing the line prints nothing and
+   the session's own last `active_at`. A new session has had no turn while its
+   `active_at` is unset or equals its `created_at`: registration and /open give a
+   new row the `active_at` of its `created_at`, so the first live session on its
+   device stays active (decision 4) and still gets the line, which names the other
+   session with the latest turn and counts from the new session's start. After
+   `/clear` in the active session the new row takes the previous row's `active_at`
+   and gets nothing; when the previous row had no turn yet, the new row stays new
+   and keeps its pointer. A resume of an existing row in the same process gets the
+   current time and becomes active. An ordinary turn, a second message in a row and the first
+   session of a scope get nothing; a failure computing the line prints nothing and
    rolls back neither `active_at` nor the claim. Claude gets the line as the stdout
    of the `UserPromptSubmit` hook. Pi waits for `session prompt --no-deliver` and
    returns `transform`: the line and a blank line before the engineer's text, or
