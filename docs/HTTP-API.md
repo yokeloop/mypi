@@ -22,7 +22,7 @@ mypi serve [--listen <IP>] [--port <n>]
   a second delivery (Ctrl+C reaches the whole process group) is harmless. The CLI exits
   with the child's exit code; a child killed by a signal gives 128 + the signal number.
 - It refuses to start without any API token, without an initialized database, or
-  with a database schema other than the one the engine expects (12).
+  with a database schema other than the one the engine expects (17).
 
 ## Network
 
@@ -307,6 +307,216 @@ systemctl --user enable --now mypi-api
 
 Add `Environment=XDG_STATE_HOME=…` or `Environment=XDG_CONFIG_HOME=…` when the state
 or the token file is not at the defaults.
+
+## Server and devices
+
+The database (`state.sqlite3`) and the archive (`archive.sqlite3`) live on one always-on
+server that runs `mypi serve`; `home`, project clones, worktrees, the session registry,
+sockets, Herdr and transcripts stay on each device. A device works in
+[remote mode](M1-CLI.md#remote-mode), which says what goes to the server, what is refused and
+how `server.json` is read. The session model is in
+[sessions](agents/sessions.md#session-registry-and-open) and
+[ADR 0006](../.yoke/adr/0006-many-sessions-per-scope.md).
+
+### Server
+
+- The server is an engine clone without `home`; `bootstrap` is not run there. Build it by
+  `mise.toml`:
+
+  ```sh
+  git clone <engine-repository> <engine>
+  cd <engine>
+  mise install
+  mise exec -- pnpm install --frozen-lockfile
+  mise exec -- pnpm build
+  ```
+
+- Its database is either moved from a device ([Move to the server](#move-to-the-server)) or
+  new (`mypi db init`; the same call is a no-op on the same schema).
+- One `device` token per device: `mypi token create <device-name> --permission device`. It is
+  printed once; its rights are in [Tokens](#tokens). Before rolling the engine back to an
+  older version, revoke the `device` tokens as [Tokens](#tokens) describes.
+- Network: `--listen <tailscale-ip>`; the port is never published to the internet
+  ([Network](#network)).
+- Unit: the [systemd user unit](#systemd-user-unit-example) example (it already has
+  `serve --listen <tailscale-ip>`, `Restart=on-failure` and `Environment=` for non-default
+  state and token paths). To keep the user unit running without a login:
+
+  ```sh
+  loginctl enable-linger
+  systemctl --user enable --now mypi-api
+  ```
+
+- The server and every device run one engine version (otherwise
+  `engine version <a> differs from server <b>`): update them together and restart the server
+  after the update ([Stability](#stability),
+  [Engine updates and migrations](#engine-updates-and-migrations)).
+
+### Devices
+
+- Each device has its own `home` (a clone of home's `origin`) and its own project clones
+  through Git; there is no database on the device.
+- `server.json` (0600) holds the `url`, the `device` token and the device name; its format and
+  rules are in [remote mode](M1-CLI.md#remote-mode). Write it with:
+
+  ```sh
+  (umask 077; mkdir -p "${XDG_CONFIG_HOME:-$HOME/.config}/mypi" &&
+    printf '{"url":"%s","token":"%s","device":"%s"}\n' <url> <token> <device-name> \
+      > "${XDG_CONFIG_HOME:-$HOME/.config}/mypi/server.json")
+  ```
+
+- Clone paths are recorded on the server and are the same on every device. On a new device,
+  clone by hand with `git clone <repository> <path>` at the recorded path; until then
+  `task worktree` and `open` answer with a hint naming that command
+  ([remote mode](M1-CLI.md#remote-mode)).
+- Rule: push `home` changes right after each commit; after switching to another device,
+  `git pull` in `home` and in the task's clone or worktree before working.
+
+### One scope on several devices
+
+- A session of another device is not resumed: `/open` on this device starts a new one and
+  writes `sessions of <KEY> on <devices> stay there; started a new one` to `notes`
+  ([sessions](agents/sessions.md#session-registry-and-open)).
+- On its first input the new session gets a pointer to the other session's work with
+  "git pull first" ([sessions](agents/sessions.md#events-and-parent-messages)).
+- The scope's messages are taken by the active live session through its subscription to
+  `GET /v1/changes`, on any device
+  ([ADR 0006](../.yoke/adr/0006-many-sessions-per-scope.md)).
+
+### Limitations
+
+- Server without `home`: `GET /v1/context` and MCP `context_read` answer 400
+  `Missing context file`; `GET /v1/projects/{CODE}/flow` returns only defaults
+  (`source: "default"`) and does not see the devices' `flow.json`; `POST /v1/tasks` and remote
+  MCP `task_create` write `source.md` into a non-Git `home/` on the server that no device
+  sees, so create tasks from a device (`mypi task create` or stdio MCP `task_create`). The
+  other `/v1` routes and every `POST /v1/ops` work without `home`.
+- `mypi backup` fails on a server without `home` (it checks every task's `source.md` and
+  artifacts in `home`); back the server up with `sqlite3 .backup`
+  ([Backup timer (example)](#backup-timer-example)).
+- Without the approved mypi MCP server in Claude there is no live delivery: messages wait for
+  input, `/inbox` or warmup ([sessions](agents/sessions.md#session-registry-and-open)).
+- Server unreachable: a device command exits with code 1 and
+  `mypi server unreachable: <url>` ([remote mode](M1-CLI.md#remote-mode)); hooks exit with
+  code 1 too, so the agent keeps working but Claude Code shows `UserPromptSubmit hook failed`
+  and `Stop hook failed`; once the server is back, subscriptions reconnect on their own within
+  the stream's `retry` (2 s) ([ADR 0006](../.yoke/adr/0006-many-sessions-per-scope.md#stand-facts)).
+- `send` from another device answers `delivered: false` although the recipient's subscription
+  delivers the message a fraction of a second later
+  ([ADR 0006](../.yoke/adr/0006-many-sessions-per-scope.md#stand-facts)).
+
+### Move to the server
+
+Moving a personal database is the user's step, taken only on separate permission; an agent
+never moves it on its own.
+
+1. On the device: `home` and worktrees are clean and pushed, agents are stopped, and the
+   device's engine has the server's version.
+2. Snapshot both databases into a new private directory:
+
+   ```sh
+   S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
+   mkdir -m 700 <dir>
+   sqlite3 "$S/state.sqlite3" ".backup <dir>/state.sqlite3"
+   [ ! -e "$S/archive.sqlite3" ] || sqlite3 "$S/archive.sqlite3" ".backup <dir>/archive.sqlite3"
+   ```
+
+   `archive.sqlite3` exists only after the first `archive import` or capture; the last line
+   skips a missing file, since `sqlite3` would otherwise create an empty one.
+3. Copy `<dir>` to the server over a private channel (any way, for example `scp`) and lay it
+   out into a server state directory that does not exist yet, with the checks `restore`
+   makes:
+
+   ```sh
+   (
+     set -e
+     S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
+     mkdir -p "$(dirname "$S")"
+     mkdir -m 700 "$S"
+     cp <dir>/*.sqlite3 "$S/"
+     chmod 600 "$S"/*.sqlite3
+     for f in "$S"/*.sqlite3; do
+       sqlite3 "$f" 'PRAGMA integrity_check;' 'PRAGMA foreign_key_check;' 'PRAGMA user_version;'
+     done
+     mypi db init
+   )
+   ```
+
+   The block stops at `mkdir` when the state directory already exists. Each database prints
+   `ok`, nothing, then `17` for `state.sqlite3` and `1` for `archive.sqlite3`; `mypi db init`
+   changes nothing on the same schema.
+4. On the server: a `device` token per device and the unit ([Server](#server)).
+5. On the device: `server.json` ([Devices](#devices)), then move the old state directory
+   aside instead of deleting it:
+
+   ```sh
+   S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
+   mv "$S" "$S.before-server"
+   mypi task list
+   ```
+
+   Without moving it aside, an accidental removal of `server.json` would silently return the
+   device to its stale local database; without the directory and without `server.json` a
+   command refuses (`Cannot open database because the directory does not exist`), with no
+   automatic initialization. `mypi task list` shows the server's tasks.
+
+### Roll back
+
+- Before the first write on the server, on the device:
+
+  ```sh
+  S="${XDG_STATE_HOME:-$HOME/.local/state}/mypi"
+  rm "${XDG_CONFIG_HOME:-$HOME/.config}/mypi/server.json"
+  mv "$S.before-server" "$S"
+  ```
+
+- After writes on the server: stop `serve` (`systemctl --user stop mypi-api`), take a
+  `.backup` of both databases on the server into a new private directory (the commands of step
+  2 of [Move to the server](#move-to-the-server)), copy it to the device and lay it out into
+  the device's missing state directory with the same checks (the block of step 3 without
+  `mypi db init`), then remove `server.json`:
+
+  ```sh
+  rm "${XDG_CONFIG_HOME:-$HOME/.config}/mypi/server.json"
+  mypi task list
+  ```
+
+  The moved-aside `mypi.before-server` stays untouched. Roll the engine back to a version
+  without `device` tokens only after revoking them ([Tokens](#tokens)).
+
+### Backup timer (example)
+
+Not installed automatically. `~/.config/systemd/user/mypi-backup.service`:
+
+```ini
+[Unit]
+Description=mypi database snapshot
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'd=<backup-dir>/$(date +%%F); mkdir -p -m 700 "$d" && sqlite3 <state-dir>/state.sqlite3 ".backup $d/state.sqlite3" && { [ ! -e <state-dir>/archive.sqlite3 ] || sqlite3 <state-dir>/archive.sqlite3 ".backup $d/archive.sqlite3"; }'
+```
+
+`~/.config/systemd/user/mypi-backup.timer`:
+
+```ini
+[Unit]
+Description=Daily mypi database snapshot
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+
+[Install]
+WantedBy=timers.target
+```
+
+```sh
+systemctl --user enable --now mypi-backup.timer
+```
+
+`.backup` is safe while `serve` runs; `%%` escapes `%` in systemd units; the timer never
+removes old snapshots.
 
 ## Web UI
 
