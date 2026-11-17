@@ -60,6 +60,15 @@ export function sessionRegistryDir(runtime: string | undefined): string {
   return join(runtime, 'mypi', 'sessions');
 }
 
-export function serverConfigPath(_env: Readonly<Record<string, string | undefined>>): string | undefined {
-  throw new Error('Not implemented');
+export function serverConfigPath(env: Readonly<Record<string, string | undefined>>): string | undefined {
+  const root = env['XDG_CONFIG_HOME'] || join(env['HOME'] ?? '', '.config');
+  if (!isAbsolute(root)) return undefined;
+  return join(root, 'mypi', 'server.json');
 }
+
+function trustedPath(input: string): string {
+  if (!isAbsolute(input) || input.includes('\0')) throw new InputError('Checkout path must be absolute');
+  return input;
+}
+
+export const trustedCheckoutPaths = { canonicalDirectory: trustedPath, canonicalAbsoluteDirectory: trustedPath };
