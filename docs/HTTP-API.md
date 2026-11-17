@@ -173,9 +173,18 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
 - `op` is one of `project_list`, `project_add`, `project_update`, `project_resolve`,
   `project_remove`, `org_remove`, `status_list`, `status_add`, `status_rename`,
   `status_terminal`, `status_remove`, `task_list`, `task_show`, `journal_read`,
-  `event_list`; any other answers 400 `invalid_request` `Unknown operation: <op>`.
-- `input` holds exactly the fields of that command; a missing, mistyped or extra field
-  answers 400 `invalid_request` and nothing runs. No input names a server path.
+  `event_list`, `task_create`, `task_status`, `task_title`, `task_parent`, `task_touch`,
+  `task_progress`, `journal_add`, `context_guard`, `context_base`; any other answers 400
+  `invalid_request` `Unknown operation: <op>`.
+- `input` holds the fields of the command of the same name, except `task_create` (no
+  `source` and no `adoptSource`: the device writes `source.md`), `task_status` (`session`
+  is only `{agent, nativeId}`; the server finds the caller by that session, else
+  `envScope`) and `task_progress` (`artifacts` are paths relative to the task folder plus
+  the home `commit`); `context_guard` `{paths?}` answers `{frozen, fingerprints}` and
+  `context_base` `{scope} | {project}` answers `{path}` for the device's own home writes.
+  A missing, mistyped or extra field answers 400 `invalid_request` and nothing runs. No
+  input names a server path; context paths are only lookup keys, the server never opens
+  them.
 - `version` must equal the server's engine version, else 409 `version_mismatch`
   `engine version <a> differs from server <b>`.
 
