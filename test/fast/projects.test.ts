@@ -145,7 +145,8 @@ test('local is refused as a new repository in add and update', t => {
   const { filename } = state(t);
   const app = createApp(filename, false);
   try {
-    const refusal = /^Invalid repository "local": local is no longer accepted; give the Git remote URL; use https:\/\/, ssh:\/\/, file:\/\/, \[user@\]host:path or an absolute path$/;
+    const refusal = { name: 'InputError',
+      message: /^Invalid repository "local": local is no longer accepted; give the Git remote URL; use https:\/\/, ssh:\/\/, file:\/\/, \[user@\]host:path or an absolute path$/ };
     assert.throws(() => app.projects.add('one/local', 'LC', undefined, 'local'), refusal);
     assert.deepEqual(app.projects.list(), []);
     const url = 'git@github.com:one/project.git';
