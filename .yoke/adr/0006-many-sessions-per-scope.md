@@ -73,10 +73,12 @@ between Claude and Pi, and later between devices.
    previous session the commit part is `сначала git pull`; commits are counted only
    for a task key with a recorded worktree. Entries and commits are counted after
    the session's own last `active_at`. A new session has had no turn while its
-   `active_at` is unset or equals its `created_at`: registration and /open give a
-   new row the `active_at` of its `created_at`, so the first live session on its
-   device stays active (decision 4) and still gets the line, which names the other
-   session with the latest turn and counts from the new session's start. After
+   `active_at` is unset or equals its `created_at`: when registration or /open makes
+   a row without a turn active, in either order, both its `created_at` and its
+   `active_at` take the current time, so the first live session on its device
+   stays active (decision 4) and still gets the line, which names the other session
+   with the latest turn and counts from the new session's start; /open of a row
+   that is already active leaves it as it is. After
    `/clear` in the active session the new row takes the previous row's `active_at`
    and gets nothing; when the previous row had no turn yet, the new row stays new
    and keeps its pointer. A resume of an existing row in the same process gets the

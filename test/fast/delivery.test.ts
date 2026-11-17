@@ -497,6 +497,40 @@ test('a new session alone on its device after a session on another device gets �
   assert.equal(await promptAs('c3', {}, 'claude'), '');
 });
 
+test('a new session registered by its hook and then opened on another device gets сначала git pull', async t => {
+  const { filename, run, proc, die, register, prompt, promptAs, tick } = fixture(t);
+  register(101, null);
+  prompt('p101');
+  die(101);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p101'").run(); } finally { db.close(); }
+  register(103, null, 'claude', 'c3');
+  const app = createApp(filename, false, tick);
+  try { app.sessions(run, proc).activate({ key: 'MP', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  assert.equal(activeOf(filename, run, proc), 'c3');
+  const line = await promptAs('c3', {}, 'claude');
+  assert.ok(line.endsWith(', сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes('работала сессия pi на other-host: '), line);
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session registered by its hook and then opened on the same device counts commits', async t => {
+  const { filename, run, proc, die, register, prompt, tick } = fixture(t);
+  register(101, null, 'pi', 'p101', 'MP-12');
+  prompt('p101');
+  die(101);
+  register(103, null, 'claude', 'c3', 'MP-12');
+  const app = createApp(filename, false, tick);
+  try { app.sessions(run, proc).activate({ key: 'MP-12', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE tasks SET worktree_path = '/w/MP-12' WHERE number = 12").run(); } finally { db.close(); }
+  const asked: string[] = [];
+  const line = await promptSession(localSessionRunner(filename), { name: 'session_prompt', agent: 'claude', nativeId: 'c3', counted: true, runtime: run }, {}, proc,
+    worktree => { asked.push(worktree); return 3; });
+  assert.equal(line, '[mypi: с вашего прошлого хода в MP-12 работала сессия pi на ' + hostname() + ': 0 записей журнала, 3 коммитов в ветке; подробнее — journal MP-12]\n');
+  assert.deepEqual(asked, ['/w/MP-12']);
+});
+
 test('a new session that registers alone after a turn of a closed session gets the pointer', async t => {
   const { die, register, promptAs } = fixture(t);
   register(101, null);

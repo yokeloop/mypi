@@ -11,6 +11,7 @@ export interface SessionStore {
   byNative(agent: Agent, nativeId: string): SessionRow | undefined;
   save(row: NewSession): number;
   touch(id: number, at: string): void;
+  renew(id: number, at: string): void;
   removeKey(key: string): number;
   list(): SessionRow[];
 }
