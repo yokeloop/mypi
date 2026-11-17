@@ -145,3 +145,21 @@ between Claude and Pi, and later between devices.
   `session prompt`, the engineer's text started the turn within 0.3 s and the
   claimed message arrived as a follow-up, acknowledged 83–98 ms after Enter, with
   no 2 s stall.
+- Stand 2026-11-17 (MP-143; Claude Code 2.1.326 on Haiku 4.5, Pi 1.5.2 on
+  openai-codex/gpt-6-luna, thinking off): Pi stores the transformed text as the
+  user message. After a switch, the session file's `user` message is the pointer
+  line, a blank line and the engineer's text (`[mypi: с вашего прошлого хода в
+  FX-1 работала сессия claude на omarchy: 1 записей журнала, 1 коммитов в ветке;
+  подробнее — journal FX-1]` followed by the text, 136 code points for the line),
+  and the TUI shows it above the text. For `/skill:inbox …` the transform runs
+  before the expansion: the stored message is the expanded `<skill …>` block, then
+  the arguments, then the pointer line last, after a blank line. The archive
+  stores both Pi messages without the line, with `origin` `human`. Images were not
+  tested. Claude records the hook stdout as a separate transcript entry,
+  `type: "attachment"` with `attachment.type: "hook_success"` and
+  `hookEvent: "UserPromptSubmit"`. The model sees it; the typed `user` entry
+  (`turnOrigin: "human"`) does not contain it, and the archive keeps the
+  engineer's message without it. A first prompt in a session that never had
+  `active_at` prints nothing, and so does a repeat prompt. With the previous
+  session's `device` set to `other-host`, the line reads `…: 0 записей журнала,
+  сначала git pull; …`.
