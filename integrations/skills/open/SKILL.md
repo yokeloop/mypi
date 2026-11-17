@@ -1,14 +1,26 @@
 ---
 name: open
-description: Open or focus mypi sessions in Herdr tabs — "/open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]". Keys are an organization slug (tb-ff), a project code (MP), CODE-N (MP-12), org/project or org/project#N.
+description: Open or focus mypi sessions in Herdr tabs — "/open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]". Keys are an organization slug (tb-ff), a project code (MP), CODE-N (MP-12), org/project or org/project#N.
 ---
 
 The user asked to open sessions. Call the mypi tool `open_session` once with
-`keys` set to the keys from the arguments, `agent` from `--agent`,
-`permissionMode` from `--permission-mode` and `message` from `--message` (the
-whole rest of the line after it) when given. Do not open anything else, do not
-retry and do not start work in the opened sessions — except that a message given
-with --message is delivered as the parent's instruction.
+`keys` set to the keys from the arguments, `agent` from `--agent`, `new: true`
+from `--new`, `session` from `--session`, `permissionMode` from
+`--permission-mode` and `message` from `--message` (the whole rest of the line
+after it) when given. Do not open anything else, do not retry and do not start
+work in the opened sessions — except that a message given with --message is
+delivered as the parent's instruction.
+
+When there is one key and neither `--new` nor `--session` is given, first call
+`sessions` and find the node whose `key` equals the key (an organization, `CODE`
+or `CODE-N`; for the forms `org/project` and `org/project#N` no list is built).
+If that node has two sessions or more, show a table (agent, device, `activeAt`,
+`live|closed`) and ask the user "new or return": the options "As usual" (no
+flags), "New session" (the agent from `--agent`, else the default) and "Return:
+<agent> · <device> · <activeAt>" for each session; then call `open_session` once
+— without flags, with `new: true` or with `session: <nativeId>`. A session of
+another device is refused: pass the error text to the user. With one session or
+none, call `open_session` at once. The rule "one call, no retries" stays.
 
 Report each entry of `opened`: key, agent, focused/resumed/started, its `message`
 id and its notes, including a note that the start message was not delivered or
