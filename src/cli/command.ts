@@ -8,13 +8,13 @@ export type Command =
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
-  | { type: 'add'; identity: string; code: string; checkoutPath?: string; repository?: string }
+  | { type: 'add'; identity: string; code: string; checkoutPath?: string; repository: string }
   | { type: 'update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string;
     expectedRepository?: string | null; repository?: string };
 
 export const usage = `mypi db init
-mypi project add <org/project> --code <CODE> [--path <checkout>] [--repository <git-url|local>]
-mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url|local>]
+mypi project add <org/project> --code <CODE> --repository <git-url> [--path <checkout>]
+mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
@@ -69,10 +69,9 @@ export function parseCommand(args: string[]): Command {
     const { values, positionals } = parseArgs({
       args: rest, options: { code: { type: 'string' }, path: { type: 'string' }, repository: { type: 'string' } }, allowPositionals: true,
     });
-    if (positionals.length !== 1 || !values.code) throw new InputError('project add requires org/project and --code');
-    const command: Command = { type: 'add', identity: positionals[0]!, code: values.code };
+    if (positionals.length !== 1 || !values.code || !values.repository) throw new InputError('project add requires org/project, --code and --repository <git-url>');
+    const command: Command = { type: 'add', identity: positionals[0]!, code: values.code, repository: values.repository };
     if (values.path !== undefined) command.checkoutPath = values.path;
-    if (values.repository !== undefined) command.repository = values.repository;
     return command;
   }
   if (group === 'project' && action === 'update') {

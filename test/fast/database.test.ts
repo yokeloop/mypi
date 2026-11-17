@@ -12,7 +12,7 @@ import { state } from '../support/state.js';
 test('STRICT types, relational uniqueness and foreign keys are enforced by real SQLite', t => {
   const { filename } = state(t);
   const app = createApp(filename, false);
-  const p = app.projects.add('one/project', 'MP');
+  const p = app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
   app.close();
   const db = openDatabase(filename);
   t.diagnostic(JSON.stringify({ node: process.versions.node, sqlite: db.prepare('SELECT sqlite_version() AS version').get() }));
@@ -90,7 +90,7 @@ test('a fresh database lets a task go review → merged → done', t => {
   const { filename } = state(t);
   const app = createApp(filename, false);
   try {
-    const project = app.projects.add('one/project', 'MP');
+    const project = app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
     const task = app.tasks.create({ projectId: project.id, slug: 'ship', title: 'ship', status: 'review' }, () => {});
     const merged = app.tasks.change(task.id, { status: 'merged' }, 'merged');
     assert.equal(merged.changed, true);
@@ -501,8 +501,8 @@ test('sessions rows keep the scope shape, one native id per agent and the projec
   const { filename } = state(t);
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP');
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const db = openDatabase(filename);
   try {

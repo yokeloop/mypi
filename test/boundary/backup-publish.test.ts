@@ -45,7 +45,7 @@ test('published snapshot is exact, from fresh remote clone, keeps unrelated inde
   git('-C', home, 'config', 'user.name', 'Fixture'); git('-C', home, 'config', 'user.email', 'fixture@example.test');
   const app = createWorkspace(filename, false, home);
   contextFiles(home).create('INDEX.md', 'committed\n'); app.complete(['INDEX.md'], 'Add the global entry');
-  app.projects.add('sample/engine', 'SAMPLE');
+  app.projects.add('sample/engine', 'SAMPLE', undefined, 'file:///nonexistent/sample/engine.git');
   app.statuses.addStatus('checking', false);
   app.journal({ type: 'global' }, 'duplicate'); app.journal({ type: 'global' }, 'duplicate');
   app.journal({ type: 'global' }, 'large-' + 'x'.repeat(1_200_000));
@@ -136,7 +136,7 @@ test('push rejection retains exact local commit; required excluded files refuse,
   git('-C', home, 'config', 'user.name', 'Fixture'); git('-C', home, 'config', 'user.email', 'fixture@example.test');
   const app = createWorkspace(filename, false, home);
   contextFiles(home).create('INDEX.md', 'keep\n'); app.complete(['INDEX.md'], 'Add the global entry');
-  app.projects.add('sample/engine', 'SAMPLE');
+  app.projects.add('sample/engine', 'SAMPLE', undefined, 'file:///nonexistent/sample/engine.git');
   const card = app.tasks.create({ project: 'sample/engine', title: 'Required', status: 'new', slug: 'required', source: 'required' });
   app.close();
   writeFileSync(join(home, '.gitignore'), card.contextDir + '/source.md\n');

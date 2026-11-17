@@ -9,7 +9,7 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 
 test('writer reservation blocks a second source callback before number allocation completes', async t => {
   const { filename } = state(t);
-  const setup = createApp(filename, false); setup.projects.add('one/project', 'MP'); setup.close();
+  const setup = createApp(filename, false); setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); setup.close();
   const module = fileURLToPath(new URL('../../src/app/create-app.js', import.meta.url));
   const program = `import {createApp} from ${JSON.stringify(module)};
 const app=createApp(process.argv[1],false);
@@ -41,7 +41,7 @@ test('two simultaneous claims of one key give each row to one session', async t 
   const { filename } = state(t);
   const setup = createApp(filename, false);
   try {
-    setup.projects.add('one/project', 'MP');
+    setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
     setup.sessions(undefined).activate({ key: 'MP', agent: 'claude', nativeId: 'a' });
     setup.sessions(undefined).activate({ key: 'MP', agent: 'claude', nativeId: 'b' });
   } finally { setup.close(); }

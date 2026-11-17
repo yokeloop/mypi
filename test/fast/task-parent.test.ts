@@ -7,8 +7,8 @@ test('a parent task belongs to the same project, is not the task itself and crea
   const { filename } = state(t);
   const app = createApp(filename, false);
   try {
-    const first = app.projects.add('one/project', 'MP');
-    const other = app.projects.add('two/project', 'YM');
+    const first = app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
+    const other = app.projects.add('two/project', 'YM', undefined, 'file:///nonexistent/two/project.git');
     const create = (projectId: number, slug: string, parentId?: number, status = 'new') =>
       app.tasks.create({ projectId, slug, title: slug, status, ...(parentId === undefined ? {} : { parentId }) }, () => {});
     const a = create(first.id, 'a');

@@ -28,9 +28,9 @@ function fixture(t: TestContext, personal?: string) {
   write('projects/two/other/INDEX.md', '# Other\n\nforeign entry\n');
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP', clone);
-    app.projects.add('one/noclone', 'NC');
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', clone, 'file:///nonexistent/one/project.git');
+    app.projects.add('one/noclone', 'NC', undefined, 'file:///nonexistent/one/noclone.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const tasks: [string | null, number, string, string, string, string | null][] = [
     ['MP', 3, 'draft-api', 'Draft the API', 'new', null],

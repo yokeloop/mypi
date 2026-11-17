@@ -146,7 +146,7 @@ test('full-text index follows inserts, updates and deletes', t => {
 test('key binding prefers the sessions row, then a registered name, else NULL', t => {
   const { filename } = state(t);
   const setup = createApp(filename, false);
-  try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
+  try { setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { setup.close(); }
   const stateDb = openDatabase(filename);
   try {
     stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)

@@ -13,7 +13,7 @@ test('explicit legacy import preserves exact rows/files, empty input and replay;
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
-    app.projects.add('one/project', 'MP');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
     const card = app.tasks.create({ project: 'one/project', title: 'Legacy', status: 'new', slug: 'legacy', source: 'original' });
     const artifact = card.contextDir + '/proof.md', log = 'journal/2026-01.jsonl', empty = 'journal/2026-02.jsonl';
     contextFiles(root).create(artifact, 'evidence');

@@ -37,7 +37,7 @@ const cli = (args: string[]) => {
 function seeded(t: Parameters<typeof state>[0]) {
   const { dir, filename } = state(t);
   const setup = createApp(filename, false);
-  try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
+  try { setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { setup.close(); }
   const { archive, close } = createArchiveApp(filename, false);
   try {
     archive.record({ agent: 'claude', nativeId: 'c1', path: '/synthetic/c1.jsonl', read: read([entry('e1', 0, 'synthetic alpha one'), entry('e2', 20, 'synthetic alpha two')], 10, { name: 'MP' }) });

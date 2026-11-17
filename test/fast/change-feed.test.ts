@@ -11,7 +11,7 @@ test('change feed counts commits of other connections once and stays still witho
   assert.equal(feed.changeId(), 1);
   assert.equal(feed.poll(), false);
   const app = createApp(filename, false);
-  try { app.projects.add('one/project', 'MP'); } finally { app.close(); }
+  try { app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { app.close(); }
   assert.equal(feed.poll(), true);
   assert.equal(feed.changeId(), 2);
   assert.equal(feed.poll(), false);

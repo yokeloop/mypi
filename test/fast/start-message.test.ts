@@ -15,8 +15,8 @@ function fixture(t: TestContext) {
   mkdirSync(join(dir, 'clone'));
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP', join(dir, 'clone'));
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', join(dir, 'clone'), 'file:///nonexistent/one/project.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const tasks: [string, number, string, string, string, string | null][] = [
     ['MP', 3, 'draft-api', 'Draft the API', 'new', null],
@@ -64,7 +64,7 @@ test('organization start message lists each project\'s open tasks by status with
   const { filename } = fixture(t);
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/second', 'AB');
+    app.projects.add('one/second', 'AB', undefined, 'file:///nonexistent/one/second.git');
     app.events.emit({ from: 'MP-7', kind: 'turn_end', message: 'one', to: 'one' });
     app.events.emit({ from: 'MP-12', kind: 'waiting', message: 'two' });
     app.events.milestone({ from: 'MP-3', to: 'one', message: 'new → review: ready' });

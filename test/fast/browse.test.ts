@@ -44,8 +44,8 @@ function eventFixture(t: TestContext) {
   const { filename } = state(t);
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP');
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const tasks: [string, number, string][] = [['MP', 7, 'started'], ['MP', 12, 'scoped-warmup'], ['OT', 3, 'other']];
   const identities: Record<string, string> = { MP: 'one/project', OT: 'two/other' };

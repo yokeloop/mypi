@@ -8,6 +8,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp, resolveStatePath } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { seedRepository } from '../support/repository.js';
 
 const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
 const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
@@ -114,12 +115,13 @@ function fixture(t: TestContext) {
   const filename = resolveStatePath(env, dir);
   const app = createApp(filename, false);
   try {
-    const projectId = app.projects.add('one/project', 'MP', clone).id;
-    app.projects.add('one/noclone', 'NC');
+    const projectId = app.projects.add('one/project', 'MP', clone, bare).id;
+    app.projects.add('one/noclone', 'NC', undefined, 'file:///nonexistent/one/noclone.git');
     app.projects.add('one/fromurl', 'FU', undefined, bare);
-    app.projects.add('two/other', 'OT', other);
+    app.projects.add('two/other', 'OT', other, bare);
     app.tasks.create({ projectId, slug: 'open', title: 'open', status: 'new' }, () => {});
   } finally { app.close(); }
+  seedRepository(filename, 'NC', null);
   const calls = () => existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(line => line !== '').map(line => line.split('\u001f')) : [];
   const reset = () => rmSync(log, { force: true });
   const rows = () => {
@@ -266,7 +268,7 @@ test('open refuses without Herdr, without a clone and for unknown keys, leaving 
   assert.deepEqual(rows(), []);
   reset();
   for (const args of [['open', 'NC'], ['open', 'MP', 'NC']]) assert.match(failed(args).message, /has no clone/);
-  assert.match(failed(['open', 'NC']).message, /no repository to clone it from.*--expected-repository-unset --repository <git-url\|local>/);
+  assert.match(failed(['open', 'NC']).message, /no repository to clone it from.*"repository":"<git-url>"\}.*--expected-repository-unset --repository <git-url>\), then open it again$/);
   assert.match(failed(['open', 'FU'], { HERDR_FAKE: 'down' }).message, /^Herdr is not available/);
   assert.equal(existsSync(join(root, 'projects', 'one', 'fromurl')), false);
   reset();
@@ -427,7 +429,7 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
 
 test('open refuses an unknown organization, all, global and an organization without projects, leaving no tab or rows', t => {
   const { cli, failed, calls, rows } = fixture(t);
-  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO']).status, 0);
+  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO', '--repository', 'file:///nonexistent/empty/gone.git']).status, 0);
   assert.equal(cli(['project', 'remove', 'empty/gone', '--expected-code', 'GO']).status, 0);
   assert.match(failed(['open', 'nope']).message, /Unknown organization/);
   assert.match(failed(['open', 'one', 'nope']).message, /Unknown organization/);

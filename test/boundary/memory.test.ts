@@ -12,7 +12,7 @@ test('notes, errors and capture preserve originals, parent context and read-only
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
-    app.projects.add('one/project', 'MP'); app.projects.add('two/project', 'YM');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); app.projects.add('two/project', 'YM', undefined, 'file:///nonexistent/two/project.git');
     assert.equal(existsSync(join(root, 'projects')), false);
     const capture = app.capture('  draft\r\nexact\n');
     assert.equal(app.read(capture), '  draft\r\nexact\n');
@@ -33,7 +33,7 @@ test('journal_read global excludes projectless task events and rejects corrupt a
   let at = '2026-10-01T00:00:00Z';
   const app = createWorkspace(filename, false, root, () => at);
   try {
-    app.projects.add('one/project', 'MP'); app.projects.add('one/sibling', 'MS'); app.projects.add('two/project', 'YM');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); app.projects.add('one/sibling', 'MS', undefined, 'file:///nonexistent/one/sibling.git'); app.projects.add('two/project', 'YM', undefined, 'file:///nonexistent/two/project.git');
     app.statuses.addStatus('finished', true);
     app.tasks.create({ project: 'two/project', title: 'foreign', status: 'new', slug: 'foreign', source: 'x' });
     const global = legacyTask(filename, root, 1, 'global');
