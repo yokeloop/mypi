@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { executeCommand } from '../app/execute-command.js';
+import { runOperation } from '../app/operations.js';
 import { eventTransports } from '../app/event-transports.js';
 import { engineRoot, engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
 import { createChangeFeed } from '../app/change-feed.js';
@@ -58,7 +59,7 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   const instance = randomUUID(), version = engineVersion();
   const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
-    operate: async () => { throw new Error('Not implemented'); },
+    operate: async (name, input) => runOperation({ filename: options.filename, trustedPaths: true }, name, input as never),
     info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
     log: options.log });
   const remoteMcp = createRemoteMcp({ token: v => verifyApiToken(options.tokensFile, v),

@@ -1,4 +1,4 @@
-import type { AppCommand } from '../app/commands.js';
+import type { AppCommand, OperationName } from '../app/commands.js';
 import { EVENT_TYPES } from '../app/commands.js';
 import { runSequence } from '../app/task-sequence.js';
 import { InputError } from '../shared/errors.js';
@@ -6,6 +6,7 @@ import { bearer } from '../shared/bearer.js';
 import { PartialError } from '../shared/context.js';
 import { ApiError, decodeCursor, encodeCursor, fields, jsonBody, limit, literalTrue, nullableStr, query, str } from './validate.js';
 import * as shape from './shape.js';
+import { parseOperation } from './operations.js';
 import { clearSessionCookie, readSessionCookie, sessionCookie } from './session.js';
 
 export const API_VERSION = 1;
@@ -16,12 +17,12 @@ export type ApiRequest = { method: string; path: string; query: URLSearchParams;
 export type ApiResult = { status: number; body: unknown; token?: string; setCookie?: string } | { status: 200; stream: 'changes'; token: string };
 export type ApiInfo = { version: string; schemaVersion: number; changeId: number; instance: string };
 export type ApiDeps = { token(value: string): ApiToken | undefined; execute(command: AppCommand): Promise<unknown>;
-  operate(name: string, input: unknown): Promise<unknown>;
+  operate(name: OperationName, input: unknown): Promise<unknown>;
   info(): ApiInfo; runtime: string | undefined; log(line: string): void };
 
 type Caller = ApiToken & { via: 'bearer' | 'cookie' };
 type Reply = { status?: number; data: unknown } | { stream: 'changes' };
-type Route = { method: string; pattern: RegExp; permission: 'read' | 'write';
+type Route = { method: string; pattern: RegExp; permission: 'read' | 'write' | 'device';
   run(match: RegExpExecArray, request: ApiRequest, token: Caller): Promise<Reply> };
 type Page = { items: unknown[]; next: number | null };
 
@@ -155,6 +156,14 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
       if (q['revision'] !== undefined && !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(q['revision'])) throw invalid('Invalid revision');
       return { data: shape.context(await deps.execute({ name: 'context_read', path: q['path'], ...optional('revision', q['revision']) }) as never) };
     } },
+    { method: 'POST', pattern: /^\/v1\/ops$/, permission: 'device', run: async (_, r) => {
+      query(r.query, []);
+      const b = body(r, ['op', 'input', 'version'], []);
+      const op = str(b, 'op')!, version = str(b, 'version')!, server = deps.info().version;
+      if (version !== server) throw new ApiError(409, 'version_mismatch', 'engine version ' + version + ' differs from server ' + server);
+      const parsed = parseOperation(op, b['input']);
+      return { data: await deps.operate(parsed.name, parsed.input) };
+    } },
   ];
   const lookup = (value: string): { token: ApiToken | undefined } | { error: ApiResult } => {
     try { return { token: deps.token(value) }; } catch (error) {
@@ -204,6 +213,10 @@ export function createApi(deps: ApiDeps): (request: ApiRequest) => Promise<ApiRe
         throw new ApiError(403, 'forbidden', 'Browser sessions are read-only; use a bearer token for writes');
       }
       if (found.route.permission === 'write' && token.permission !== 'write') throw new ApiError(403, 'forbidden', 'This token is read-only');
+      if (found.route.permission === 'device' && token.via === 'cookie') {
+        throw new ApiError(403, 'forbidden', 'Operations need a device token in the Authorization header');
+      }
+      if (found.route.permission === 'device' && token.permission !== 'device') throw new ApiError(403, 'forbidden', 'Operations need a device token');
       const reply = await found.route.run(found.match!, request, token);
       if ('stream' in reply) return { status: 200, stream: 'changes', token: token.name };
       return { status: reply.status ?? 200, body: { apiVersion: API_VERSION, data: reply.data }, token: token.name };
