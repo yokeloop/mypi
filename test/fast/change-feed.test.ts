@@ -167,3 +167,26 @@ test('a change during a claim in flight causes exactly one more claim', async t 
     { transports: { pi }, runner: x.counting(n => { claims = n; if (n === 2) controller.abort(); }) }));
   assert.equal(claims, 2);
 });
+
+test('a refusing socket makes no more than one claim per retry period', async t => {
+  const x = subscription(t);
+  await x.register(101, 'p1', '/s/p1.sock');
+  await x.runner.run('message_create', { from: 'MP', to: 'MP-12', message: 'hi' });
+  const controller = new AbortController();
+  let feed: ReadableStreamDefaultController<Uint8Array> | undefined;
+  const change = (id: number) => feed!.enqueue(new TextEncoder().encode('event: change\ndata: {"changeId":' + id + '}\n\n'));
+  let claims = 0;
+  const paused: number[] = [];
+  const pi: EventTransport = async () => { change(10 + claims); throw new Error('ECONNREFUSED'); };
+  await subscribeInbox(x.options(101, controller, x.fetcher([signal => new Response(new ReadableStream<Uint8Array>({ start(c) {
+    feed = c;
+    c.enqueue(new TextEncoder().encode(initial));
+    change(2);
+    change(3);
+    signal.addEventListener('abort', () => { try { c.close(); } catch { return; } });
+  } }))]), { transports: { pi }, runner: x.counting(n => { claims = n; if (n >= 4) controller.abort(); }),
+    pause: async ms => { paused.push(ms); if (paused.length === 2) controller.abort(); } }));
+  assert.deepEqual(paused, [2000, 2000]);
+  assert.equal(claims, 2);
+  assert.deepEqual(x.events().map(e => [e.claimedBy, e.deliveredAt]), [[null, null]]);
+});

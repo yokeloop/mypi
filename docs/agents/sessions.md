@@ -133,4 +133,6 @@ Read when: working with session registration, /open, start messages, events, mil
   Without an approved mypi MCP server in Claude, messages wait for the engineer's
   input, `/inbox` or the warmup. With the server unreachable the subscription
   reconnects after the stream's `retry`. A takeover during a send can deliver twice
-  (at least once): Pi drops ids it already showed, Claude may show a message twice.
+  (at least once): Pi drops ids it already showed, Claude may show a message twice. After a
+  round that claimed events but delivered none (the socket refused or acknowledged
+  nothing) the subscription waits the stream's `retry` before it claims again.

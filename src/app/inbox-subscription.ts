@@ -1,6 +1,6 @@
 import { claimFor } from './delivery.js';
 import type { EventTransports } from './delivery.js';
-import type { SessionRunner } from './session-operations.js';
+import type { SessionOperationOutput, SessionRunner } from './session-operations.js';
 import type { Agent, DeviceSessions } from '../modules/sessions/public.js';
 
 export type SubscriptionOptions = { server: { url: string; token: string }; pid: number; agent: Agent; runner: SessionRunner;
@@ -14,14 +14,25 @@ export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
   const alive = () => startOf() === start;
   let retry = 2000, dirty = false;
   let inFlight: Promise<void> | undefined;
-  const claim = async () => {
+  const claim = async (): Promise<boolean> => {
     try {
       const record = o.device.records().find(r => r.pid === o.pid && r.start === start && r.agent === o.agent);
-      if (record !== undefined) await claimFor(o.runner, record.key, [record], o.transports);
-    } catch { return; }
+      if (record === undefined) return false;
+      let claimed = 0;
+      const runner: SessionRunner = { remote: o.runner.remote, device: o.runner.device, run: async (name, input) => {
+        const result = await o.runner.run(name, input);
+        if (name === 'events_claim') claimed = (result as SessionOperationOutput<'events_claim'>).events.length;
+        return result;
+      } };
+      const acked = await claimFor(runner, record.key, [record], o.transports);
+      return claimed > 0 && acked.length === 0;
+    } catch { return false; }
   };
   const loop = async () => {
-    do { dirty = false; await claim(); } while (dirty);
+    do {
+      dirty = false;
+      if (await claim()) await o.pause(retry);
+    } while (dirty && !o.signal.aborted);
     inFlight = undefined;
   };
   const kick = () => {
