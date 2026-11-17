@@ -83,7 +83,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
   const half = createDeviceSessions(registry, clock);
   const saveRow = (input: Identity & { device: string; candidateKey: string | null; fork: boolean; envScope?: string; otherLive: Keyed[]; own: Keyed[] }):
     { key: string; registered: boolean } => store.transaction(() => {
-    let key = store.byNative(input.agent, input.nativeId)?.key ?? input.candidateKey;
+    const existing = store.byNative(input.agent, input.nativeId);
+    let key = existing?.key ?? input.candidateKey;
     if (key === undefined || key === null) {
       if (input.fork && !input.envScope) return { key: 'global', registered: false };
       key = input.envScope || 'global';
@@ -95,8 +96,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     const wasActive = previous !== undefined && matches(previous, active);
     const now = clock();
     const id = store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: input.device, createdAt: now });
-    if (wasActive) store.touch(id, active?.activeAt ?? now);
-    else if (others.length === 0 && active?.id !== id) store.touch(id, now);
+    const inherited = wasActive && existing === undefined && active !== undefined && active.activeAt !== active.createdAt ? active.activeAt : null;
+    if (active?.id !== id && (wasActive || others.length === 0)) store.touch(id, inherited ?? now);
     return { key, registered: true };
   });
   const forgetRows = (key: string): { forgotten: string } => store.transaction(() => {

@@ -516,6 +516,28 @@ test('a clear in the active session after a turn gives no pointer', async t => {
   assert.equal(await promptAs('c2', {}, 'claude'), '');
 });
 
+test('a resume in the same process makes the resumed row active again', async t => {
+  const { filename, run, proc, register, prompt } = fixture(t);
+  register(101, null, 'claude', 'x');
+  prompt('x', 'claude');
+  register(101, null, 'claude', 'y');
+  prompt('y', 'claude');
+  register(101, null, 'claude', 'x');
+  assert.equal(activeOf(filename, run, proc), 'x');
+});
+
+test('a clear before the first message of a new session keeps its pointer', async t => {
+  const { filename, run, proc, die, register, prompt, promptAs } = fixture(t);
+  register(101, null);
+  prompt('p101');
+  die(101);
+  register(103, null, 'claude', 'c3');
+  register(103, null, 'claude', 'c4');
+  assert.equal(activeOf(filename, run, proc), 'c4');
+  assert.ok((await promptAs('c4', {}, 'claude')).startsWith('[mypi: с вашего прошлого хода в MP работала сессия pi на '));
+  assert.equal(await promptAs('c4', {}, 'claude'), '');
+});
+
 test('a new session registered alone without an earlier active session gets no pointer', async t => {
   const { register, promptAs } = fixture(t);
   register(103, null, 'claude', 'c3');

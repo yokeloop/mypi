@@ -78,7 +78,9 @@ between Claude and Pi, and later between devices.
    device stays active (decision 4) and still gets the line, which names the other
    session with the latest turn and counts from the new session's start. After
    `/clear` in the active session the new row takes the previous row's `active_at`
-   and gets nothing. An ordinary turn, a second message in a row and the first
+   and gets nothing; when the previous row had no turn yet, the new row stays new
+   and keeps its pointer. A resume of an existing row in the same process gets the
+   current time and becomes active. An ordinary turn, a second message in a row and the first
    session of a scope get nothing; a failure computing the line prints nothing and
    rolls back neither `active_at` nor the claim. Claude gets the line as the stdout
    of the `UserPromptSubmit` hook. Pi waits for `session prompt --no-deliver` and
