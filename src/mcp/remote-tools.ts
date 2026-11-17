@@ -6,7 +6,7 @@ import { tasks } from './tools/tasks.js';
 import { knowledge } from './tools/knowledge.js';
 import { sessionTools } from './tools/sessions.js';
 
-export type RemoteToken = { name: string; permission: 'read' | 'write'; sender: string | null };
+export type RemoteToken = { name: string; permission: 'read' | 'write' | 'device'; sender: string | null };
 
 const REMOTE_TASK_CREATE = 'Call only when the user explicitly asks to register a task, one task per independent problem: creates a task of a registered org/project with an explicit status code, slug and the exact source text ({text}); parent (optional) is the key of a parent task of the same project. When the request names several problems, register only the one asked for and ask about the rest; keep the user\'s wording and scope in the title and source. Does not plan or execute the work and creates no branch or worktree. Not idempotent: never repeat it blindly after an unknown outcome.';
 const REMOTE_TASK_UPDATE = 'Call to change a task in one call: status, title and/or parent (a task key of the same project, or null to clear) with a reason, progress text, or touch:true alone to mark activity. Applies status, then title, then parent, then progress; if a later part fails after an earlier one saved, the result is partial with the saved and missing parts. Does not reopen terminal tasks, retry, or create branches or worktrees; the same status changes nothing but leaves the note "<status> (unchanged). <reason>" in the task journal; parent is refused for another project, the task itself or a cycle. The change is made as this API token\'s sender key; a status change to review, blocked, merged or a terminal status queues a milestone event (inbox, warmup) for the parent that last sent the task a message, else the project chat, unless this token\'s sender is that recipient.';
@@ -55,14 +55,14 @@ export const remoteTools = {
 export type RemoteToolName = keyof typeof remoteTools;
 export const remoteReadOnly = new Set<RemoteToolName>(['task_list', 'task_show', 'journal', 'context_read', 'projects']);
 
-export function remoteToolNames(permission: 'read' | 'write'): RemoteToolName[] {
+export function remoteToolNames(permission: 'read' | 'write' | 'device'): RemoteToolName[] {
   const names = Object.keys(remoteTools) as RemoteToolName[];
-  return permission === 'read' ? names.filter(name => remoteReadOnly.has(name)) : names;
+  return permission === 'write' ? names : names.filter(name => remoteReadOnly.has(name));
 }
 
 export function remoteToolCommand(name: string, args: unknown, token: RemoteToken, runtime: string | undefined): AppCommand[] {
   if (!Object.hasOwn(remoteTools, name)) throw new InputError('Unknown tool: ' + name);
-  if (token.permission === 'read' && !remoteReadOnly.has(name as RemoteToolName)) throw new InputError('This token is read-only');
+  if (token.permission !== 'write' && !remoteReadOnly.has(name as RemoteToolName)) throw new InputError('This token is read-only');
   const commands = remoteTools[name as RemoteToolName].command(args);
   for (const [index, command] of commands.entries()) {
     if (command.name === 'task_status') commands[index] = { ...command, envScope: token.sender! };

@@ -9,6 +9,7 @@ import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
 import { createProjects, validSlug } from '../modules/projects/public.js';
+import type { CheckoutPaths } from '../modules/projects/ports.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
 import { createSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
@@ -39,9 +40,10 @@ export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
-export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString()) {
+export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString(),
+  paths: CheckoutPaths = { canonicalDirectory, canonicalAbsoluteDirectory }) {
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
-  const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory, canonicalAbsoluteDirectory });
+  const projects = createProjects(sqliteProjectStore(db), paths);
   const sessionScope = (key: string): SessionScope => {
     if (key === 'global') return { scopeType: 'global', orgId: null, projectId: null, taskId: null };
     if (/^[A-Z]+$/.test(key)) {

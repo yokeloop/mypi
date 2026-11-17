@@ -3,9 +3,12 @@ import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
 import { resolveStatePath } from '../app/create-app.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
+import { configuredServer } from '../app/backend.js';
+import { InputError } from '../shared/errors.js';
 import { DEFAULT_PORT, serve } from './serve.js';
 
 try {
+  if (configuredServer(process.env) !== undefined) throw new InputError('serve is not available in remote mode');
   const { values } = parseArgs({ args: process.argv.slice(2), strict: true, allowPositionals: false,
     options: { listen: { type: 'string' }, port: { type: 'string' } } });
   const controller = new AbortController();

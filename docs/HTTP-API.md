@@ -36,7 +36,7 @@ mypi serve [--listen <IP>] [--port <n>]
 ## Tokens
 
 ```sh
-mypi token create <name> --permission read|write [--sender global|CODE]
+mypi token create <name> --permission read|write|device [--sender global|CODE]
 mypi token list
 mypi token revoke <name>
 ```
@@ -62,6 +62,14 @@ mypi token revoke <name>
   project chat, unless the sender is that recipient: a project's sender queues none
   for its own task unless the organization wrote to the task last, in which case
   the milestone goes to the organization.
+- `device` is a device's token for the remote mode of the CLI and stdio MCP
+  ([docs/M1-CLI.md](M1-CLI.md#remote-mode)); it has no `sender`. It is accepted on
+  `POST /v1/ops` only, and only in the `Authorization` header: a cookie, a `read` or a
+  `write` token there answers 403. On read routes and `/mcp` it acts as `read`. Never
+  give it to a phone or a browser.
+- An engine older than this release refuses the whole `api-tokens.json` when it holds
+  a `device` entry, so every token fails: revoke `device` tokens before rolling the
+  engine back.
 
 ## Envelope and errors
 
@@ -107,6 +115,7 @@ A task key is `CODE-N` (`MP-12`), a project code is `CODE` (`MP`).
 | `POST /v1/messages` | write | `message_send` | `{ id, delivered }`, status 201 |
 | `GET /v1/sessions` | read | `sessions` | `session` (the root of the tree) |
 | `GET /v1/context?path&revision` | read | `context_read` | `context` |
+| `POST /v1/ops` | device (bearer only) | the operation `op` | its result, see [Operations](#operations) |
 | `POST /mcp` | read or write, by token | MCP JSON-RPC (Streamable HTTP, stateless, JSON responses) | see [docs/MCP.md](MCP.md#remote-mcp-over-http) |
 
 Errors of `/mcp` are JSON-RPC (`401` with `WWW-Authenticate: Bearer`, `405` on
@@ -157,6 +166,24 @@ Response shapes:
 
 Reading events never marks them delivered; `/inbox` and the warmup work as before.
 
+## Operations
+
+`POST /v1/ops` serves a device in remote mode. The body is `{ op, input, version }`:
+
+- `op` is one of `project_list`, `project_add`, `project_update`, `project_resolve`,
+  `project_remove`, `org_remove`, `status_list`, `status_add`, `status_rename`,
+  `status_terminal`, `status_remove`, `task_list`, `task_show`, `journal_read`,
+  `event_list`; any other answers 400 `invalid_request` `Unknown operation: <op>`.
+- `input` holds exactly the fields of that command; a missing, mistyped or extra field
+  answers 400 `invalid_request` and nothing runs. No input names a server path.
+- `version` must equal the server's engine version, else 409 `version_mismatch`
+  `engine version <a> differs from server <b>`.
+
+The server runs the operation in its own process as one SQLite transaction, without
+queues or leases. The device sends project paths already canonicalized; the server
+stores them as sent and never looks at its own filesystem for them. `data` is the
+result in the engine's internal form, in the usual envelope.
+
 ## Pages and search
 
 Tasks, events and the journal come newest first by id. `limit` is 1-200 (default 50).
@@ -189,7 +216,8 @@ agents, this server) increments `changeId`, a counter kept in the server process
 ## Stability
 
 `apiVersion` is 1. New fields and routes may appear in `/v1`; removing or renaming a
-field or route needs `/v2`.
+field or route needs `/v2`. The inputs and results of `/v1/ops` are internal and not
+part of this promise: a device and its server run the same engine version.
 
 ## Engine updates and migrations
 

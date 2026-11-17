@@ -36,3 +36,15 @@ test('API tokens are created once, stored only as hashes in a private file, veri
   assert.equal(resolveApiTokensPath({ XDG_CONFIG_HOME: '/c', HOME: '/home/u' }), '/c/mypi/api-tokens.json');
   assert.throws(() => resolveApiTokensPath({ XDG_CONFIG_HOME: 'rel' }), InputError);
 });
+
+test('device tokens have no sender, verify as device and stay in the same private file', t => {
+  const { dir } = state(t);
+  const file = join(dir, 'config/mypi/api-tokens.json');
+  const device = createApiToken(file, { tokenName: 'laptop', permission: 'device' });
+  assert.equal(device.sender, null);
+  assert.match(device.token, /^mypi_[A-Za-z0-9_-]{43}$/);
+  assert.deepEqual(verifyApiToken(file, device.token), { name: 'laptop', permission: 'device', sender: null });
+  assert.throws(() => createApiToken(file, { tokenName: 'other', permission: 'device', sender: 'global' }),
+    (error: unknown) => error instanceof InputError && error.message === '--sender is only for write tokens');
+  assert.deepEqual(listApiTokens(file).tokens.map(x => [x.name, x.permission]), [['laptop', 'device']]);
+});

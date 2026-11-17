@@ -278,10 +278,39 @@ These commands do not modify working clones, branches or remote synchronization.
 
 ```text
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
-mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+mypi token create <name> --permission read|write|device [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once; device tokens are for a device's server.json)
 ```
 
 Routes, tokens, response shapes and change streams: [docs/HTTP-API.md](HTTP-API.md).
+
+## Remote mode
+
+A device works against the database of a `mypi serve` on another machine when it has
+`$XDG_CONFIG_HOME/mypi/server.json` (`~/.config/mypi/…` without `XDG_CONFIG_HOME`):
+
+```json
+{ "url": "http://100.64.0.1:8737", "token": "mypi_…", "device": "laptop" }
+```
+
+- The file is private (0600), not a symlink, and holds exactly `url`, `token` and an
+  optional `device`; anything else is refused and every command except `--help`
+  fails, as does the stdio MCP server. `url` is an `http` or `https` origin without a
+  path. The token comes from `mypi token create <name> --permission device` on the
+  server.
+- `project list|add|update|resolve|remove|flow`, `org remove`, `status *`,
+  `task list|show`, `journal read` and `event list`, and the MCP tools over them, run
+  on the server. The local database is neither opened nor created; project paths are
+  canonicalized on the device.
+- Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
+  `token`, `serve` and the commands with home, sessions, events, the archive and the
+  machine, answers `<command> is not available in remote mode`. The Claude and Pi
+  hooks fail silently in remote mode (their output is discarded) until MP-147 and
+  MP-148.
+- A server that does not answer within 10 s ends the command with code 1 and
+  `mypi server unreachable: <url>`.
+- Device and server run one engine version, else
+  `engine version <a> differs from server <b>`.
+- From MP-147 `device` replaces `os.hostname()` as the device name of new sessions.
 
 ## Verification
 

@@ -1,9 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 
 test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie, and MCP JSON-RPC on /mcp', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
@@ -31,6 +33,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     return (JSON.parse(result.stdout) as { token: string }).token;
   };
   const reader = token('reader', 'read'), writer = token('writer', 'write'), viewer = token('viewer', 'read');
+  const laptopToken = token('laptop', 'device'), phoneToken = token('phone', 'device');
 
   const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid!, 'SIGKILL'); });
@@ -175,6 +178,63 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal((await call(writer, 'note', { kind: 'journal', scope: fx, text: 'Удалённая' })).structuredContent.status, 'ok');
   assert.match(JSON.stringify((await call(reader, 'journal', { scope: fx })).structuredContent.data), /Удалённая/);
 
+  const device = (name: string, value: string) => {
+    const config = join(dir, name + '-config');
+    mkdirSync(join(config, 'mypi'), { recursive: true });
+    writeFileSync(join(config, 'mypi', 'server.json'), JSON.stringify({ url, token: value }), { mode: 0o600 });
+    return { ...env, XDG_CONFIG_HOME: config, XDG_STATE_HOME: join(dir, name + '-state') };
+  };
+  const laptop = device('laptop', laptopToken), phone = device('phone', phoneToken);
+  mkdirSync(join(dir, 'device-clone'));
+  symlinkSync(join(dir, 'device-clone'), join(dir, 'device-link'));
+  const added = run(['project', 'add', 'fx/two', '--code', 'FXT', '--path', join(dir, 'device-link'), '--repository', 'file:///nonexistent/fx/two.git'], laptop);
+  assert.equal(added.status, 0, added.stderr);
+  assert.equal((JSON.parse(added.stdout) as { project: { checkoutPath: string } }).project.checkoutPath, realpathSync(join(dir, 'device-clone')));
+  const listed = run(['task', 'list'], laptop);
+  assert.deepEqual([listed.status, listed.stdout], [0, '[]\n'], listed.stderr);
+  assert.equal(existsSync(join(dir, 'laptop-state')), false);
+  const spawned = (args: string[], extra: Record<string, string>) => new Promise<number | null>((resolve, reject) => {
+    const cli = spawn(process.execPath, [entry, ...args], { env: extra, cwd: dir, stdio: 'ignore' });
+    cli.once('error', reject);
+    cli.once('exit', code => resolve(code));
+  });
+  assert.deepEqual(await Promise.all([
+    spawned(['project', 'add', 'fx/three', '--code', 'FXC', '--repository', 'file:///nonexistent/fx/three.git'], laptop),
+    spawned(['project', 'add', 'fx/four', '--code', 'FXD', '--repository', 'file:///nonexistent/fx/four.git'], phone),
+  ]), [0, 0]);
+  const projects = run(['project', 'list'], phone);
+  assert.equal(projects.status, 0, projects.stderr);
+  assert.deepEqual((JSON.parse(projects.stdout) as { projects: { code: string }[] }).projects.map(p => p.code).sort(), ['FX', 'FXC', 'FXD', 'FXT']);
+  const remoteInit = run(['db', 'init'], laptop);
+  assert.equal(remoteInit.status, 1);
+  assert.match(remoteInit.stderr, /db_init is not available in remote mode/);
+  const remoteServe = run(['serve', '--port', '0'], laptop);
+  assert.equal(remoteServe.status, 1);
+  assert.match(remoteServe.stderr, /serve is not available in remote mode/);
+  const operation = { op: 'project_list', input: {}, version };
+  for (const value of [reader, writer]) {
+    const refusedOperation = await post('/v1/ops', value, operation);
+    assert.deepEqual([refusedOperation.status, refusedOperation.body.error.code], [403, 'forbidden']);
+  }
+  const mismatch = await post('/v1/ops', laptopToken, { ...operation, version: '0.0.0' });
+  assert.deepEqual([mismatch.status, mismatch.body.error.code], [409, 'version_mismatch']);
+  const cookieOperation = await fetch(url + '/v1/ops', { method: 'POST', headers: { ...pair(await login(laptopToken)), 'content-type': 'application/json' },
+    body: JSON.stringify(operation) });
+  assert.equal(cookieOperation.status, 403);
+  await cookieOperation.json();
+  assert.equal(await names(laptopToken), 5);
+  const transport = new StdioClientTransport({ command: process.execPath, args: ['/work/dist/src/mcp/main.js'], cwd: dir, env: laptop, stderr: 'ignore' });
+  const client = new Client({ name: 'device', version: '1' });
+  await client.connect(transport);
+  try {
+    const remoteProjects = await client.callTool({ name: 'projects', arguments: { action: 'list' } });
+    assert.equal((remoteProjects.structuredContent as { status: string }).status, 'ok');
+    assert.match(JSON.stringify(remoteProjects.structuredContent), /"FXT"/);
+    const remoteSessions = await client.callTool({ name: 'sessions', arguments: {} });
+    assert.equal(remoteSessions.isError, true);
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /not available in remote mode/);
+  } finally { await client.close(); }
+
   process.kill(-child.pid!, 'SIGINT');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
@@ -184,5 +244,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.match(stderr, / \/mcp 401 -/);
   assert.match(stderr, / \/mcp 405 reader/);
   assert.match(stderr, / \/mcp 200 writer/);
-  for (const secret of [reader, writer, viewer, 'один', 'два', 'Удалённая', 'с другой машины']) assert.equal(stderr.includes(secret), false, secret);
+  assert.match(stderr, / \/v1\/ops 200 laptop/);
+  assert.match(stderr, / \/v1\/ops 403 reader/);
+  for (const secret of [reader, writer, viewer, laptopToken, phoneToken, 'один', 'два', 'Удалённая', 'с другой машины']) assert.equal(stderr.includes(secret), false, secret);
 });

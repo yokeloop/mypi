@@ -87,7 +87,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
   const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
   const inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
   return {
-    projects: core.projects, close: core.close, tasks,
+    projects: core.projects, close: core.close, tasks, readSnapshot: database.readSnapshot,
     statuses: {
       statuses: core.tasks.statuses, addStatus: core.tasks.addStatus,
       renameStatus: core.tasks.renameStatus, setTerminal: core.tasks.setTerminal,

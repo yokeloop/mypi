@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import type { AppCommand, RunContext } from './commands.js';
+import type { AppCommand, OperationName, RunContext } from './commands.js';
 import { createWorkspace, initializeWorkspace } from './create-workspace.js';
-import { createApp, initializeState } from './create-app.js';
+import { initializeState } from './create-app.js';
 import { backupState, restoreState, publishBackup, restorePublishedBackup } from './backup.js';
 import { defaultContextRoot } from './create-workspace.js';
 import { inputText } from './input-text.js';
@@ -15,17 +15,46 @@ import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerKey, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
-import { emitEvent, listEvents, readInbox, sendMessage, turnEnd } from './events.js';
+import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
+import { localBackend } from './backend.js';
+import type { Backend } from './backend.js';
+import { isOperation, OPERATION_NAMES } from './operations.js';
+import { canonicalAbsoluteDirectory, canonicalDirectory } from '../infrastructure/filesystem/paths.js';
+import type { Project } from '../modules/projects/public.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
   return existsSync(join(root ?? defaultContextRoot(), path)) ? path : null;
 }
 
-const reads = new Set(['journal_read', 'journal_page', 'task_list', 'task_page', 'task_show', 'context_read']);
+type OperationCommand = Extract<AppCommand, { name: OperationName }>;
+
+function devicePaths(c: OperationCommand): OperationCommand {
+  if (c.name === 'project_add' && c.checkoutPath !== undefined) return { ...c, checkoutPath: canonicalDirectory(c.checkoutPath) };
+  if (c.name === 'project_update' && c.checkoutPath !== undefined) return { ...c, checkoutPath: canonicalAbsoluteDirectory(c.checkoutPath) };
+  if (c.name === 'project_resolve') return { ...c, path: canonicalDirectory(c.path) };
+  return c;
+}
+
+async function runCommandOperation(c: OperationCommand, backend: Backend, root: string | undefined): Promise<unknown> {
+  const { name, ...input } = backend.remote ? devicePaths(c) : c;
+  const result = await backend.run(name, input as never);
+  if (name === 'project_remove') {
+    const { removed } = result as { removed: { project: Project } };
+    return { removed, homeFolder: homeFolder(root, 'projects/' + removed.project.org + '/' + removed.project.slug) };
+  }
+  if (name === 'org_remove') {
+    const { removed } = result as { removed: { organization: string } };
+    return { removed, homeFolder: homeFolder(root, 'projects/' + removed.organization) };
+  }
+  return result;
+}
+
+const reads = new Set(['journal_page', 'task_page', 'context_read']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
-  transports: EventTransports = {}, context: RunContext = {}): Promise<unknown> {
+  transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
+  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow') throw new InputError(c.name + ' is not available in remote mode');
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
   if (c.name === 'api_token_list') return listApiTokens(c.file);
   if (c.name === 'api_token_revoke') return revokeApiToken(c.file, c.tokenName);
@@ -59,39 +88,12 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'event_emit') return emitEvent(filename, c, transports);
   if (c.name === 'turn_end') return turnEnd(filename, c, transports);
   if (c.name === 'inbox') return readInbox(filename, c);
-  if (c.name === 'event_list') return listEvents(filename, c);
   if (c.name === 'message_send') return sendMessage(filename, c, transports);
-  if (c.name === 'project_flow') return projectFlow(filename, root ?? defaultContextRoot(), c.project);
-  // DB-only operations must remain usable without context/Git, including a damaged home.
-  if (c.name.startsWith('project_') || c.name.startsWith('status_') || c.name === 'org_remove') {
-    const app = createApp(filename, ['project_list', 'project_resolve', 'status_list'].includes(c.name));
-    try {
-      switch (c.name) {
-        case 'project_list': return { projects: app.projects.list(c.org) };
-        case 'project_add': return { project: app.projects.add(c.identity, c.code, c.checkoutPath, c.repository) };
-        case 'project_update': return { project: app.projects.update(c.identity, {
-          ...(c.checkoutPath === undefined ? {} : { checkout: { expected: c.expectedCheckoutPath ?? null, path: c.checkoutPath } }),
-          ...(c.repository === undefined ? {} : { repository: { expected: c.expectedRepository ?? null, value: c.repository } }),
-        }) };
-        case 'project_resolve': return app.projects.resolveCheckout(c.path);
-        case 'project_remove': {
-          const project = app.projects.remove(c.identity, c.expectedCode);
-          return { removed: { project }, homeFolder: homeFolder(root, 'projects/' + project.org + '/' + project.slug) };
-        }
-        case 'org_remove': {
-          const organization = app.projects.removeOrganization(c.org);
-          return { removed: { organization }, homeFolder: homeFolder(root, 'projects/' + organization) };
-        }
-        case 'status_list': return app.tasks.statuses();
-        case 'status_add': app.tasks.addStatus(c.code, c.terminal); break;
-        case 'status_rename': app.tasks.renameStatus(c.code, c.newCode); break;
-        case 'status_terminal': app.tasks.setTerminal(c.code, c.terminal); break;
-        case 'status_remove': app.tasks.removeStatus(c.code); break;
-        default: throw new InputError('Unknown database command');
-      }
-      return { status: 'ok' };
-    } finally { app.close(); }
+  if (c.name === 'project_flow') {
+    const { projects } = await backend.run('project_list', {}) as { projects: Project[] };
+    return projectFlow(projects, root ?? defaultContextRoot(), c.project);
   }
+  if (isOperation(c.name)) return runCommandOperation(c as OperationCommand, backend, root);
   const app = createWorkspace(filename, reads.has(c.name), root);
   try {
     switch (c.name) {
@@ -100,10 +102,6 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
       case 'error_add': return { path: app.error(c.project, c.text) };
       case 'journal_add': return { saved: app.journal(resolveScope(c.scope, app.projects), c.text) };
       case 'journal_import': return app.importJournal();
-      case 'journal_read': return app.history(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {
-        ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
-        ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.limit === undefined ? {} : { limit: c.limit }),
-      });
       case 'journal_page': return app.historyPage(c.scope === 'all' ? 'all' : resolveScope(c.scope, app.projects), {
         ...(c.from === undefined ? {} : { from: c.from }), ...(c.to === undefined ? {} : { to: c.to }),
         ...(c.eventType === undefined ? {} : { type: c.eventType }), ...(c.q === undefined ? {} : { q: c.q }),
@@ -114,9 +112,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
         ...(c.adoptSource === undefined ? {} : { adoptSource: c.adoptSource }),
         ...(c.parent === undefined ? {} : { parent: c.parent }),
       });
-      case 'task_list': return app.tasks.list(c);
       case 'task_page': return app.tasks.page(c);
-      case 'task_show': return app.tasks.get(c.key);
       case 'task_status': return app.tasks.change(c.key, { status: c.status }, c.reason, callerKey(filename, c));
       case 'task_title': return app.tasks.change(c.key, { title: c.title }, c.reason);
       case 'task_parent': return app.tasks.setParent(c.key, c.parent, c.reason);

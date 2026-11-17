@@ -3,7 +3,7 @@ import { isAbsolute, join } from 'node:path';
 import { readApiTokens, writeApiTokens } from '../infrastructure/filesystem/api-tokens-file.js';
 import { InputError } from '../shared/errors.js';
 
-export type ApiToken = { name: string; permission: 'read' | 'write'; sender: string | null };
+export type ApiToken = { name: string; permission: 'read' | 'write' | 'device'; sender: string | null };
 
 function sha256(token: string): string {
   return createHash('sha256').update(token).digest('hex');
@@ -19,10 +19,10 @@ export function createApiToken(file: string, input: { tokenName: string; permiss
   clock = () => new Date().toISOString()) {
   const name = input.tokenName;
   if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(name)) throw new InputError('Invalid API token name');
-  if (input.permission !== 'read' && input.permission !== 'write') throw new InputError('Permission must be read or write');
+  if (input.permission !== 'read' && input.permission !== 'write' && input.permission !== 'device') throw new InputError('Permission must be read, write or device');
   const permission = input.permission;
-  if (permission === 'read' && input.sender !== undefined) throw new InputError('--sender is only for write tokens');
-  const sender = permission === 'read' ? null : input.sender ?? 'global';
+  if (permission !== 'write' && input.sender !== undefined) throw new InputError('--sender is only for write tokens');
+  const sender = permission === 'write' ? input.sender ?? 'global' : null;
   if (sender !== null && !/^(global|[A-Z]+)$/.test(sender)) throw new InputError('Sender must be global or a project code');
   const tokens = readApiTokens(file);
   if (tokens.some(t => t.name === name)) throw new InputError('API token name exists: ' + name);

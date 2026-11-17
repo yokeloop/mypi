@@ -34,7 +34,7 @@ mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelive
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
 mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
-mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+mypi token create <name> --permission read|write|device [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once; device tokens are for a device's server.json)
 mypi capture [text | --file source]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
@@ -54,6 +54,7 @@ Local backup still requires clean, published context files. Publication uses exi
 Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
 open keys: an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
 Set XDG_STATE_HOME to isolated state for development.
+With $XDG_CONFIG_HOME/mypi/server.json (remote mode) project, org remove, status, task list|show, journal read and event list run on that mypi serve; other commands are refused (docs/M1-CLI.md).
 `;
 
 export function parseCommand(args: string[]): Command {

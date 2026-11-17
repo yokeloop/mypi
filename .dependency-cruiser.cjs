@@ -17,11 +17,11 @@ module.exports = {
     { name: 'mcp-uses-app', severity: 'error', from: { path: '^src/mcp/' }, to: { path: '^src/(cli|http|modules|infrastructure)/' } },
     { name: 'cli-no-mcp', severity: 'error', from: { path: '^src/cli/' }, to: { path: '^src/mcp/' } },
     { name: 'http-uses-app', severity: 'error', from: { path: '^src/http/' }, to: { path: '^src/(cli|modules|infrastructure)/' } },
-    // The one process serves /mcp too: only serve.ts mounts it, and only through the remote MCP entry, so zod/SDK stay in src/mcp.
+    // The one process serves /mcp too: only serve.ts mounts it, and only through the remote MCP entry, so zod/SDK stay in src/mcp and the strict inputs of /v1/ops in src/http/operations.ts.
     { name: 'http-mcp-remote-only', severity: 'error', from: { path: '^src/http/' }, to: { path: '^src/mcp/', pathNot: '^src/mcp/remote\\.ts$' } },
     { name: 'http-mcp-from-serve-only', severity: 'error', from: { path: '^src/http/(?!serve\\.ts$)' }, to: { path: '^src/mcp/' } },
     { name: 'cli-no-http', severity: 'error', from: { path: '^src/cli/' }, to: { path: '^src/http/' } },
-    { name: 'protocol-at-boundary', severity: 'error', from: { path: '^src/(?!mcp/)' },
+    { name: 'protocol-at-boundary', severity: 'error', from: { path: '^src/(?!mcp/|http/operations\\.ts$)' },
       to: { path: 'node_modules/(@modelcontextprotocol/|zod/)' } },
     { name: 'engine-not-web', severity: 'error', from: { path: '^src/' }, to: { path: '^web/' } },
     { name: 'tests-reach-web-lib-only', severity: 'error', from: { path: '^test/' }, to: { path: '^web/', pathNot: '^web/src/shared/lib/' } },

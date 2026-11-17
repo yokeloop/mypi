@@ -29,7 +29,8 @@ between Claude and Pi, and later between devices.
    many rows. Switching Claude ↔ Pi within a task and switching devices are one
    case: the engineer writes to another session of the same scope.
 2. Device. `device` is `os.hostname()`; in remote mode the optional `device` field
-   of `server.json` overrides it (MP-147). Migration 016 moves every existing row
+   of `server.json` (read and validated since MP-145, `deviceName` in
+   `src/app/backend.ts`) overrides it (MP-147). Migration 016 moves every existing row
    as one row of its key with this machine's name and `active_at = created_at`.
 3. The active session of a key is the row with the greatest `active_at` (ties: the
    greater `id`): where the engineer wrote last. The engineer's input writes

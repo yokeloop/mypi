@@ -4,9 +4,12 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { resolveStatePath } from '../app/create-app.js';
 import { eventTransports } from '../app/event-transports.js';
 import { createServer } from './server.js';
+import { configuredServer, remoteBackend } from '../app/backend.js';
 
 try {
-  const { server, stop } = createServer(resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports);
+  const remote = configuredServer(process.env);
+  const { server, stop } = createServer(resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports,
+    remote === undefined ? undefined : remoteBackend(remote));
   let closing: Promise<void> | undefined;
   const shutdown = () => closing ??= (async () => {
     await stop();
