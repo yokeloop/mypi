@@ -31,7 +31,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const others = records.filter(r => r.key === key && !same(r, self));
         const wasActive = previous !== undefined && matches(previous, store.active(key));
         reg.write({ key, agent: input.agent, nativeId: input.nativeId, pid: input.pid, start, name: input.name, socket: input.socket,
-          permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock() });
+          permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock(),
+          ...(input.herdrName === undefined ? {} : { herdrName: input.herdrName }) });
         const id = store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
         if (others.length === 0 || wasActive) store.touch(id, clock());
         return { key, registered: true };

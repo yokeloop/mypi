@@ -11,7 +11,8 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   const app = createApp(filename, false);
   try {
     return app.sessions(c.runtime, proc).register({ agent: c.agent, nativeId: c.nativeId, pid: c.pid, name: c.sessionName ?? null,
-      socket: c.socket ?? null, fork: c.fork, ...(c.envScope === undefined ? {} : { envScope: c.envScope }) });
+      socket: c.socket ?? null, fork: c.fork, ...(c.envScope === undefined ? {} : { envScope: c.envScope }),
+      ...(c.herdrName === undefined ? {} : { herdrName: c.herdrName }) });
   } finally { app.close(); }
 }
 
