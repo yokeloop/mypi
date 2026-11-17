@@ -203,7 +203,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(existsSync(join(dir, 'laptop-state')), false);
   const laptopRuntime = join(dir, 'laptop-run');
   mkdirSync(laptopRuntime, { mode: 0o700 });
-  const holder = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
+  const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => { holder.kill('SIGKILL'); });
   const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', 'r1'],
     { ...laptop, XDG_RUNTIME_DIR: laptopRuntime, MYPI_SCOPE: 'FXT' });
@@ -217,9 +217,10 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const live = async (name: string, env: Record<string, string>, nativeId: string) => {
     const runtime = join(dir, name + '-live'), sock = join(dir, name + '.sock'), log = join(dir, name + '.log');
     mkdirSync(runtime, { mode: 0o700 });
-    const holder = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'ignore'] });
+    const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
     t.after(() => { holder.kill('SIGKILL'); });
-    const listener = spawn(process.execPath, ['/work/dist/test/support/event-socket-server.js', sock, 'ack', log], { stdio: ['ignore', 'pipe', 'ignore'] });
+    const listener = spawn(process.execPath, ['--v8-pool-size=1', '/work/dist/test/support/event-socket-server.js', sock, 'ack', log],
+      { env: { ...process.env, UV_THREADPOOL_SIZE: '1' }, stdio: ['ignore', 'pipe', 'ignore'] });
     t.after(() => { listener.kill('SIGKILL'); });
     await new Promise<void>((resolve, reject) => {
       listener.once('exit', code => reject(new Error('Socket server exited: ' + code)));
@@ -236,7 +237,8 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const prompted = run(['session', 'prompt', '--agent', 'pi', '--native-id', 's2'], s2.device);
   assert.equal(prompted.status, 0, prompted.stderr);
   const subscribers = [s1, s2].map(s => {
-    const subscriber = spawn(process.execPath, [entry, 'session', 'subscribe', '--pid', String(s.pid)], { env: s.device, cwd: dir, stdio: 'ignore' });
+    const subscriber = spawn(process.execPath, ['--v8-pool-size=1', entry, 'session', 'subscribe', '--pid', String(s.pid)],
+      { env: { ...s.device, UV_THREADPOOL_SIZE: '1' }, cwd: dir, stdio: 'ignore' });
     t.after(() => { subscriber.kill('SIGKILL'); });
     return { subscriber, exited: new Promise<number | null>(resolve => subscriber.once('exit', code => resolve(code))) };
   });
