@@ -11,6 +11,7 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { readWarmup, warmupScope, WARMUP_LIMIT, WARMUP_MAX_CHARS } from '../../src/app/warmup.js';
 import { readInbox } from '../../src/app/events.js';
 import { otherLiveSession } from '../../src/app/sessions.js';
+import { localSessionRunner } from '../../src/app/session-operations.js';
 import type { Entry } from '../../src/modules/knowledge/public.js';
 
 function fixture(t: TestContext, personal?: string) {
@@ -101,11 +102,11 @@ test("a new session's warmup starts with a line about another live session of th
     app.sessions(runtime, proc).register({ agent: 'claude', nativeId: 'c2', pid: 302, name: null, socket: null, fork: false, envScope: 'MP-12' });
   } finally { app.close(); }
   const notice = (agent: string) => 'в этом скоупе уже есть живая сессия: ' + agent + ' на ' + hostname();
-  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 302, runtime }, undefined, proc), notice('pi'));
-  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 301, runtime }, undefined, proc), notice('claude'));
-  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 999, runtime }, { agent: 'claude', nativeId: 'c2' }, proc), notice('pi'));
+  assert.equal(otherLiveSession(localSessionRunner(filename).device, 'MP-12', { pid: 302, runtime }, undefined, proc), notice('pi'));
+  assert.equal(otherLiveSession(localSessionRunner(filename).device, 'MP-12', { pid: 301, runtime }, undefined, proc), notice('claude'));
+  assert.equal(otherLiveSession(localSessionRunner(filename).device, 'MP-12', { pid: 999, runtime }, { agent: 'claude', nativeId: 'c2' }, proc), notice('pi'));
   rmSync(join(proc, '302'), { recursive: true, force: true });
-  assert.equal(otherLiveSession(filename, 'MP-12', { pid: 301, runtime }, undefined, proc), undefined);
+  assert.equal(otherLiveSession(localSessionRunner(filename).device, 'MP-12', { pid: 301, runtime }, undefined, proc), undefined);
   const golden = readFileSync(new URL('../../../test/fixtures/warmup/MP-12.md', import.meta.url), 'utf8');
   const out = readWarmup(filename, root, 'MP-12', undefined, notice('pi'));
   assert.ok(out.startsWith(notice('pi') + '\n\n# mypi warmup: MP-12'));
@@ -328,13 +329,13 @@ test('warmup neither shows nor marks parent messages', t => {
   assert.deepEqual(delivered(filename), [{ id: 1, at: null }, { id: 2, at: null }]);
 });
 
-test('over budget the last reports shrink first, then drop with a line naming the events call, then entries are clipped, then new events stay undelivered', t => {
+test('over budget the last reports shrink first, then drop with a line naming the events call, then entries are clipped, then new events stay undelivered', async t => {
   {
     const { filename, root } = fixture(t);
     const base = readWarmup(filename, root, 'MP').length;
     emit(filename, 'MP-7', 'turn_end', 'a'.repeat(3000));
     emit(filename, 'MP-12', 'turn_end', 'b'.repeat(3000));
-    readInbox(filename, { name: 'inbox', key: 'MP' });
+    await readInbox(filename, { name: 'inbox', key: 'MP' });
     emit(filename, 'MP-7', 'waiting', 'new seven');
     emit(filename, 'MP-12', 'turn_end', 'new twelve');
     const clipped = readWarmup(filename, root, 'MP', base + 1500);
@@ -369,7 +370,7 @@ test('over budget the last reports shrink first, then drop with a line naming th
     assert.deepEqual(shown, Array.from({ length: shown.length }, (_, i) => i + 1));
     assert(out.includes('> Ещё ' + (40 - shown.length) + ' событий не поместились и остались недоставленными: /inbox (MCP inbox, CLI mypi inbox MP).\n'));
     assert.deepEqual(delivered(filename).filter(row => row.at !== null).map(row => row.id), shown);
-    assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events.map(e => e.id),
+    assert.deepEqual((await readInbox(filename, { name: 'inbox', key: 'MP' })).events.map(e => e.id),
       Array.from({ length: 40 - shown.length }, (_, i) => shown.length + i + 1));
   }
 });

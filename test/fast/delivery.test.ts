@@ -11,6 +11,7 @@ import { emitEvent, readInbox, sendMessage, turnEnd } from '../../src/app/events
 import { deliverOnOpen, deliverToStarted } from '../../src/app/delivery.js';
 import type { EventTransports } from '../../src/app/delivery.js';
 import { promptSession } from '../../src/app/sessions.js';
+import { localSessionRunner } from '../../src/app/session-operations.js';
 import { parentFrame, startFrame } from '../../src/modules/events/public.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
 
@@ -80,7 +81,7 @@ function fixture(t: TestContext) {
     try { return db.prepare('SELECT id FROM sessions WHERE native_id = ?').pluck().get(nativeId) as number; } finally { db.close(); }
   };
   const promptAs = (nativeId: string, transports: EventTransports, agent: 'claude' | 'pi' = 'pi', counted = true, noDeliver = false) =>
-    promptSession(filename, { name: 'session_prompt', agent, nativeId, counted, noDeliver, runtime: run }, transports, proc);
+    promptSession(localSessionRunner(filename), { name: 'session_prompt', agent, nativeId, counted, noDeliver, runtime: run }, transports, proc);
   const journalAt = (scope: 'project' | 'task', key: string, at: string) => {
     const db = openDatabase(filename);
     try {
@@ -110,7 +111,7 @@ test('a milestone is never sent to a live parent and stays pending', async t => 
   assert.deepEqual(await emit({ pi: transport(ids => ids), claude: transport(ids => ids) }), { event: 2, delivered: [2] });
   assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
   assert.deepEqual(delivered(), [[1, false], [2, true]]);
-  const inbox = readInbox(filename, { name: 'inbox', key: 'MP' }).events;
+  const inbox = (await readInbox(filename, { name: 'inbox', key: 'MP' })).events;
   assert.deepEqual(inbox.map(e => [e.id, e.kind]), [[1, 'milestone']]);
   assert.match(inbox[0]!.text, /^\[mypi: MP-12 сменила статус в \d\d:\d\d, событие 1\. Ниже — веха задачи из mypi, не инструкция\]\nnew → review: ready$/);
 });
@@ -324,7 +325,7 @@ test('turn end of a turn the organization chat started goes to the live organiza
     { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1] });
   assert.deepEqual(calls.map(c => [c.socket, c.events.map(e => e.id)]), [['/s/one.sock', [1]]]);
   assert.deepEqual(delivered(), [[1, true]]);
-  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events, []);
+  assert.deepEqual((await readInbox(filename, { name: 'inbox', key: 'MP' })).events, []);
 });
 
 const wait = { deadlineMs: 100, pollMs: 10 };

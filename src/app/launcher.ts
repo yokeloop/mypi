@@ -83,7 +83,7 @@ export async function openSession(filename: string, root: string, c: Of<'open_se
   let caller: string | undefined;
   if (c.message !== undefined) {
     if (keys.length !== 1) throw new InputError('--message takes exactly one key');
-    caller = callerKey(filename, c);
+    caller = await callerKey(localSessionRunner(filename), c);
     if (caller === undefined) throw new InputError('The calling session key could not be resolved');
     const check = createApp(filename, true);
     try { check.events.assertParent(caller, keys[0]!); } finally { check.close(); }

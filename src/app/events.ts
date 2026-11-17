@@ -19,7 +19,7 @@ type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
 export async function emitEvent(filename: string, c: Of<'event_emit'>, transports: EventTransports = {},
   proc = '/proc', readPrompt: TurnPromptReader = claudeTurnPrompt): Promise<{ event: number | null; delivered: number[] }> {
   if (c.notification !== undefined && !(WAITING_NOTIFICATIONS as readonly string[]).includes(c.notification)) return { event: null, delivered: [] };
-  const key = warmupScope(c.from, c.envScope, c.from === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
+  const key = warmupScope(c.from, c.envScope, c.from === undefined && c.session !== undefined ? await sessionKey(localSessionRunner(filename), c.session, proc) : undefined);
   const hooked = c.from === undefined && c.session !== undefined;
   let to = c.to;
   if (hooked) {
@@ -44,9 +44,9 @@ export async function turnEnd(filename: string, c: Of<'turn_end'>, transports: E
     ...(c.transcript === undefined ? {} : { transcript: c.transcript }) }, transports, proc, readPrompt);
 }
 
-export function readInbox(filename: string | SessionRunner, c: Of<'inbox'>, _proc = '/proc') {
+export async function readInbox(filename: string | SessionRunner, c: Of<'inbox'>, _proc = '/proc') {
   if (typeof filename !== 'string') throw new Error('Not implemented');
-  const key = c.key ?? warmupScope(undefined, c.envScope, c.session === undefined ? undefined : sessionKey(filename, c.session));
+  const key = c.key ?? warmupScope(undefined, c.envScope, c.session === undefined ? undefined : await sessionKey(localSessionRunner(filename), c.session));
   const app = createApp(filename, false);
   try {
     return app.serialize(() => {
@@ -63,7 +63,7 @@ export async function sendMessage(filename: string | SessionRunner, c: Of<'messa
   proc = '/proc'): Promise<{ message: number; delivered: boolean }> {
   if (typeof filename !== 'string') throw new Error('Not implemented');
   const text = inputText(c.body);
-  const from = callerKey(filename, c);
+  const from = await callerKey(localSessionRunner(filename), c);
   if (from === undefined) throw new InputError('The calling session key could not be resolved');
   const app = createApp(filename, false);
   try {

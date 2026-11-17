@@ -17,7 +17,7 @@ import { forgetSession, listSessions, otherLiveSession, promptSession, registerS
 import { archiveStatus, captureArchive, forgetArchive, importArchive, searchArchive, showArchive } from './archive.js';
 import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
-import { localBackend } from './backend.js';
+import { localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
 import { isOperation, OPERATION_NAMES } from './operations.js';
 import { isRemoteHome, REMOTE_HOME_COMMANDS, runRemoteHome } from './remote-home.js';
@@ -70,17 +70,18 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'restore') return restoreState(c.backupDirectory, filename, root);
   if (c.name === 'restore_published') return restorePublishedBackup({ filename, root: root ?? defaultContextRoot(),
     repository: c.repository, commit: c.commit });
+  const runner = sessionRunner(backend);
   if (c.name === 'warmup') {
-    const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? sessionKey(filename, c.session) : undefined);
-    const notice = c.caller === undefined ? undefined : otherLiveSession(filename, key, c.caller, c.session);
+    const key = warmupScope(c.scope, c.envScope, c.scope === undefined && c.session !== undefined ? await sessionKey(runner, c.session) : undefined);
+    const notice = c.caller === undefined ? undefined : otherLiveSession(runner.device, key, c.caller, c.session);
     return readWarmup(filename, root ?? defaultContextRoot(), key, c.maxChars, notice, c.session);
   }
   if (c.name === 'task_worktree') return openTaskWorktree(filename, root ?? defaultContextRoot(), c.key);
   if (c.name === 'open_session') return openSession(filename, root ?? defaultContextRoot(), c, transports, undefined, undefined, context);
-  if (c.name === 'session_register') return registerSession(filename, c);
-  if (c.name === 'session_prompt') return promptSession(filename, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
-  if (c.name === 'session_unregister') return unregisterSession(filename, c);
-  if (c.name === 'session_forget') return forgetSession(filename, c);
+  if (c.name === 'session_register') return registerSession(runner, c);
+  if (c.name === 'session_prompt') return promptSession(runner, c, transports, undefined, (worktree, since) => projectGit(worktree).commitsSince(since));
+  if (c.name === 'session_unregister') return unregisterSession(c);
+  if (c.name === 'session_forget') return forgetSession(runner, c);
   if (c.name === 'sessions') return listSessions(filename, c);
   if (c.name === 'archive_import') return importArchive(filename, c);
   if (c.name === 'archive_status') return archiveStatus(filename);
