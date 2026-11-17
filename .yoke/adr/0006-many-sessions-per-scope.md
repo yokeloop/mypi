@@ -117,3 +117,19 @@ between Claude and Pi, and later between devices.
   --hook` therefore excludes it by the mypi frame, not by `source`; the active
   session did not change. `/clear` does not fire `UserPromptSubmit`; the new row
   became active by decision 2.
+- Stand 2026-11-17 (Claude Code 2.1.326, Haiku 4.5): with a message waiting for
+  FX-1 and the Claude session not active, the engineer typed into that session.
+  Inside its own `UserPromptSubmit` hook, `session prompt` made the session active
+  (11:34:00.749Z), claimed the row (11:34:00.750Z) and sent it to the session's
+  own inbox socket. The socket acknowledged it while the hook was still pending
+  (`delivered_at` 11:34:00.776Z, `claimed_by` = the session's row), with no
+  deadlock and no 5 s hook timeout. The screen showed the frame queued under the
+  typed prompt at once, but the message did not join the typed turn. Claude
+  answered the typed prompt first (Stop 11:34:04.184Z), then ran a separate turn
+  for the message (transcript `promptSource: "system"`, `turnOrigin: "peer"`,
+  11:34:04.213Z). That turn fired `UserPromptSubmit` with the raw `[mypi: ` frame,
+  which was not counted as input (`active_at` unchanged), and its Stop recorded
+  the `turn_end` for the parent. Pi 1.5.2: with the input handler not awaiting
+  `session prompt`, the engineer's text started the turn within 0.3 s and the
+  claimed message arrived as a follow-up, acknowledged 83–98 ms after Enter, with
+  no 2 s stall.
