@@ -1,6 +1,9 @@
 import { hostname } from 'node:os';
+import { createApp } from './create-app.js';
+import { keyScope, sendParentMessage } from './journal-facts.js';
 import type { EventRow } from '../modules/events/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
+import { validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Agent } from '../modules/sessions/public.js';
 import type { Card } from '../modules/tasks/public.js';
@@ -33,8 +36,92 @@ export type SessionRunner = { remote: boolean; device: string;
 export type WarmupData = { projects: Project[]; cards: Card[]; orgProjects: Project[] | null;
   stats: { count: number; lastAt: string | null } | null; journal: Entry[] | null; fresh: EventRow[]; history: EventRow[] };
 
-export function runSessionOperation<K extends SessionOperationName>(_t: OperationTarget, name: K, _input: SessionOperationInput<K>): SessionOperationOutput<K> {
-  throw new Error('Not implemented: ' + name);
+type App = ReturnType<typeof createApp>;
+
+function db<T>(t: OperationTarget, readonly: boolean, fn: (app: App) => T): T {
+  const app = createApp(t.filename, readonly);
+  try { return fn(app); } finally { app.close(); }
+}
+
+function warmupData(app: App, key: string): WarmupData {
+  const projects = app.projects.list(), cards = app.tasks.list();
+  const taskKey = (card: Card) => (card.projectId === null ? 'REQ' : projects.find(p => p.id === card.projectId)!.code) + '-' + card.number;
+  const data: WarmupData = { projects, cards, orgProjects: null, stats: null, journal: null, fresh: [], history: [] };
+  const fresh = () => app.events.pending(key).filter(event => event.kind !== 'message');
+  if (/^[A-Z]+$/.test(key)) {
+    const project = projects.find(p => p.code === key);
+    if (project === undefined) return data;
+    return { ...data, stats: app.journalStore.stats(key, cards.filter(card => card.projectId === project.id).map(taskKey)),
+      fresh: fresh(), history: app.events.lastDelivered(key) };
+  }
+  if (key !== 'global' && key !== 'all' && validSlug(key)) return { ...data, orgProjects: app.projects.list(key), fresh: fresh(), history: app.events.lastDelivered(key) };
+  if (/^[A-Z]+-[1-9][0-9]*$/.test(key)) return { ...data, journal: app.journalStore.last({ type: 'task', key }, 5) };
+  return data;
+}
+
+export const sessionOperations = {
+  session_key: (t, i) => db(t, true, app => ({ key: app.sessions(undefined).nativeKey(i) })),
+  session_save: (t, i) => db(t, false, app => app.sessions(undefined).saveRow(i)),
+  session_forget_rows: (t, i) => db(t, false, app => app.sessions(undefined).forgetRows(i.key)),
+  session_activate: (t, i) => db(t, false, app => app.serialize(() => {
+    const prompted = app.sessions(undefined).prompt({ agent: i.agent, nativeId: i.nativeId });
+    if (prompted.id === null) return { key: null, id: null, switched: null, events: [] };
+    const key = prompted.key!;
+    let switched: SessionOperationOutput<'session_activate'>['switched'] = null;
+    if (prompted.previous !== null && prompted.since !== null) {
+      try {
+        const entries = app.journalStore.countSince(key === 'global' ? { type: 'global' } : keyScope(key), prompted.since);
+        const match = /^([A-Z]+)-([1-9][0-9]*)$/.exec(key);
+        let worktree: string | null = null;
+        if (match) {
+          const project = app.projects.list().find(p => p.code === match[1]);
+          const card = project && app.tasks.list().find(t => t.projectId === project.id && t.number === Number(match[2]));
+          worktree = card?.worktreePath ?? null;
+        }
+        switched = { key, agent: prompted.previous.agent, device: prompted.previous.device, entries, since: prompted.since, worktree };
+      } catch { switched = null; }
+    }
+    const events = i.claim ? app.events.claim(key, prompted.id, { takeOver: true }) : [];
+    return { key, id: prompted.id, switched, events };
+  })),
+  events_claim: (t, i) => db(t, false, app => app.serialize(() => {
+    const row = app.sessions(undefined).activeRow(i.key);
+    if (row === undefined || !i.live.some(l => l.agent === row.agent && l.nativeId === row.nativeId)) {
+      return { sessionId: null, agent: null, nativeId: null, events: [] };
+    }
+    const events = app.events.claim(i.key, row.id, i.messagesOnly ? { messagesOnly: true } : {});
+    return { sessionId: row.id, agent: row.agent, nativeId: row.nativeId, events };
+  })),
+  events_settle: (t, i) => {
+    if (i.acked.length === 0 && i.released.length === 0) return { status: 'ok' };
+    return db(t, false, app => {
+      app.serialize(() => { app.events.deliver(i.acked); app.events.release(i.released, i.sessionId); });
+      return { status: 'ok' };
+    });
+  },
+  event_create: (t, i) => db(t, false, app => {
+    const r = app.events.emit(i);
+    return { event: r.event, to: r.to ?? null };
+  }),
+  inbox_take: (t, i) => db(t, false, app => app.serialize(() => {
+    const events = i.key === 'all' ? app.events.pending(null).filter(e => e.kind !== 'message') : app.events.pending(i.key);
+    const claimer = i.caller === null ? null : app.sessions(undefined).rowId(i.caller) ?? null;
+    app.events.deliver(events.map(e => e.id), claimer);
+    return { events };
+  })),
+  message_create: (t, i) => db(t, false, app => ({ id: sendParentMessage(app, i) })),
+  warmup_data: (t, i) => db(t, true, app => app.readSnapshot(() => warmupData(app, i.key))),
+  events_mark: (t, i) => {
+    if (i.ids.length === 0) return { status: 'ok' };
+    return db(t, false, app => {
+      app.serialize(() => app.events.deliver(i.ids, i.caller === null ? null : app.sessions(undefined).rowId(i.caller) ?? null));
+      return { status: 'ok' };
+    });
+  },
+} satisfies { [K in SessionOperationName]: (t: OperationTarget, i: SessionOperationInput<K>) => SessionOperationOutput<K> };
+
+export function runSessionOperation<K extends SessionOperationName>(t: OperationTarget, name: K, input: SessionOperationInput<K>): SessionOperationOutput<K> {
+  return (sessionOperations[name] as (t: OperationTarget, i: SessionOperationInput<K>) => SessionOperationOutput<K>)(t, input);
 }
 
 export function localSessionRunner(filename: string): SessionRunner {
