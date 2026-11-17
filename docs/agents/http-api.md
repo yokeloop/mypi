@@ -10,5 +10,8 @@ Read when: starting or exposing mypi serve, handling API tokens, or changing an 
   only in `$XDG_CONFIG_HOME/mypi/api-tokens.json`; a client's token value only in
   `MYPI_API_TOKEN` or the private 0600 file `$XDG_CONFIG_HOME/mypi/tui-token`
   ([docs/TUI.md](../TUI.md)), never in home, a repository or a prompt; never print a token value except the one `mypi token create` returns.
+- Create a `device` token on the server only on the user's request; its value lives
+  only in the device's `server.json` (0600), never in home, a repository or a prompt.
+  Remote mode: [docs/M1-CLI.md](../M1-CLI.md#remote-mode).
 - [docs/HTTP-API.md](../HTTP-API.md) owns the API contract: a route or response change updates it
   in the same change, and a breaking change needs a new /v<N>.
