@@ -137,6 +137,11 @@ export function projectGit(clone: string) {
       if (result.status === 0 && name.startsWith('origin/')) return name.slice('origin/'.length);
       return hasRef('refs/remotes/origin/main') ? 'main' : null;
     },
+    commitsSince(at: string): number {
+      const count = git(['rev-list', '--count', '--since=' + at, 'HEAD'], 2_000).stdout.trim();
+      if (!/^[0-9]+$/.test(count)) throw new Error('Git failed');
+      return Number(count);
+    },
     fetch(): void { git(['fetch', '--quiet', 'origin'], 60_000); },
     updateBranch(branch: string): void {
       if (checkedOut() === branch) git(['merge', '--ff-only', '--quiet', 'origin/' + branch], 60_000);
