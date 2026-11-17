@@ -1,4 +1,3 @@
-import { hostname } from 'node:os';
 import type { AppCommand } from './commands.js';
 import { createApp } from './create-app.js';
 import type { Agent } from '../modules/sessions/public.js';
@@ -11,7 +10,8 @@ export function registerSession(filename: string, c: Of<'session_register'>, pro
   const app = createApp(filename, false);
   try {
     return app.sessions(c.runtime, proc).register({ agent: c.agent, nativeId: c.nativeId, pid: c.pid, name: c.sessionName ?? null,
-      socket: c.socket ?? null, fork: c.fork, ...(c.envScope === undefined ? {} : { envScope: c.envScope }) });
+      socket: c.socket ?? null, fork: c.fork, ...(c.envScope === undefined ? {} : { envScope: c.envScope }),
+      ...(c.herdrName === undefined ? {} : { herdrName: c.herdrName }) });
   } finally { app.close(); }
 }
 
@@ -51,7 +51,7 @@ export function otherLiveSession(filename: string, key: string, caller: { pid: n
       const other = records.find(r => r.pid !== caller.pid
         && !(hint !== undefined && r.agent === hint.agent && r.nativeId === hint.nativeId));
       if (other === undefined) return undefined;
-      const device = rows.find(x => x.agent === other.agent && x.nativeId === other.nativeId)?.device ?? hostname();
+      const device = rows.find(x => x.agent === other.agent && x.nativeId === other.nativeId)?.device ?? sessions.device();
       return 'в этом скоупе уже есть живая сессия: ' + other.agent + ' на ' + device;
     } finally { app.close(); }
   } catch { return undefined; }

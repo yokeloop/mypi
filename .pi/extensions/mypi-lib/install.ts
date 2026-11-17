@@ -221,7 +221,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.registerCommand('open', {
-    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]',
+    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]',
     getArgumentCompletions: async prefix => {
       const data = await catalog();
       return data === undefined ? null : openCompletions(prefix, data, scopeCodes(key, data.projects));
@@ -238,7 +238,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       }) : () => {};
       const status = (text: string | undefined) => { if (ctx.hasUI) ctx.ui.setStatus('mypi-open', text); };
       const words = head.trim().split(/\s+/).filter(Boolean);
-      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode'].includes(words[i - 1] ?? ''));
+      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode', '--session'].includes(words[i - 1] ?? ''));
       const label = 'mypi open' + (keys.length > 0 ? ' ' + keys.join(' ') : '') + ': ';
       const progress = (line: string) => {
         const rest = line.slice(6);

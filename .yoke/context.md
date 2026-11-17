@@ -6,10 +6,10 @@ Canonical terms for mypi v2. Implementation details belong in ADRs and docs, not
 A coding agent program that mypi can run: currently Claude Code or Pi. mypi does not depend on which one runs a session; the behaviour of a session is the same for every Agent.
 
 ## Session
-One conversation of an Agent, bound to exactly one Scope. A Session has a Session key and a native identifier owned by the Agent. A Scope has many Sessions (for example Claude and Pi in one task); the active Session of a Scope is the one where the engineer wrote last. "Opening" a Scope focuses or continues its active Session or creates the first one.
+One conversation of an Agent, bound to exactly one Scope. A Session has a Session key and a native identifier owned by the Agent. A Scope has many Sessions (for example Claude and Pi in one task); the active Session of a Scope is the one where the engineer wrote last. "Opening" a Scope focuses or continues the active Session of this device, starts a new one (`--new`) or returns to a chosen one (`--session`).
 
 ## Session key
-The human-readable name of a Session, equal to its Scope: `global`, the Organization slug (`tb-ff`), the Project code (`MP`), or the Project code with the Task number (`MP-12`). `all` is never a key: it is `/inbox all`. It names the Herdr tab (an Organization's tab is `org-<slug>`), addresses the Session in `/open`, `/inbox` and Events, and prefixes task branches and worktrees. The Agent's native session identifier is an internal detail mapped to the key.
+The human-readable name of a Session, equal to its Scope: `global`, the Organization slug (`tb-ff`), the Project code (`MP`), or the Project code with the Task number (`MP-12`). `all` is never a key: it is `/inbox all`. It names the Herdr tab of the first Session (an Organization's tab is `org-<slug>`; a second Session's is `<key>-<agent>`), addresses the Session in `/open`, `/inbox` and Events, and prefixes task branches and worktrees. The Agent's native session identifier is an internal detail mapped to the key.
 
 ## Scope
 The zone a Session works in: `global`, `org`, `project` or `task`. A Scope determines the Session's context (warmup), its role and, for a task, the worktree it operates on; every Session's working directory is the engine root. Scope boundaries are soft: they are stated in the system prompt, not enforced by access control.

@@ -58,7 +58,7 @@ test('open completions keep earlier keys and skip them', () => {
 });
 
 test('open completions stay silent for flags and after --message', () => {
-  for (const prefix of ['MP --', 'MP --agent ', 'MP --permission-mode a', 'MP --message ', 'MP --message сделай M'])
+  for (const prefix of ['MP --', 'MP --agent ', 'MP --permission-mode a', 'MP --session ', 'MP --message ', 'MP --message сделай M'])
     assert.equal(openCompletions(prefix, catalog, undefined), null, prefix);
 });
 

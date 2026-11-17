@@ -58,9 +58,17 @@ between Claude and Pi, and later between devices.
    active one and it already had a turn, one line tells it which session worked in
    the scope since its last turn and where to read more (MP-143). Until then the
    `session prompt` hook prints nothing.
-8. `/open`. Until MP-141: focus the live record of the active row; else any live
-   record of the key, by the latest `active_at` of its row; else resume the active
-   row; else start a new session. MP-141 adds `--new` and `--session`.
+8. `/open`. Without flags it works on the sessions of this device: focus the live
+   record of the device's active row; else the live record whose row has the latest
+   `active_at`; else resume the device's row active last; else start a new session.
+   `--agent X` limits this to the sessions of agent X and starts a new session of X
+   when there are none. `--new` starts a new session. `--session <native-id>`
+   returns to that session of the key on this device; a session of another device is
+   an input error. `start`, `resume` and `focus` write `active_at` of the opened
+   session before delivery. The Herdr name is the first free one of `<key>`,
+   `<key>-<agent>`, `<key>-<agent>-2`, …; it is passed in the tab environment as
+   `MYPI_HERDR_NAME`, stored in the optional field `herdrName` of the registry
+   record, and focus uses it.
 9. Concurrent work. When a new session starts while another session of the key is
    live, its warmup (the CLI warmup of the Claude `SessionStart` hook and the Pi
    extension, not the MCP `warmup` tool) starts with

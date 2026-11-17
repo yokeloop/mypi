@@ -71,6 +71,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
     ['open_session', { keys: ['MP-12'], message: 'go' }, [['open', 'MP-12', '--message', 'go']]],
+    ['open_session', { keys: ['MP-12'], agent: 'pi', new: true }, [['open', 'MP-12', '--agent', 'pi', '--new']]],
+    ['open_session', { keys: ['MP-12'], session: 'c1' }, [['open', 'MP-12', '--session', 'c1']]],
     ['send_message', { key: 'MP-12', text: 'go' }, [['send', 'MP-12', 'go']]],
     ['archive_search', { q: 'сокет*', scope: 'MP', agent: 'claude', from: '2026-10-01', to: '2026-10-31', includePeer: true, limit: 5 },
       [['archive', 'search', 'сокет*', '-s', 'MP', '--agent', 'claude', '--from', '2026-10-01', '--to', '2026-10-31', '--include-peer', '--limit', '5']]],
@@ -203,7 +205,7 @@ test('open_session takes the caller, state and runtime from the environment', ()
     stateHome: '/s', runtime: '/r' }];
   assert.deepEqual(toolCommand('open_session', { keys: ['MP'] }, env, 7), expected);
   assert.deepEqual([appCommand(parsed, env, 7)], expected);
-  for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }]) {
+  for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }, { keys: ['MP'], new: 'yes' }]) {
     assert.throws(() => toolCommand('open_session', args));
   }
 });

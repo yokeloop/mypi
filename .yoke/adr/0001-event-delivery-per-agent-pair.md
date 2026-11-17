@@ -105,7 +105,9 @@ Supporting rules:
   `--workspace` the tab goes to the focused workspace, and the call fails when
   the session has none; fact 5), then
   `herdr agent start <name> --kind <agent> --pane <root_pane> -- <args>`.
-  Herdr agent names are the key in lower case (`mp-12`).
+  Herdr agent names are the key in lower case (`mp-12`) (amended by ADR 0006: a
+  second session of a key is `<key>-<agent>`, then numbered; focus uses the name in the
+  registry record).
 
 ## Alternatives rejected
 

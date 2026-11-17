@@ -121,9 +121,10 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         session = hookInput(readInputFile(0));
       } else session = { nativeId: required('native-id'), ...(opt('name') === undefined ? {} : { name: opt('name')! }), fork: Boolean(o['fork']) };
       const socket = opt('socket') ?? (agent === 'claude' && env['CLAUDE_CODE_MESSAGING_SOCKET'] ? env['CLAUDE_CODE_MESSAGING_SOCKET'] : undefined);
+      const herdr = /^[a-z][a-z0-9_-]{0,31}$/.test(env['MYPI_HERDR_NAME'] ?? '') ? env['MYPI_HERDR_NAME'] : undefined;
       return { name: 'session_register', agent, pid: Number(required('pid')), nativeId: session.nativeId,
         ...(session.name === undefined ? {} : { sessionName: session.name }), ...(socket === undefined ? {} : { socket }), fork: session.fork,
-        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...(herdr === undefined ? {} : { herdrName: herdr }), ...runtime };
     }
     case 'session prompt': {
       const agent = required('agent');
@@ -200,6 +201,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
       const hint = sessionHint(env, parentPid);
       return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
+        ...(o['new'] ? { new: true } : {}), ...(opt('session') === undefined ? {} : { target: opt('session')! }),
         ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
         ...(opt('message') === undefined ? {} : { message: opt('message')! }),
         ...(hint === undefined ? {} : { session: hint }),

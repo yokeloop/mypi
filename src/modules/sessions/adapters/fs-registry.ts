@@ -25,7 +25,7 @@ function shaped(value: unknown, key: string, pid: number): value is RegistryReco
   return typeof value === 'object' && value !== null && !Array.isArray(value) && r['key'] === key
     && (r['agent'] === 'claude' || r['agent'] === 'pi') && text(r['nativeId']) && Number.isSafeInteger(r['pid']) && (r['pid'] as number) > 0
     && text(r['start']) && nullable(r['name']) && nullable(r['socket']) && nullable(r['permissionMode']) && text(r['registeredAt'])
-    && r['pid'] === pid && r['displacedAt'] === undefined;
+    && (r['herdrName'] === undefined || text(r['herdrName'])) && r['pid'] === pid && r['displacedAt'] === undefined;
 }
 export function fsRegistry(dir: string, proc = '/proc'): Registry {
   const parent = dirname(dir);

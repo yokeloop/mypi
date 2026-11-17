@@ -17,7 +17,7 @@ export interface SessionStore {
 export interface RegistryRecord {
   key: string; agent: Agent; nativeId: string; pid: number; start: string;
   name: string | null; socket: string | null; permissionMode: string | null;
-  registeredAt: string;
+  registeredAt: string; herdrName?: string;
 }
 export interface Registry {
   start(pid: number): string | undefined;

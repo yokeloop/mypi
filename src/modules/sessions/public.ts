@@ -9,7 +9,7 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
   const matches = (record: { agent: Agent; nativeId: string }, row: { agent: Agent; nativeId: string } | undefined) =>
     row !== undefined && record.agent === row.agent && record.nativeId === row.nativeId;
   return {
-    register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string }):
+    register(input: { agent: Agent; nativeId: string; pid: number; name: string | null; socket: string | null; fork: boolean; envScope?: string; herdrName?: string }):
       { key: string; registered: boolean } {
       if (typeof input.nativeId !== 'string' || input.nativeId === '' || input.nativeId.length > 256
         || /[\u0000-\u001f\u007f]/.test(input.nativeId)) throw new InputError('Invalid native session id');
@@ -31,7 +31,8 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         const others = records.filter(r => r.key === key && !same(r, self));
         const wasActive = previous !== undefined && matches(previous, store.active(key));
         reg.write({ key, agent: input.agent, nativeId: input.nativeId, pid: input.pid, start, name: input.name, socket: input.socket,
-          permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock() });
+          permissionMode: input.agent === 'claude' ? reg.permissionMode(input.pid) : null, registeredAt: clock(),
+          ...(input.herdrName === undefined ? {} : { herdrName: input.herdrName }) });
         const id = store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
         if (others.length === 0 || wasActive) store.touch(id, clock());
         return { key, registered: true };
@@ -95,6 +96,14 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
         root.children.push(org);
       }
       return root;
+    },
+    device(): string { return device(); },
+    liveRecords(): RegistryRecord[] { return registry().live(); },
+    activate(input: { key: string; agent: Agent; nativeId: string }): void {
+      store.transaction(() => {
+        const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: device(), createdAt: clock() });
+        store.touch(id, clock());
+      });
     },
     resolve(hint: { agent: Agent; nativeId: string; pid: number }): string | undefined {
       const key = store.byNative(hint.agent, hint.nativeId)?.key;
