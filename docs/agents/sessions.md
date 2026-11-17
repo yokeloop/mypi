@@ -11,11 +11,24 @@ Read when: working with session registration, /open, start messages, events, mil
   its socket; the event goes to that sender when it is a parent of the task, else
   to the task's project. From `session_start` to
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
-  one socket per Pi process, and registers its path; `mypi event emit` then sends
-  all undelivered events of the parent except milestones to the parent's active
-  session when it is a live Pi session and marks the acknowledged ones delivered.
-  Without a live active session, a socket or an answer they wait for /inbox and the
-  warmup; nothing goes to another live session of the key. A live active Claude parent gets them at once through
+  one socket per Pi process, and registers its path; `mypi event emit` then
+  claims all undelivered, unclaimed events of the parent except milestones for the
+  parent's active session when it is a live Pi session, in one transaction
+  (`events.claimed_by`, `claimed_at`), sends them outside it, marks the
+  acknowledged ones delivered (they keep `claimed_by`) and releases the rest, also
+  when the transport fails. A row claimed by another session is skipped.
+  Without a live active session, a socket or an answer they wait for /inbox, the
+  warmup or the first engineer input in a session of the key; nothing goes to
+  another live session of the key. The engineer's input (`mypi session prompt`)
+  makes that session active and, when it has its own socket and transport, takes
+  every undelivered event of the key except milestones, claimed but unacknowledged
+  ones included, and sends them to its own socket; so a row left claimed by a
+  crashed sender waits for the next input, /inbox or warmup, without a timer.
+  /open claims the queued messages of the opened session after its record
+  appears, just before the send. /inbox and the warmup take every undelivered row,
+  claimed ones included, and record the calling session in `claimed_by` (`NULL`
+  when it cannot be resolved). A takeover while another send is in flight can
+  repeat a row (at-least-once). A live active Claude parent gets them at once through
   its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
   SessionStart hook), one `{"type":"user",…}` line per event; they count as
   delivered once the socket took the write (the server closed its side). A
@@ -54,7 +67,8 @@ Read when: working with session registration, /open, start messages, events, mil
   displaced ([ADR 0006](../../.yoke/adr/0006-many-sessions-per-scope.md)). The
   active session of a key is the row where the engineer wrote last: Claude's
   `UserPromptSubmit` hook and the Pi extension's interactive `input` run
-  `mypi session prompt`, which writes `active_at` and prints nothing; a prompt in
+  `mypi session prompt`, which writes `active_at`, takes the waiting events of the
+  key to its own socket and prints nothing; a prompt in
   a mypi frame does not count. A new row is active when the key has no other live
   session; Claude `/clear` and Pi `/new` keep the active role when the replaced
   session had it. When another session of the key is live, the CLI warmup of a
@@ -63,7 +77,7 @@ Read when: working with session registration, /open, start messages, events, mil
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree,
   each node with its active `session` and all its `sessions`;
   `mypi session forget <key>` drops every row of the key on the user's request.
-  Without `XDG_RUNTIME_DIR` or an initialized schema 16 database registration fails
+  Without `XDG_RUNTIME_DIR` or an initialized schema 17 database registration fails
   and the warmup still runs. /open (MCP open_session, CLI mypi open) works on the
   sessions of this device: it focuses a live session's Herdr tab (the active
   session's, else the live session active last; otherwise it resumes the session

@@ -193,7 +193,7 @@ field or route needs `/v2`.
 
 ## Engine updates and migrations
 
-The server opens a database of schema 16 and keeps its code in memory. After an
+The server opens a database of schema 17 and keeps its code in memory. After an
 engine update or a migration, restart it.
 
 ## Access log
