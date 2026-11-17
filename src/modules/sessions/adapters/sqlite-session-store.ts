@@ -16,6 +16,7 @@ export function sqliteSessionStore(db: Database): SessionStore {
         .get(row.key, row.scopeType, row.orgId, row.projectId, row.taskId, row.agent, row.nativeId, row.device, row.createdAt) as { id: number }).id;
     },
     touch(id, at) { db.prepare('UPDATE sessions SET active_at = ? WHERE id = ?').run(at, id); },
+    renew(id, at) { db.prepare('UPDATE sessions SET created_at = ?, active_at = ? WHERE id = ?').run(at, at, id); },
     removeKey: key => db.prepare('DELETE FROM sessions WHERE key = ?').run(key).changes,
     list: () => db.prepare(select + ' ORDER BY key, active_at DESC NULLS LAST, id DESC').all() as SessionRow[],
   };

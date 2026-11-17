@@ -6,6 +6,7 @@ export type SessionNode = { key: string; session: { agent: Agent; nativeId: stri
 type Identity = { agent: Agent; nativeId: string };
 type Keyed = Identity & { key: string };
 const same = (a: { pid: number; start: string }, b: { pid: number; start: string }) => a.pid === b.pid && a.start === b.start;
+const fresh = (r: SessionRow) => r.activeAt === null || r.activeAt === r.createdAt;
 const matches = (record: { agent: Agent; nativeId: string }, row: { agent: Agent; nativeId: string } | undefined) =>
   row !== undefined && record.agent === row.agent && record.nativeId === row.nativeId;
 export type DeviceSessions = ReturnType<typeof createDeviceSessions>;
@@ -81,6 +82,7 @@ export function sessionTree(rows: SessionRow[], records: RegistryRecord[], orgOf
 export function createSessions(store: SessionStore, registry: () => Registry, scope: (key: string) => SessionScope,
   orgOf: (code: string) => string | undefined, clock: () => string, device: () => string) {
   const half = createDeviceSessions(registry, clock);
+  const raise = (row: SessionRow | undefined, id: number, at: string) => { if (row === undefined || fresh(row)) store.renew(id, at); else store.touch(id, at); };
   const saveRow = (input: Identity & { device: string; candidateKey: string | null; fork: boolean; envScope?: string; otherLive: Keyed[]; own: Keyed[] }):
     { key: string; registered: boolean } => store.transaction(() => {
     const existing = store.byNative(input.agent, input.nativeId);
@@ -96,8 +98,11 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     const wasActive = previous !== undefined && matches(previous, active);
     const now = clock();
     const id = store.save({ key, ...target, agent: input.agent, nativeId: input.nativeId, device: input.device, createdAt: now });
-    const inherited = wasActive && existing === undefined && active !== undefined && active.activeAt !== active.createdAt ? active.activeAt : null;
-    if (active?.id !== id && (wasActive || others.length === 0)) store.touch(id, inherited ?? now);
+    const inherited = wasActive && existing === undefined && active !== undefined && !fresh(active) ? active.activeAt : null;
+    if (active?.id !== id && (wasActive || others.length === 0)) {
+      if (inherited === null) raise(existing, id, now);
+      else store.touch(id, inherited);
+    }
     return { key, registered: true };
   });
   const forgetRows = (key: string): { forgotten: string } => store.transaction(() => {
@@ -127,7 +132,6 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
       return store.transaction(() => {
         const row = store.byNative(input.agent, input.nativeId);
         if (row === undefined) return { key: null, active: false, id: null, previous: null, since: null };
-        const fresh = (r: SessionRow) => r.activeAt === null || r.activeAt === r.createdAt;
         const before = fresh(row) ? store.rows(row.key).find(r => r.id !== row.id && !fresh(r)) : store.active(row.key);
         const previous = before !== undefined && before.id !== row.id ? { agent: before.agent, device: before.device } : null;
         store.touch(row.id, clock());
@@ -156,8 +160,9 @@ export function createSessions(store: SessionStore, registry: () => Registry, sc
     activate(input: { key: string; agent: Agent; nativeId: string; device?: string }): void {
       store.transaction(() => {
         const now = clock();
+        const existing = store.byNative(input.agent, input.nativeId);
         const id = store.save({ key: input.key, ...scope(input.key), agent: input.agent, nativeId: input.nativeId, device: input.device ?? device(), createdAt: now });
-        store.touch(id, now);
+        raise(existing, id, now);
       });
     },
     ownRecord(key: string, session: { agent: Agent; nativeId: string }): RegistryRecord | undefined {
