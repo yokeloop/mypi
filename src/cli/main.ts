@@ -6,12 +6,14 @@ import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { resolveStatePath } from '../app/create-app.js';
 import { eventTransports } from '../app/event-transports.js';
+import { configuredServer, remoteBackend } from '../app/backend.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
 let stoppedBy: 'SIGINT' | 'SIGTERM' | undefined;
 try {
   const command = parseCommand(process.argv.slice(2));
+  const server = command.type === 'help' ? undefined : configuredServer(process.env);
   if (command.type === 'workspace' && command.name === 'serve') {
     const args = (['listen', 'port'] as const).flatMap(name =>
       typeof command.options[name] === 'string' ? ['--' + name, command.options[name]] : []);
@@ -31,7 +33,8 @@ try {
     }
     // Help must work without a configured home, initialized DB or any filesystem changes.
     const output = command.type === 'help' ? { usage } : await run(command,
-      resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context);
+      resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context,
+      server === undefined ? undefined : remoteBackend(server));
     if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
       process.stderr.write(JSON.stringify(output) + '\n');
       process.exitCode = 1;

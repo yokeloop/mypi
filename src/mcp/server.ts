@@ -3,6 +3,7 @@ import { CallToolRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { ServerNotification } from '@modelcontextprotocol/sdk/types.js';
 import { executeCommand } from '../app/execute-command.js';
 import type { EventTransports } from '../app/delivery.js';
+import type { Backend } from '../app/backend.js';
 import { tools, toolCommand, readOnly } from './tools.js';
 import type { ToolName } from './tools.js';
 import { output } from './schemas.js';
@@ -14,7 +15,7 @@ type CallExtra = { signal: AbortSignal; _meta?: { progressToken?: string | numbe
   sendNotification: (n: ServerNotification) => Promise<void> };
 
 export function createServer(filename: string, root?: string, env: Readonly<Record<string, string | undefined>> = {},
-  transports: EventTransports = {}) {
+  transports: EventTransports = {}, backend?: Backend) {
   const server = new McpServer({ name: 'mypi', version: '0.12.0' });
   const calls = serialCalls();
   const shutdown = new AbortController();
@@ -29,7 +30,7 @@ export function createServer(filename: string, root?: string, env: Readonly<Reco
           .catch(() => undefined);
       };
       return await calls.run(signal, async () => success(await runSequence(commands, command =>
-        executeCommand(command, filename, root, transports, { signal, ...(onProgress ? { onProgress } : {}) }))));
+        executeCommand(command, filename, root, transports, { signal, ...(onProgress ? { onProgress } : {}) }, backend))));
     } catch (error) { return failure(error); }
   }
   for (const name of Object.keys(tools) as ToolName[]) {
