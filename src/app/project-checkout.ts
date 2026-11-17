@@ -96,7 +96,7 @@ export async function prepareCheckout(runner: SessionRunner, project: Project, p
   }
   const action = plan === 'clone' ? 'cloned' : plan === 'init' ? 'initialized' : 'adopted';
   try {
-    const { checkoutPath } = await runner.run('checkout_record', { identity, checkoutPath: target, action, ...(action === 'cloned' ? { repository } : {}) });
+    const { checkoutPath } = await runner.run('checkout_record', { identity, checkoutPath: realpathSync(target), action, ...(action === 'cloned' ? { repository } : {}) });
     return { code: project.code, checkoutPath, action };
   } catch (error) {
     if (!(error instanceof InputError)) throw error;
