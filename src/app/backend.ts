@@ -6,17 +6,19 @@ import { InputError } from '../shared/errors.js';
 import { engineVersion } from './create-app.js';
 import { runOperation } from './operations.js';
 import type { OperationInput, OperationName } from './operations.js';
+import type { SessionRunner } from './session-operations.js';
 
 export type { ServerConfig };
-export type Backend = { remote: boolean; run<K extends OperationName>(name: K, input: OperationInput<K>): Promise<unknown> };
+export type Backend = { remote: boolean; device: string; run<K extends OperationName>(name: K, input: OperationInput<K>): Promise<unknown> };
 
 export function localBackend(filename: string, root?: string): Backend {
-  return { remote: false, run: async (name, input) => runOperation({ filename, ...(root === undefined ? {} : { root }) }, name, input) };
+  return { remote: false, device: hostname(), run: async (name, input) => runOperation({ filename, ...(root === undefined ? {} : { root }) }, name, input) };
 }
 
 export function remoteBackend(config: ServerConfig, version = engineVersion(), timeoutMs = 10_000): Backend {
   return {
     remote: true,
+    device: deviceName(config),
     run: async (name, input) => {
       let text: string;
       try {
@@ -44,4 +46,8 @@ export function configuredServer(env: Readonly<Record<string, string | undefined
 
 export function deviceName(config: ServerConfig | undefined): string {
   return config?.device ?? hostname();
+}
+
+export function sessionRunner(backend: Backend): SessionRunner {
+  return { remote: backend.remote, device: backend.device, run: (name, input) => backend.run(name, input as never) as Promise<never> };
 }

@@ -34,7 +34,7 @@ try {
     // Help must work without a configured home, initialized DB or any filesystem changes.
     const output = command.type === 'help' ? { usage } : await run(command,
       resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context,
-      server === undefined ? undefined : remoteBackend(server));
+      server === undefined ? undefined : remoteBackend(server, undefined, command.type === 'workspace' && command.name === 'session prompt' ? 1500 : 10_000));
     if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
       process.stderr.write(JSON.stringify(output) + '\n');
       process.exitCode = 1;

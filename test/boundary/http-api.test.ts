@@ -286,7 +286,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.ok(note.path.startsWith('projects/fx/two/notes/'), note.path);
   assert.ok(existsSync(join(deviceRoot, note.path)));
   assert.equal(lastSubject(), 'Create ' + note.path);
-  const failing: Backend = { remote: true, run: (name, input) => name === 'task_progress'
+  const failing: Backend = { remote: true, device: 'laptop', run: (name, input) => name === 'task_progress'
     ? Promise.reject(new Error('mypi server unreachable: ' + url)) : remote.run(name, input) };
   await assert.rejects(deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md', text: 'r1' }] }, failing),
     (error: unknown) => error instanceof PartialError && JSON.stringify([error.saved, error.missing, error.paths])
