@@ -335,6 +335,8 @@ test('pi extension /open runs mypi open and notifies its result', async () => {
   install(pi.api, root, serve, undefined, process.pid, fake);
   await pi.commands.get('open')!.handler('MP-12  --agent pi', pi.ctx);
   assert.deepEqual(runs.at(-1), [[cli, 'open', 'MP-12', '--agent', 'pi'], root]);
+  await pi.commands.get('open')!.handler('MP-12 --session c1 --new', pi.ctx);
+  assert.deepEqual(runs.at(-1), [[cli, 'open', 'MP-12', '--session', 'c1', '--new'], root]);
   assert.deepEqual(pi.notes.at(-1), ['mypi open: ' + stdout, 'info']);
   await pi.commands.get('open')!.handler('MP-12 --agent pi --message сделай два  шага ', pi.ctx);
   assert.deepEqual(runs.at(-1), [[cli, 'open', 'MP-12', '--agent', 'pi', '--message', 'сделай два  шага'], root]);
