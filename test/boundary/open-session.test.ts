@@ -6,9 +6,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createApp, resolveStatePath } from '../../src/app/create-app.js';
+import { createApp, initializeState, resolveStatePath } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { seedRepository } from '../support/repository.js';
+import { run } from '../../src/cli/run.js';
+import { parseCommand } from '../../src/cli/command.js';
 
 const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
 const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
@@ -111,8 +113,8 @@ function fixture(t: TestContext) {
   const other = join(dir, 'projects', 'two', 'other');
   mkdirSync(join(dir, 'projects', 'two'), { recursive: true });
   git('clone', '--quiet', bare, other);
-  assert.equal(cli(['db', 'init']).status, 0);
   const filename = resolveStatePath(env, dir);
+  initializeState(filename);
   const app = createApp(filename, false);
   try {
     const projectId = app.projects.add('one/project', 'MP', clone, bare).id;
@@ -136,7 +138,8 @@ function fixture(t: TestContext) {
     const db = openDatabase(filename, true);
     try { return db.prepare('SELECT id, kind, delivered_at IS NOT NULL AS delivered FROM events ORDER BY id').all(); } finally { db.close(); }
   };
-  const quit = () => { for (const child of children()) assert.equal(cli(['session', 'unregister', '--pid', child]).status, 0); };
+  const setup = (args: string[], extra: Record<string, string> = {}) => run(parseCommand(args), filename, undefined, { ...env, ...extra });
+  const quit = async () => { for (const child of children()) await setup(['session', 'unregister', '--pid', child]); };
   const sock = join(dir, 'child.sock'), serverLog = join(dir, 'server.log');
   const listen = async (mode: 'ack' | 'claude') => {
     const child = spawn(process.execPath, [server, sock, mode, serverLog], { stdio: ['ignore', 'pipe', 'inherit'] });
@@ -159,7 +162,7 @@ function fixture(t: TestContext) {
     } finally { db.close(); }
   };
   const pid = String(process.pid);
-  return { env, filename, cli, ok, failed, calls, reset, rows, worktreePaths, events, journal, quit, listen, received, sock, pid,
+  return { env, filename, cli, setup, ok, failed, calls, reset, rows, worktreePaths, events, journal, quit, listen, received, sock, pid,
     worktree: realpathSync(clone) + '--MP-1-open', names: env['HERDR_NAMES']! };
 }
 
@@ -223,8 +226,8 @@ test('open of a task without its project workspace creates the workspace with on
 });
 
 test('open focuses a live session by its Herdr name and --agent of another agent starts that agent', async t => {
-  const { cli, ok, failed, calls, reset, listen, sock, pid } = fixture(t);
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  const { setup, ok, failed, calls, reset, listen, sock, pid } = fixture(t);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid], { MYPI_SCOPE: 'MP-1' });
   assert.deepEqual(ok(['open', 'MP-1']).opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP-1', 'claude', 'focused', []]]);
   assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1']]);
   reset();
@@ -239,17 +242,17 @@ test('open focuses a live session by its Herdr name and --agent of another agent
   assert.deepEqual(calls().find(c => c[0] === 'agent')!.slice(0, 5), ['agent', 'start', 'mp-1-pi', '--kind', 'pi']);
 });
 
-test('open resumes a closed session with its saved agent and passes the requested mode', t => {
-  const { cli, ok, calls, reset, pid } = fixture(t);
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid], { MYPI_SCOPE: 'MP-1' }).status, 0);
-  assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
+test('open resumes a closed session with its saved agent and passes the requested mode', async t => {
+  const { setup, ok, calls, reset, pid } = fixture(t);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid], { MYPI_SCOPE: 'MP-1' });
+  await setup(['session', 'unregister', '--pid', pid]);
   const claude = ok(['open', 'MP-1', '--permission-mode', 'plan']);
   assert.deepEqual(claude.opened.map(o => [o.key, o.agent, o.action]), [['MP-1', 'claude', 'resumed']]);
   assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp-1', '--kind', 'claude', '--pane', 'p-one/project', '--', '--resume', 'c1', '--permission-mode', 'plan',
     '--settings', accept]);
   reset();
-  assert.equal(cli(['session', 'register', '--agent', 'pi', '--native-id', 'p9', '--pid', pid], { MYPI_SCOPE: 'MP' }).status, 0);
-  assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
+  await setup(['session', 'register', '--agent', 'pi', '--native-id', 'p9', '--pid', pid], { MYPI_SCOPE: 'MP' });
+  await setup(['session', 'unregister', '--pid', pid]);
   const pi = ok(['open', 'MP', '--permission-mode', 'auto']);
   assert.deepEqual(pi.opened.map(o => [o.key, o.agent, o.action, o.notes]), [['MP', 'pi', 'resumed', ['Pi has no permission mode; auto was not passed to MP']]]);
   assert.deepEqual(calls().at(-1), ['agent', 'start', 'mp', '--kind', 'pi', '--pane', 'p-one/project', '--', '--session-id', 'p9']);
@@ -289,7 +292,7 @@ test('open reports a partial result when a later key fails', t => {
 });
 
 test('open sends the start message once to a new Claude task session and nothing on resume and focus', async t => {
-  const { cli, ok, quit, listen, received, events, journal, sock, pid, worktree } = fixture(t);
+  const { setup, ok, quit, listen, received, events, journal, sock, pid, worktree } = fixture(t);
   await listen('claude');
   const first = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
   assert.deepEqual(first.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'started', []]]);
@@ -304,12 +307,12 @@ test('open sends the start message once to a new Claude task session and nothing
   assert.ok(content.includes('Дождись указаний или предложи следующий шаг.'), content);
   assert.deepEqual(events(), []);
   assert.deepEqual(journal('session_opened'), [['task', 'MP-1', 'started claude, worktree ' + worktree]]);
-  quit();
+  await quit();
   const again = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
   assert.deepEqual(again.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'resumed', []]]);
   assert.equal(received().length, 1);
   assert.deepEqual(journal('session_opened'), [['task', 'MP-1', 'started claude, worktree ' + worktree], ['task', 'MP-1', 'resumed claude, worktree ' + worktree]]);
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' });
   const focused = ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock });
   assert.deepEqual(focused.opened.map(o => [o.key, o.action, o.notes]), [['MP-1', 'focused', []]]);
   assert.equal(received().length, 1);
@@ -357,7 +360,7 @@ test('open resumes a closed child and delivers its queued messages once', async 
   await listen('claude');
   assert.equal(ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock }).opened[0]!.message, null);
   assert.equal(received().length, 1);
-  quit();
+  await quit();
   const sent = cli(['send', 'MP-1', 'go on'], { MYPI_SCOPE: 'MP' });
   assert.equal(sent.stdout, '{"message":1,"delivered":false}\n', sent.stderr);
   assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 0 }]);
@@ -367,15 +370,15 @@ test('open resumes a closed child and delivers its queued messages once', async 
   assert.equal(lines.length, 2);
   assert.equal(lines[1].message.content, parent + 'go on');
   assert.deepEqual(events(), [{ id: 1, kind: 'message', delivered: 1 }]);
-  quit();
+  await quit();
   assert.deepEqual(ok(['open', 'MP-1'], { HERDR_FAKE_SOCKET: sock }).opened.map(o => [o.action, o.notes]), [['resumed', []]]);
   assert.equal(received().length, 2);
 });
 
 test('open with a message focuses a live child and sends it live', async t => {
-  const { cli, ok, calls, listen, received, events, journal, sock, pid } = fixture(t);
+  const { setup, ok, calls, listen, received, events, journal, sock, pid } = fixture(t);
   await listen('claude');
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' }).status, 0);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', sock], { MYPI_SCOPE: 'MP-1' });
   const result = ok(['open', 'MP-1', '--message', 'go'], { MYPI_SCOPE: 'MP' });
   assert.deepEqual(result.opened.map(o => [o.key, o.action, o.notes, o.message]), [['MP-1', 'focused', [], 1]]);
   assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'mp-1']]);
@@ -398,7 +401,7 @@ test('open with a message from a non-parent or for two keys opens nothing', t =>
   assert.deepEqual(journal(), []);
 });
 
-test('open of an organization starts tab org-<slug> in workspace <slug> without clones or worktrees and focuses it on the next open', t => {
+test('open of an organization starts tab org-<slug> in workspace <slug> without clones or worktrees and focuses it on the next open', async t => {
   const { env, ok, calls, reset, rows, worktreePaths, journal, quit } = fixture(t);
   const result = ok(['open', 'one']);
   assert.deepEqual(result.opened.map(o => [o.key, o.agent, o.action, o.worktreePath]), [['one', 'claude', 'started', null]]);
@@ -419,7 +422,7 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
   assert.deepEqual(ok(['open', 'one']).opened.map(o => [o.key, o.action]), [['one', 'focused']]);
   assert.deepEqual(calls(), [['workspace', 'list'], ['agent', 'focus', 'org-one']]);
   assert.deepEqual(journal('session_opened'), [['org', 'one', 'started claude']]);
-  quit();
+  await quit();
   reset();
   assert.deepEqual(ok(['open', 'one']).opened.map(o => [o.key, o.action]), [['one', 'resumed']]);
   assert.deepEqual(journal('session_opened'), [['org', 'one', 'started claude'], ['org', 'one', 'resumed claude']]);
@@ -427,10 +430,10 @@ test('open of an organization starts tab org-<slug> in workspace <slug> without 
     '--settings', accept]);
 });
 
-test('open refuses an unknown organization, all, global and an organization without projects, leaving no tab or rows', t => {
-  const { cli, failed, calls, rows } = fixture(t);
-  assert.equal(cli(['project', 'add', 'empty/gone', '--code', 'GO', '--repository', 'file:///nonexistent/empty/gone.git']).status, 0);
-  assert.equal(cli(['project', 'remove', 'empty/gone', '--expected-code', 'GO']).status, 0);
+test('open refuses an unknown organization, all, global and an organization without projects, leaving no tab or rows', async t => {
+  const { setup, failed, calls, rows } = fixture(t);
+  await setup(['project', 'add', 'empty/gone', '--code', 'GO', '--repository', 'file:///nonexistent/empty/gone.git']);
+  await setup(['project', 'remove', 'empty/gone', '--expected-code', 'GO']);
   assert.match(failed(['open', 'nope']).message, /Unknown organization/);
   assert.match(failed(['open', 'one', 'nope']).message, /Unknown organization/);
   assert.equal(failed(['open', 'all']).message, 'all is reserved for /inbox all; /open opens organization (tb-ff), project (MP) and task (MP-12) sessions');
@@ -465,11 +468,11 @@ test('the organization chat opens a task of its organization with a message; a t
 });
 
 test('open --new --agent pi gives the second session the Herdr name mp-1-pi and delivers the start message and the parent message to it, not to the live claude session', async t => {
-  const { env, filename, cli, ok, calls, reset, listen, received, events, sock, pid, names } = fixture(t);
+  const { env, filename, setup, ok, calls, reset, listen, received, events, sock, pid, names } = fixture(t);
   await listen('ack');
   writeFileSync(names, 'mp-1\n');
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', join(dirname(sock), 'old.sock')],
-    { MYPI_SCOPE: 'MP-1', MYPI_HERDR_NAME: 'mp-1' }).status, 0);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'c1', '--pid', pid, '--socket', join(dirname(sock), 'old.sock')],
+    { MYPI_SCOPE: 'MP-1', MYPI_HERDR_NAME: 'mp-1' });
   const workspaces = '[{"workspace_id":"w9","label":"one/project","focused":false}]';
   const result = ok(['open', 'MP-1', '--new', '--agent', 'pi', '--message', 'сделай шаг'],
     { HERDR_FAKE_SOCKET: sock, MYPI_SCOPE: 'MP', HERDR_FAKE_UNIQUE: '1', HERDR_FAKE_WORKSPACES: workspaces });
@@ -499,13 +502,13 @@ test('open --new --agent pi gives the second session the Herdr name mp-1-pi and 
   assert.equal(active().nativeId, 'c1');
 });
 
-test("open --session of another device, an unknown id or another key's session, with --new or with two keys opens and clones nothing", t => {
-  const { filename, cli, failed, calls, journal, pid, worktree } = fixture(t);
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'x9', '--pid', pid], { MYPI_SCOPE: 'MP-1' }).status, 0);
-  assert.equal(cli(['session', 'unregister', '--pid', pid]).status, 0);
+test("open --session of another device, an unknown id or another key's session, with --new or with two keys opens and clones nothing", async t => {
+  const { filename, setup, failed, calls, journal, pid, worktree } = fixture(t);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'x9', '--pid', pid], { MYPI_SCOPE: 'MP-1' });
+  await setup(['session', 'unregister', '--pid', pid]);
   const db = openDatabase(filename);
   try { db.prepare("UPDATE sessions SET device = 'elsewhere' WHERE native_id = 'x9'").run(); } finally { db.close(); }
-  assert.equal(cli(['session', 'register', '--agent', 'claude', '--native-id', 'm1', '--pid', pid], { MYPI_SCOPE: 'MP' }).status, 0);
+  await setup(['session', 'register', '--agent', 'claude', '--native-id', 'm1', '--pid', pid], { MYPI_SCOPE: 'MP' });
   assert.equal(failed(['open', 'MP-1', '--session', 'x9']).message,
     'Session x9 of MP-1 is on elsewhere, not on ' + hostname() + '; a session of another device cannot be opened here');
   assert.equal(failed(['open', 'MP-1', '--session', 'm1']).message, 'Unknown session m1 of MP-1; mypi sessions lists the sessions of each key');
