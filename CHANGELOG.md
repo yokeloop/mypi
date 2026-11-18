@@ -21,6 +21,10 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - `repository` is required (MP-144): `project add` needs `--repository <git-url>`, and `local` is refused in `add` and `update`. Rows registered earlier without a repository or as `local` keep working; set one with `project update … --repository <url>` (`docs/M1-CLI.md`).
 - Schema 16 and 17 (MP-140, MP-142): `sessions` holds many rows per key with `device` and `active_at`; `events` gains `claimed_by` and `claimed_at`; `mypi db init` is required.
 
+### Fixed
+
+- Reading the journal no longer runs out of memory on a large journal (MP-152): journal read, MCP journal, journal_read in /v1/ops and GET /v1/journal build the task and project index once per read instead of querying tasks and projects for every entry; filters, order, limit and pages are unchanged.
+
 ## [0.12.0] - 2026-11-11
 
 Upgrading from v0.11.0: `git pull --ff-only`, install the locked dependencies and build; schema 15, run `mypi db init` once after the update (back up the database

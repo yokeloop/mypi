@@ -71,7 +71,7 @@ function paths(filename: string): (string | null)[] {
 function journal(filename: string): (string | null)[][] {
   const app = createApp(filename, true);
   try {
-    return createJournal(app.journalStore, () => {}, sameScope, () => '').read('all').map(e => [e.scope.type === 'global' ? null : e.scope.key, e.event_type, e.text]);
+    return createJournal(app.journalStore, () => {}, () => ({ resolve: () => {}, contains: sameScope }), () => '').read('all').map(e => [e.scope.type === 'global' ? null : e.scope.key, e.event_type, e.text]);
   } finally { app.close(); }
 }
 
