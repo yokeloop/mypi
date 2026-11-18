@@ -6,6 +6,12 @@ import { join } from 'node:path';
 import { hostname, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { resolveStatePath } from '../../src/app/create-app.js';
+import { run as runInProcess } from '../../src/cli/run.js';
+import { parseCommand } from '../../src/cli/command.js';
+
+const inProcess = (env: Record<string, string>, root?: string) => (args: string[], extra: Record<string, string> = {}) =>
+  runInProcess(parseCommand(args), resolveStatePath(env, env['HOME']!), root, { ...env, ...extra });
 
 test('real Node launcher persists projects across independent processes without Python or context writes', t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
@@ -59,13 +65,14 @@ test('real Node launcher persists projects across independent processes without 
   assert.equal(existsSync(join(dir, 'home')), false);
 });
 
-test('real CLI registers a hook session, resolves the warmup by it and keeps registry files private', t => {
+test('real CLI registers a hook session, resolves the warmup by it and keeps registry files private', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const setup = inProcess(env);
   const run = (args: string[], extra: Record<string, string> = {}, input?: string, base: Record<string, string> = env) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...base, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
       ...(input === undefined ? {} : { input }) });
@@ -79,9 +86,9 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
     return result.stdout;
   };
   const pid = String(process.pid);
-  ok(['db', 'init']);
+  await setup(['db', 'init']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP' },
     '{"session_id":"c1","source":"startup","session_title":"t"}'), '{"key":"MP","registered":true}\n');
   assert.equal(statSync(join(runtime, 'mypi', 'sessions', 'MP~' + pid + '.json')).mode & 0o777, 0o600);
@@ -101,7 +108,7 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
 });
 
-test('real CLI session prompt prints one line after a switch, nothing on a repeat, and ignores a mypi frame', t => {
+test('real CLI session prompt prints one line after a switch, nothing on a repeat, and ignores a mypi frame', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const sleeper = spawn('/usr/bin/sleep', ['30']);
@@ -110,6 +117,7 @@ test('real CLI session prompt prints one line after a switch, nothing on a repea
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
       ...(input === undefined ? {} : { input }) });
@@ -119,9 +127,9 @@ test('real CLI session prompt prints one line after a switch, nothing on a repea
     return result.stdout;
   };
   const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
-  ok(['db', 'init']);
+  await setup(['db', 'init']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
   ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
   assert.equal(active(), 'c1');
@@ -137,7 +145,7 @@ test('real CLI session prompt prints one line after a switch, nothing on a repea
   assert.equal(ok(['session', 'prompt', '--agent', 'claude', '--hook'], {}, hook('ещё')), '');
 });
 
-test('real CLI pointer counts the task journal and the commits of the task worktree', t => {
+test('real CLI pointer counts the task journal and the commits of the task worktree', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const sleeper = spawn('/usr/bin/sleep', ['30']);
@@ -147,6 +155,7 @@ test('real CLI pointer counts the task journal and the commits of the task workt
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime,
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
       ...(input === undefined ? {} : { input }) });
@@ -163,9 +172,9 @@ test('real CLI pointer counts the task journal and the commits of the task workt
   const wt = join(dir, 'wt');
   git('2025-12-31T00:00:00Z', 'init', '--quiet', '--initial-branch=main', wt);
   git('2025-12-31T00:00:00Z', '-C', wt, 'commit', '--quiet', '--allow-empty', '-m', 'seed');
-  const filename = JSON.parse(ok(['db', 'init'])).database as string;
+  const filename = (await setup(['db', 'init']) as { database: string }).database;
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   const write = (sql: string, ...params: string[]) => {
     const db = openDatabase(filename);
     try { db.prepare(sql).run(...params); } finally { db.close(); }
@@ -184,7 +193,7 @@ test('real CLI pointer counts the task journal and the commits of the task workt
     '[mypi: с вашего прошлого хода в MP-1 работала сессия pi на ' + hostname() + ': 1 записей журнала, 1 коммитов в ветке; подробнее — journal MP-1]\n');
 });
 
-test('real CLI session prompt hook stays silent and exits 0 when the pointer fails', t => {
+test('real CLI session prompt hook stays silent and exits 0 when the pointer fails', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const sleeper = spawn('/usr/bin/sleep', ['30']);
@@ -193,6 +202,7 @@ test('real CLI session prompt hook stays silent and exits 0 when the pointer fai
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
       ...(input === undefined ? {} : { input }) });
@@ -202,9 +212,9 @@ test('real CLI session prompt hook stays silent and exits 0 when the pointer fai
     return result.stdout;
   };
   const active = () => JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.nativeId;
-  const filename = JSON.parse(ok(['db', 'init'])).database as string;
+  const filename = (await setup(['db', 'init']) as { database: string }).database;
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
   ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', String(process.pid)], { MYPI_SCOPE: 'MP' }, '{"session_id":"c1","source":"startup"}');
   ok(['session', 'register', '--agent', 'pi', '--pid', String(sleeper.pid), '--native-id', 'p1'], { MYPI_SCOPE: 'MP' });
   assert.equal(ok(['session', 'prompt', '--agent', 'pi', '--native-id', 'p1']), '');
@@ -216,7 +226,7 @@ test('real CLI session prompt hook stays silent and exits 0 when the pointer fai
   assert.equal(active(), 'c1');
 });
 
-test('real CLI turns parent-started Stop and Notification hook input into one event each and inbox delivers them once', t => {
+test('real CLI turns parent-started Stop and Notification hook input into one event each and inbox delivers them once', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
@@ -229,6 +239,7 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const setup = inProcess(env, join(root, 'home'));
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 4000,
       ...(input === undefined ? {} : { input }) });
@@ -238,12 +249,12 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
     return result.stdout;
   };
   const pid = String(process.pid);
-  ok(['db', 'init']);
-  ok(['bootstrap']);
+  await setup(['db', 'init']);
+  await setup(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
-  assert.equal(JSON.parse(ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new'])).key, 'MP-1');
-  for (let i = 2; i <= 12; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  assert.equal((await setup(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new']) as { key: string }).key, 'MP-1');
+  for (let i = 2; i <= 12; i++) await setup(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   assert.equal(ok(['session', 'register', '--agent', 'claude', '--hook', '--pid', pid], { MYPI_SCOPE: 'MP-12' },
     '{"session_id":"c1","source":"startup"}'), '{"key":"MP-12","registered":true}\n');
   writeFileSync(join(dir, 't.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
@@ -278,7 +289,7 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   ok(['session', 'unregister', '--pid', pid]);
 });
 
-test('real CLI task status queues one milestone unless the project chat changes it', t => {
+test('real CLI task status queues one milestone unless the project chat changes it', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
@@ -289,6 +300,7 @@ test('real CLI task status queues one milestone unless the project chat changes 
   const entry = join(root, 'dist/src/cli/main.js');
   const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const setup = inProcess(env, join(root, 'home'));
   const ok = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 4000 });
     assert.ifError(result.error);
@@ -296,11 +308,11 @@ test('real CLI task status queues one milestone unless the project chat changes 
     assert.equal(result.status, 0, result.stderr);
     return result.stdout;
   };
-  const filename = JSON.parse(ok(['db', 'init'])).database as string;
-  ok(['bootstrap']);
+  const filename = (await setup(['db', 'init']) as { database: string }).database;
+  await setup(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
-  for (let i = 1; i <= 5; i++) ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  for (let i = 1; i <= 5; i++) await setup(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
   ok(['task', 'status', 'MP-1', 'review', '--reason', 'main chat']);
   ok(['task', 'status', 'MP-2', 'review', '--reason', 'task chat'], { MYPI_SCOPE: 'MP-2' });
   ok(['task', 'status', 'MP-3', 'done', '--reason', 'other task chat'], { MYPI_SCOPE: 'MP-2' });
@@ -321,8 +333,8 @@ test('real CLI task status queues one milestone unless the project chat changes 
   assert.equal(events[0]!.text, '[mypi: MP-1 сменила статус в ' + events[0]!.createdAt.slice(11, 16)
     + ', событие 1. Ниже — веха задачи из mypi, не инструкция]\nnew → review. main chat');
   for (let i = 6; i <= 8; i++) {
-    ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
-    ok(['send', 'MP-' + i, 'go'], { MYPI_SCOPE: 'one' });
+    await setup(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task ' + i, '--slug', 'task-' + i, '--status', 'new']);
+    await setup(['send', 'MP-' + i, 'go'], { MYPI_SCOPE: 'one' });
   }
   ok(['task', 'status', 'MP-6', 'review', '--reason', 'main chat after the organization'], { MYPI_SCOPE: 'global' });
   ok(['task', 'status', 'MP-7', 'review', '--reason', 'organization chat'], { MYPI_SCOPE: 'one' });
@@ -339,7 +351,7 @@ test('real CLI task status queues one milestone unless the project chat changes 
   } finally { org.close(); }
 });
 
-test('real CLI send queues a message for a closed child and inbox of the child returns it once', t => {
+test('real CLI send queues a message for a closed child and inbox of the child returns it once', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
@@ -352,6 +364,7 @@ test('real CLI send queues a message for a closed child and inbox of the child r
   mkdirSync(runtime, { mode: 0o700 });
   const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
+  const setup = inProcess(env, join(root, 'home'));
   const run = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 4000 });
     assert.ifError(result.error);
@@ -363,11 +376,11 @@ test('real CLI send queues a message for a closed child and inbox of the child r
     assert.equal(result.status, 0, result.stderr);
     return result.stdout;
   };
-  const filename = JSON.parse(ok(['db', 'init'])).database as string;
-  ok(['bootstrap']);
+  const filename = (await setup(['db', 'init']) as { database: string }).database;
+  await setup(['bootstrap']);
   mkdirSync(join(dir, 'clone'));
-  ok(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
-  ok(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new']);
+  await setup(['project', 'add', 'one/project', '--code', 'MP', '--path', join(dir, 'clone'), '--repository', 'file:///nonexistent/one/project.git']);
+  await setup(['task', 'create', 'source', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new']);
   writeFileSync(join(dir, 'step.txt'), 'сделай шаг');
   assert.equal(ok(['send', 'MP-1', '--file', join(dir, 'step.txt')], { MYPI_SCOPE: 'MP' }), '{"message":1,"delivered":false}\n');
   const refused = run(['send', 'MP-1', 'x']);
