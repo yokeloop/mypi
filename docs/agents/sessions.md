@@ -138,7 +138,9 @@ Read when: working with session registration, /open, start messages, events, mil
   `session_start` to `session_shutdown`) and so does Claude's stdio MCP process.
   Without an approved mypi MCP server in Claude, messages wait for the engineer's
   input, `/inbox` or the warmup. With the server unreachable the subscription
-  reconnects after the stream's `retry`. A takeover during a send can deliver twice
+  reconnects after the stream's `retry`. A stream silent for 60 s (2.4 times the server's
+  25 s keepalive), such as a half-open connection after sleep or a network switch, is
+  dropped and reconnected the same way, and the reconnect claims what is pending. A takeover during a send can deliver twice
   (at least once): Pi drops ids it already showed, Claude may show a message twice. After a
   round that claimed events but delivered none (the socket refused or acknowledged
   nothing) the subscription waits the stream's `retry` before it claims again.

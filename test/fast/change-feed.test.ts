@@ -10,7 +10,7 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
 import type { SessionRunner } from '../../src/app/session-operations.js';
 import { registerSession } from '../../src/app/sessions.js';
-import { subscribeInbox } from '../../src/app/inbox-subscription.js';
+import { IDLE_MS, subscribeInbox } from '../../src/app/inbox-subscription.js';
 import type { SubscriptionOptions } from '../../src/app/inbox-subscription.js';
 import type { EventTransports } from '../../src/app/delivery.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
@@ -74,9 +74,11 @@ function subscription(t: TestContext) {
     return answer(init.signal!);
   };
   const options = (pid: number, controller: AbortController, fetch: (url: string, init: RequestInit) => Promise<Response>,
-    extra: { transports?: EventTransports; runner?: SessionRunner; pause?: (ms: number) => Promise<void> } = {}): SubscriptionOptions => ({
+    extra: { transports?: EventTransports; runner?: SessionRunner; pause?: (ms: number) => Promise<void>;
+      timer?: SubscriptionOptions['timer'] } = {}): SubscriptionOptions => ({
     server: { url: 'http://mypi.test', token: 't1' }, pid, agent: 'pi', runner: extra.runner ?? runner, device: deviceSessions(run, proc),
-    transports: extra.transports ?? {}, fetch, pause: extra.pause ?? (async () => undefined), signal: controller.signal });
+    transports: extra.transports ?? {}, fetch, pause: extra.pause ?? (async () => undefined), timer: extra.timer ?? (() => () => undefined),
+    signal: controller.signal });
   const counting = (onClaim: (n: number) => void): SessionRunner => {
     let n = 0;
     return { remote: runner.remote, device: runner.device, run: async (name, input) => {
@@ -142,6 +144,36 @@ test('a non-200 answer and the end of the stream reconnect after the stream\'s r
   ]), { pause: async ms => { paused.push(ms); } }));
   assert.deepEqual(paused, [2000, 500]);
   assert.equal(x.fetched.length, 3);
+});
+
+test('a stream silent past the idle limit is dropped, reconnected after retry and claimed again', async t => {
+  const x = subscription(t);
+  await x.register(101, 'p1', '/s/p1.sock');
+  const controller = new AbortController();
+  const sent: [string, number[]][] = [];
+  const pi: EventTransport = async (socket, events) => { sent.push([socket, events.map(e => e.id)]); return events.map(e => e.id); };
+  const timers: { ms: number; fire: () => void; live: boolean }[] = [];
+  const timer = (ms: number, fire: () => void) => {
+    const entry = { ms, fire, live: true };
+    timers.push(entry);
+    return () => { entry.live = false; };
+  };
+  const paused: number[] = [];
+  await subscribeInbox(x.options(101, controller, x.fetcher([stream([initial]), stream([initial])]), {
+    transports: { pi }, timer, pause: async ms => { paused.push(ms); },
+    runner: x.counting(n => {
+      if (n === 2) { controller.abort(); return; }
+      void x.runner.run('message_create', { from: 'MP', to: 'MP-12', message: 'hi' }).then(() => {
+        const live = timers.filter(e => e.live);
+        assert.equal(live.length, 1);
+        live[0]!.fire();
+      });
+    }) }));
+  assert.equal(x.fetched.length, 2);
+  assert.deepEqual(paused, [2000]);
+  assert.ok(timers.length >= 2 && timers.every(e => e.ms === IDLE_MS));
+  assert.deepEqual(sent, [['/s/p1.sock', [1]]]);
+  assert.equal(x.events()[0]!.claimedBy, x.rowId('p1'));
 });
 
 test('the subscription ends when the watched process is gone', async t => {

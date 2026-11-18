@@ -28,7 +28,8 @@ try {
   if (remote !== undefined && backend !== undefined && process.env['CLAUDE_CODE_SESSION_ID']) {
     const { signal } = subscription;
     void subscribeInbox({ server: remote, pid: process.ppid, agent: 'claude', runner: sessionRunner(backend), device: deviceSessions(process.env['XDG_RUNTIME_DIR']),
-      transports: eventTransports, fetch: globalThis.fetch, pause: ms => sleep(ms, undefined, { signal }).catch(() => undefined), signal }).catch(() => undefined);
+      transports: eventTransports, fetch: globalThis.fetch, pause: ms => sleep(ms, undefined, { signal }).catch(() => undefined),
+      timer: (ms, fire) => { const t = setTimeout(fire, ms); return () => clearTimeout(t); }, signal }).catch(() => undefined);
   }
 } catch {
   // Do not echo tool input or potentially sensitive paths in startup diagnostics.

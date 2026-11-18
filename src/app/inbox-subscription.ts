@@ -2,10 +2,14 @@ import { claimFor } from './delivery.js';
 import type { EventTransports } from './delivery.js';
 import type { SessionOperationOutput, SessionRunner } from './session-operations.js';
 import type { Agent, DeviceSessions } from '../modules/sessions/public.js';
+import { KEEPALIVE_MS } from '../shared/change-stream.js';
+
+export const IDLE_MS = KEEPALIVE_MS * 12 / 5;
 
 export type SubscriptionOptions = { server: { url: string; token: string }; pid: number; agent: Agent; runner: SessionRunner;
   device: Pick<DeviceSessions, 'start' | 'records'>; transports: EventTransports;
-  fetch: (url: string, init: RequestInit) => Promise<Response>; pause: (ms: number) => Promise<void>; signal: AbortSignal };
+  fetch: (url: string, init: RequestInit) => Promise<Response>; pause: (ms: number) => Promise<void>;
+  timer: (ms: number, fire: () => void) => () => void; signal: AbortSignal };
 
 export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
   const startOf = (): string | undefined => { try { return o.device.start(o.pid); } catch { return undefined; } };
@@ -40,23 +44,31 @@ export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
     inFlight = loop();
   };
   while (!o.signal.aborted && alive()) {
+    const connection = new AbortController();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    const arm = () => o.timer(IDLE_MS, () => { connection.abort(); reader?.cancel().catch(() => undefined); });
+    let stop = arm();
     let response: Response | undefined;
     try {
       response = await o.fetch(o.server.url + '/v1/changes', { headers: { authorization: 'Bearer ' + o.server.token, accept: 'text/event-stream' },
-        signal: o.signal });
+        signal: AbortSignal.any([o.signal, connection.signal]) });
     } catch { response = undefined; }
-    if (o.signal.aborted) break;
+    if (o.signal.aborted) { stop(); break; }
     if (response === undefined || response.status !== 200 || response.body === null) {
+      stop();
       try { await response?.body?.cancel(); } catch { response = undefined; }
       await o.pause(retry);
       continue;
     }
-    const reader = response.body.getReader(), decoder = new TextDecoder();
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
     let buffer = '', type = '', gone = false;
     try {
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
+        stop();
+        stop = arm();
         if (!alive()) { gone = true; await reader.cancel(); break; }
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split(/\r?\n/);
@@ -72,6 +84,7 @@ export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
         }
       }
     } catch { gone = !alive(); }
+    stop();
     if (gone || o.signal.aborted) break;
     await o.pause(retry);
   }
