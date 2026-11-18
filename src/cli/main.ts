@@ -33,7 +33,8 @@ try {
       for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => controller.abort());
       const { signal } = controller;
       await subscribeInbox({ server, pid, agent: 'pi', runner: sessionRunner(remoteBackend(server)), device: deviceSessions(process.env['XDG_RUNTIME_DIR']),
-        transports: eventTransports, fetch: globalThis.fetch, pause: ms => sleep(ms, undefined, { signal }).catch(() => undefined), signal });
+        transports: eventTransports, fetch: globalThis.fetch, pause: ms => sleep(ms, undefined, { signal }).catch(() => undefined),
+        timer: (ms, fire) => { const t = setTimeout(fire, ms); return () => clearTimeout(t); }, signal });
     }
   } else {
     const cancellable = command.type === 'workspace' && command.name === 'open';
