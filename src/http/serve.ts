@@ -5,19 +5,21 @@ import type { AddressInfo } from 'node:net';
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { executeCommand } from '../app/execute-command.js';
+import { runOperation } from '../app/operations.js';
 import { eventTransports } from '../app/event-transports.js';
 import { engineRoot, engineVersion, SCHEMA_VERSION } from '../app/create-app.js';
 import { createChangeFeed } from '../app/change-feed.js';
 import { listApiTokens, verifyApiToken } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { bearer } from '../shared/bearer.js';
+import { KEEPALIVE_MS } from '../shared/change-stream.js';
 import { API_VERSION, createApi } from './api.js';
 import { readSessionCookie } from './session.js';
 import { readWebAssets, webResponse } from './web.js';
 import { requestUrl } from './validate.js';
 import { createRemoteMcp } from '../mcp/remote.js';
 
-export const DEFAULT_PORT = 8737, POLL_MS = 1000, KEEPALIVE_MS = 25_000, MAX_BODY = 1_048_576;
+export const DEFAULT_PORT = 8737, POLL_MS = 1000, MAX_BODY = 1_048_576;
 
 const json = { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' };
 
@@ -51,13 +53,14 @@ export async function serve(options: { filename: string; tokensFile: string; lis
   if (isIP(host) === 0) throw new InputError('--listen must be an IP address');
   if (!/^[0-9]+$/.test(options.port) || Number(options.port) > 65535) throw new InputError('--port must be a number from 0 to 65535');
   if (listApiTokens(options.tokensFile).tokens.length === 0) {
-    throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write');
+    throw new InputError('No API tokens in ' + options.tokensFile + '; create one with mypi token create <name> --permission read|write|device');
   }
   const assets = readWebAssets(join(engineRoot(), 'dist', 'ui'));
   const feed = createChangeFeed(options.filename);
   const instance = randomUUID(), version = engineVersion();
   const api = createApi({ token: v => verifyApiToken(options.tokensFile, v),
     execute: c => executeCommand(c, options.filename, undefined, eventTransports),
+    operate: async (name, input) => runOperation({ filename: options.filename, trustedPaths: true }, name, input as never),
     info: () => ({ version, schemaVersion: SCHEMA_VERSION, changeId: feed.changeId(), instance }), runtime: options.env['XDG_RUNTIME_DIR'],
     log: options.log });
   const remoteMcp = createRemoteMcp({ token: v => verifyApiToken(options.tokensFile, v),

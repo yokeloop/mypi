@@ -89,9 +89,9 @@ test('real stdio: seventeen tools, maintenance absent, exact source, scope, task
   assert(hits.length >= 1 && hits.length <= 2 && hits.every((h: { snippet: string }) => h.snippet.includes('[сокет')), JSON.stringify(hits));
   const shown = await call('archive_show', { id: hits[0].id });
   assert.deepEqual(shown.messages.map((m: { text: string }) => m.text), ['обсудили сокет событий', 'сокет событий оставили одним']);
-  await call('projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: dir });
+  await call('projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: dir, repository: 'file:///nonexistent/one/project.git' });
   assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: dir, checkoutPath: root })).project.checkoutPath, root);
-  assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'local' })).project.repository, 'local');
+  assert.equal((await call('projects', { action: 'update', identity: 'one/project', expectedRepository: 'file:///nonexistent/one/project.git', repository: 'file:///srv/one/project.git' })).project.repository, 'file:///srv/one/project.git');
   assert.equal((await call('projects', { action: 'list', org: 'one' })).projects[0].code, 'MP');
   assert.equal((await call('projects', { action: 'resolve', path: root })).code, 'MP');
   cli('status', 'add', 'custom');

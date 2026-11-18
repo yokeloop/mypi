@@ -1,26 +1,23 @@
-import { lstatSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import { mkdirSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { InputError } from '../../shared/errors.js';
+import { readPrivateFile } from './private-file.js';
 
-export type StoredToken = { name: string; permission: 'read' | 'write'; sender: string | null; sha256: string; createdAt: string };
+export type StoredToken = { name: string; permission: 'read' | 'write' | 'device'; sender: string | null; sha256: string; createdAt: string };
 
 function storedToken(value: unknown): boolean {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const t = value as Record<string, unknown>;
-  return Object.keys(t).length === 5 && typeof t['name'] === 'string' && (t['permission'] === 'read' || t['permission'] === 'write')
+  return Object.keys(t).length === 5 && typeof t['name'] === 'string' && (t['permission'] === 'read' || t['permission'] === 'write' || t['permission'] === 'device')
     && (t['sender'] === null || typeof t['sender'] === 'string') && typeof t['sha256'] === 'string'
     && /^[a-f0-9]{64}$/.test(t['sha256']) && typeof t['createdAt'] === 'string';
 }
 
 export function readApiTokens(file: string): StoredToken[] {
-  let stat;
-  try { stat = lstatSync(file); } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
-    throw error;
-  }
-  if (!stat.isFile() || (stat.mode & 0o077) !== 0) throw new InputError('API token file must be a private regular file (0600): ' + file);
+  const text = readPrivateFile(file, 'API token file');
+  if (text === undefined) return [];
   let data: unknown;
-  try { data = JSON.parse(readFileSync(file, 'utf8')); } catch { throw new InputError('Invalid API token file: ' + file); }
+  try { data = JSON.parse(text); } catch { throw new InputError('Invalid API token file: ' + file); }
   const value = data as { version?: unknown; tokens?: unknown } | null;
   if (!value || typeof value !== 'object' || value.version !== 1 || !Array.isArray(value.tokens) || !value.tokens.every(storedToken)) {
     throw new InputError('Invalid API token file: ' + file);

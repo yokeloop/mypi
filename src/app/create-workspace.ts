@@ -16,6 +16,8 @@ import type { Card } from '../modules/tasks/public.js';
 import { InputError } from '../shared/errors.js';
 import { changeContext } from './context-changes.js';
 import { taskWork } from './task-work.js';
+import type { ContextFiles } from '../shared/context.js';
+import type { FileFingerprint } from '../modules/knowledge/public.js';
 
 export function defaultContextRoot(): string { return fileURLToPath(new URL('../../../home', import.meta.url)); }
 export function initializeWorkspace(filename: string, root = defaultContextRoot()): void {
@@ -23,6 +25,90 @@ export function initializeWorkspace(filename: string, root = defaultContextRoot(
   initializeState(filename);
   contextGit(root).initialize();
 }
+export function workspaceRecords(database: ReturnType<typeof createApp>, clock: () => string) {
+  function project(id: number) {
+    const result = database.projects.list().find(p => p.id === id);
+    if (!result) throw new InputError('Unknown parent project');
+    return result;
+  }
+  function taskKey(card: Card): string { return (card.projectId === null ? 'REQ' : project(card.projectId).code) + '-' + card.number; }
+  function resolve(scope: Scope): void {
+    scopeValue(scope);
+    if (scope.type === 'org') database.projects.resolveScope(scope.key);
+    if (scope.type === 'project' && !database.projects.list().some(p => p.code === scope.key)) throw new InputError('Unknown project');
+    if (scope.type === 'task' && !database.tasks.list().some(r => taskKey(r) === scope.key)) throw new InputError('Unknown task');
+  }
+  function contains(filter: Scope, scope: Scope): boolean {
+    if (sameScope(filter, scope)) return true;
+    if (scope.type === 'task') {
+      const card = database.tasks.list().find(r => taskKey(r) === scope.key)!;
+      if (card.projectId === null) return false;
+      const p = project(card.projectId);
+      return (filter.type === 'org' && filter.key === p.org) || (filter.type === 'project' && filter.key === p.code);
+    }
+    if (scope.type === 'project' && filter.type === 'org') return database.projects.list().some(p => p.code === scope.key && p.org === filter.key);
+    return false;
+  }
+  const journal = createJournal(database.journalStore, resolve, contains, clock);
+  const browser = createJournalBrowser(database.journalStore, resolve, contains);
+  return { taskKey, resolve, journal, browser };
+}
+
+export function contextPathOf(projects: ReturnType<typeof createApp>['projects'], scope?: string): string {
+  const resolved = projects.resolveScope(scope);
+  if (resolved.type === 'global') return '';
+  return resolved.type === 'org' ? 'projects/' + resolved.slug : join('projects', resolved.project.org, resolved.project.slug);
+}
+
+type HomeGit = ReturnType<typeof contextGit>;
+type HomeFiles = ContextFiles & { path(path: string): string };
+
+export function homeTexts(files: HomeFiles, git: HomeGit, serialize: <T>(work: () => T) => T) {
+  return {
+    read: files.read, list: files.list,
+    create(path: string, text: string) { serialize(() => changeContext(git, [path], () => files.create(path, text), 'Create ' + path)); },
+    edit(path: string, update: (old: string | undefined) => string) {
+      serialize(() => {
+        const old = files.read(path), next = update(old);
+        changeContext(git, [path], () => { if (old === undefined) files.create(path, next); else files.replace(path, next, old); }, 'Update ' + path);
+      });
+    },
+  };
+}
+
+export function homeWriters(texts: ReturnType<typeof homeTexts>, clock: () => string) {
+  const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
+  return { inbox: createInbox(texts, name), notes: createNotes(texts, name, clock) };
+}
+
+export function completePaths(git: HomeGit, files: HomeFiles, frozen: ReadonlySet<string>,
+  fingerprint: (path: string) => FileFingerprint | undefined, clock: () => string, paths: string[], message: string): string {
+  for (const path of paths) if (frozen.has(path)) {
+    const saved = fingerprint(path);
+    if (saved) matchesFingerprint(saved, fileFingerprint(files, path, clock()));
+    else throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
+  }
+  return git.commit(paths, message);
+}
+
+export function restorePath(git: HomeGit, frozen: ReadonlySet<string>, serialize: <T>(work: () => T) => T, path: string, revision: string): string {
+  if (frozen.has(path)) throw new InputError('Registered file cannot be restored');
+  return serialize(() => git.restoreFile(path, revision));
+}
+
+export function deviceHome(root: string, frozen: ReadonlySet<string>, fingerprints: ReadonlyMap<string, FileFingerprint>, clock = () => new Date().toISOString()) {
+  const files = contextFiles(root), git = contextGit(root, () => frozen);
+  const serialize = <T>(work: () => T): T => { git.validateJournal(); return work(); };
+  const texts = homeTexts(files, git, serialize), { inbox, notes } = homeWriters(texts, clock);
+  return {
+    files, git, capture: inbox.capture, note: notes.note, error: notes.error,
+    complete: (paths: string[], message: string) => serialize(() => completePaths(git, files, frozen, p => fingerprints.get(p), clock, paths, message)),
+    restoreContext: (path: string, revision: string) => restorePath(git, frozen, serialize, path, revision),
+    read: files.read,
+    readVersion: (path: string, revision: string) => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(git.readVersion(path, revision)),
+  };
+}
+
 export function createWorkspace(filename: string, readonly: boolean, root = defaultContextRoot(), clock = () => new Date().toISOString()) {
   externalDatabasePath(filename, root);
   const database = createApp(filename, readonly, clock), files = contextFiles(root);
@@ -35,31 +121,7 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
       try { return work(); } finally { frozen = previous; }
     });
   } };
-  function project(id: number) {
-    const result = core.projects.list().find(p => p.id === id);
-    if (!result) throw new InputError('Unknown parent project');
-    return result;
-  }
-  function taskKey(card: Card): string { return (card.projectId === null ? 'REQ' : project(card.projectId).code) + '-' + card.number; }
-  function resolve(scope: Scope): void {
-    scopeValue(scope);
-    if (scope.type === 'org') core.projects.resolveScope(scope.key);
-    if (scope.type === 'project' && !core.projects.list().some(p => p.code === scope.key)) throw new InputError('Unknown project');
-    if (scope.type === 'task' && !core.tasks.list().some(r => taskKey(r) === scope.key)) throw new InputError('Unknown task');
-  }
-  function contains(filter: Scope, scope: Scope): boolean {
-    if (sameScope(filter, scope)) return true;
-    if (scope.type === 'task') {
-      const card = core.tasks.list().find(r => taskKey(r) === scope.key)!;
-      if (card.projectId === null) return false;
-      const p = project(card.projectId);
-      return (filter.type === 'org' && filter.key === p.org) || (filter.type === 'project' && filter.key === p.code);
-    }
-    if (scope.type === 'project' && filter.type === 'org') return core.projects.list().some(p => p.code === scope.key && p.org === filter.key);
-    return false;
-  }
-  const journal = createJournal(database.journalStore, resolve, contains, clock);
-  const browser = createJournalBrowser(database.journalStore, resolve, contains);
+  const { taskKey, resolve, journal, browser } = workspaceRecords(database, clock);
   function verifyFile(path: string): void {
     const saved = database.journalStore.fingerprint(path);
     if (!saved) throw new InputError('Unregistered file requires explicit reconciliation: ' + path);
@@ -69,25 +131,11 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     const previous = frozen; frozen = journal.frozen();
     try { return git.commit(paths, message); } finally { frozen = previous; }
   } }, taskKey, clock);
-  function contextPath(scope?: string): string {
-    const resolved = core.projects.resolveScope(scope);
-    if (resolved.type === 'global') return '';
-    return resolved.type === 'org' ? 'projects/' + resolved.slug : join('projects', resolved.project.org, resolved.project.slug);
-  }
-  const texts = {
-    read: files.read, list: files.list,
-    create(path: string, text: string) { core.serialize(() => changeContext(git, [path], () => files.create(path, text), 'Create ' + path)); },
-    edit(path: string, update: (old: string | undefined) => string) {
-      core.serialize(() => {
-        const old = files.read(path), next = update(old);
-        changeContext(git, [path], () => { if (old === undefined) files.create(path, next); else files.replace(path, next, old); }, 'Update ' + path);
-      });
-    },
-  };
-  const name = () => clock().replace(/:/g, '-') + '-' + randomUUID();
-  const inbox = createInbox(texts, name), notes = createNotes(texts, name, clock);
+  const contextPath = (scope?: string): string => contextPathOf(core.projects, scope);
+  const texts = homeTexts(files, git, core.serialize);
+  const { inbox, notes } = homeWriters(texts, clock);
   return {
-    projects: core.projects, close: core.close, tasks,
+    projects: core.projects, close: core.close, tasks, readSnapshot: database.readSnapshot,
     statuses: {
       statuses: core.tasks.statuses, addStatus: core.tasks.addStatus,
       renameStatus: core.tasks.renameStatus, setTerminal: core.tasks.setTerminal,
@@ -105,19 +153,9 @@ export function createWorkspace(filename: string, readonly: boolean, root = defa
     verifyFile,
     read: files.read,
     readVersion: (path: string, revision: string) => new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(git.readVersion(path, revision)),
-    restoreContext(path: string, revision: string) {
-      if (journal.frozen().has(path)) throw new InputError('Registered file cannot be restored');
-      return core.serialize(() => git.restoreFile(path, revision));
-    },
+    restoreContext(path: string, revision: string) { return restorePath(git, journal.frozen(), core.serialize, path, revision); },
     complete(paths: string[], message: string) {
-      return core.serialize(() => {
-        const frozenPaths = journal.frozen();
-        for (const path of paths) if (frozenPaths.has(path)) {
-          if (database.journalStore.fingerprint(path)) verifyFile(path);
-          else throw new InputError('Historical artifact requires explicit reconciliation: ' + path);
-        }
-        return git.commit(paths, message);
-      });
+      return core.serialize(() => completePaths(git, files, journal.frozen(), database.journalStore.fingerprint, clock, paths, message));
     },
     contextPath,
     capture: inbox.capture,

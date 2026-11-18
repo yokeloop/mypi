@@ -44,9 +44,9 @@ test('complete Node CLI dispatch: context/task lifecycle, partial repair, backup
   }
   run(root, ['bootstrap']);
   run(root, ['context', 'read', 'missing.md'], 1);
-  run(root, ['project', 'add', 'one/project', '--code', 'MP']);
+  run(root, ['project', 'add', 'one/project', '--code', 'MP', '--repository', 'file:///nonexistent/one/project.git']);
   writeFileSync(join(root, 'home/INDEX.md'), 'global\nline\n');
-  run(root, ['project', 'add', 'global/project', '--code', 'GL']);
+  run(root, ['project', 'add', 'global/project', '--code', 'GL', '--repository', 'file:///nonexistent/global/project.git']);
   mkdirSync(join(root, 'home/projects/global'), { recursive: true });
   writeFileSync(join(root, 'home/projects/global/INDEX.md'), 'org-only\n');
   await assert.rejects(cli('note', 'Invalid', 'invalid scope', '--scope', ''), /Invalid organization/);
@@ -63,7 +63,7 @@ test('complete Node CLI dispatch: context/task lifecycle, partial repair, backup
   await cli('error', 'one/project', 'dead end');
   await cli('journal', 'add', 'project outcome', '-s', 'one/project');
   await assert.rejects(cli('journal', 'read', '-s', 'all'), /Unknown organization/);
-  run(root, ['project', 'add', 'all/project', '--code', 'AP']);
+  run(root, ['project', 'add', 'all/project', '--code', 'AP', '--repository', 'file:///nonexistent/all/project.git']);
   await cli('journal', 'add', 'org-only outcome', '-s', 'all');
   assert.deepEqual((await cli('journal', 'read', '-s', 'all')).map((e: { text: string }) => e.text), ['org-only outcome']);
   assert.equal((await cli('journal', 'read', '--all')).length, 2);

@@ -14,7 +14,10 @@ const g = { type: 'global' };
 const cli = (argv: string[]) => {
   const parsed = parseCommand(argv);
   if (parsed.type === 'help') throw new Error('Unexpected help');
-  return appCommand(parsed, {});
+  const command = appCommand(parsed, {});
+  if (command.name !== 'warmup') return command;
+  const { caller: _, ...rest } = command;
+  return rest;
 };
 test('MCP lists exactly seventeen agent tools; maintenance and replaced names are unknown tools', () => {
   assert.deepEqual(Object.keys(tools).sort(), ['archive_search', 'archive_show', 'context_read', 'context_write', 'events', 'inbox', 'journal', 'note', 'open_session', 'projects',
@@ -33,9 +36,9 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
   const rows: [string, Record<string, unknown>, string[][], Record<string, unknown>?][] = [
     ['warmup', { scope: 'MP' }, [['warmup', '-s', 'MP']]],
     ['projects', { action: 'list', org: 'one' }, [['project', 'list', '--org', 'one']]],
-    ['projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: '/tmp' }, [['project', 'add', 'one/project', '--code', 'MP', '--path', '/tmp']]],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', checkoutPath: '/tmp', repository: 'file:///srv/r.git' }, [['project', 'add', 'one/project', '--code', 'MP', '--path', '/tmp', '--repository', 'file:///srv/r.git']]],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null, checkoutPath: '/tmp/new' }, [['project', 'update', 'one/project', '--expected-unset', '--path', '/tmp/new']]],
-    ['projects', { action: 'add', identity: 'one/project', code: 'MP', repository: 'local' }, [['project', 'add', 'one/project', '--code', 'MP', '--repository', 'local']]],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', repository: 'git@h:o/r.git' }, [['project', 'add', 'one/project', '--code', 'MP', '--repository', 'git@h:o/r.git']]],
     ['projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'git@h:o/r.git' }, [['project', 'update', 'one/project', '--expected-repository-unset', '--repository', 'git@h:o/r.git']]],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: '/tmp/old', checkoutPath: '/tmp/new', expectedRepository: 'local', repository: '/srv/r.git' },
       [['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new', '--expected-repository', 'local', '--repository', '/srv/r.git']]],
@@ -68,6 +71,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['open_session', { keys: ['MP', 'one/project#3'], agent: 'pi', permissionMode: 'auto' }, [['open', 'MP', 'one/project#3', '--agent', 'pi', '--permission-mode', 'auto']]],
     ['open_session', { keys: ['MP-12'] }, [['open', 'MP-12']]],
     ['open_session', { keys: ['MP-12'], message: 'go' }, [['open', 'MP-12', '--message', 'go']]],
+    ['open_session', { keys: ['MP-12'], agent: 'pi', new: true }, [['open', 'MP-12', '--agent', 'pi', '--new']]],
+    ['open_session', { keys: ['MP-12'], session: 'c1' }, [['open', 'MP-12', '--session', 'c1']]],
     ['send_message', { key: 'MP-12', text: 'go' }, [['send', 'MP-12', 'go']]],
     ['archive_search', { q: 'сокет*', scope: 'MP', agent: 'claude', from: '2026-10-01', to: '2026-10-31', includePeer: true, limit: 5 },
       [['archive', 'search', 'сокет*', '-s', 'MP', '--agent', 'claude', '--from', '2026-10-01', '--to', '2026-10-31', '--include-peer', '--limit', '5']]],
@@ -104,9 +109,10 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null }, /checkoutPath is required for action update with expectedCheckoutPath/],
     ['projects', { action: 'update', identity: 'one/project', repository: 'local' }, /expectedRepository is required for action update with repository/],
     ['projects', { action: 'update', identity: 'one/project', expectedRepository: null }, /repository is required for action update with expectedRepository/],
-    ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedRepository: null }, /expectedRepository is not allowed for action add/],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP' }, /repository is required for action add/],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', repository: 'file:///srv/r.git', expectedRepository: null }, /expectedRepository is not allowed for action add/],
     ['projects', { action: 'list', path: '/tmp' }, /path is not allowed for action list/],
-    ['projects', { action: 'add', identity: 'one/project', code: 'MP', expectedCheckoutPath: null }, /expectedCheckoutPath is not allowed for action add/],
+    ['projects', { action: 'add', identity: 'one/project', code: 'MP', repository: 'file:///srv/r.git', expectedCheckoutPath: null }, /expectedCheckoutPath is not allowed for action add/],
     ['projects', { action: 'remove', identity: 'one/project', code: 'MP' }, /action/],
     ['task_update', { key: 'MP-1' }, /needs status, title, parent, progress or touch/],
     ['task_update', { key: 'MP-1', status: 'done' }, /reason is required/],
@@ -132,9 +138,10 @@ test('CLI translates to the same subject commands without changing text or defau
     if (parsed.type === 'help') throw new Error('Unexpected help');
     return appCommand(parsed, env, parentPid);
   };
-  assert.deepEqual(translate(['warmup']), { name: 'warmup' });
-  assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12' });
-  assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500 });
+  const caller = { pid: process.ppid };
+  assert.deepEqual(translate(['warmup']), { name: 'warmup', caller });
+  assert.deepEqual(translate(['warmup', '-s', 'MP'], { MYPI_SCOPE: 'MP-12' }), { name: 'warmup', scope: 'MP', envScope: 'MP-12', caller });
+  assert.deepEqual(translate(['warmup', '--max-chars', '9500']), { name: 'warmup', maxChars: 9500, caller });
   assert.deepEqual(toolCommand('warmup', {}, { MYPI_SCOPE: 'MP-12' }), [{ name: 'warmup', envScope: 'MP-12' }]);
   assert.deepEqual(translate(['capture', '\ufeff x\r\n']), { name: 'capture', source: { text: '\ufeff x\r\n' } });
   assert.deepEqual(translate(['journal', 'import']), { name: 'journal_import' });
@@ -184,7 +191,8 @@ test('CLI translates to the same subject commands without changing text or defau
   assert.throws(() => translate(['session', 'register', '--agent', 'claude', '--pid', '42', '--hook', '--native-id', 'x']), /not both/);
   assert.deepEqual(translate(['session', 'unregister', '--pid', '7']), { name: 'session_unregister', pid: 7 });
   assert.deepEqual(translate(['session', 'forget', 'MP-12']), { name: 'session_forget', key: 'MP-12' });
-  assert.deepEqual(translate(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }, 42), { name: 'warmup', session: { agent: 'claude', nativeId: 'c1', pid: 42 } });
+  assert.deepEqual(translate(['warmup'], { CLAUDE_CODE_SESSION_ID: 'c1' }, 42), { name: 'warmup', session: { agent: 'claude', nativeId: 'c1', pid: 42 }, caller: { pid: 42 } });
+  assert.deepEqual(translate(['warmup'], { XDG_RUNTIME_DIR: '/run/user/1' }, 42), { name: 'warmup', caller: { pid: 42, runtime: '/run/user/1' } });
   assert.deepEqual(toolCommand('warmup', {}, { PI_SESSION_ID: 'p1', XDG_RUNTIME_DIR: '/run/user/1' }, 7),
     [{ name: 'warmup', session: { agent: 'pi', nativeId: 'p1', pid: 7, runtime: '/run/user/1' } }]);
   assert.deepEqual(toolCommand('sessions', {}, { XDG_RUNTIME_DIR: '/run/user/1' }), [{ name: 'sessions', runtime: '/run/user/1' }]);
@@ -198,7 +206,7 @@ test('open_session takes the caller, state and runtime from the environment', ()
     stateHome: '/s', runtime: '/r' }];
   assert.deepEqual(toolCommand('open_session', { keys: ['MP'] }, env, 7), expected);
   assert.deepEqual([appCommand(parsed, env, 7)], expected);
-  for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }]) {
+  for (const args of [{ keys: [] }, { keys: ['MP'], agent: 'codex' }, { keys: ['MP'], permissionMode: 'default' }, { keys: ['MP'], new: 'yes' }]) {
     assert.throws(() => toolCommand('open_session', args));
   }
 });

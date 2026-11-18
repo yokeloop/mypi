@@ -1,5 +1,5 @@
 import { InputError } from '../../shared/errors.js';
-import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveFolder, ArchiveForget, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
+import type { ArchiveAgent, ArchiveCounts, ArchiveFilter, ArchiveForget, ArchiveKeys, ArchiveRead, ArchiveSession, ArchiveStore, KeyLookup, KeySource } from './ports.js';
 export type { ArchiveAgent, ArchiveCounts, ArchiveEntry, ArchiveFilter, ArchiveForget, ArchiveFolder, ArchiveHit, ArchiveKeys, ArchiveMessage, ArchiveOrigin, ArchiveRead, ArchiveRole, ArchiveSession, ArchiveSessionHits, KeyLookup, KeySource, TranscriptFiles, TranscriptReader } from './ports.js';
 export function claudeFolderName(cwd: string): string {
   return cwd.replace(/[^A-Za-z0-9]/g, '-');
@@ -114,7 +114,7 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
       const filter = forgetFilter(input);
       return store.transaction(() => store.forget(filter));
     },
-    record(input: { agent: ArchiveAgent; nativeId: string; path: string; read: ArchiveRead }):
+    record(input: { agent: ArchiveAgent; nativeId: string; path: string; read: ArchiveRead; expectedOffset?: number }):
       { inserted: number; skipped: number; key: string | null; keySource: KeySource | null; bytesRead: number } {
       const { agent, nativeId, path, read } = input;
       if (typeof nativeId !== 'string' || nativeId === '' || nativeId.length > 256
@@ -122,6 +122,8 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
       if (typeof path !== 'string' || path === '' || path.includes('\0')) throw new InputError('Invalid transcript path');
       return store.transaction(() => {
         const existing = store.session(agent, nativeId);
+        if (input.expectedOffset !== undefined && (existing?.bytesRead ?? 0) !== input.expectedOffset)
+          throw new InputError('Archive offset of ' + agent + ' ' + nativeId + ' changed: expected ' + input.expectedOffset + ', found ' + (existing?.bytesRead ?? 0) + '; capture again');
         const bound = bindKey(agent, nativeId, read.name, keys);
         const key = bound?.key ?? existing?.key ?? null;
         const keySource = bound?.keySource ?? existing?.keySource ?? null;
@@ -134,36 +136,6 @@ export function createArchive(store: ArchiveStore, keys: KeyLookup, clock: () =>
         const inserted = store.insertMessages(agent, nativeId, read.entries);
         return { inserted, skipped: read.entries.length - inserted, key, keySource, bytesRead: read.offset };
       });
-    },
-  };
-}
-export function createImport(archive: ReturnType<typeof createArchive>, readers: Record<ArchiveAgent, TranscriptReader>, files: TranscriptFiles) {
-  const file = (agent: ArchiveAgent, path: string, nativeId: string = nativeIdOf(agent, path)):
-    { agent: ArchiveAgent; nativeId: string; path: string; inserted: number; skipped: number; bytesRead: number; key: string | null } => {
-    const read = readers[agent](path, archive.offset(agent, nativeId));
-    const { inserted, skipped, bytesRead, key } = archive.record({ agent, nativeId, path, read });
-    return { agent, nativeId, path, inserted, skipped, bytesRead, key };
-  };
-  return {
-    file,
-    folders(list: ArchiveFolder[]) {
-      const total = { files: 0, inserted: 0, skipped: 0 };
-      const failed: { agent: ArchiveAgent; path: string; error: string }[] = [];
-      const dirs: { agent: ArchiveAgent; path: string; files: number; inserted: number; skipped: number }[] = [];
-      for (const folder of list) {
-        const dir = { agent: folder.agent, path: folder.path, files: 0, inserted: 0, skipped: 0 };
-        for (const path of files.list(folder.path)) {
-          try {
-            const result = file(folder.agent, path);
-            dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
-          } catch (error) {
-            failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
-          }
-        }
-        total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;
-        dirs.push(dir);
-      }
-      return { ...total, failed, dirs };
     },
   };
 }

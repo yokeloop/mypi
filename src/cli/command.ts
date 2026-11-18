@@ -8,19 +8,21 @@ export type Command =
   | { type: 'help' }
   | { type: 'initialize' }
   | { type: 'list'; org?: string }
-  | { type: 'add'; identity: string; code: string; checkoutPath?: string; repository?: string }
+  | { type: 'add'; identity: string; code: string; checkoutPath?: string; repository: string }
   | { type: 'update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string;
     expectedRepository?: string | null; repository?: string };
 
 export const usage = `mypi db init
-mypi project add <org/project> --code <CODE> [--path <checkout>] [--repository <git-url|local>]
-mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url|local>]
+mypi project add <org/project> --code <CODE> --repository <git-url> [--path <checkout>]
+mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
 mypi bootstrap | warmup [-s global|org|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
+mypi session prompt --agent claude --hook | --agent pi --native-id <id> [--no-deliver] (marks the engineer's input: the session becomes the scope's active one and takes the waiting events of the key; after a switch to a session that already had a turn prints one pointer line, else nothing; --no-deliver only marks and prints)
 mypi session unregister --pid <pid> | forget <key>
+mypi session subscribe --pid <pid> (remote mode: holds the Pi session's subscription to the server's changes and delivers its claimed events to its socket; exits at once without server.json)
 mypi sessions
 mypi archive import [--dir <directory> --agent claude|pi]... | status (conversation archive archive.sqlite3 beside the state DB: import reads the engine root's Claude and Pi transcripts, or each --dir with its --agent, from each file's saved offset; status counts sessions, messages and bound keys and never creates the file)
 mypi archive search [query] [-s global|org|CODE|CODE-N] [--agent claude|pi] [--from date|UTC] [--to date|UTC] [--limit n] [--include-peer] | show <id> [--before n --after n] | show --session <native-id> [--agent claude|pi] [--offset n --limit n] [--include-peer] (full-text search of the conversation archive: human turns and final answers, ranked, with snippets; without a query it lists sessions; show reads around a hit or pages a session)
@@ -31,9 +33,9 @@ mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|m
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
-mypi open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]
+mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
-mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+mypi token create <name> --permission read|write|device [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once; device tokens are for a device's server.json)
 mypi capture [text | --file source]
 mypi note <title> [text | --file source] [-s scope]
 mypi error <org/project> <text>
@@ -53,6 +55,7 @@ Local backup still requires clean, published context files. Publication uses exi
 Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
 open keys: an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
 Set XDG_STATE_HOME to isolated state for development.
+With $XDG_CONFIG_HOME/mypi/server.json (remote mode) project, org remove, status, task, journal add|read, event list|emit, note, capture, error, context, session register|unregister|prompt|forget, sessions, open, warmup, turn end, inbox, send and archive run against that mypi serve with this device's home and session registry; other commands are refused (docs/M1-CLI.md).
 `;
 
 export function parseCommand(args: string[]): Command {
@@ -68,10 +71,9 @@ export function parseCommand(args: string[]): Command {
     const { values, positionals } = parseArgs({
       args: rest, options: { code: { type: 'string' }, path: { type: 'string' }, repository: { type: 'string' } }, allowPositionals: true,
     });
-    if (positionals.length !== 1 || !values.code) throw new InputError('project add requires org/project and --code');
-    const command: Command = { type: 'add', identity: positionals[0]!, code: values.code };
+    if (positionals.length !== 1 || !values.code || !values.repository) throw new InputError('project add requires org/project, --code and --repository <git-url>');
+    const command: Command = { type: 'add', identity: positionals[0]!, code: values.code, repository: values.repository };
     if (values.path !== undefined) command.checkoutPath = values.path;
-    if (values.repository !== undefined) command.repository = values.repository;
     return command;
   }
   if (group === 'project' && action === 'update') {

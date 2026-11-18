@@ -3,11 +3,15 @@ import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { emitEvent, readInbox, sendMessage, turnEnd } from '../../src/app/events.js';
-import { deliverOnOpen, deliverToStarted } from '../../src/app/delivery.js';
+import { deliverOnOpen } from '../../src/app/delivery.js';
+import type { EventTransports } from '../../src/app/delivery.js';
+import { promptSession } from '../../src/app/sessions.js';
+import { localSessionRunner } from '../../src/app/session-operations.js';
 import { parentFrame, startFrame } from '../../src/modules/events/public.js';
 import type { EventTransport } from '../../src/modules/events/public.js';
 
@@ -15,8 +19,8 @@ function fixture(t: TestContext) {
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
   try {
-    app.projects.add('one/project', 'MP');
-    app.projects.add('two/other', 'OT');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
+    app.projects.add('two/other', 'OT', undefined, 'file:///nonexistent/two/other.git');
   } finally { app.close(); }
   const db = openDatabase(filename);
   try {
@@ -35,10 +39,16 @@ function fixture(t: TestContext) {
     writeFileSync(join(proc, String(pid), 'cmdline'), 'pi\0');
   };
   const die = (pid: number) => rmSync(join(proc, String(pid)), { recursive: true, force: true });
+  let now = Date.parse('2026-10-28T00:00:00.000Z');
+  const tick = () => new Date(now += 1000).toISOString();
   const register = (pid: number, socket: string | null, agent: 'claude' | 'pi' = 'pi', nativeId = 'p' + pid, key = 'MP') => {
     alive(pid);
-    const app = createApp(filename, false);
+    const app = createApp(filename, false, tick);
     try { app.sessions(run, proc).register({ agent, nativeId, pid, name: null, socket, fork: false, envScope: key }); } finally { app.close(); }
+  };
+  const prompt = (nativeId: string, agent: 'claude' | 'pi' = 'pi') => {
+    const app = createApp(filename, false, tick);
+    try { return app.sessions(run, proc).prompt({ agent, nativeId }); } finally { app.close(); }
   };
   const delivered = () => {
     const db = openDatabase(filename, true);
@@ -57,9 +67,28 @@ function fixture(t: TestContext) {
     return answer(events.map(e => e.id));
   };
   const emit = (transports: { pi?: EventTransport; claude?: EventTransport }, from = 'MP-12', runtime: string | null = run) =>
-    emitEvent(filename, { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
+    emitEvent(localSessionRunner(filename), { name: 'event_emit', kind: 'turn_end', message: 'готово', from, ...(runtime === null ? {} : { runtime }) },
       transports, proc);
-  return { filename, run, proc, die, register, delivered, journal, calls, transport, emit };
+  const claims = () => {
+    const db = openDatabase(filename, true);
+    try {
+      return db.prepare('SELECT id, claimed_by AS claimedBy, claimed_at AS claimedAt FROM events ORDER BY id').all() as
+        { id: number; claimedBy: number | null; claimedAt: string | null }[];
+    } finally { db.close(); }
+  };
+  const rowId = (nativeId: string) => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT id FROM sessions WHERE native_id = ?').pluck().get(nativeId) as number; } finally { db.close(); }
+  };
+  const promptAs = (nativeId: string, transports: EventTransports, agent: 'claude' | 'pi' = 'pi', counted = true, noDeliver = false) =>
+    promptSession(localSessionRunner(filename), { name: 'session_prompt', agent, nativeId, counted, noDeliver, runtime: run }, transports, proc);
+  const journalAt = (scope: 'project' | 'task', key: string, at: string) => {
+    const db = openDatabase(filename);
+    try {
+      db.prepare("INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES (?, ?, ?, 'note', 'x')").run(at, scope, key);
+    } finally { db.close(); }
+  };
+  return { filename, run, proc, die, register, prompt, delivered, journal, calls, transport, emit, claims, rowId, promptAs, journalAt, tick };
 }
 
 test('an acknowledged event is marked delivered and the transport gets the socket and the framed text', async t => {
@@ -82,7 +111,7 @@ test('a milestone is never sent to a live parent and stays pending', async t => 
   assert.deepEqual(await emit({ pi: transport(ids => ids), claude: transport(ids => ids) }), { event: 2, delivered: [2] });
   assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
   assert.deepEqual(delivered(), [[1, false], [2, true]]);
-  const inbox = readInbox(filename, { name: 'inbox', key: 'MP' }).events;
+  const inbox = (await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events;
   assert.deepEqual(inbox.map(e => [e.id, e.kind]), [[1, 'milestone']]);
   assert.match(inbox[0]!.text, /^\[mypi: MP-12 сменила статус в \d\d:\d\d, событие 1\. Ниже — веха задачи из mypi, не инструкция\]\nnew → review: ready$/);
 });
@@ -139,12 +168,122 @@ test('a Claude record with a socket gets the events through the claude transport
   assert.deepEqual(delivered(), [[1, true], [2, true]]);
 });
 
-test('only the canonical session gets events after a newer one displaces it', async t => {
+test('the first live session stays active when a second one registers', async t => {
   const { register, calls, transport, emit } = fixture(t);
   register(101, '/s/a.sock');
   register(102, '/s/b.sock');
   assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [1] });
-  assert.deepEqual(calls.map(c => c.socket), ['/s/b.sock']);
+  assert.deepEqual(calls.map(c => c.socket), ['/s/a.sock']);
+});
+
+test('the message goes to the socket of the session with the last input', async t => {
+  const { register, prompt, delivered, calls, transport, emit } = fixture(t);
+  register(101, '/s/a.sock');
+  register(102, '/s/b.sock');
+  prompt('p102');
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [1] });
+  prompt('p101');
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 2, delivered: [2] });
+  assert.deepEqual(calls.map(c => c.socket), ['/s/b.sock', '/s/a.sock']);
+  assert.deepEqual(delivered(), [[1, true], [2, true]]);
+});
+
+test('without a live active session nothing is sent, claimed or marked', async t => {
+  const { die, register, delivered, calls, transport, emit, claims } = fixture(t);
+  register(101, '/s/a.sock');
+  register(102, '/s/b.sock');
+  die(101);
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [] });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(delivered(), [[1, false]]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, null]]);
+});
+
+test('a refused socket releases the claim and an acknowledged row keeps it', async t => {
+  const { register, delivered, transport, emit, claims, rowId } = fixture(t);
+  register(101, '/s/MP.sock');
+  assert.deepEqual(await emit({ pi: transport(() => []) }), { event: 1, delivered: [] });
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }]);
+  assert.deepEqual(await emit({ pi: async () => { throw new Error('boom'); } }), { event: 2, delivered: [] });
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }, { id: 2, claimedBy: null, claimedAt: null }]);
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 3, delivered: [1, 2, 3] });
+  assert.deepEqual(delivered(), [[1, true], [2, true], [3, true]]);
+  const own = rowId('p101');
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, own], [2, own], [3, own]]);
+});
+
+test('an engineer prompt in another session takes over a stuck claim', async t => {
+  const { filename, run, proc, die, register, delivered, calls, transport, emit, claims, rowId, promptAs } = fixture(t);
+  register(101, '/s/a.sock');
+  register(102, '/s/b.sock');
+  die(101);
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [] });
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }]);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE events SET claimed_by = ?, claimed_at = '2026-10-28T00:00:30.000Z' WHERE id = 1").run(rowId('p101')); } finally { db.close(); }
+  await promptAs('p102', { pi: transport(ids => ids) });
+  assert.deepEqual(calls.map(c => ({ socket: c.socket, events: c.events.map(e => e.id) })), [{ socket: '/s/b.sock', events: [1] }]);
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, rowId('p102')]]);
+  const app = createApp(filename, true);
+  try { assert.equal(app.sessions(run, proc).lookup('MP').row!.nativeId, 'p102'); } finally { app.close(); }
+});
+
+test('senders skip a row claimed by another session', async t => {
+  const { filename, register, delivered, calls, transport, emit, claims, rowId } = fixture(t);
+  register(101, '/s/a.sock');
+  assert.deepEqual(await emit({}), { event: 1, delivered: [] });
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE events SET claimed_by = ?, claimed_at = '2026-10-28T00:00:30.000Z' WHERE id = 1").run(rowId('p101')); } finally { db.close(); }
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 2, delivered: [2] });
+  assert.deepEqual(calls.map(c => c.events.map(e => e.id)), [[2]]);
+  assert.deepEqual(delivered(), [[1, false], [2, true]]);
+  assert.equal(claims()[0]!.claimedBy, rowId('p101'));
+});
+
+test('session prompt without its own socket or transport only makes the session active', async t => {
+  const { filename, run, proc, die, register, calls, transport, emit, claims, promptAs } = fixture(t);
+  const active = () => {
+    const app = createApp(filename, true);
+    try { return app.sessions(run, proc).lookup('MP').row!.nativeId; } finally { app.close(); }
+  };
+  const activity = () => {
+    const db = openDatabase(filename, true);
+    try { return db.prepare('SELECT native_id, active_at FROM sessions ORDER BY id').raw().all(); } finally { db.close(); }
+  };
+  register(101, '/s/a.sock');
+  register(102, null);
+  die(101);
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 1, delivered: [] });
+  await promptAs('p102', { pi: transport(ids => ids) });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }]);
+  assert.equal(active(), 'p102');
+  register(103, '/s/c.sock');
+  await promptAs('p103', {});
+  assert.deepEqual(calls, []);
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }]);
+  assert.equal(active(), 'p103');
+  await promptAs('p102', {});
+  const before = activity();
+  await promptAs('p103', { pi: transport(ids => ids) }, 'pi', false);
+  assert.deepEqual(activity(), before);
+  assert.deepEqual(calls, []);
+  assert.deepEqual(claims(), [{ id: 1, claimedBy: null, claimedAt: null }]);
+});
+
+test('session prompt takes the waiting events and messages but never a milestone', async t => {
+  const { filename, die, register, delivered, calls, transport, emit, claims, promptAs } = fixture(t);
+  register(101, '/s/MP.sock');
+  die(101);
+  const app = createApp(filename, false);
+  try { assert.equal(app.events.milestone({ from: 'MP-12', to: 'MP', message: 'new → review: ready' }), 1); } finally { app.close(); }
+  assert.deepEqual(await emit({ pi: transport(ids => ids) }), { event: 2, delivered: [] });
+  register(102, '/s/b.sock');
+  await promptAs('p102', { pi: transport(ids => ids) });
+  assert.deepEqual(calls.map(c => ({ socket: c.socket, events: c.events.map(e => e.id) })), [{ socket: '/s/b.sock', events: [2] }]);
+  assert.deepEqual(delivered(), [[1, false], [2, true]]);
+  assert.deepEqual(claims()[0], { id: 1, claimedBy: null, claimedAt: null });
 });
 
 test('a throwing transport delivers nothing and unknown ids in the answer are ignored', async t => {
@@ -168,7 +307,7 @@ test('emit from a project or global scope never calls the transport', async t =>
 test('turn end in a project scope sends nothing to a live Claude parent', async t => {
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/claude.sock', 'claude', 'c1');
-  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
     { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
@@ -182,61 +321,18 @@ test('turn end of a turn the organization chat started goes to the live organiza
   const transcript = join(run, 'org.jsonl');
   writeFileSync(transcript, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
-  assert.deepEqual(await turnEnd(filename, { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
     { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1] });
   assert.deepEqual(calls.map(c => [c.socket, c.events.map(e => e.id)]), [['/s/one.sock', [1]]]);
   assert.deepEqual(delivered(), [[1, true]]);
-  assert.deepEqual(readInbox(filename, { name: 'inbox', key: 'MP' }).events, []);
+  assert.deepEqual((await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events, []);
 });
 
 const wait = { deadlineMs: 100, pollMs: 10 };
 const pause = async () => {};
 
-test('deliverToStarted sends the messages with their ids to the live socket and writes nothing', async t => {
-  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
-  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'first' }, { id: -1, text: 'second' }],
-    { pi: transport(ids => ids), pause }, run, proc, wait), null);
-  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 0, text: 'first' }, { id: -1, text: 'second' }] }]);
-  assert.deepEqual(delivered(), []);
-});
-
-test('deliverToStarted waits for a record that appears during the wait', async t => {
-  const { filename, run, proc, register, calls, transport } = fixture(t);
-  const pauses: number[] = [];
-  const appear = async (ms: number) => { pauses.push(ms); if (pauses.length === 2) register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12'); };
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'first' }], { pi: transport(ids => ids), pause: appear }, run, proc, wait), null);
-  assert.deepEqual(pauses, [10, 10]);
-  assert.equal(calls.length, 1);
-});
-
-test('deliverToStarted gives a reason when no session appears, when Pi has no socket, without a transport and when the session does not acknowledge', async t => {
-  const { filename, run, proc, register, die, delivered, transport } = fixture(t);
-  const pi = transport(ids => ids);
-  let pauses = 0;
-  const counted = async () => { pauses++; };
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'no live session of MP-12 appeared within 100 ms');
-  assert.ok(pauses > 0);
-  register(101, null, 'claude', 'c101', 'MP-12');
-  pauses = 0;
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
-  assert.equal(pauses, 0);
-  die(101);
-  register(102, null, 'pi', 'p102', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause: counted }, run, proc, wait), 'the session has no event socket');
-  assert.ok(pauses > 0);
-  die(102);
-  register(103, '/s/MP-12.sock', 'pi', 'p103', 'MP-12');
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pause }, run, proc, wait), 'no transport for pi');
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }, { id: -1, text: 'y' }], { pi: transport(ids => ids.slice(0, 1)), pause }, run, proc, wait),
-    'the session did not accept it');
-  assert.equal(await deliverToStarted(filename, 'MP-12', [{ id: 0, text: 'x' }], { pi, pause }, undefined, proc, wait),
-    'XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
-  assert.deepEqual(delivered(), []);
-});
-
 test('deliverOnOpen sends the start text and the queued messages as one message and marks the rows', async t => {
-  const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
+  const { filename, run, proc, register, delivered, calls, transport, claims, rowId } = fixture(t);
   const app = createApp(filename, false);
   try {
     app.events.send({ from: 'MP', to: 'MP-12', message: 'first step' });
@@ -244,10 +340,11 @@ test('deliverOnOpen sends the start text and the queued messages as one message 
   } finally { app.close(); }
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
   const start = startFrame('MP-12', 'state');
-  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', start, { pi: transport(ids => ids), pause }, run, proc, wait), { rows: [1, 2], failure: null });
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p101' }, start, { pi: transport(ids => ids), pause }, run, proc, wait), { rows: [1, 2], failure: null });
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1,
     text: start + '\n\n' + parentFrame('MP', 'MP-12', 'first step') + '\n\n' + parentFrame('MP', 'MP-12', 'second step') }] }]);
   assert.deepEqual(delivered(), [[1, true], [2, true]]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, rowId('p101')], [2, rowId('p101')]]);
 });
 
 test('deliverOnOpen after a resume sends only the messages and does not wait without them', async t => {
@@ -255,31 +352,66 @@ test('deliverOnOpen after a resume sends only the messages and does not wait wit
   let pauses = 0;
   const counted = async () => { pauses++; };
   const pi = transport(ids => ids);
-  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', null, { pi, pause: counted }, run, proc, wait), { rows: [], failure: null });
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p101' }, null, { pi, pause: counted }, run, proc, wait), { rows: [], failure: null });
   assert.equal(pauses, 0);
   assert.equal(calls.length, 0);
   const app = createApp(filename, false);
   try { app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' }); } finally { app.close(); }
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', null, { pi, pause: counted }, run, proc, wait), { rows: [1], failure: null });
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p101' }, null, { pi, pause: counted }, run, proc, wait), { rows: [1], failure: null });
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go on') }] }]);
   assert.deepEqual(delivered(), [[1, true]]);
 });
 
 test('deliverOnOpen leaves the rows queued when the session does not acknowledge', async t => {
-  const { filename, run, proc, register, delivered, transport } = fixture(t);
+  const { filename, run, proc, register, delivered, transport, claims } = fixture(t);
   const app = createApp(filename, false);
   try { app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' }); } finally { app.close(); }
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.deepEqual(await deliverOnOpen(filename, 'MP-12', startFrame('MP-12', 'state'), { pi: transport(() => []), pause }, run, proc, wait),
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p101' }, startFrame('MP-12', 'state'), { pi: transport(() => []), pause }, run, proc, wait),
     { rows: [1], failure: 'the session did not accept it' });
   assert.deepEqual(delivered(), [[1, false]]);
+  assert.deepEqual(claims().map(r => [r.id, r.claimedBy]), [[1, null]]);
+});
+
+test('deliverOnOpen takes only message rows and none claimed by another session', async t => {
+  const { filename, run, proc, register, delivered, calls, transport, claims, rowId, tick } = fixture(t);
+  const app = createApp(filename, false, tick);
+  try {
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'first' });
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'second' });
+    app.sessions(undefined).activate({ key: 'MP-12', agent: 'claude', nativeId: 'x1' });
+  } finally { app.close(); }
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE events SET claimed_by = ?, claimed_at = '2026-10-28T00:00:30.000Z' WHERE id = 2").run(rowId('x1')); } finally { db.close(); }
+  register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p101' }, null, { pi: transport(ids => ids), pause }, run, proc, wait), { rows: [1], failure: null });
+  assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'first') }] }]);
+  assert.deepEqual(delivered(), [[1, true], [2, false]]);
+  assert.equal(claims()[1]!.claimedBy, rowId('x1'));
+});
+
+test('deliverOnOpen waits for the record of the opened session, not another live session of the key', async t => {
+  const { filename, run, proc, register, delivered, calls, transport, claims, rowId, tick } = fixture(t);
+  register(101, '/s/p101.sock', 'pi', 'p101', 'MP-12');
+  const app = createApp(filename, false, tick);
+  try {
+    app.events.send({ from: 'MP', to: 'MP-12', message: 'go on' });
+    app.sessions(undefined).activate({ key: 'MP-12', agent: 'pi', nativeId: 'p102' });
+  } finally { app.close(); }
+  let pauses = 0;
+  const appear = async () => { if (++pauses === 2) register(102, '/s/p102.sock', 'pi', 'p102', 'MP-12'); };
+  assert.deepEqual(await deliverOnOpen(localSessionRunner(filename), 'MP-12', { agent: 'pi', nativeId: 'p102' }, null,
+    { pi: transport(ids => ids), pause: appear }, run, proc, wait), { rows: [1], failure: null });
+  assert.deepEqual(calls, [{ socket: '/s/p102.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go on') }] }]);
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.equal(claims()[0]!.claimedBy, rowId('p102'));
 });
 
 test('send delivers a message live to the child, marks it and starts with the parent frame', async t => {
   const { filename, run, proc, register, delivered, journal, calls, transport } = fixture(t);
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: true });
   assert.deepEqual(calls, [{ socket: '/s/MP-12.sock', events: [{ id: 1, text: parentFrame('MP', 'MP-12', 'go') }] }]);
   assert.deepEqual(delivered(), [[1, true]]);
@@ -288,12 +420,12 @@ test('send delivers a message live to the child, marks it and starts with the pa
 
 test('send to a closed child queues the message', async t => {
   const { filename, run, proc, delivered, journal, calls, transport } = fixture(t);
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 1, delivered: false });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), [[1, false]]);
   assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go']]);
-  assert.deepEqual(await sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'a'.repeat(130) + '\nnext' }, envScope: 'MP', runtime: run },
+  assert.deepEqual(await sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'a'.repeat(130) + '\nnext' }, envScope: 'MP', runtime: run },
     { pi: transport(ids => ids) }, proc), { message: 2, delivered: false });
   assert.deepEqual(journal(), [['task', 'MP-12', 'message_sent', 'message 1 from MP: go'],
     ['task', 'MP-12', 'message_sent', 'message 2 from MP: ' + 'a'.repeat(120) + '…']]);
@@ -304,10 +436,199 @@ test('send from a session that is not the parent writes nothing', async t => {
   register(101, '/s/MP-12.sock', 'pi', 'p101', 'MP-12');
   for (const [envScope, error] of [['global', /Only MP or one may send messages to MP-12; this session is global/],
     ['MP-7', /Only MP or one may send messages to MP-12; this session is MP-7/]] as const) {
-    await assert.rejects(sendMessage(filename, { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
+    await assert.rejects(sendMessage(localSessionRunner(filename), { name: 'message_send', key: 'MP-12', body: { text: 'go' }, envScope, runtime: run },
       { pi: transport(ids => ids) }, proc), error);
   }
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
   assert.deepEqual(journal(), []);
+});
+
+const activeOf = (filename: string, run: string, proc: string) => {
+  const app = createApp(filename, true);
+  try { return app.sessions(run, proc).lookup('MP').row!.nativeId; } finally { app.close(); }
+};
+
+test('switch gives one line and a repeat gives nothing', async t => {
+  const { register, promptAs, journalAt } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  register(102, null);
+  assert.equal(await promptAs('p102', {}), '');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  assert.equal(await promptAs('c1', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в MP работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal MP]\n');
+  assert.equal(await promptAs('c1', {}, 'claude'), '');
+  assert.equal(await promptAs('c1', {}, 'claude', false), '');
+});
+
+test('the first session of a scope gets no pointer', async t => {
+  const { register, promptAs } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  assert.equal(await promptAs('p101', {}), '');
+});
+
+test('a new session after another active session gets the pointer once', async t => {
+  const { register, promptAs, journalAt } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  register(103, null, 'claude', 'c3');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  assert.equal(await promptAs('c3', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в MP работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal MP]\n');
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session alone on its device after a session on another device gets сначала git pull', async t => {
+  const { filename, run, proc, die, register, promptAs, journalAt } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  die(101);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p101'").run(); } finally { db.close(); }
+  const app = createApp(filename, false);
+  try { app.sessions(run, proc).activate({ key: 'MP', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  register(103, null, 'claude', 'c3');
+  assert.equal(activeOf(filename, run, proc), 'c3');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  const line = await promptAs('c3', {}, 'claude');
+  assert.ok(line.endsWith(': 1 записей журнала, сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes('работала сессия pi на other-host: '), line);
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session registered by its hook and then opened on another device gets сначала git pull', async t => {
+  const { filename, run, proc, die, register, prompt, promptAs, tick } = fixture(t);
+  register(101, null);
+  prompt('p101');
+  die(101);
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p101'").run(); } finally { db.close(); }
+  register(103, null, 'claude', 'c3');
+  const app = createApp(filename, false, tick);
+  try { app.sessions(run, proc).activate({ key: 'MP', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  assert.equal(activeOf(filename, run, proc), 'c3');
+  const line = await promptAs('c3', {}, 'claude');
+  assert.ok(line.endsWith(', сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes('работала сессия pi на other-host: '), line);
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a new session registered by its hook and then opened on the same device counts commits', async t => {
+  const { filename, run, proc, die, register, prompt, tick } = fixture(t);
+  register(101, null, 'pi', 'p101', 'MP-12');
+  prompt('p101');
+  die(101);
+  register(103, null, 'claude', 'c3', 'MP-12');
+  const app = createApp(filename, false, tick);
+  try { app.sessions(run, proc).activate({ key: 'MP-12', agent: 'claude', nativeId: 'c3' }); } finally { app.close(); }
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE tasks SET worktree_path = '/w/MP-12' WHERE number = 12").run(); } finally { db.close(); }
+  const asked: string[] = [];
+  const line = await promptSession(localSessionRunner(filename), { name: 'session_prompt', agent: 'claude', nativeId: 'c3', counted: true, runtime: run }, {}, proc,
+    worktree => { asked.push(worktree); return 3; });
+  assert.equal(line, '[mypi: с вашего прошлого хода в MP-12 работала сессия pi на ' + hostname() + ': 0 записей журнала, 3 коммитов в ветке; подробнее — journal MP-12]\n');
+  assert.deepEqual(asked, ['/w/MP-12']);
+});
+
+test('a new session that registers alone after a turn of a closed session gets the pointer', async t => {
+  const { die, register, promptAs } = fixture(t);
+  register(101, null);
+  assert.equal(await promptAs('p101', {}), '');
+  die(101);
+  register(103, null, 'claude', 'c3');
+  assert.ok((await promptAs('c3', {}, 'claude')).startsWith('[mypi: с вашего прошлого хода в MP работала сессия pi на '));
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('a clear in the active session after a turn gives no pointer', async t => {
+  const { filename, run, proc, register, promptAs } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  assert.equal(await promptAs('c1', {}, 'claude'), '');
+  register(101, null, 'claude', 'c2');
+  assert.equal(activeOf(filename, run, proc), 'c2');
+  assert.equal(await promptAs('c2', {}, 'claude'), '');
+});
+
+test('a resume in the same process makes the resumed row active again', async t => {
+  const { filename, run, proc, register, prompt } = fixture(t);
+  register(101, null, 'claude', 'x');
+  prompt('x', 'claude');
+  register(101, null, 'claude', 'y');
+  prompt('y', 'claude');
+  register(101, null, 'claude', 'x');
+  assert.equal(activeOf(filename, run, proc), 'x');
+});
+
+test('a clear before the first message of a new session keeps its pointer', async t => {
+  const { filename, run, proc, die, register, prompt, promptAs } = fixture(t);
+  register(101, null);
+  prompt('p101');
+  die(101);
+  register(103, null, 'claude', 'c3');
+  register(103, null, 'claude', 'c4');
+  assert.equal(activeOf(filename, run, proc), 'c4');
+  assert.ok((await promptAs('c4', {}, 'claude')).startsWith('[mypi: с вашего прошлого хода в MP работала сессия pi на '));
+  assert.equal(await promptAs('c4', {}, 'claude'), '');
+});
+
+test('a new session registered alone without an earlier active session gets no pointer', async t => {
+  const { register, promptAs } = fixture(t);
+  register(103, null, 'claude', 'c3');
+  register(101, null);
+  assert.equal(await promptAs('c3', {}, 'claude'), '');
+});
+
+test('another device gets сначала git pull', async t => {
+  const { filename, register, promptAs, journalAt } = fixture(t);
+  register(101, null, 'claude', 'c1');
+  register(102, null);
+  assert.equal(await promptAs('p102', {}), '');
+  journalAt('project', 'MP', '2999-01-01T00:00:00.000Z');
+  const db = openDatabase(filename);
+  try { db.prepare("UPDATE sessions SET device = 'other-host' WHERE native_id = 'p102'").run(); } finally { db.close(); }
+  const line = await promptAs('c1', {}, 'claude');
+  assert.ok(line.endsWith(': 1 записей журнала, сначала git pull; подробнее — journal MP]\n'), line);
+  assert.ok(line.includes(' на other-host: '), line);
+});
+
+test('no-deliver prints the pointer and neither claims nor sends', async t => {
+  const { filename, run, proc, register, promptAs, transport, emit, calls, claims, delivered } = fixture(t);
+  register(101, '/s/a.sock', 'claude', 'c1');
+  register(102, '/s/b.sock');
+  await promptAs('p102', { pi: transport(ids => ids) });
+  await emit({});
+  const line = await promptAs('c1', { claude: transport(ids => ids) }, 'claude', true, true);
+  assert.ok(line.includes(': 0 записей журнала'), line);
+  assert.deepEqual(calls, []);
+  assert.equal(claims()[0]!.claimedBy, null);
+  assert.deepEqual(delivered(), [[1, false]]);
+  assert.equal(activeOf(filename, run, proc), 'c1');
+});
+
+test('a pointer failure prints nothing and keeps the touch and the claim', async t => {
+  const { filename, run, proc, register, promptAs, transport, emit, claims, delivered, rowId } = fixture(t);
+  register(101, '/s/a.sock', 'claude', 'c1');
+  register(102, '/s/b.sock');
+  await promptAs('p102', {});
+  await emit({});
+  const db = openDatabase(filename);
+  try { db.exec('DROP TABLE knowledge_journal'); } finally { db.close(); }
+  assert.equal(await promptAs('c1', { claude: transport(ids => ids) }, 'claude'), '');
+  assert.equal(activeOf(filename, run, proc), 'c1');
+  assert.deepEqual(delivered(), [[1, true]]);
+  assert.equal(claims()[0]!.claimedBy, rowId('c1'));
+});
+
+test('a global session counts the global journal', async t => {
+  const { filename, register, promptAs } = fixture(t);
+  register(101, null, 'claude', 'c1', 'global');
+  register(102, null, 'pi', 'p102', 'global');
+  assert.equal(await promptAs('p102', {}), '');
+  const db = openDatabase(filename);
+  try {
+    db.prepare("INSERT INTO knowledge_journal(at, scope_type, scope_key, event_type, text) VALUES ('2999-01-01T00:00:00.000Z', 'global', NULL, 'note', 'x')").run();
+  } finally { db.close(); }
+  assert.equal(await promptAs('c1', {}, 'claude'),
+    '[mypi: с вашего прошлого хода в global работала сессия pi на ' + hostname() + ': 1 записей журнала; подробнее — journal global]\n');
 });

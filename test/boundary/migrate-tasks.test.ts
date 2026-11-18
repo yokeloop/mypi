@@ -51,7 +51,7 @@ test('home migrate-tasks previews, moves legacy folders in one commit, rewrites 
     finally { db.close(); }
   };
   run(root, ['bootstrap']);
-  run(root, ['project', 'add', 'one/project', '--code', 'MP']);
+  run(root, ['project', 'add', 'one/project', '--code', 'MP', '--repository', 'file:///nonexistent/one/project.git']);
   const task = await cli('task', 'create', 'source text', '--project', 'one/project', '--title', 'Task', '--slug', 'task', '--status', 'new');
   assert.equal(task.contextDir, 'projects/one/project/tasks/MP-1-task');
   const legacy = legacyTask(filename, home, 1, 'legacy');

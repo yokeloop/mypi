@@ -1,6 +1,8 @@
 import type { Scope } from '../shared/scope.js';
 import type { SessionHint } from './session-input.js';
 import type { EventType } from '../modules/knowledge/public.js';
+import type { SessionOperationName } from './session-operations.js';
+import type { ArchiveOperationName } from './archive-operations.js';
 export { EVENT_TYPES } from '../modules/knowledge/public.js';
 export type { EventType } from '../modules/knowledge/public.js';
 
@@ -12,13 +14,13 @@ export type RunContext = { signal?: AbortSignal; onProgress?: (line: string) => 
 export type AppCommand =
   | { name: 'db_init' | 'bootstrap' | 'status_list' | 'journal_import' }
   | { name: 'project_list'; org?: string }
-  | { name: 'project_add'; identity: string; code: string; checkoutPath?: string; repository?: string }
+  | { name: 'project_add'; identity: string; code: string; checkoutPath?: string; repository: string }
   | { name: 'project_update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string; expectedRepository?: string | null; repository?: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'project_flow'; project: string }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
-  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint }
+  | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint; caller?: { pid: number; runtime?: string } }
   | { name: 'journal_add'; scope: ScopeInput; text: string }
   | { name: 'capture'; source: TextInput }
   | { name: 'note_add'; scope: ScopeInput; title: string; body: TextInput }
@@ -44,7 +46,8 @@ export type AppCommand =
   | { name: 'restore'; backupDirectory: string }
   | { name: 'restore_published'; repository: string; commit: string }
   | { name: 'home_migrate_tasks'; dryRun?: boolean }
-  | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; runtime?: string }
+  | { name: 'session_register'; agent: 'claude' | 'pi'; pid: number; nativeId: string; sessionName?: string; socket?: string; fork: boolean; envScope?: string; herdrName?: string; runtime?: string }
+  | { name: 'session_prompt'; agent: 'claude' | 'pi'; nativeId: string; counted: boolean; noDeliver?: boolean; runtime?: string }
   | { name: 'session_unregister'; pid: number; runtime?: string }
   | { name: 'session_forget'; key: string; runtime?: string }
   | { name: 'sessions'; runtime?: string }
@@ -64,5 +67,9 @@ export type AppCommand =
   | { name: 'api_token_create'; file: string; tokenName: string; permission: string; sender?: string }
   | { name: 'api_token_list'; file: string }
   | { name: 'api_token_revoke'; file: string; tokenName: string }
-  | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; permissionMode?: string;
-      session?: SessionHint; stateHome?: string; runtime?: string; message?: string; envScope?: string };
+  | { name: 'open_session'; keys: string[]; agent?: 'claude' | 'pi'; new?: boolean; target?: string; permissionMode?: string;
+      session?: SessionHint; stateHome?: string; configHome?: string; runtime?: string; message?: string; envScope?: string };
+export type OperationName = 'project_list' | 'project_add' | 'project_update' | 'project_resolve' | 'project_remove' | 'org_remove'
+  | 'status_list' | 'status_add' | 'status_rename' | 'status_terminal' | 'status_remove' | 'task_list' | 'task_show' | 'journal_read' | 'event_list'
+  | 'task_create' | 'task_status' | 'task_title' | 'task_parent' | 'task_touch' | 'task_progress' | 'journal_add' | 'context_guard' | 'context_base'
+  | SessionOperationName | ArchiveOperationName;

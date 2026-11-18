@@ -117,7 +117,8 @@ git -C home push -u origin main
 Fixtures: a fixture project clone with its own bare remote and a `main` branch
 (`/open` of a task key creates the task worktree from `origin/<integration>` of the project's flow
 (`origin/main` without flow.json)),
-`mp project add <org/project> --code <CODE> --path <clone>`, and tasks created with
+`mp project add <org/project> --code <CODE> --repository <bare-remote-url> --path <clone>` (the fixture's own bare
+remote as a file:// URL or an absolute path), and tasks created with
 `mp task create … --project <org/project>`. Use synthetic data only; keep real data
 and existing checkouts out of the fixtures.
 
@@ -204,7 +205,7 @@ Exit: Claude Code on `ctrl+c` twice; Pi on `ctrl+d` in an empty editor.
 | Surface | Action | Independent check |
 |---|---|---|
 | Scoped warmup | start sessions with `MYPI_SCOPE=global`, `<org>`, `<CODE>` and `<CODE-N>` | `mp warmup -s <key>` matches what the agent sees |
-| Session registration | start, resume and quit each agent | `sqlite3 -readonly $STAND/state/mypi/state.sqlite3 "select key, scope_type, agent, native_id from sessions"`; the live record `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` with mode `600`; `mp sessions` shows the tree |
+| Session registration | start, resume and quit each agent | `sqlite3 -readonly $STAND/state/mypi/state.sqlite3 "select key, agent, native_id, device, active_at from sessions"`; the live record `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` with mode `600`; `mp sessions` shows the tree |
 | `/open <CODE-N>` from the project chat | open, open again, quit the agent, open again | a new tab in the project's workspace of the stand's Herdr session (`hs workspace list`, `hs tab list`); the second `/open` focuses the same tab; after the agent quit, `/open` continues its session (`--resume` for Claude, `--session-id` for Pi); the first opening shows a turn with the start message `[mypi: стартовое сообщение для <CODE-N>. …]` on the new tab's screen (`hs`), the repeat and the continuation show none, and `select id, from_key, to_key, kind from events` has no new rows from it |
 | `/open <org>` from the main chat | open, open again, quit the agent, open again | a tab `org-<org>` in the workspace `<org>` (`hs workspace list`, `hs tab list`) with no clone or worktree created; the second `/open` focuses it, the third continues its session; `mp sessions` shows the organization node under `global` with its projects below it; the start message lists the open tasks of each project |
 | Organization chat and its tasks | `/open <CODE-N> --message <text>` from the organization chat; the task ends its turn; a status change to `review` from the main chat | the task gets the frame `сообщение родительской сессии <org> для <CODE-N>`; `to_key` of the `turn_end` and of the milestone is `<org>`, not the project code; a task of another organization is refused with no row |

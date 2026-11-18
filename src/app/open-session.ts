@@ -1,10 +1,7 @@
-import type { createApp } from './create-app.js';
 import type { SessionHint } from './session-input.js';
 import type { Agent, RegistryRecord, SessionRow } from '../modules/sessions/public.js';
 import { validSlug } from '../modules/projects/public.js';
 import { InputError } from '../shared/errors.js';
-
-type Sessions = ReturnType<ReturnType<typeof createApp>['sessions']>;
 
 export const PERMISSION_MODES = ['manual', 'acceptEdits', 'auto', 'bypassPermissions', 'dontAsk', 'plan'] as const;
 
@@ -49,10 +46,56 @@ export function defaultAgent(settings: string | undefined): Agent {
 export type OpenDecision = { action: 'focus'; agent: Agent; live: RegistryRecord }
   | { action: 'resume'; agent: Agent; nativeId: string } | { action: 'start'; agent: Agent };
 
-export function decideOpen(found: { row: SessionRow | undefined; live: RegistryRecord | undefined }, chosen: Agent): OpenDecision {
-  if (found.live) return { action: 'focus', agent: found.live.agent, live: found.live };
-  if (found.row) return { action: 'resume', agent: found.row.agent, nativeId: found.row.nativeId };
-  return { action: 'start', agent: chosen };
+export type OpenRequest = { chosen: Agent; agent?: Agent; new?: boolean; target?: string };
+
+export function openTarget(rows: SessionRow[], key: string, device: string, target: string, agent?: Agent): SessionRow {
+  const row = rows.find(r => r.nativeId === target);
+  if (row === undefined) throw new InputError('Unknown session ' + target + ' of ' + key + '; mypi sessions lists the sessions of each key');
+  if (row.device !== device) {
+    throw new InputError('Session ' + target + ' of ' + key + ' is on ' + row.device + ', not on ' + device + '; a session of another device cannot be opened here');
+  }
+  if (agent !== undefined && agent !== row.agent) throw new InputError('Session ' + target + ' is a ' + row.agent + ' session; --agent ' + agent + ' does not match it');
+  return row;
+}
+
+export function decideOpen(found: { rows: SessionRow[]; records: RegistryRecord[] }, key: string, device: string, request: OpenRequest): OpenDecision {
+  const liveOf = (row: SessionRow) => found.records.find(r => r.agent === row.agent && r.nativeId === row.nativeId);
+  if (request.target !== undefined) {
+    const row = openTarget(found.rows, key, device, request.target, request.agent);
+    const live = liveOf(row);
+    return live ? { action: 'focus', agent: live.agent, live } : { action: 'resume', agent: row.agent, nativeId: row.nativeId };
+  }
+  if (request.new) return { action: 'start', agent: request.chosen };
+  const own = found.rows.filter(r => r.device === device && (request.agent === undefined || r.agent === request.agent));
+  for (const row of own) {
+    const live = liveOf(row);
+    if (live) return { action: 'focus', agent: live.agent, live };
+  }
+  const row = own[0];
+  if (row) return { action: 'resume', agent: row.agent, nativeId: row.nativeId };
+  return { action: 'start', agent: request.chosen };
+}
+
+export function otherDevicesNote(rows: SessionRow[], key: string, device: string, request: OpenRequest): string | null {
+  if (request.new || request.target !== undefined) return null;
+  const match = (r: SessionRow) => request.agent === undefined || r.agent === request.agent;
+  if (rows.some(r => r.device === device && match(r))) return null;
+  const devices = [...new Set(rows.filter(r => r.device !== device && match(r)).map(r => r.device))];
+  if (devices.length === 0) return null;
+  return 'sessions of ' + key + ' on ' + devices.join(', ') + ' stay there; started a new one';
+}
+
+export function herdrName(base: string, agent: Agent, held: ReadonlySet<string>): string {
+  if (!held.has(base)) return base;
+  for (let n = 1; ; n++) {
+    const suffix = '-' + agent + (n === 1 ? '' : '-' + n);
+    const name = base.slice(0, 32 - suffix.length) + suffix;
+    if (!held.has(name)) return name;
+  }
+}
+
+export function heldNames(records: RegistryRecord[]): Set<string> {
+  return new Set(records.map(r => r.herdrName ?? agentName(r.key, /^[A-Z]/.test(r.key) || r.key === 'global' ? 'project' : 'org')));
 }
 
 export function launchArgs(decision: Exclude<OpenDecision, { action: 'focus' }>, key: string, mode: string | null, uuid: string): string[] {
@@ -62,9 +105,11 @@ export function launchArgs(decision: Exclude<OpenDecision, { action: 'focus' }>,
   return [...session, ...(mode === null ? [] : ['--permission-mode', mode]), '--settings', '{"crossSessionInbound":"accept"}'];
 }
 
-export function callerMode(sessions: Sessions, hint: SessionHint | undefined): string | null | undefined {
+export function callerMode(sessions: { liveRecords(): RegistryRecord[] }, hint: SessionHint | undefined): string | null | undefined {
   if (hint === undefined) return undefined;
-  const key = sessions.resolve(hint);
-  if (key === undefined) return null;
-  try { return sessions.lookup(key).live?.permissionMode ?? null; } catch { return null; }
+  try {
+    const records = sessions.liveRecords();
+    const own = records.find(r => r.agent === hint.agent && r.nativeId === hint.nativeId) ?? records.find(r => r.pid === hint.pid);
+    return own?.permissionMode ?? null;
+  } catch { return null; }
 }

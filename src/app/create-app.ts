@@ -3,13 +3,16 @@ import { initializeArchive, openArchive } from '../infrastructure/database/archi
 import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { hostname } from 'node:os';
 import { archiveDatabasePath, canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
 import { createProjects, validSlug } from '../modules/projects/public.js';
+import type { CheckoutPaths } from '../modules/projects/ports.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
-import { createSessions } from '../modules/sessions/public.js';
+import { createDeviceSessions, createSessions } from '../modules/sessions/public.js';
+import type { DeviceSessions } from '../modules/sessions/public.js';
 import type { SessionScope } from '../modules/sessions/ports.js';
 import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-store.js';
 import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
@@ -38,9 +41,14 @@ export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
-export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString()) {
+export function deviceSessions(runtime: string | undefined, proc = '/proc'): DeviceSessions {
+  return createDeviceSessions(() => fsRegistry(sessionRegistryDir(runtime), proc), () => new Date().toISOString());
+}
+
+export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString(),
+  paths: CheckoutPaths = { canonicalDirectory, canonicalAbsoluteDirectory }) {
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
-  const projects = createProjects(sqliteProjectStore(db), { canonicalDirectory, canonicalAbsoluteDirectory });
+  const projects = createProjects(sqliteProjectStore(db), paths);
   const sessionScope = (key: string): SessionScope => {
     if (key === 'global') return { scopeType: 'global', orgId: null, projectId: null, taskId: null };
     if (/^[A-Z]+$/.test(key)) {
@@ -89,7 +97,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock),
+    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock, () => hostname()),
     events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     archiveKeys,
     close: () => db.close(),

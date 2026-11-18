@@ -19,7 +19,7 @@ export function openCompletions(prefix: string, catalog: OpenCatalog, scope: str
   const token = /\S*$/.exec(prefix)![0];
   const head = prefix.slice(0, prefix.length - token.length);
   const words = head.trim().split(/\s+/).filter(Boolean);
-  if (token.startsWith('-') || ['--agent', '--permission-mode'].includes(words.at(-1) ?? '')) return null;
+  if (token.startsWith('-') || ['--agent', '--permission-mode', '--session'].includes(words.at(-1) ?? '')) return null;
   const matched = scope === undefined ? [] : catalog.projects.filter(project => scope.includes(project.code));
   const own = matched.length === 0 ? undefined : new Set(matched.map(project => project.id));
   const projects = (own === undefined ? catalog.projects : matched).slice().sort((a, b) => a.code < b.code ? -1 : a.code > b.code ? 1 : 0);

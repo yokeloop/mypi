@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import type { AppCommand } from '../../src/app/commands.js';
 import { createApi } from '../../src/http/api.js';
 import type { ApiRequest } from '../../src/http/api.js';
-import { decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.js';
+import { ApiError, decodeCursor, encodeCursor, requestUrl } from '../../src/http/validate.js';
+import { parseOperation } from '../../src/http/operations.js';
 import { InputError } from '../../src/shared/errors.js';
 import { PartialError } from '../../src/shared/context.js';
 
@@ -14,7 +15,7 @@ const taskShape = { key: 'MP-1', project: 'MP', number: 1, title: 'Задача'
 const info = { version: '0.10.0', schemaVersion: 12, changeId: 4, instance: 'instance' };
 
 function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}, broken = false) {
-  const commands: AppCommand[] = [], logged: string[] = [];
+  const commands: AppCommand[] = [], logged: string[] = [], operations: [string, unknown][] = [];
   const fixtures: Record<string, (command: AppCommand) => unknown> = {
     task_page: () => ({ items: [{ ...card, key: 'MP-1' }], next: 3 }),
     task_show: () => card,
@@ -24,13 +25,17 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
     journal_page: () => ({ items: [{ id: 5, entry: { at: 'b', scope: { type: 'project', key: 'MP' }, event_type: 'note', text: 't', artifacts: ['x.md', { path: 'y.md', commit: 'c' }] } }], next: null }),
     message_send: () => ({ message: 7, delivered: false }),
     journal_add: () => ({ saved: '12' }),
-    sessions: () => ({ tree: { key: 'global', session: null, children: [] } }),
+    sessions: () => ({ tree: { key: 'global', session: { agent: 'claude', nativeId: 'g1', state: 'live' },
+      sessions: [{ agent: 'claude', nativeId: 'g1', device: 'host', activeAt: 'a', state: 'live' }, { agent: 'pi', nativeId: 'p1', device: 'host', activeAt: null, state: 'closed' }],
+      children: [] } }),
     ...outcomes,
   };
   const api = createApi({
     token: value => { if (broken) throw new InputError('Invalid API token file: /secret/config/mypi/api-tokens.json'); return value === 'r-token' ? { name: 'reader', permission: 'read', sender: null }
-      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' } : undefined; },
+      : value === 'w-token' ? { name: 'writer', permission: 'write', sender: 'global' }
+      : value === 'd-token' ? { name: 'laptop', permission: 'device', sender: null } : undefined; },
     execute: async command => { commands.push(command); const fixture = fixtures[command.name]; return fixture === undefined ? {} : fixture(command); },
+    operate: async (name, input) => { operations.push([name, input]); return { projects: [] }; },
     info: () => info, runtime: '/run/u', log: line => { logged.push(line); },
   });
   const call = (method: string, url: string, options: { token?: string; authorization?: string; body?: unknown; contentType?: string; cookie?: string; forwardedProto?: string } = {}) => {
@@ -42,7 +47,7 @@ function harness(outcomes: Record<string, (command: AppCommand) => unknown> = {}
       cookie: options.cookie, forwardedProto: options.forwardedProto };
     return api(request) as Promise<{ status: number; body: { apiVersion: number; data?: unknown; error?: { code: string; message: string; saved?: string[]; missing?: string[] } }; token?: string; stream?: string; setCookie?: string }>;
   };
-  return { commands, call, logged };
+  return { commands, call, logged, operations };
 }
 
 test('requests without a known bearer token get 401 before routing and run nothing', async () => {
@@ -106,6 +111,10 @@ test('responses use the stable envelope and map fields explicitly', async () => 
   assert.deepEqual(tasks.body, { apiVersion: 1, data: { items: [taskShape], next: encodeCursor(3) } });
   assert.equal(decodeCursor((tasks.body.data as { next: string }).next), 3);
   assert.deepEqual((await call('GET', '/v1/tasks/MP-1', { token: 'r-token' })).body, { apiVersion: 1, data: taskShape });
+  assert.deepEqual((await call('GET', '/v1/sessions', { token: 'r-token' })).body, { apiVersion: 1, data: { key: 'global',
+    session: { agent: 'claude', nativeId: 'g1', state: 'live' },
+    sessions: [{ agent: 'claude', nativeId: 'g1', device: 'host', activeAt: 'a', state: 'live' }, { agent: 'pi', nativeId: 'p1', device: 'host', activeAt: null, state: 'closed' }],
+    children: [] } });
   assert.deepEqual((await call('GET', '/v1/events', { token: 'r-token' })).body, { apiVersion: 1, data: { items: [
     { id: 9, from: 'global', to: 'MP', kind: 'message', text: 'go', createdAt: 'a', deliveredAt: null }], next: null } });
   assert.deepEqual((await call('GET', '/v1/journal', { token: 'r-token' })).body, { apiVersion: 1, data: { items: [
@@ -232,4 +241,145 @@ test('browser session: login sets an HttpOnly SameSite=Strict cookie that authen
   assert.equal((await call('DELETE', '/v1/session')).status, 415);
   const stream = await call('GET', '/v1/changes', { cookie: 'mypi_session=r-token' });
   assert.deepEqual([stream.stream, stream.token], ['changes', 'reader']);
+});
+
+test('POST /v1/ops runs an allowed operation only for a device bearer token of the same engine version', async () => {
+  const { commands, call, operations } = harness();
+  const request = { op: 'project_list', input: {}, version: '0.10.0' };
+  const ok = await call('POST', '/v1/ops', { token: 'd-token', body: request });
+  assert.deepEqual([ok.status, ok.body.data, ok.token], [200, { projects: [] }, 'laptop']);
+  assert.deepEqual(operations, [['project_list', {}]]);
+  for (const options of [{ token: 'r-token', body: request }, { token: 'w-token', body: request }, { cookie: 'mypi_session=d-token', body: request }]) {
+    const refused = await call('POST', '/v1/ops', options);
+    assert.deepEqual([refused.status, refused.body.error?.code], [403, 'forbidden']);
+  }
+  const mismatch = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, version: '0.9.0' } });
+  assert.deepEqual([mismatch.status, mismatch.body.error?.code, mismatch.body.error?.message],
+    [409, 'version_mismatch', 'engine version 0.9.0 differs from server 0.10.0']);
+  for (const op of ['backup', 'api_token_create', 'warmup', 'session_register']) {
+    const unknown = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op } });
+    assert.deepEqual([unknown.status, unknown.body.error?.code, unknown.body.error?.message], [400, 'invalid_request', 'Unknown operation: ' + op]);
+  }
+  const extra = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op: 'project_add',
+    input: { identity: 'one/p', code: 'P', repository: 'https://example.com/p.git', file: '/etc/hostname' } } });
+  assert.deepEqual([extra.status, extra.body.error?.code], [400, 'invalid_request']);
+  const typed = await call('POST', '/v1/ops', { token: 'd-token', body: { ...request, op: 'project_resolve', input: { path: 1 } } });
+  assert.deepEqual([typed.status, typed.body.error?.code], [400, 'invalid_request']);
+  const missing = await call('POST', '/v1/ops', { token: 'd-token', body: { op: 'project_list', input: {} } });
+  assert.deepEqual([missing.status, missing.body.error?.message], [400, 'Missing field: version']);
+  assert.equal(operations.length, 1);
+  assert.equal(commands.length, 0);
+});
+
+test('POST /v1/ops accepts the home operations only with strict inputs and no device paths', async () => {
+  const { commands, call, operations } = harness();
+  const op = (name: string, input: unknown) => call('POST', '/v1/ops', { token: 'd-token', body: { op: name, input, version: '0.10.0' } });
+  const accepted: [string, unknown][] = [
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's' }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', parent: 'P-1' }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n' }, envScope: 'P' }],
+    ['task_title', { key: 'P-1', title: 't', reason: 'r' }],
+    ['task_parent', { key: 'P-2', parent: null, reason: 'r' }],
+    ['task_touch', { key: 'P-1' }],
+    ['task_progress', { key: 'P-1', text: 'x', artifacts: ['plan.md'], commit: 'a'.repeat(40) }],
+    ['task_progress', { key: 'P-1', text: 'x' }],
+    ['journal_add', { scope: { type: 'project', key: 'P' }, text: 'x' }],
+    ['journal_add', { scope: { reference: 'one/p' }, text: 'x' }],
+    ['context_guard', {}],
+    ['context_guard', { paths: ['a.md'] }],
+    ['context_base', { scope: { reference: 'one/p' } }],
+    ['context_base', { project: 'P' }],
+  ];
+  for (const [name, input] of accepted) {
+    const result = await op(name, input);
+    assert.equal(result.status, 200, name + ' ' + JSON.stringify(result.body));
+  }
+  assert.deepEqual(operations, accepted);
+  const invalid: [string, unknown][] = [
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', source: { text: 'x' } }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', source: { file: '/etc/hostname' } }],
+    ['task_create', { project: 'one/p', title: 't', status: 'new', slug: 's', adoptSource: true }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n', pid: 1 } }],
+    ['task_status', { key: 'P-1', status: 'review', reason: 'r', session: { agent: 'claude', nativeId: 'n', runtime: '/run/user/1' } }],
+    ['task_progress', { key: 'P-1', text: 'x', artifacts: [{ path: 'plan.md', text: 'x' }] }],
+    ['task_progress', { key: 'P-1', text: 'x', commit: 'abc' }],
+    ['context_guard', { paths: ['a.md'], file: '/etc/hostname' }],
+    ['context_base', { scope: { reference: 'one/p' }, project: 'P' }],
+    ['context_base', {}],
+  ];
+  for (const [name, input] of invalid) {
+    const result = await op(name, input);
+    assert.deepEqual([result.status, result.body.error?.code], [400, 'invalid_request'], name + ' ' + JSON.stringify(input));
+  }
+  for (const name of ['note_add', 'capture', 'error_add', 'context_commit', 'context_restore', 'context_read', 'home_migrate_tasks', 'journal_import']) {
+    const unknown = await op(name, {});
+    assert.deepEqual([unknown.status, unknown.body.error?.code, unknown.body.error?.message], [400, 'invalid_request', 'Unknown operation: ' + name]);
+  }
+  assert.equal(operations.length, accepted.length);
+  assert.equal(commands.length, 0);
+});
+
+test('session and event operations accept exactly their fields', () => {
+  const identity = { agent: 'pi', nativeId: 'n1' };
+  const cases: [string, Record<string, unknown>, string][] = [
+    ['session_key', identity, 'nativeId'],
+    ['session_save', { ...identity, device: 'laptop', candidateKey: null, fork: false, envScope: 'MP', otherLive: [{ ...identity, key: 'MP' }], own: [] }, 'device'],
+    ['session_forget_rows', { key: 'MP' }, 'key'],
+    ['session_activate', { ...identity, claim: true }, 'claim'],
+    ['events_claim', { key: 'MP', live: [identity], messagesOnly: true }, 'live'],
+    ['events_settle', { sessionId: 1, acked: [2], released: [3] }, 'released'],
+    ['event_create', { from: 'MP-1', kind: 'turn_end', message: '', to: 'MP' }, 'kind'],
+    ['inbox_take', { key: 'MP', caller: null }, 'caller'],
+    ['message_create', { from: 'MP', to: 'MP-1', message: 'hi' }, 'to'],
+    ['warmup_data', { key: 'MP' }, 'key'],
+    ['events_mark', { ids: [1], caller: identity }, 'ids'],
+  ];
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  for (const [op, input, required] of cases) {
+    assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+    assert.throws(() => parseOperation(op, { ...input, path: '/etc/hostname' }), refused, op);
+    const { [required]: _, ...missing } = input;
+    assert.throws(() => parseOperation(op, missing), refused, op);
+  }
+});
+
+test('open operations accept exactly their fields', () => {
+  const cases: [string, Record<string, unknown>, string][] = [
+    ['open_snapshot', { orgs: ['one'] }, 'orgs'],
+    ['parent_check', { from: 'MP', to: 'MP-1' }, 'to'],
+    ['session_open', { key: 'MP-1', agent: 'pi', nativeId: 'n1', device: 'laptop', opened: { action: 'started', worktree: null } }, 'device'],
+    ['worktree_record', { key: 'MP-1', worktreePath: '/p/x--MP-1-a', created: { branch: 'task/MP-1-a', base: 'main' } }, 'worktreePath'],
+    ['checkout_record', { identity: 'one/project', checkoutPath: '/p/one/project', action: 'cloned', repository: 'file:///r.git' }, 'action'],
+  ];
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  for (const [op, input, required] of cases) {
+    assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+    assert.throws(() => parseOperation(op, { ...input, path: '/etc/hostname' }), refused, op);
+    const { [required]: _, ...missing } = input;
+    assert.throws(() => parseOperation(op, missing), refused, op);
+  }
+});
+
+test('archive operations accept exactly their fields', () => {
+  const identity = { agent: 'claude', nativeId: 'c1' };
+  const entry = { entryId: 'u1', parentEntryId: null, at: '2026-11-07T10:00:00.000Z', role: 'user', origin: 'human', text: 'synthetic' };
+  const record = { ...identity, path: '/device/c1.jsonl', expectedOffset: 0, newOffset: 10, read: { entries: [entry], name: null, cwd: null, parentNativeId: null } };
+  const cases: [string, Record<string, unknown>][] = [
+    ['archive_offset', identity],
+    ['archive_record', record],
+    ['archive_status', {}],
+    ['archive_search', { q: 'synthetic', scope: 'MP', agent: 'pi', from: '2026-11-01', to: '2026-11-07', includePeer: true, limit: 5 }],
+    ['archive_show', { id: 3, before: 1, after: 1, includePeer: true }],
+    ['archive_forget', { session: 'c1', key: 'MP', before: '2026-11-07' }],
+  ];
+  for (const [op, input] of cases) assert.deepEqual(parseOperation(op, input), { name: op, input }, op);
+  const refused = (error: unknown) => error instanceof ApiError && error.status === 400 && error.code === 'invalid_request';
+  const { expectedOffset: _, ...unexpected } = record;
+  for (const [op, input] of [
+    ['archive_record', { ...record, file: '/etc/hostname' }],
+    ['archive_status', { home: '/home/user' }],
+    ['archive_offset', { ...identity, dirs: [] }],
+    ['archive_record', { ...record, read: { ...record.read, entries: [{ ...entry, origin: 'tool' }] } }],
+    ['archive_record', unexpected],
+  ] as [string, unknown][]) assert.throws(() => parseOperation(op, input), refused, op);
 });

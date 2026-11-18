@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
-import { agentName, callerMode, decideOpen, defaultAgent, launchArgs, parseOpenKey } from '../../src/app/open-session.js';
+import { agentName, callerMode, decideOpen, defaultAgent, heldNames, herdrName, launchArgs, otherDevicesNote, parseOpenKey } from '../../src/app/open-session.js';
 import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -39,16 +39,76 @@ test('defaultAgent reads home/settings.json and falls back to claude', () => {
   refused(() => defaultAgent('{"defaultAgent":"codex"}'), 'defaultAgent in home/settings.json must be claude or pi');
 });
 
-const row = (agent: 'claude' | 'pi', nativeId: string): SessionRow =>
-  ({ key: 'MP-12', scopeType: 'task', orgId: null, projectId: 1, taskId: 1, agent, nativeId, createdAt: '2026-10-28T00:00:00.000Z' });
-const live = (agent: 'claude' | 'pi'): RegistryRecord => ({ key: 'MP-12', agent, nativeId: 'c1', pid: 101, start: '1', name: null,
+const row = (agent: 'claude' | 'pi', nativeId: string, device = 'host', id = 1): SessionRow =>
+  ({ id, key: 'MP-12', scopeType: 'task', orgId: null, projectId: 1, taskId: 1, agent, nativeId, device,
+    createdAt: '2026-10-28T00:00:00.000Z', activeAt: '2026-10-28T00:00:00.000Z', endedAt: null });
+const live = (agent: 'claude' | 'pi', nativeId = 'c1'): RegistryRecord => ({ key: 'MP-12', agent, nativeId, pid: 101, start: '1', name: null,
   socket: null, permissionMode: null, registeredAt: '2026-10-28T00:00:00.000Z' });
 
-test('decideOpen focuses a live session, resumes a saved row with its own agent and starts the chosen agent otherwise', () => {
-  const record = live('claude');
-  assert.deepEqual(decideOpen({ row: row('claude', 'c1'), live: record }, 'pi'), { action: 'focus', agent: 'claude', live: record });
-  assert.deepEqual(decideOpen({ row: row('pi', 'p1'), live: undefined }, 'claude'), { action: 'resume', agent: 'pi', nativeId: 'p1' });
-  assert.deepEqual(decideOpen({ row: undefined, live: undefined }, 'pi'), { action: 'start', agent: 'pi' });
+test('decideOpen without flags focuses the live session of this device even when the active row is closed (decision 1)', () => {
+  const c2 = row('claude', 'c2', 'host', 2), p1 = row('pi', 'p1', 'host', 1);
+  const record = live('pi', 'p1');
+  assert.deepEqual(decideOpen({ rows: [c2, p1], records: [record] }, 'MP-12', 'host', { chosen: 'claude' }), { action: 'focus', agent: 'pi', live: record });
+  assert.deepEqual(decideOpen({ rows: [c2, p1], records: [] }, 'MP-12', 'host', { chosen: 'claude' }), { action: 'resume', agent: 'claude', nativeId: 'c2' });
+  assert.deepEqual(decideOpen({ rows: [row('pi', 'p1', 'elsewhere')], records: [] }, 'MP-12', 'host', { chosen: 'claude' }), { action: 'start', agent: 'claude' });
+  assert.deepEqual(decideOpen({ rows: [], records: [] }, 'MP-12', 'host', { chosen: 'pi' }), { action: 'start', agent: 'pi' });
+});
+
+test('decideOpen --new starts the chosen agent even when a session is live', () => {
+  assert.deepEqual(decideOpen({ rows: [row('claude', 'c1')], records: [live('claude', 'c1')] }, 'MP-12', 'host', { chosen: 'pi', agent: 'pi', new: true }),
+    { action: 'start', agent: 'pi' });
+});
+
+test('decideOpen --agent opens the session of that agent on this device or starts one (decision 2)', () => {
+  const c1 = row('claude', 'c1', 'host', 1), p1 = row('pi', 'p1', 'host', 2);
+  const claude = live('claude', 'c1'), pi = live('pi', 'p1');
+  assert.deepEqual(decideOpen({ rows: [c1], records: [claude] }, 'MP-12', 'host', { chosen: 'pi', agent: 'pi' }), { action: 'start', agent: 'pi' });
+  assert.deepEqual(decideOpen({ rows: [c1, p1], records: [claude] }, 'MP-12', 'host', { chosen: 'pi', agent: 'pi' }), { action: 'resume', agent: 'pi', nativeId: 'p1' });
+  assert.deepEqual(decideOpen({ rows: [c1, p1], records: [claude, pi] }, 'MP-12', 'host', { chosen: 'pi', agent: 'pi' }), { action: 'focus', agent: 'pi', live: pi });
+  assert.deepEqual(decideOpen({ rows: [c1], records: [claude] }, 'MP-12', 'host', { chosen: 'claude', agent: 'claude' }), { action: 'focus', agent: 'claude', live: claude });
+});
+
+test("decideOpen --session refuses another device, an unknown id and a mismatching agent and returns to this device's session", () => {
+  const rows = [row('claude', 'c1', 'host', 1), row('claude', 'c9', 'elsewhere', 2)];
+  const found = { rows, records: [] };
+  refused(() => decideOpen(found, 'MP-12', 'host', { chosen: 'claude', target: 'c9' }),
+    'Session c9 of MP-12 is on elsewhere, not on host; a session of another device cannot be opened here');
+  refused(() => decideOpen(found, 'MP-12', 'host', { chosen: 'claude', target: 'zz' }), 'Unknown session zz of MP-12; mypi sessions lists the sessions of each key');
+  refused(() => decideOpen(found, 'MP-12', 'host', { chosen: 'pi', agent: 'pi', target: 'c1' }), 'Session c1 is a claude session; --agent pi does not match it');
+  const record = live('claude', 'c1');
+  assert.deepEqual(decideOpen({ rows, records: [record] }, 'MP-12', 'host', { chosen: 'claude', target: 'c1' }), { action: 'focus', agent: 'claude', live: record });
+  assert.deepEqual(decideOpen(found, 'MP-12', 'host', { chosen: 'pi', target: 'c1' }), { action: 'resume', agent: 'claude', nativeId: 'c1' });
+});
+
+test('otherDevicesNote names the other devices only when this device has no session of the key', () => {
+  const rows = [row('pi', 'p1', 'elsewhere', 1), row('claude', 'c3', 'third', 2), row('claude', 'c4', 'elsewhere', 3)];
+  const note = (rows: SessionRow[], request: Parameters<typeof decideOpen>[3]) => {
+    assert.deepEqual(decideOpen({ rows, records: [] }, 'MP-12', 'host', request), { action: 'start', agent: request.chosen });
+    return otherDevicesNote(rows, 'MP-12', 'host', request);
+  };
+  assert.equal(note(rows, { chosen: 'claude' }), 'sessions of MP-12 on elsewhere, third stay there; started a new one');
+  assert.equal(otherDevicesNote([...rows, row('claude', 'c5', 'host', 4)], 'MP-12', 'host', { chosen: 'claude' }), null);
+  assert.equal(note(rows, { chosen: 'claude', new: true }), null);
+  assert.equal(otherDevicesNote(rows, 'MP-12', 'host', { chosen: 'claude', target: 'p1' }), null);
+  assert.equal(note([], { chosen: 'claude' }), null);
+  const claudeOnly = [row('claude', 'c3', 'third', 2), row('claude', 'c4', 'elsewhere', 3)];
+  assert.equal(note(claudeOnly, { chosen: 'pi', agent: 'pi' }), null);
+  assert.equal(note([...claudeOnly, row('pi', 'p1', 'elsewhere', 1)], { chosen: 'pi', agent: 'pi' }),
+    'sessions of MP-12 on elsewhere stay there; started a new one');
+});
+
+test('herdrName gives the base, then <base>-<agent>, then a number, within 32 characters', () => {
+  assert.equal(herdrName('mp-1', 'pi', new Set()), 'mp-1');
+  assert.equal(herdrName('mp-1', 'pi', new Set(['mp-1'])), 'mp-1-pi');
+  assert.equal(herdrName('mp-1', 'pi', new Set(['mp-1', 'mp-1-pi'])), 'mp-1-pi-2');
+  const base = 'org-' + 'a'.repeat(28);
+  assert.equal(herdrName(base, 'pi', new Set([base])), 'org-' + 'a'.repeat(25) + '-pi');
+  assert.equal(herdrName(base, 'pi', new Set([base])).length, 32);
+});
+
+test("heldNames counts a record without herdrName as holding the key's default name", () => {
+  const record = (key: string, herdrName?: string): RegistryRecord => ({ ...live('claude'), key, ...(herdrName === undefined ? {} : { herdrName }) });
+  assert.deepEqual(heldNames([record('MP-1'), record('MP-1', 'mp-1-pi'), record('one')]), new Set(['mp-1', 'mp-1-pi', 'org-one']));
 });
 
 test('launchArgs builds Claude and Pi arguments', () => {
@@ -66,7 +126,7 @@ test('launchArgs builds Claude and Pi arguments', () => {
 test("callerMode reads the caller's live permission mode and is null without a caller or a recorded mode", t => {
   const { dir, filename } = state(t);
   const app = createApp(filename, false);
-  try { app.projects.add('one/project', 'MP'); } finally { app.close(); }
+  try { app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { app.close(); }
   const db = openDatabase(filename);
   try {
     db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
@@ -89,11 +149,15 @@ test("callerMode reads the caller's live permission mode and is null without a c
   alive(101, ['claude', '--permission-mode', 'plan']);
   alive(102, ['claude']);
   alive(103, ['pi', '--permission-mode', 'plan']);
+  alive(104, ['claude', '--permission-mode', 'auto']);
   session('claude', 'c1', 101, 'MP-12');
+  session('claude', 'c4', 104, 'MP-12');
   session('claude', 'c2', 102, 'MP');
   session('pi', 'p1', 103, 'global');
   assert.equal(s(x => callerMode(x, undefined)), undefined);
   assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c1', pid: 900 })), 'plan');
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c4', pid: 900 })), 'auto');
+  assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'unknown', pid: 104 })), 'auto');
   assert.equal(s(x => callerMode(x, { agent: 'claude', nativeId: 'c2', pid: 900 })), null);
   assert.equal(s(x => callerMode(x, { agent: 'pi', nativeId: 'p1', pid: 900 })), null);
 });

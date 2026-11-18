@@ -16,7 +16,19 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   tool guideline to every turn: `searchTools()`, `describeTool()` and
   `describeNamespace()` return Promises and must be awaited; Pi shows it in the
   prompt rules only while codemode is active. The key is the one saved for
-  this conversation, else `MYPI_SCOPE`, else `global`.
+  this conversation, else `MYPI_SCOPE`, else `global`. In remote mode, after its event
+  socket is registered, the extension runs `mypi session subscribe --pid` and stops it
+  on `session_shutdown` ([sessions, Remote mode](sessions.md#session-registry-and-open)).
+  On every `input` with
+  `source: "interactive"` (the engineer's own prompt, not socket messages or RPC)
+  it waits for the short call `mypi session prompt --agent pi --native-id <id>
+  --no-deliver` (2 s), which makes this session the active one of its key and
+  prints the switch pointer line or nothing; with the line it returns `transform`
+  (the line before the text, at the end for input starting with `/`), else it
+  continues the input unchanged. Then it starts `mypi session prompt --agent pi
+  --native-id <id>` without waiting for it; that call takes the waiting events of
+  the key to its own socket, where they arrive as a follow-up after the engineer's
+  input.
   It also registers the /open command (`/open <key...> [--message text]`, the
   rest of the line after --message is the text), which runs mypi open
   and suggests keys while its arguments are typed (the session's project and its
@@ -77,7 +89,9 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
 
 - Start `claude` in the engine root after `mise exec -- pnpm build`. The tracked
   `.mcp.json` starts the `mypi` MCP server with `node dist/src/mcp/main.js`; Claude
-  asks once to approve this project server. The tracked `.claude/settings.json`
+  asks once to approve this project server. In remote mode this stdio MCP process
+  holds the Claude session's subscription to the server's changes
+  ([sessions, Remote mode](sessions.md#session-registry-and-open)). The tracked `.claude/settings.json`
   allows exactly the mypi MCP tools and runs one SessionStart command on every
   source (startup, resume, clear, compact, fork): `mypi session register --agent
   claude --hook` (its output is discarded, its failure does not stop the warmup),
@@ -95,7 +109,12 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   into the conversation archive from its saved offset, so an answer the file had
   not yet written at Stop arrives on the next Stop or at SessionEnd. Without a
   transcript it writes nothing; its output is discarded, and its failure (exit 1,
-  never 2) blocks neither Stop nor exit.
+  never 2) blocks neither Stop nor exit. The UserPromptSubmit hook runs
+  `mypi session prompt --agent claude --hook 2>/dev/null` (5 s): the engineer's
+  prompt makes this session the active one of its key and takes the waiting events
+  of the key to its own socket; a prompt in a mypi frame or with a `source` other
+  than `user` is not counted. Its stdout is the switch pointer line or empty and
+  joins the context of the turn.
 - When the MCP tool list changes, update the allow list in the same change; a fast
   test compares them. Do not add `enableAllProjectMcpServers`,
   `enabledMcpjsonServers` or `crossSessionInbound` to the tracked settings: project

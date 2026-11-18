@@ -2,7 +2,7 @@ import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, r
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { Registry, RegistryRecord } from '../ports.js';
-const fileName = /^(global|[A-Z]+|[A-Z]+-[1-9][0-9]*|[a-z0-9]+(?:[._-][a-z0-9]+)*)(~[1-9][0-9]*)?\.json$/;
+const fileName = /^(global|[A-Z]+|[A-Z]+-[1-9][0-9]*|[a-z0-9]+(?:[._-][a-z0-9]+)*)~([1-9][0-9]*)\.json$/;
 function missing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
 }
@@ -20,16 +20,16 @@ function unlink(path: string): void {
 }
 const text = (value: unknown) => typeof value === 'string';
 const nullable = (value: unknown) => value === null || typeof value === 'string';
-function shaped(value: unknown, key: string, pid: number | undefined): value is RegistryRecord {
+function shaped(value: unknown, key: string, pid: number): value is RegistryRecord {
   const r = value as Record<string, unknown>;
   return typeof value === 'object' && value !== null && !Array.isArray(value) && r['key'] === key
     && (r['agent'] === 'claude' || r['agent'] === 'pi') && text(r['nativeId']) && Number.isSafeInteger(r['pid']) && (r['pid'] as number) > 0
     && text(r['start']) && nullable(r['name']) && nullable(r['socket']) && nullable(r['permissionMode']) && text(r['registeredAt'])
-    && (pid === undefined ? r['displacedAt'] === undefined : text(r['displacedAt']) && r['pid'] === pid);
+    && (r['herdrName'] === undefined || text(r['herdrName'])) && r['pid'] === pid && r['displacedAt'] === undefined;
 }
 export function fsRegistry(dir: string, proc = '/proc'): Registry {
   const parent = dirname(dir);
-  const file = (record: RegistryRecord) => join(dir, record.key + (record.displacedAt === undefined ? '' : '~' + record.pid) + '.json');
+  const file = (record: RegistryRecord) => join(dir, record.key + '~' + record.pid + '.json');
   function prepare(): void {
     for (const path of [parent, dir]) {
       try { mkdirSync(path, { mode: 0o700 }); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }
@@ -69,29 +69,24 @@ export function fsRegistry(dir: string, proc = '/proc'): Registry {
       const records: RegistryRecord[] = [];
       for (const name of readdirSync(dir).sort()) {
         const match = fileName.exec(name);
-        if (!match) continue;
+        if (!match && !(prune && name.endsWith('.json') && !name.startsWith('.'))) continue;
         const path = join(dir, name);
         let stat;
         try { stat = lstatSync(path); } catch (error) { if (missing(error)) continue; throw error; }
         if (!stat.isFile() || stat.uid !== process.getuid!()) continue;
+        if (!match) { unlink(path); continue; }
         let record: unknown;
         try { record = JSON.parse(readFileSync(path, 'utf8')); } catch (error) {
           if (missing(error)) continue;
           record = undefined;
         }
-        if (!shaped(record, match[1]!, match[2] === undefined ? undefined : Number(match[2].slice(1)))) { if (prune) unlink(path); continue; }
+        if (!shaped(record, match[1]!, Number(match[2]))) { if (prune) unlink(path); continue; }
         if (start(record.pid) !== record.start) { if (prune) unlink(path); continue; }
         records.push(record);
       }
       return records;
     },
     write: save,
-    displace(record, at) {
-      const next = { ...record, displacedAt: at };
-      save(next);
-      unlink(file(record));
-      return next;
-    },
     remove(record) { unlink(file(record)); },
   };
 }

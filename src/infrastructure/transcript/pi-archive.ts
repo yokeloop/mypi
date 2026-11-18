@@ -1,6 +1,7 @@
 import { basename } from 'node:path';
 import { blockText, filled, walkRecords } from './archive-read.js';
 import type { ReadEntry, ReadResult } from './archive-read.js';
+import { stripPointer } from '../../shared/switch-pointer.js';
 
 function nativeId(file: string): string {
   const name = basename(file, '.jsonl');
@@ -26,7 +27,7 @@ export function piArchive(path: string, offset: number): ReadResult {
     const message = r.message as { role?: unknown; stopReason?: unknown; content?: unknown };
     const base = { entryId: r.id, parentEntryId: typeof r.parentId === 'string' ? r.parentId : null, at: r.timestamp };
     if (message.role === 'user') {
-      const text = blockText(message.content);
+      const text = stripPointer(blockText(message.content));
       if (filled(text)) entries.push({ ...base, role: 'user', origin: text.startsWith('[mypi: ') ? 'frame' : 'human', text });
     } else if (message.role === 'assistant' && message.stopReason === 'stop') {
       const text = blockText(message.content);

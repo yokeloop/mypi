@@ -19,7 +19,7 @@ test('tasks preserve source, allocate separate numbers, filter parents, extend s
   let at = '2026-09-30T23:59:00.000Z';
   const app = createWorkspace(filename, false, root, () => at);
   try {
-    app.projects.add('one/project', 'MP'); app.projects.add('two/project', 'YM');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); app.projects.add('two/project', 'YM', undefined, 'file:///nonexistent/two/project.git');
     const create = (project?: string) => app.tasks.create({ project: project!,
       title: 'Task', status: 'research', slug: 'test-task', source: '  source\r\nline\n' });
     const a = create('one/project'), b = create('two/project');
@@ -120,7 +120,7 @@ test('local task and journal saves never require a context Git repository', t =>
   rmSync(join(root, '.git'), { recursive: true });
   const app = createWorkspace(filename, false, root);
   try {
-    app.projects.add('one/project', 'MP');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
     const card = app.tasks.create({ project: 'one/project', title: 'No Git', status: 'new', slug: 'local', source: 'exact\r\n' });
     app.tasks.change(card.key, { status: 'planning' }, 'working');
     app.tasks.change(card.key, { title: 'Renamed' }, 'clarified');
@@ -160,7 +160,7 @@ test('task and journal paths invoke no Git and preserve staged and unstaged inde
     rmSync(marker);
     const app = createWorkspace(filename, false, root);
     try {
-      app.projects.add('one/project', 'MP');
+      app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
       const card = app.tasks.create({ project: 'one/project', title: 'Local', status: 'new', slug: 'local', source: 'source' });
       app.tasks.change(card.key, { status: 'planning' }, 'progress');
       app.tasks.progress(card.key, 'result');
@@ -180,7 +180,7 @@ test('two simultaneous processes retain unique task numbers and independent jour
   const { dir, filename } = state(t), root = join(dir, 'home');
   initializeWorkspace(filename, root);
   const parent = createWorkspace(filename, false, root);
-  parent.projects.add('one/project', 'MP'); parent.close();
+  parent.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); parent.close();
   const module = fileURLToPath(new URL('../../src/app/create-workspace.js', import.meta.url));
   const program = `import {createWorkspace} from ${JSON.stringify(module)};
 process.send('ready');
@@ -230,7 +230,7 @@ test('abrupt exit before transaction commit rolls back card and journal but leav
   const { dir, filename } = state(t), root = join(dir, 'home');
   initializeWorkspace(filename, root);
   const setup = createApp(filename, false);
-  const projectId = setup.projects.add('one/project', 'MP').id; setup.close();
+  const projectId = setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git').id; setup.close();
   const coreModule = fileURLToPath(new URL('../../src/app/create-app.js', import.meta.url));
   const filesModule = fileURLToPath(new URL('../../src/infrastructure/filesystem/context-files.js', import.meta.url));
   const program = `import {createApp} from ${JSON.stringify(coreModule)};

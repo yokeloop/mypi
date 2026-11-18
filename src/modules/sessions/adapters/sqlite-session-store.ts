@@ -1,19 +1,23 @@
 import type { Database } from 'better-sqlite3';
 import type { Agent, SessionRow, SessionStore } from '../ports.js';
-const select = `SELECT key, scope_type AS scopeType, org_id AS orgId, project_id AS projectId, task_id AS taskId, agent, native_id AS nativeId,
- created_at AS createdAt FROM sessions`;
+const select = `SELECT id, key, scope_type AS scopeType, org_id AS orgId, project_id AS projectId, task_id AS taskId, agent, native_id AS nativeId,
+ device, created_at AS createdAt, active_at AS activeAt, ended_at AS endedAt FROM sessions`;
+const activity = ' ORDER BY active_at DESC NULLS LAST, id DESC';
 export function sqliteSessionStore(db: Database): SessionStore {
   return {
     transaction: fn => db.readonly ? db.transaction(fn)() : db.transaction(fn).immediate(),
-    get: (key: string) => db.prepare(select + ' WHERE key = ?').get(key) as SessionRow | undefined,
+    active: (key: string) => db.prepare(select + ' WHERE key = ?' + activity + ' LIMIT 1').get(key) as SessionRow | undefined,
+    rows: (key: string) => db.prepare(select + ' WHERE key = ?' + activity).all(key) as SessionRow[],
     byNative: (agent: Agent, nativeId: string) => db.prepare(select + ' WHERE agent = ? AND native_id = ?').get(agent, nativeId) as SessionRow | undefined,
     save(row) {
-      db.prepare(`INSERT INTO sessions(key,scope_type,org_id,project_id,task_id,agent,native_id,created_at) VALUES (?,?,?,?,?,?,?,?)
-        ON CONFLICT(key) DO UPDATE SET scope_type=excluded.scope_type, org_id=excluded.org_id, project_id=excluded.project_id, task_id=excluded.task_id,
-        agent=excluded.agent, native_id=excluded.native_id`)
-        .run(row.key, row.scopeType, row.orgId, row.projectId, row.taskId, row.agent, row.nativeId, row.createdAt);
+      return (db.prepare(`INSERT INTO sessions(key,scope_type,org_id,project_id,task_id,agent,native_id,device,created_at) VALUES (?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(agent, native_id) DO UPDATE SET scope_type=excluded.scope_type, org_id=excluded.org_id, project_id=excluded.project_id,
+        task_id=excluded.task_id, device=excluded.device RETURNING id`)
+        .get(row.key, row.scopeType, row.orgId, row.projectId, row.taskId, row.agent, row.nativeId, row.device, row.createdAt) as { id: number }).id;
     },
-    remove(key) { db.prepare('DELETE FROM sessions WHERE key = ?').run(key); },
-    list: () => db.prepare(select + ' ORDER BY key').all() as SessionRow[],
+    touch(id, at) { db.prepare('UPDATE sessions SET active_at = ? WHERE id = ?').run(at, id); },
+    renew(id, at) { db.prepare('UPDATE sessions SET created_at = ?, active_at = ? WHERE id = ?').run(at, at, id); },
+    removeKey: key => db.prepare('DELETE FROM sessions WHERE key = ?').run(key).changes,
+    list: () => db.prepare(select + ' ORDER BY key, active_at DESC NULLS LAST, id DESC').all() as SessionRow[],
   };
 }

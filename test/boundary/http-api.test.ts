@@ -1,9 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { AppCommand } from '../../src/app/commands.js';
+import { executeCommand } from '../../src/app/execute-command.js';
+import { remoteBackend } from '../../src/app/backend.js';
+import type { Backend } from '../../src/app/backend.js';
+import { contextGit } from '../../src/infrastructure/git/context-git.js';
+import { PartialError } from '../../src/shared/context.js';
+import { InputError } from '../../src/shared/errors.js';
 
 test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie, and MCP JSON-RPC on /mcp', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
@@ -18,7 +28,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     assert.ifError(result.error);
     return result;
   };
-  for (const args of [['db', 'init'], ['project', 'add', 'fx/one', '--code', 'FX', '--repository', 'local']]) {
+  for (const args of [['db', 'init'], ['project', 'add', 'fx/one', '--code', 'FX', '--repository', 'file:///nonexistent/fx/one.git']]) {
     const result = run(args);
     assert.equal(result.status, 0, result.stderr);
   }
@@ -31,6 +41,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
     return (JSON.parse(result.stdout) as { token: string }).token;
   };
   const reader = token('reader', 'read'), writer = token('writer', 'write'), viewer = token('viewer', 'read');
+  const laptopToken = token('laptop', 'device'), phoneToken = token('phone', 'device');
 
   const child = spawn(process.execPath, [entry, 'serve', '--port', '0'], { env, cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], detached: true });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) process.kill(-child.pid!, 'SIGKILL'); });
@@ -62,7 +73,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(info.status, 200);
   const version = (JSON.parse(readFileSync('/work/package.json', 'utf8')) as { version: string }).version;
   const { schemaVersion, version: served, changeId: c0 } = info.body.data as { schemaVersion: number; version: string; changeId: number };
-  assert.deepEqual([schemaVersion, served], [15, version]);
+  assert.deepEqual([schemaVersion, served], [17, version]);
 
   const page = await fetch(url + '/');
   const html = await page.text();
@@ -175,6 +186,200 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal((await call(writer, 'note', { kind: 'journal', scope: fx, text: 'Удалённая' })).structuredContent.status, 'ok');
   assert.match(JSON.stringify((await call(reader, 'journal', { scope: fx })).structuredContent.data), /Удалённая/);
 
+  const device = (name: string, value: string) => {
+    const config = join(dir, name + '-config');
+    mkdirSync(join(config, 'mypi'), { recursive: true });
+    writeFileSync(join(config, 'mypi', 'server.json'), JSON.stringify({ url, token: value, device: name }), { mode: 0o600 });
+    return { ...env, XDG_CONFIG_HOME: config, XDG_STATE_HOME: join(dir, name + '-state') };
+  };
+  const laptop = device('laptop', laptopToken), phone = device('phone', phoneToken);
+  const git = (...args: string[]) => {
+    const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { encoding: 'utf8', timeout: 5000 });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const origin = join(dir, 'origin.git'), seed = join(dir, 'seed');
+  git('init', '--bare', '--quiet', '--initial-branch=main', origin);
+  git('init', '--quiet', '--initial-branch=main', seed);
+  writeFileSync(join(seed, 'README.md'), 'seed');
+  git('-C', seed, 'add', 'README.md');
+  git('-C', seed, 'commit', '--quiet', '-m', 'seed');
+  git('-C', seed, 'push', '--quiet', origin, 'main');
+  git('clone', '--quiet', origin, join(dir, 'device-clone'));
+  symlinkSync(join(dir, 'device-clone'), join(dir, 'device-link'));
+  const added = run(['project', 'add', 'fx/two', '--code', 'FXT', '--path', join(dir, 'device-link'), '--repository', 'file://' + origin], laptop);
+  assert.equal(added.status, 0, added.stderr);
+  assert.equal((JSON.parse(added.stdout) as { project: { checkoutPath: string } }).project.checkoutPath, realpathSync(join(dir, 'device-clone')));
+  const listed = run(['task', 'list'], laptop);
+  assert.deepEqual([listed.status, listed.stdout], [0, '[]\n'], listed.stderr);
+  assert.equal(existsSync(join(dir, 'laptop-state')), false);
+  const laptopRuntime = join(dir, 'laptop-run');
+  mkdirSync(laptopRuntime, { mode: 0o700 });
+  const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+  t.after(() => { holder.kill('SIGKILL'); });
+  const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', 'r1'],
+    { ...laptop, XDG_RUNTIME_DIR: laptopRuntime, MYPI_SCOPE: 'FXT' });
+  assert.deepEqual([registered.status, registered.stdout], [0, '{"key":"FXT","registered":true}\n'], registered.stderr);
+  assert.deepEqual(readdirSync(join(laptopRuntime, 'mypi', 'sessions')), ['FXT~' + holder.pid + '.json']);
+  type Node = { key: string; sessions: { agent: string; nativeId: string; device: string }[]; children: Node[] };
+  const find = (node: Node, key: string): Node | undefined => node.key === key ? node : node.children.map(c => find(c, key)).find(n => n !== undefined);
+  const fxt = find((await get('/v1/sessions')).body.data as Node, 'FXT');
+  assert.deepEqual(fxt?.sessions.map(s => [s.agent, s.nativeId, s.device]), [['pi', 'r1', 'laptop']]);
+  assert.equal(existsSync(join(dir, 'laptop-state')), false);
+  const live = async (name: string, env: Record<string, string>, nativeId: string) => {
+    const runtime = join(dir, name + '-live'), sock = join(dir, name + '.sock'), log = join(dir, name + '.log');
+    mkdirSync(runtime, { mode: 0o700 });
+    const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+    t.after(() => { holder.kill('SIGKILL'); });
+    const listener = spawn(process.execPath, ['--v8-pool-size=1', '/work/dist/test/support/event-socket-server.js', sock, 'ack', log],
+      { env: { ...process.env, UV_THREADPOOL_SIZE: '1' }, stdio: ['ignore', 'pipe', 'ignore'] });
+    t.after(() => { listener.kill('SIGKILL'); });
+    await new Promise<void>((resolve, reject) => {
+      listener.once('exit', code => reject(new Error('Socket server exited: ' + code)));
+      let out = '';
+      listener.stdout.setEncoding('utf8').on('data', (chunk: string) => { out += chunk; if (out.includes('ready\n')) resolve(); });
+    });
+    const device = { ...env, XDG_RUNTIME_DIR: runtime };
+    const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', nativeId, '--socket', sock],
+      { ...device, MYPI_SCOPE: 'FXT' });
+    assert.equal(registered.status, 0, registered.stderr);
+    return { device, pid: holder.pid!, log };
+  };
+  const s1 = await live('laptop', laptop, 's1'), s2 = await live('phone', phone, 's2');
+  const prompted = run(['session', 'prompt', '--agent', 'pi', '--native-id', 's2'], s2.device);
+  assert.equal(prompted.status, 0, prompted.stderr);
+  const subscribers = [s1, s2].map(s => {
+    const subscriber = spawn(process.execPath, ['--v8-pool-size=1', entry, 'session', 'subscribe', '--pid', String(s.pid)],
+      { env: { ...s.device, UV_THREADPOOL_SIZE: '1' }, cwd: dir, stdio: 'ignore' });
+    t.after(() => { subscriber.kill('SIGKILL'); });
+    return { subscriber, exited: new Promise<number | null>(resolve => subscriber.once('exit', code => resolve(code))) };
+  });
+  const sentHi = run(['send', 'FXT', 'hi'], { ...s1.device, MYPI_SCOPE: '' });
+  assert.equal(sentHi.status, 0, sentHi.stderr);
+  const received = (log: string) => existsSync(log) ? readFileSync(log, 'utf8').split('\n').filter(line => line.includes('"text"')) : [];
+  const deadline = Date.now() + 5000;
+  while (received(s2.log).length === 0 && Date.now() < deadline) await sleep(50);
+  assert.equal(received(s2.log).length, 1);
+  assert.match(received(s2.log)[0]!, /hi/);
+  assert.deepEqual(received(s1.log), []);
+  const deliveredHi = run(['event', 'list', '--to', 'FXT', '--delivered', 'true'], s1.device);
+  assert.equal(deliveredHi.status, 0, deliveredHi.stderr);
+  assert.ok((JSON.parse(deliveredHi.stdout) as { items: { kind: string; message: string }[] }).items.some(e => e.kind === 'message' && e.message === 'hi'));
+  for (const { subscriber } of subscribers) subscriber.kill('SIGTERM');
+  assert.deepEqual(await Promise.all(subscribers.map(s => s.exited)), [0, 0]);
+  const spawned = (args: string[], extra: Record<string, string>) => new Promise<number | null>((resolve, reject) => {
+    const cli = spawn(process.execPath, [entry, ...args], { env: extra, cwd: dir, stdio: 'ignore' });
+    cli.once('error', reject);
+    cli.once('exit', code => resolve(code));
+  });
+  assert.deepEqual(await Promise.all([
+    spawned(['project', 'add', 'fx/three', '--code', 'FXC', '--repository', 'file:///nonexistent/fx/three.git'], laptop),
+    spawned(['project', 'add', 'fx/four', '--code', 'FXD', '--repository', 'file:///nonexistent/fx/four.git'], phone),
+  ]), [0, 0]);
+  const projects = run(['project', 'list'], phone);
+  assert.equal(projects.status, 0, projects.stderr);
+  assert.deepEqual((JSON.parse(projects.stdout) as { projects: { code: string }[] }).projects.map(p => p.code).sort(), ['FX', 'FXC', 'FXD', 'FXT']);
+  const transcripts = join(dir, 'laptop-transcripts');
+  mkdirSync(transcripts);
+  const arch1 = join(transcripts, 'arch1.jsonl');
+  writeFileSync(arch1, [
+    { type: 'user', uuid: 'au1', parentUuid: null, timestamp: '2026-11-07T10:00:00.000Z', turnOrigin: 'human', message: { role: 'user', content: 'архивслово вопрос' } },
+    { type: 'assistant', uuid: 'aa1', parentUuid: 'au1', timestamp: '2026-11-07T10:01:00.000Z',
+      message: { role: 'assistant', stop_reason: 'end_turn', content: [{ type: 'text', text: 'архивслово ответ' }] } },
+  ].map(r => JSON.stringify(r) + '\n').join(''));
+  const captured = run(['archive', 'capture', '--agent', 'claude', '--file', arch1], laptop);
+  assert.equal(captured.status, 0, captured.stderr);
+  assert.match(captured.stdout, /"captured":true/);
+  assert.match(captured.stdout, /"inserted":2/);
+  const searched = run(['archive', 'search', 'архивслово'], phone);
+  assert.equal(searched.status, 0, searched.stderr);
+  assert.ok((JSON.parse(searched.stdout) as { hits: { session: string }[] }).hits.some(h => h.session === 'arch1'));
+  const archiveStatus = run(['archive', 'status'], phone);
+  assert.equal(archiveStatus.status, 0, archiveStatus.stderr);
+  const remoteArchive = JSON.parse(archiveStatus.stdout) as { path: string; exists: boolean };
+  assert.deepEqual([remoteArchive.exists, remoteArchive.path], [true, join(realpathSync(join(dir, 'state', 'mypi')), 'archive.sqlite3')]);
+  for (const name of ['laptop', 'phone']) assert.equal(existsSync(join(dir, name + '-state', 'mypi', 'archive.sqlite3')), false);
+  const remoteInit = run(['db', 'init'], laptop);
+  assert.equal(remoteInit.status, 1);
+  assert.match(remoteInit.stderr, /db_init is not available in remote mode/);
+  const remoteServe = run(['serve', '--port', '0'], laptop);
+  assert.equal(remoteServe.status, 1);
+  assert.match(remoteServe.stderr, /serve is not available in remote mode/);
+  const operation = { op: 'project_list', input: {}, version };
+  for (const value of [reader, writer]) {
+    const refusedOperation = await post('/v1/ops', value, operation);
+    assert.deepEqual([refusedOperation.status, refusedOperation.body.error.code], [403, 'forbidden']);
+  }
+  const mismatch = await post('/v1/ops', laptopToken, { ...operation, version: '0.0.0' });
+  assert.deepEqual([mismatch.status, mismatch.body.error.code], [409, 'version_mismatch']);
+  const cookieOperation = await fetch(url + '/v1/ops', { method: 'POST', headers: { ...pair(await login(laptopToken)), 'content-type': 'application/json' },
+    body: JSON.stringify(operation) });
+  assert.equal(cookieOperation.status, 403);
+  await cookieOperation.json();
+  assert.equal(await names(laptopToken), 5);
+  const transport = new StdioClientTransport({ command: process.execPath, args: ['/work/dist/src/mcp/main.js'], cwd: dir, env: laptop, stderr: 'ignore' });
+  const client = new Client({ name: 'device', version: '1' });
+  await client.connect(transport);
+  try {
+    const remoteProjects = await client.callTool({ name: 'projects', arguments: { action: 'list' } });
+    assert.equal((remoteProjects.structuredContent as { status: string }).status, 'ok');
+    assert.match(JSON.stringify(remoteProjects.structuredContent), /"FXT"/);
+    const remoteSessions = await client.callTool({ name: 'sessions', arguments: {} });
+    assert.notEqual(remoteSessions.isError, true);
+    assert.equal((remoteSessions.structuredContent as { status: string }).status, 'ok');
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"nativeId":"r1"/);
+    assert.match(JSON.stringify(remoteSessions.structuredContent), /"device":"laptop"/);
+  } finally { await client.close(); }
+
+  const deviceRoot = join(dir, 'laptop-home');
+  contextGit(deviceRoot).initialize();
+  const unused = join(dir, 'laptop-unused', 'state.sqlite3');
+  const remote = remoteBackend({ url, token: laptopToken });
+  const deviceRun = (c: AppCommand, backend: Backend = remote) => executeCommand(c, unused, deviceRoot, {}, {}, backend);
+  const head = () => spawnSync('git', ['-C', deviceRoot, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+  const lastSubject = () => spawnSync('git', ['-C', deviceRoot, 'log', '-1', '--format=%s'], { encoding: 'utf8' }).stdout.trim();
+  const remoteSource = { name: 'task_create', project: 'fx/two', title: 'Remote', status: 'new', slug: 'remote', source: { text: 'remote source' } } as const;
+  const created = await deviceRun(remoteSource) as { key: string; contextDir: string };
+  assert.equal(created.key, 'FXT-1');
+  assert.equal(readFileSync(join(deviceRoot, created.contextDir, 'source.md'), 'utf8'), 'remote source');
+  assert.equal((await deviceRun({ name: 'task_show', key: 'FXT-1' }) as { title: string }).title, 'Remote');
+  const taskJournal = async () => await deviceRun({ name: 'journal_read', scope: { type: 'task', key: 'FXT-1' } }) as
+    { event_type: string; text: string; artifacts?: unknown[] }[];
+  assert.equal((await taskJournal()).at(-1)!.event_type, 'task_created');
+  await assert.rejects(deviceRun({ ...remoteSource, slug: 'adopted', adoptSource: true }),
+    (error: unknown) => error instanceof InputError && error.message === 'adopt-source is not available in remote mode');
+  assert.equal((await deviceRun({ name: 'task_list', project: 'fx/two' }) as unknown[]).length, 1);
+  await deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'plan', artifacts: [{ path: 'plan.md', text: 'v1' }] });
+  assert.equal(readFileSync(join(deviceRoot, created.contextDir, 'plan.md'), 'utf8'), 'v1');
+  const planned = (await taskJournal()).at(-1)!;
+  assert.deepEqual([planned.text, planned.artifacts], ['plan', [{ path: created.contextDir + '/plan.md', commit: head() }]]);
+  assert.equal((await deviceRun({ name: 'task_status', key: 'FXT-1', status: 'review', reason: 'ready' }) as { status: string }).status, 'review');
+  const milestones = async () => (await deviceRun({ name: 'event_list', from: 'FXT-1', kind: 'milestone', limit: 10 }) as { items: { toKey: string }[] }).items;
+  assert.deepEqual((await milestones()).map(e => e.toKey), ['FXT']);
+  assert.equal((await deviceRun({ name: 'task_status', key: 'FXT-1', status: 'blocked', reason: 'wait', envScope: 'FXT' }) as { status: string }).status, 'blocked');
+  assert.equal((await milestones()).length, 1);
+  const note = await deviceRun({ name: 'note_add', scope: { reference: 'fx/two' }, title: 'Remote note', body: { text: 'body' } }) as { path: string };
+  assert.ok(note.path.startsWith('projects/fx/two/notes/'), note.path);
+  assert.ok(existsSync(join(deviceRoot, note.path)));
+  assert.equal(lastSubject(), 'Create ' + note.path);
+  const failing: Backend = { remote: true, device: 'laptop', run: (name, input) => name === 'task_progress'
+    ? Promise.reject(new Error('mypi server unreachable: ' + url)) : remote.run(name, input) };
+  await assert.rejects(deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md', text: 'r1' }] }, failing),
+    (error: unknown) => error instanceof PartialError && JSON.stringify([error.saved, error.missing, error.paths])
+      === JSON.stringify([['artifacts', 'git'], ['journal', 'activity timestamp'], [created.contextDir + '/review.md']]));
+  assert.equal(lastSubject(), 'Register artifacts of FXT-1');
+  assert.equal((await taskJournal()).some(e => e.text === 'second'), false);
+  const committed = head();
+  await deviceRun({ name: 'task_progress', key: 'FXT-1', text: 'second', artifacts: [{ path: 'review.md' }] });
+  assert.equal(head(), committed);
+  assert.deepEqual((await taskJournal()).at(-1)!.artifacts, [{ path: created.contextDir + '/review.md', commit: head() }]);
+  const opened = await deviceRun({ name: 'task_worktree', key: 'FXT-1' }) as { worktreePath: string; created: boolean };
+  const worktree = realpathSync(join(dir, 'device-clone')) + '--' + basename(created.contextDir);
+  assert.deepEqual([opened.worktreePath, opened.created, existsSync(worktree)], [worktree, true, true]);
+  assert.equal((await deviceRun({ name: 'task_show', key: 'FXT-1' }) as { worktreePath: string }).worktreePath, worktree);
+  const recorded = (await taskJournal()).at(-1)!;
+  assert.deepEqual([recorded.event_type, recorded.text], ['worktree_created', 'worktree ' + worktree + ', branch task/FXT-1-remote, base main']);
+  assert.equal(existsSync(join(dir, 'laptop-unused')), false);
+
   process.kill(-child.pid!, 'SIGINT');
   assert.equal(await exited, 0);
   assert.match(stderr, / \/v1\/messages 403 reader/);
@@ -184,5 +389,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.match(stderr, / \/mcp 401 -/);
   assert.match(stderr, / \/mcp 405 reader/);
   assert.match(stderr, / \/mcp 200 writer/);
-  for (const secret of [reader, writer, viewer, 'один', 'два', 'Удалённая', 'с другой машины']) assert.equal(stderr.includes(secret), false, secret);
+  assert.match(stderr, / \/v1\/ops 200 laptop/);
+  assert.match(stderr, / \/v1\/ops 403 reader/);
+  for (const secret of [reader, writer, viewer, laptopToken, phoneToken, 'один', 'два', 'Удалённая', 'с другой машины', 'remote source']) assert.equal(stderr.includes(secret), false, secret);
 });

@@ -1,10 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { basename } from 'node:path';
-import { createApp } from './create-app.js';
 import { flowFile, readProjectFlow } from './project-flow.js';
 import type { FlowFiles } from './project-flow.js';
 import { contextFiles } from '../infrastructure/filesystem/context-files.js';
-import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { DEFAULT_TASK_BRANCH, taskBranchName, validSlug } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import type { Card } from '../modules/tasks/public.js';
@@ -12,6 +10,8 @@ import { frame } from '../modules/events/public.js';
 import type { EventRow } from '../modules/events/public.js';
 import type { Entry } from '../modules/knowledge/public.js';
 import { InputError } from '../shared/errors.js';
+import type { SessionRunner } from './session-operations.js';
+import type { Agent } from '../modules/sessions/public.js';
 
 export const WARMUP_LIMIT = 64 * 1024;
 export const WARMUP_MAX_CHARS = Math.floor(WARMUP_LIMIT / 3);
@@ -93,22 +93,21 @@ function expectedBranch(files: FlowFiles, project: Project, key: string, card: C
   return '\nExpected branch: ' + taskBranchName(read.flow.taskBranch ?? DEFAULT_TASK_BRANCH, key, basename(card.contextDir).slice(key.length + 1));
 }
 
-export function readWarmup(filename: string, root: string, key: string, maxChars?: number): string {
+export async function readWarmup(runner: SessionRunner, root: string, key: string, maxChars?: number, notice?: string,
+  caller?: { agent: Agent; nativeId: string }): Promise<string> {
   if (maxChars !== undefined && !(Number.isInteger(maxChars) && maxChars >= 1 && maxChars <= WARMUP_MAX_CHARS)) {
     throw new InputError('Warmup max-chars must be an integer from 1 to ' + WARMUP_MAX_CHARS);
   }
   const limit = maxChars === undefined
     ? { size: (text: string) => Buffer.byteLength(text), max: WARMUP_LIMIT, label: '64 KiB' }
     : { size: (text: string) => text.length, max: maxChars, label: maxChars + '-character' };
-  externalDatabasePath(filename, root);
   const isOrg = key !== 'global' && key !== 'all' && validSlug(key);
   const delivers = /^[A-Z]+$/.test(key) || isOrg;
-  const app = createApp(filename, !delivers);
-  try {
-    const files = contextFiles(root);
-    return (delivers ? app.serialize : app.readSnapshot)(() => {
-      const projects = app.projects.list();
-      const cards = app.tasks.list();
+  const data = await runner.run('warmup_data', { key });
+  const files = contextFiles(root);
+  const out = (() => {
+      const projects = data.projects;
+      const cards = data.cards;
       const owner = (card: Card) => projects.find(p => p.id === card.projectId);
       const taskKey = (card: Card) => (card.projectId === null ? 'REQ' : owner(card)!.code) + '-' + card.number;
       const entry = (path: string, owner: string): LevelEntry => {
@@ -141,18 +140,17 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         role = 'project';
         entries = [globalEntry(), orgEntry(project.org), projectEntry(project)];
         const open = cards.filter(card => card.projectId === project.id && !card.isTerminal).sort((a, b) => a.number - b.number);
-        const own = cards.filter(card => card.projectId === project.id);
-        const stats = app.journalStore.stats(key, own.map(taskKey));
+        const stats = data.stats!;
         tail = ['## Open tasks\n\n' + (open.length === 0 ? '(none)'
           : open.map(card => '- ' + taskKey(card) + ' [' + card.status + '] ' + card.title).join('\n')),
           '## Журнал\n\n' + (stats.count === 0 ? 'Записей в журнале проекта нет.'
             : 'Записей журнала проекта: ' + stats.count + ', последняя ' + localDate(stats.lastAt!) + '.')
             + '\nЧитать: journal {"scope":{"type":"project","key":"' + key + '"},"limit":20} (CLI: mypi journal read -s project:' + key + ' --limit 20)'];
-        fresh = app.events.pending(key).filter(event => event.kind !== 'message');
+        fresh = data.fresh;
         const openKeys = new Set(open.map(taskKey));
-        history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
+        history = data.history.filter(event => openKeys.has(event.fromKey));
       } else if (isOrg) {
-        const own = app.projects.list(key).sort((a, b) => a.code.localeCompare(b.code));
+        const own = data.orgProjects!.sort((a, b) => a.code.localeCompare(b.code));
         header = '# mypi warmup: ' + key + ' (organization)';
         role = 'org';
         entries = [globalEntry(), orgEntry(key)];
@@ -166,9 +164,9 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         };
         tail = ['## Projects\n\n' + (own.length === 0 ? '(none)' : own.map(p => '- ' + p.code + ' ' + p.org + '/' + p.slug + ': '
           + (p.checkoutPath ?? 'no clone') + ' · open: ' + counts(p)).join('\n'))];
-        fresh = app.events.pending(key).filter(event => event.kind !== 'message');
+        fresh = data.fresh;
         const openKeys = new Set(open.map(taskKey));
-        history = app.events.lastDelivered(key).filter(event => openKeys.has(event.fromKey));
+        history = data.history.filter(event => openKeys.has(event.fromKey));
       } else if (/^[A-Z]+-[1-9][0-9]*$/.test(key)) {
         const card = cards.find(c => taskKey(c) === key);
         if (!card) throw new InputError('Unknown task: ' + key);
@@ -188,12 +186,12 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
               + expectedBranch(files, project, key, card)
             : 'Path: ' + card.worktreePath) + '\nBase clone: ' + project.checkoutPath,
         ];
-        journal = app.journalStore.last({ type: 'task', key }, 5);
+        journal = data.journal!;
       } else {
         throw new InputError('Invalid scope key: ' + key + '; use global, an organization slug (tb-ff), a project code (MP) or a task key (MP-12)');
       }
       const personal = files.read('USER-INSTRUCTIONS.md');
-      const head = [header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
+      const head = [...(notice === undefined ? [] : [notice]), header, ...(personal === undefined || personal.trim() === '' ? [] : ['## Personal instructions\n\n' + demote(personal, 2)]),
         '## Role: ' + role + '\n\n' + prompt(role), '## How to work in mypi\n\n' + prompt('howto')];
       let clipped = false, dropped = 0, cut = 0, trimmed = 0;
       const cardClip: Clip | undefined = body === undefined ? undefined : { points: [...body.text], shortened: 0,
@@ -253,8 +251,12 @@ export function readWarmup(filename: string, root: string, key: string, maxChars
         else { out = render(true); break; }
         out = render(false);
       }
-      if (delivers) app.events.deliver(fresh.slice(0, fresh.length - cut).map(event => event.id));
-      return out;
-    });
-  } finally { app.close(); }
+      return { out, shown: fresh.slice(0, fresh.length - cut).map(event => event.id) };
+  })();
+  if (delivers && out.shown.length > 0) {
+    try {
+      await runner.run('events_mark', { ids: out.shown, caller: caller ?? null });
+    } catch { }
+  }
+  return out.out;
 }

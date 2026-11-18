@@ -6,6 +6,21 @@ match the GitHub releases.
 
 ## [Unreleased]
 
+Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the update (back up the database first); reload or restart Claude Code and Pi sessions.
+
+### Added
+
+- Many sessions per scope (MP-140–MP-143, ADR 0006): a scope key may have several live sessions, Claude and Pi side by side; the active one is where the engineer last typed. `/open` offers to start a new session or return to one, with the scope's session list (MP-141). The scope inbox lives in the database and one session claims each message atomically (MP-142). The first message after a switch gets a one-line pointer naming the previous session and, on another device, «сначала git pull»; a new session gets it too when another session of the scope had the last turn (MP-143).
+- Remote mode (MP-145–MP-147): with `~/.config/mypi/server.json` (`{url, token, device}`, 0600) a device sends whole operations to `POST /v1/ops` of `mypi serve` on the server and keeps no local database; `mypi token create <name> --permission device` issues device tokens. Tasks, journal, home-bound commands, sessions, events and warmup work through the server; live delivery uses the `GET /v1/changes` subscription (Claude through the stdio MCP, Pi through `mypi session subscribe`); a subscription that hears nothing, not even the 25 s keepalive, for 60 s reconnects. Commands that only make sense on the server (`db init`, `bootstrap`, `backup`, `restore`, `token`, `serve`) are refused on a device.
+- Archive on the server (MP-148): in remote mode `archive import`, `capture`, `search`, `show`, `status` and `forget` run against `archive.sqlite3` on the server.
+- `/open` and `task worktree` from a device (MP-149): the clone and worktree are prepared locally from the project's `repository`; sessions of another device are not resumed, a new one starts with a note.
+- «Server and devices» in `docs/HTTP-API.md` (MP-150): moving the database to a server, device setup, backups with `sqlite3 .backup`, rollback and known limits.
+
+### Changed
+
+- `repository` is required (MP-144): `project add` needs `--repository <git-url>`, and `local` is refused in `add` and `update`. Rows registered earlier without a repository or as `local` keep working; set one with `project update … --repository <url>` (`docs/M1-CLI.md`).
+- Schema 16 and 17 (MP-140, MP-142): `sessions` holds many rows per key with `device` and `active_at`; `events` gains `claimed_by` and `claimed_at`; `mypi db init` is required.
+
 ## [0.12.0] - 2026-11-11
 
 Upgrading from v0.11.0: `git pull --ff-only`, install the locked dependencies and build; schema 15, run `mypi db init` once after the update (back up the database

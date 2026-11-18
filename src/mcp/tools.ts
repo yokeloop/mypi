@@ -31,6 +31,7 @@ export function toolCommand(name: string, args: unknown, env: Readonly<Record<st
     const envScope = env['MYPI_SCOPE'], session = sessionHint(env, parentPid);
     commands[0] = { ...commands[0], ...(session === undefined ? {} : { session }), ...(envScope === undefined ? {} : { envScope }),
       ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}),
+      ...(env['XDG_CONFIG_HOME'] ? { configHome: env['XDG_CONFIG_HOME'] } : {}),
       ...(env['XDG_RUNTIME_DIR'] ? { runtime: env['XDG_RUNTIME_DIR'] } : {}) } as AppCommand;
   }
   if (name === 'send_message') {

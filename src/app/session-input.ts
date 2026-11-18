@@ -34,6 +34,19 @@ function transcript(value: Record<string, unknown>): { transcript?: string } {
   return typeof value['transcript_path'] === 'string' && value['transcript_path'] !== '' ? { transcript: value['transcript_path'] } : {};
 }
 
+function mypiFrame(text: string): boolean {
+  if (text.trimStart().startsWith('[mypi: ')) return true;
+  const newline = text.indexOf('\n');
+  return newline !== -1 && text.slice(0, newline) === 'Another Claude session sent a message:' && text.slice(newline + 1).trimStart().startsWith('[mypi: ');
+}
+
+export function promptInput(text: string): { nativeId: string; counted: boolean } {
+  const value = hookObject(text, ['UserPromptSubmit']);
+  const source = value['source'];
+  if (typeof value['prompt'] !== 'string' || (source !== undefined && typeof source !== 'string')) throw new InputError('Invalid UserPromptSubmit hook input');
+  return { nativeId: value['session_id'] as string, counted: (source === undefined || source === 'user') && !mypiFrame(value['prompt']) };
+}
+
 export function stopInput(text: string): { nativeId: string; active: boolean; message: string; transcript?: string } {
   const value = hookObject(text, ['Stop']);
   if (typeof value['stop_hook_active'] !== 'boolean'

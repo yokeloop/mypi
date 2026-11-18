@@ -1,13 +1,17 @@
 import { existsSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { AppCommand } from './commands.js';
-import { archivePath, createApp, createArchiveApp, engineRoot } from './create-app.js';
-import { claudeFolderName, createImport, emptyCounts, forgetFilter, piFolderName } from '../modules/archive/public.js';
-import type { ArchiveFolder, ArchiveKeys } from '../modules/archive/public.js';
+import { engineRoot } from './create-app.js';
+import { runArchiveOperation } from './archive-operations.js';
+import type { ArchiveOperationOutput, ArchiveRunner } from './archive-operations.js';
+import { claudeFolderName, nativeIdOf, piFolderName } from '../modules/archive/public.js';
+import type { ArchiveAgent, ArchiveEntry, ArchiveFolder } from '../modules/archive/public.js';
 import { claudeArchive } from '../infrastructure/transcript/claude-archive.js';
 import { piArchive } from '../infrastructure/transcript/pi-archive.js';
 import { listTranscripts } from '../infrastructure/transcript/transcript-files.js';
 import { InputError } from '../shared/errors.js';
+
+export { archiveScope } from './archive-operations.js';
 
 type Of<N extends AppCommand['name']> = Extract<AppCommand, { name: N }>;
 
@@ -16,78 +20,100 @@ export function engineFolders(home: string, cwd: string): ArchiveFolder[] {
     { agent: 'pi', path: join(home, '.pi', 'agent', 'sessions', piFolderName(cwd)) }];
 }
 
-export function importArchive(filename: string, c: Of<'archive_import'>) {
+function fitEntry(entry: ArchiveEntry, budget: number): ArchiveEntry {
+  const size = Buffer.byteLength(JSON.stringify(entry));
+  if (size <= budget) return entry;
+  const bytes = Buffer.from(entry.text);
+  let keep = bytes.length - (size - budget) - 64;
+  for (;;) {
+    const kept = bytes.subarray(0, Math.max(keep, 0)).toString('utf8').replace(/\uFFFD$/, '');
+    const text = kept + '\n[mypi: truncated ' + (bytes.length - Buffer.byteLength(kept)) + ' bytes]';
+    const over = Buffer.byteLength(JSON.stringify({ ...entry, text })) - budget;
+    if (over <= 0 || keep <= 0) return { ...entry, text };
+    keep -= over;
+  }
+}
+
+function chunks(entries: ArchiveEntry[], budget: number | null): ArchiveEntry[][] {
+  if (budget === null) return [entries];
+  const list: ArchiveEntry[][] = [[]];
+  let size = 0;
+  for (const entry of entries.map(e => fitEntry(e, budget))) {
+    const bytes = Buffer.byteLength(JSON.stringify(entry));
+    if (list.at(-1)!.length > 0 && size + bytes > budget) { list.push([]); size = 0; }
+    list.at(-1)!.push(entry);
+    size += bytes;
+  }
+  return list;
+}
+
+async function recordFile(runner: ArchiveRunner, agent: ArchiveAgent, path: string, nativeId = nativeIdOf(agent, path)) {
+  const { offset } = await runner.run('archive_offset', { agent, nativeId });
+  const read = (agent === 'claude' ? claudeArchive : piArchive)(path, offset);
+  const parts = chunks(read.entries, runner.chunkBytes);
+  let inserted = 0, skipped = 0, last: ArchiveOperationOutput<'archive_record'> | undefined;
+  for (const [i, entries] of parts.entries()) {
+    last = await runner.run('archive_record', { agent, nativeId, path, expectedOffset: offset, newOffset: i === parts.length - 1 ? read.offset : offset,
+      read: { entries, name: read.name, cwd: read.cwd, parentNativeId: read.parentNativeId } });
+    inserted += last.inserted;
+    skipped += last.skipped;
+  }
+  return { archive: last!.archive, agent, nativeId, path, inserted, skipped, bytesRead: last!.bytesRead, key: last!.key };
+}
+
+export async function importArchive(runner: ArchiveRunner, c: Of<'archive_import'>) {
   const folders = c.dirs ? c.dirs.map(d => {
     const p = resolve(d.path);
     if (!(existsSync(p) && statSync(p).isDirectory())) throw new InputError('Not a directory: ' + p);
     return { agent: d.agent, path: p };
   }) : engineFolders(c.home, engineRoot().replace(/\/$/, ''));
-  const { path, archive, close } = createArchiveApp(filename, false);
-  try {
-    return { archive: path, ...createImport(archive, { claude: claudeArchive, pi: piArchive }, { list: listTranscripts }).folders(folders) };
-  } finally { close(); }
+  let archive: string | undefined;
+  const total = { files: 0, inserted: 0, skipped: 0 };
+  const failed: { agent: ArchiveAgent; path: string; error: string }[] = [];
+  const dirs: { agent: ArchiveAgent; path: string; files: number; inserted: number; skipped: number }[] = [];
+  const listed = folders.map(folder => ({ folder, paths: listTranscripts(folder.path) }));
+  const first = listed.find(l => l.paths.length > 0);
+  if (first) await runner.run('archive_offset', { agent: first.folder.agent, nativeId: nativeIdOf(first.folder.agent, first.paths[0]!) });
+  for (const { folder, paths } of listed) {
+    const dir = { agent: folder.agent, path: folder.path, files: 0, inserted: 0, skipped: 0 };
+    for (const path of paths) {
+      try {
+        const result = await recordFile(runner, folder.agent, path);
+        archive ??= result.archive;
+        dir.files++; dir.inserted += result.inserted; dir.skipped += result.skipped;
+      } catch (error) {
+        failed.push({ agent: folder.agent, path, error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    total.files += dir.files; total.inserted += dir.inserted; total.skipped += dir.skipped;
+    dirs.push(dir);
+  }
+  return { archive: archive ?? (await runner.run('archive_status', {})).path, ...total, failed, dirs };
 }
 
-export function captureArchive(filename: string, c: Of<'archive_capture'>) {
+export async function captureArchive(runner: ArchiveRunner, c: Of<'archive_capture'>) {
   if (c.file === undefined) return { captured: false, file: null };
   const file = resolve(c.file);
   if (!(existsSync(file) && statSync(file).isFile())) return { captured: false, file };
-  const { path, archive, close } = createArchiveApp(filename, false);
-  try {
-    return { captured: true, archive: path, ...createImport(archive, { claude: claudeArchive, pi: piArchive }, { list: listTranscripts }).file(c.agent, file, c.nativeId) };
-  } finally { close(); }
+  const { archive, ...rest } = await recordFile(runner, c.agent, file, c.nativeId);
+  return { captured: true, archive, ...rest };
 }
 
 export function archiveStatus(filename: string) {
-  const path = archivePath(filename);
-  if (!existsSync(path)) return { path, exists: false, bytes: 0, ...emptyCounts() };
-  const { archive, close } = createArchiveApp(filename, true);
-  try {
-    return { path, exists: true, bytes: statSync(path).size, ...archive.counts() };
-  } finally { close(); }
+  return runArchiveOperation({ filename }, 'archive_status', {});
 }
 
 export function forgetArchive(filename: string, c: Of<'archive_forget'>) {
-  const { name: _name, ...input } = c;
-  forgetFilter(input);
-  const path = archivePath(filename);
-  if (!existsSync(path)) return { archive: path, sessions: 0, messages: 0 };
-  const { archive, close } = createArchiveApp(filename, false);
-  try {
-    return { archive: path, ...archive.forget(input) };
-  } finally { close(); }
-}
-
-function openForReading(filename: string) {
-  const path = archivePath(filename);
-  if (!existsSync(path)) throw new InputError('No conversation archive at ' + path + '; run mypi archive import first');
-  return createArchiveApp(filename, true);
-}
-
-export function archiveScope(filename: string, key: string): ArchiveKeys {
-  const app = createApp(filename, true);
-  try {
-    if (!app.archiveKeys.registered(key))
-      throw new InputError('Unknown archive scope: ' + key + '; use global, an organization slug, a project code or a task key');
-    if (key === 'global' || /^[A-Z]+-[1-9][0-9]*$/.test(key)) return { exact: [key], projects: [] };
-    if (/^[A-Z]+$/.test(key)) return { exact: [], projects: [key] };
-    return { exact: [key], projects: app.projects.list(key).map(p => p.code) };
-  } finally { app.close(); }
+  const { name: _, ...input } = c;
+  return runArchiveOperation({ filename }, 'archive_forget', input);
 }
 
 export function searchArchive(filename: string, c: Of<'archive_search'>) {
-  const { archive, close } = openForReading(filename);
-  try {
-    const { name: _, scope, ...input } = c;
-    const keys = scope === undefined ? null : archiveScope(filename, scope);
-    return archive.search({ ...input, keys });
-  } finally { close(); }
+  const { name: _, ...input } = c;
+  return runArchiveOperation({ filename }, 'archive_search', input);
 }
 
 export function showArchive(filename: string, c: Of<'archive_show'>) {
-  const { archive, close } = openForReading(filename);
-  try {
-    const { name: _, ...input } = c;
-    return archive.show(input);
-  } finally { close(); }
+  const { name: _, ...input } = c;
+  return runArchiveOperation({ filename }, 'archive_show', input);
 }

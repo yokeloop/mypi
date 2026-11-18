@@ -11,11 +11,39 @@ Read when: working with session registration, /open, start messages, events, mil
   its socket; the event goes to that sender when it is a parent of the task, else
   to the task's project. From `session_start` to
   `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
-  one socket per Pi process so a displaced session never removes the new one's,
-  and registers its path; `mypi event emit` then sends all undelivered events of the
-  parent except milestones to its live Pi session and marks the acknowledged ones delivered. Without a
-  socket or an answer they wait for /inbox and the warmup; a displaced session
-  silently stops receiving them. A live Claude parent gets them at once through
+  one socket per Pi process, and registers its path; `mypi event emit` then
+  claims all undelivered, unclaimed events of the parent except milestones for the
+  parent's active session when it is a live Pi session, in one transaction
+  (`events.claimed_by`, `claimed_at`), sends them outside it, marks the
+  acknowledged ones delivered (they keep `claimed_by`) and releases the rest, also
+  when the transport fails. A row claimed by another session is skipped.
+  Without a live active session, a socket or an answer they wait for /inbox, the
+  warmup or the first engineer input in a session of the key; nothing goes to
+  another live session of the key. The engineer's input (`mypi session prompt`)
+  makes that session active and, when it has its own socket and transport, takes
+  every undelivered event of the key except milestones, claimed but unacknowledged
+  ones included, and sends them to its own socket; so a row left claimed by a
+  crashed sender waits for the next input, /inbox or warmup, without a timer.
+  After a switch to a session of the key that already had a turn, and on the first
+  input of a new session after another session of the key had a turn, the same call
+  prints one pointer line of at most 200 characters, `[mypi: с вашего прошлого
+  хода в <KEY> работала сессия <agent> на <device>: <n> записей журнала, <m>
+  коммитов в ветке; подробнее — journal <KEY>]`; with another device of the
+  previous session the commit part is `сначала git pull`, and commits are counted
+  only for a task with a recorded worktree. A new session counts from its start and
+  names the other session with the latest turn, even when it became active at
+  registration or by /open. An ordinary turn, a second message in a row, the first
+  session of a scope and the session after `/clear` in the active one after its
+  turn get nothing;
+  a failure computing the line prints nothing
+  and keeps the touch and the claim. Claude gets the line as the hook output, Pi by
+  `transform` of the input (before the text, at the end for input starting with
+  `/`); `--no-deliver` only marks and prints.
+  /open claims the queued messages of the opened session after its record
+  appears, just before the send. /inbox and the warmup take every undelivered row,
+  claimed ones included, and record the calling session in `claimed_by` (`NULL`
+  when it cannot be resolved). A takeover while another send is in flight can
+  repeat a row (at-least-once). A live active Claude parent gets them at once through
   its native inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`, recorded by the
   SessionStart hook), one `{"type":"user",…}` line per event; they count as
   delivered once the socket took the write (the server closed its side). A
@@ -44,23 +72,41 @@ Read when: working with session registration, /open, start messages, events, mil
 
 ## Session registry and /open
 
-- Both agents register their sessions: a row in the `sessions` table (key → agent
-  and native id, kept for continuation) and a live record in
-  `$XDG_RUNTIME_DIR/mypi/sessions/<key>.json` (owner-only; pid and process start,
-  native id, name, socket, start permission mode). The key is resolved in one
-  order: the row for this native id, the live record of the same process,
-  `MYPI_SCOPE`, `global`. A newer live session under a key becomes canonical and
-  the older record moves to `<key>~<pid>.json`. A fork started by hand without
-  `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree;
-  `mypi session forget <key>` drops a row on the user's request. Without
-  `XDG_RUNTIME_DIR` or an initialized schema 15 database registration fails and the
-  warmup still runs. /open (MCP open_session, CLI mypi open) focuses a live
-  session's Herdr tab or opens a new tab in its project's Herdr workspace (label
+- Both agents register their sessions: a row in the `sessions` table (one per
+  agent and native id: key, device, `active_at`, kept for continuation; a key has
+  many rows) and a live record per process in
+  `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` (owner-only; pid and process
+  start, native id, name, socket, start permission mode). The key is resolved in
+  one order: the row for this native id, the live record of the same process,
+  `MYPI_SCOPE`, `global`. Many sessions of one key live side by side; none is
+  displaced ([ADR 0006](../../.yoke/adr/0006-many-sessions-per-scope.md)). The
+  active session of a key is the row where the engineer wrote last: Claude's
+  `UserPromptSubmit` hook and the Pi extension's interactive `input` run
+  `mypi session prompt`, which writes `active_at`, takes the waiting events of the
+  key to its own socket and prints the pointer line only after a switch; a prompt in
+  a mypi frame does not count. A new row is active when the key has no other live
+  session; Claude `/clear` and Pi `/new` keep the active role when the replaced
+  session had it. A resume of an existing session in the same process makes it
+  active again. When another session of the key is live, the CLI warmup of a
+  new session starts with `в этом скоупе уже есть живая сессия: <agent> на <device>`;
+  one writer per worktree stays the rule. A fork started by hand without
+  `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree,
+  each node with its active `session` and all its `sessions`;
+  `mypi session forget <key>` drops every row of the key on the user's request.
+  Without `XDG_RUNTIME_DIR` or an initialized schema 17 database registration fails
+  and the warmup still runs. /open (MCP open_session, CLI mypi open) works on the
+  sessions of this device: it focuses a live session's Herdr tab (the active
+  session's, else the live session active last; otherwise it resumes the session
+  active last); `--agent` limits this to that agent and starts it when it has no
+  session, `--new` starts a new session and `--session <native-id>` returns to a
+  session of the key on this device (another device's is refused before Herdr and
+  clones); a second session of a key gets the Herdr name `<key>-<agent>` (passed as
+  `MYPI_HERDR_NAME`, kept in the registry record, used for focus). It opens a new tab in its project's Herdr workspace (label
   org/project, created when missing; a task gets its tab there without starting
   the project session; an organization key, the bare slug `tb-ff`, gets the tab
   `org-<slug>` in the workspace `<slug>`, with no clone or worktree, and an
   organization without registered projects is refused) in the engine root with MYPI_SCOPE and starts or resumes
-  the agent; it writes no session rows. A project without a clone is first cloned
+  the agent, writing `active_at` of the opened session before delivery. A project without a clone is first cloned
   from its registered `repository` (`local`: `git init`) into
   `projects/<org>/<project>`, verified and registered, with `clone prepared: …` in
   `notes`; git clones into a temporary sibling directory with live progress (the Pi footer
@@ -80,3 +126,25 @@ Read when: working with session registration, /open, start messages, events, mil
   (one key; the caller must be its parent, else nothing opens) queues a parent
   message after the focus or start and delivers it live, after a resume or in the
   same message as the start text; `opened[].message` is its id.
+- Remote mode (`server.json`, [M1-CLI](../M1-CLI.md#remote-mode)): the `sessions`
+  and `events` rows live on the server; the registry
+  `$XDG_RUNTIME_DIR/mypi/sessions`, sockets and transcripts stay on the device. A
+  row's `device` is the `device` of `server.json`, else `os.hostname()`. A new
+  session becomes active when this device has no other live record of the key; the
+  server does not see other devices' registries. A sender claims only for the active
+  session that is live in its own device's registry. In remote mode messages are taken by the
+  active live session through its own subscription to `GET /v1/changes`, on any
+  device: the Pi extension holds it (`mypi session subscribe --pid`, from
+  `session_start` to `session_shutdown`) and so does Claude's stdio MCP process.
+  Without an approved mypi MCP server in Claude, messages wait for the engineer's
+  input, `/inbox` or the warmup. With the server unreachable the subscription
+  reconnects after the stream's `retry`. A stream silent for 60 s (2.4 times the server's
+  25 s keepalive), such as a half-open connection after sleep or a network switch, is
+  dropped and reconnected the same way, and the reconnect claims what is pending. A takeover during a send can deliver twice
+  (at least once): Pi drops ids it already showed, Claude may show a message twice. After a
+  round that claimed events but delivered none (the socket refused or acknowledged
+  nothing) the subscription waits the stream's `retry` before it claims again.
+  `/open`, `sessions` and `task worktree` work from a device: data on the server,
+  clones and worktrees on the device at the same paths. `live` is known only for this
+  device's sessions. On a device without its own sessions of the key `/open` starts a
+  new one and notes `sessions of <KEY> on <devices> stay there; started a new one`.

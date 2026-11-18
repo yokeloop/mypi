@@ -18,8 +18,8 @@ initializes only DB; `bootstrap` initializes DB/context Git, without fetch/pull/
 Use only with explicit intent; stop other writers for bootstrap/restore.
 
 ```text
-project add org/project --code MP [--path /absolute/checkout] [--repository <git-url|local>]
-project update org/project [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url|local>]
+project add org/project --code MP --repository <git-url> [--path /absolute/checkout]
+project update org/project [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 project list [--org org]
 project resolve /absolute/existing-directory
 project flow MP|org/project
@@ -33,6 +33,7 @@ error org/project "error or dead end"
 warmup [-s global | org | CODE | CODE-N] [--max-chars n]
 session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]
 session unregister --pid <pid> | forget <key>
+session subscribe --pid <pid>
 sessions
 archive import [--dir <directory> --agent claude|pi]...
 archive status
@@ -66,6 +67,7 @@ recorded) and parent (the key of the parent task, or null).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
 worktrees are not inferred.
+`project add` requires `--repository`, the project's Git remote URL (https://, ssh://, file://, [user@]host:path or an absolute path); `local` is refused in `add` and `update`. A row registered earlier without a repository gets one with `project update <org/project> --expected-repository-unset --repository <url>`; a row registered as `local` with `project update <org/project> --expected-repository local --repository <url>`. Until then both keep working: `open` refuses the first with "no repository to clone it from" and runs `git init` for the second.
 `project remove` deletes a registration only when its code matches `--expected-code`
 and no tasks, sessions, journal entries of the project or its tasks, or events
 reference it; otherwise it exits 1 and lists each kind of reference with its count.
@@ -74,9 +76,9 @@ reference it; otherwise it exits 1 and lists each kind of reference with its cou
 `project remove` stays. Neither deletes `home/` folders. Result:
 `{removed:{project}|{organization}, homeFolder}`, where `homeFolder` is the path of
 the remaining folder or null.
-`session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered, displaced}`. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes the row and reports `live`. `sessions` prints the tree. All need `XDG_RUNTIME_DIR`.
-`event emit --from <key>` writes one event from a task key to `--to <parent>` when that is a parent of the task (its project or its organization), else to its project key (`turn_end`, or `waiting` with `--waiting`; `--message` is its text); `--waiting --hook --pid` reads Claude's Notification input from stdin instead and can write only for `permission_prompt` and `elicitation_dialog`, never for `idle_prompt`. `turn end --pid` reads Claude's Stop input from stdin and can write a `turn_end` event with `last_assistant_message`, none when `stop_hook_active` is set. Both hook forms resolve the key like `session register` and write only when the transcript entry (`transcript_path`) that opened the current turn has `turnOrigin` `peer` and carries the mypi parent-message frame, and address the sender of that frame as `--to`; `--hook` with `--to` is refused; a turn a person started, an unreadable transcript or a missing mark writes nothing. `--from` is not subject to this rule. A project or global key writes nothing. Result: `{"event":<number>}` or `{"event":null}`; errors exit 1, never 2. `inbox` prints the undelivered rows of a key as `{events: [{id, from, to, kind, createdAt, text}]}` with `text` in its frame, and marks them delivered: for a project or organization the events addressed to it and the main chat's messages to it, for a task its parent's messages (`kind` `message`), for `all` the events of all projects without messages, empty for global; without a key it resolves the key like `warmup`. `send <key> (text | --file source)` writes a parent message (`kind` `message`) from the calling session's key (resolved like `warmup`: registered key, else `MYPI_SCOPE`, else `global`, so an unresolved caller counts as global and may send only to projects and organizations) to its direct child (for a task its project or its organization) and sends it at once to a live child; any other caller is refused with the allowed parent's name. Result: `{"message":<id>,"delivered":true|false}`; a closed child gets it once at the next `open`. A project or organization `warmup` also shows and marks the undelivered events addressed to it and lists the last delivered `turn_end` of each open task.
-`open <key...>` takes an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N. An organization key opens the agent `org-<slug>` in the workspace labelled `<slug>`, with no clone or worktree; an organization without registered projects is refused. For each key it focuses a live session's Herdr agent (`herdr agent focus <key in lower case>`), or opens a new `--no-focus` tab with the engine root as cwd and `MYPI_SCOPE=<key>` in the workspace labelled with the key's project (`org/project`, the first match in `herdr workspace list`), and starts the agent there. Without that workspace it creates it (`--cwd` the engine root, `--env MYPI_SCOPE=<key>`), renames its first tab to the key in lower case and starts the agent in it; a task key does not start its project's session. The caller's `HERDR_WORKSPACE_ID` is not used. The agent is the saved session resumed with its own agent, or a new one. A project without a clone is first cloned from its registered `repository` (`local`: `git init` on `main` with one empty commit) into `<engine root>/projects/<org>/<project>`, verified (top level, `remote.origin.url`) and registered as its checkout path; an existing directory there is adopted only when it is that clone, otherwise the key is refused and nothing changes; the key's `notes` get `clone prepared: cloned|initialized|adopted <path>`. While cloning it writes progress lines prefixed "mypi: " to stderr (stdout keeps its JSON); SIGINT or SIGTERM stops git, removes the temporary clone and exits 130 or 143 with the JSON error "open cancelled while cloning <repository> into <path>; nothing was registered". A leftover .<project>.mypi-clone-<pid> directory of a process that is gone is removed by the next open; one of a running process makes open refuse. A task key creates its worktree first (as `task worktree`). `--agent` applies only to new sessions (default `defaultAgent` in home/settings.json, else claude); `--permission-mode` is passed to Claude only (default the calling session's mode). A started (not resumed or focused) session gets one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through the same socket as events: for an organization the open tasks of each of its projects by status, for a project its code and identity, for a task its key and title, then a line asking to wait for directions or propose the next step; the rest is in the warmup; it is state, not an instruction, and creates no events. If it cannot be delivered, the key's `notes` get `start message not delivered: <reason>` and the command still succeeds; for Claude in `bypassPermissions` delivery is not promised. `--message <text>` (one key; the caller must be its parent; otherwise nothing opens) queues a parent message after the focus or start and delivers it live, after a resume, or in the same message as the start text. Result: `{opened: [{key, agent, action, workspaceId, tabId, worktreePath, notes, message}]}`; a failure after an opened key is partial. Without a running Herdr server, for a project without a clone and without a repository, for global, all, REQ and unknown keys it exits 1 with no tab, worktree or session rows; it never writes session rows itself.
+`session register` writes the `sessions` row and the live record for one agent process (`--pid`, start time from /proc); `--hook` reads Claude's SessionStart input from stdin. Result: `{key, registered}`. `session prompt` marks the engineer's input, takes the waiting events of the key to the session's own socket and prints one pointer line after a switch to a session that already had a turn, else nothing; `--no-deliver` skips the claim and the send. `session unregister --pid` removes only that process's records; the row stays. `session forget <key>` deletes every row of the key and reports `live`. `sessions` prints the tree. In remote mode the tree comes from the server's rows; `live` is known only for this device's sessions, rows of other devices are `closed`. All need `XDG_RUNTIME_DIR`.
+`event emit --from <key>` writes one event from a task key to `--to <parent>` when that is a parent of the task (its project or its organization), else to its project key (`turn_end`, or `waiting` with `--waiting`; `--message` is its text); `--waiting --hook --pid` reads Claude's Notification input from stdin instead and can write only for `permission_prompt` and `elicitation_dialog`, never for `idle_prompt`. `turn end --pid` reads Claude's Stop input from stdin and can write a `turn_end` event with `last_assistant_message`, none when `stop_hook_active` is set. Both hook forms resolve the key like `session register` and write only when the transcript entry (`transcript_path`) that opened the current turn has `turnOrigin` `peer` and carries the mypi parent-message frame, and address the sender of that frame as `--to`; `--hook` with `--to` is refused; a turn a person started, an unreadable transcript or a missing mark writes nothing. `--from` is not subject to this rule. A project or global key writes nothing. Result: `{"event":<number>}` or `{"event":null}`; errors exit 1, never 2. `inbox` prints the undelivered rows of a key as `{events: [{id, from, to, kind, createdAt, text}]}` with `text` in its frame, marks them delivered and records the calling session in `claimed_by`: for a project or organization the events addressed to it and the main chat's messages to it, for a task its parent's messages (`kind` `message`), for `all` the events of all projects without messages, empty for global; without a key it resolves the key like `warmup`. `send <key> (text | --file source)` writes a parent message (`kind` `message`) from the calling session's key (resolved like `warmup`: registered key, else `MYPI_SCOPE`, else `global`, so an unresolved caller counts as global and may send only to projects and organizations) to its direct child (for a task its project or its organization) and sends it at once to a live child; any other caller is refused with the allowed parent's name. Result: `{"message":<id>,"delivered":true|false}`; a closed child gets it once at the next `open`. A project or organization `warmup` also shows and marks the undelivered events addressed to it and lists the last delivered `turn_end` of each open task.
+`open <key...> [--agent claude|pi] [--new | --session <native-id>]` takes an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N. An organization key opens the agent `org-<slug>` in the workspace labelled `<slug>`, with no clone or worktree; an organization without registered projects is refused. For each key it chooses a session of this device: without `--new` and `--session` the live active session, else the live session active last, else it resumes the session active last, else it starts a new one; `--agent` limits this to that agent's sessions and starts a new session of that agent when it has none (default agent `defaultAgent` in home/settings.json, else claude); `--new` starts a new session; `--session <native-id>` (one key, not with `--new`) returns to that session of the key on this device, and a session of another device cannot be returned to: these refusals come before Herdr and any clone. It focuses a live session's Herdr agent (`herdr agent focus <name from the registry record>`), or opens a new `--no-focus` tab with the engine root as cwd and `MYPI_SCOPE=<key>` and `MYPI_HERDR_NAME=<name>` in the workspace labelled with the key's project (`org/project`, the first match in `herdr workspace list`), and starts the agent there. Without that workspace it creates it (`--cwd` the engine root, `--env MYPI_SCOPE=<key>`), renames its first tab to the name and starts the agent in it; the name is the key in lower case, and a second session of the key gets `<key>-<agent>`, then numbered; a task key does not start its project's session. The caller's `HERDR_WORKSPACE_ID` is not used. A project without a clone is first cloned from its registered `repository` (`local`: `git init` on `main` with one empty commit) into `<engine root>/projects/<org>/<project>`, verified (top level, `remote.origin.url`) and registered as its checkout path; an existing directory there is adopted only when it is that clone, otherwise the key is refused and nothing changes; the key's `notes` get `clone prepared: cloned|initialized|adopted <path>`. While cloning it writes progress lines prefixed "mypi: " to stderr (stdout keeps its JSON); SIGINT or SIGTERM stops git, removes the temporary clone and exits 130 or 143 with the JSON error "open cancelled while cloning <repository> into <path>; nothing was registered". A leftover .<project>.mypi-clone-<pid> directory of a process that is gone is removed by the next open; one of a running process makes open refuse. A task key creates its worktree first (as `task worktree`). `--permission-mode` is passed to Claude only (default the calling session's mode). A started (not resumed or focused) session gets one start message in the frame `[mypi: стартовое сообщение для <key>. …]` through the same socket as events: for an organization the open tasks of each of its projects by status, for a project its code and identity, for a task its key and title, then a line asking to wait for directions or propose the next step; the rest is in the warmup; it is state, not an instruction, and creates no events. If it cannot be delivered, the key's `notes` get `start message not delivered: <reason>` and the command still succeeds; for Claude in `bypassPermissions` delivery is not promised. `--message <text>` (one key; the caller must be its parent; otherwise nothing opens) queues a parent message after the focus or start and delivers it live, after a resume, or in the same message as the start text. Result: `{opened: [{key, agent, action, workspaceId, tabId, worktreePath, notes, message}]}`; a failure after an opened key is partial. Without a running Herdr server, for a project without a clone and without a repository, for global, all, REQ and unknown keys it exits 1 with no tab, worktree or session rows; it writes `active_at` of the opened session (and the row of a started one) before delivery. Sessions of the key on other devices are never chosen: when this device has none of the key (with `--agent`, of that agent) and other devices have some, a new one starts and the key's `notes` get `sessions of <KEY> on <devices> stay there; started a new one`. In remote mode the snapshot, the clone, the worktree, `active_at`, `session_opened` and messages are written as operations on the server, while Herdr, the registry, Git and the start message stay on the device; the tab gets the caller's `XDG_CONFIG_HOME` when it is set.
 
 ## Tasks and journal
 
@@ -174,6 +176,11 @@ Never pushes. Run `backup` before and after.
    an invented status_changed event.
 5. If progress artifacts/journal/Git are saved but activity timestamp is missing,
    explicitly complete it with `task touch KEY`.
+6. In remote mode a `task create` partial means the card and its `task_created` entry
+   are on the server but `source.md` is missing in this home — write it at the reported
+   path. A `task progress` partial after the home commit (`saved` contains `git`) is
+   repaired by repeating `task progress KEY <text> --artifacts <file>` with the same
+   paths and no `text` in the artifacts — the commit is a no-op and returns HEAD.
 
 `context read path [--revision FULL_SHA]` does not create files; missing means error;
 with `--revision` it reads the file as committed there. `context restore path
@@ -229,6 +236,15 @@ configure. It is not part of `backup`, `backup --publish` or `restore`. Text is 
 written: secrets pasted into a chat are in the archive as they are in the transcript.
 Deleting the file is safe; the next import or capture recreates it.
 
+In remote mode the same commands work with the server's archive beside its database.
+`capture` and `import` read transcripts on the device and write to the server with an
+offset check: when another capture moved the offset in between, the write is refused
+with `Archive offset of <agent> <id> changed: expected <a>, found <b>; capture again`
+and the next capture continues without duplicates. A large tail goes in records of
+about 512 KiB, and a single turn larger than that is cut with a visible
+`[mypi: truncated N bytes]` marker. `search`, `show`, `status` and `forget` work with
+the server's archive from any device.
+
 ## Backup and restore
 
 `backup /existing-parent/new-backup-directory` uses SQLite backup API, a separate Git
@@ -277,10 +293,66 @@ These commands do not modify working clones, branches or remote synchronization.
 
 ```text
 mypi serve [--listen <IP>] [--port <n>] (HTTP API in the foreground: 127.0.0.1:8737 by default; see docs/HTTP-API.md)
-mypi token create <name> --permission read|write [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once)
+mypi token create <name> --permission read|write|device [--sender global|CODE] | list | revoke <name> (HTTP API tokens in $XDG_CONFIG_HOME/mypi/api-tokens.json; create prints the token once; device tokens are for a device's server.json)
 ```
 
 Routes, tokens, response shapes and change streams: [docs/HTTP-API.md](HTTP-API.md).
+
+## Remote mode
+
+A device works against the database of a `mypi serve` on another machine when it has
+`$XDG_CONFIG_HOME/mypi/server.json` (`~/.config/mypi/…` without `XDG_CONFIG_HOME`):
+
+```json
+{ "url": "http://100.64.0.1:8737", "token": "mypi_…", "device": "laptop" }
+```
+
+- The file is private (0600), not a symlink, and holds exactly `url`, `token` and an
+  optional `device`; anything else is refused and every command except `--help`
+  fails, as does the stdio MCP server. `url` is an `http` or `https` origin without a
+  path. The token comes from `mypi token create <name> --permission device` on the
+  server.
+- `project list|add|update|resolve|remove|flow`, `org remove`, `status *`,
+  `task list|show`, `journal read` and `event list`, and the MCP tools over them, run
+  on the server. The local database is neither opened nor created; project paths are
+  canonicalized on the device.
+- `task create|status|title|parent|touch|progress`, `journal add`, `note`, `capture`,
+  `error` and `context read|commit|restore` work with this device's home (Git); their
+  database writes are operations on the server. `task create` first writes the card and
+  its `task_created` entry on the server, then `source.md` in home; `task progress
+  --artifacts` writes the files and their commit in home, then the journal entry with
+  `{path, commit}` and the activity timestamp on the server. Fingerprints of registered
+  files are read from the server and compared on the device. `--adopt-source` answers
+  `adopt-source is not available in remote mode`.
+- `session register|unregister|prompt|forget`, `warmup`, `event emit`, `turn end`,
+  `inbox` and `send`, and the MCP tools `warmup`, `inbox` and `send_message`, run their
+  database work as operations on the server. The session registry, sockets, transcripts,
+  home and Git stay on the device; session rows and events live on the server.
+  `session prompt` waits for the server at most 1.5 s. `session subscribe --pid <pid>`
+  holds the Pi session's subscription to the server's changes and delivers its claimed
+  events to its socket; without `server.json` it exits at once with code 0.
+- `archive import|capture|status|search|show|forget`, and the MCP tools
+  `archive_search` and `archive_show`, run on the server's archive; transcripts are
+  read on the device. The archive hooks (`Stop`/`SessionEnd` `archive capture` and the
+  Pi extension on `agent_settled`) work in remote mode.
+- `sessions`, `task worktree` and `open`, and the MCP tools `sessions` and
+  `open_session`, work: their data are operations on the server, clones and worktrees
+  stay on the device at the same paths. A clone on a new device is made by hand with
+  `git clone <repository> <path>`; until then `task worktree` and `open` of a task
+  answer `clone <path> of <org/slug> is not on this device; git clone <repository> <path>`.
+  A session of another device is not resumed.
+- Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
+  `token`, `serve`, `home migrate-tasks` and `journal import`, answers
+  `<command> is not available in remote mode`. The session, event and archive hooks of
+  Claude and Pi work in remote mode.
+- A server that does not answer within 10 s ends the command with code 1 and
+  `mypi server unreachable: <url>`.
+- Device and server run one engine version, else
+  `engine version <a> differs from server <b>`.
+- `device` replaces `os.hostname()` as the device name of the session rows this device saves.
+- In remote mode the home writes of one device are not serialized by a database lock
+  between processes: a concurrent `error` can lose an appended line and concurrent
+  commits fail on `index.lock`; repeat the command.
 
 ## Verification
 

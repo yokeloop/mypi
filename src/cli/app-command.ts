@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import type { AppCommand, Artifact, EventType, TextInput } from '../app/commands.js';
 import { readInputFile } from '../app/input-text.js';
-import { captureInput, hookInput, notificationInput, sessionHint, stopInput } from '../app/session-input.js';
+import { captureInput, hookInput, notificationInput, promptInput, sessionHint, stopInput } from '../app/session-input.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { InputError } from '../shared/errors.js';
 import { PAGE_LIMIT_DEFAULT } from '../shared/page.js';
@@ -12,8 +12,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
   if (command.type === 'initialize') return { name: 'db_init' };
   if (command.type === 'list') return { name: 'project_list', ...(command.org === undefined ? {} : { org: command.org }) };
   if (command.type === 'add') return { name: 'project_add', identity: command.identity, code: command.code,
-    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }),
-    ...(command.repository === undefined ? {} : { repository: command.repository }) };
+    ...(command.checkoutPath === undefined ? {} : { checkoutPath: command.checkoutPath }), repository: command.repository };
   if (command.type === 'update') return { name: 'project_update', identity: command.identity,
     ...(command.checkoutPath === undefined ? {} : { expectedCheckoutPath: command.expectedCheckoutPath ?? null, checkoutPath: command.checkoutPath }),
     ...(command.repository === undefined ? {} : { expectedRepository: command.expectedRepository ?? null, repository: command.repository }) };
@@ -43,7 +42,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       return { name: 'warmup', ...(opt('scope') === undefined ? {} : { scope: opt('scope')! }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
         ...(opt('max-chars') === undefined ? {} : { maxChars: Number(opt('max-chars')) }),
-        ...(hint === undefined ? {} : { session: hint }) };
+        ...(hint === undefined ? {} : { session: hint }), caller: { pid: parentPid, ...runtime } };
     }
     case 'journal add': return { name: 'journal_add', text: a[0]!, scope: journalScope };
     case 'journal import': return { name: 'journal_import' };
@@ -121,9 +120,21 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         session = hookInput(readInputFile(0));
       } else session = { nativeId: required('native-id'), ...(opt('name') === undefined ? {} : { name: opt('name')! }), fork: Boolean(o['fork']) };
       const socket = opt('socket') ?? (agent === 'claude' && env['CLAUDE_CODE_MESSAGING_SOCKET'] ? env['CLAUDE_CODE_MESSAGING_SOCKET'] : undefined);
+      const herdr = /^[a-z][a-z0-9_-]{0,31}$/.test(env['MYPI_HERDR_NAME'] ?? '') ? env['MYPI_HERDR_NAME'] : undefined;
       return { name: 'session_register', agent, pid: Number(required('pid')), nativeId: session.nativeId,
         ...(session.name === undefined ? {} : { sessionName: session.name }), ...(socket === undefined ? {} : { socket }), fork: session.fork,
-        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime };
+        ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...(herdr === undefined ? {} : { herdrName: herdr }), ...runtime };
+    }
+    case 'session prompt': {
+      const agent = required('agent');
+      if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
+      let input: { nativeId: string; counted: boolean };
+      if (o['hook']) {
+        if (agent !== 'claude') throw new InputError('--hook is only for --agent claude');
+        if (opt('native-id') !== undefined) throw new InputError('Use --hook or --native-id, not both');
+        input = promptInput(readInputFile(0));
+      } else input = { nativeId: required('native-id'), counted: true };
+      return { name: 'session_prompt', agent, nativeId: input.nativeId, counted: input.counted, ...(o['no-deliver'] ? { noDeliver: true } : {}), ...runtime };
     }
     case 'session unregister': return { name: 'session_unregister', pid: Number(required('pid')), ...runtime };
     case 'session forget': return { name: 'session_forget', key: a[0]!, ...runtime };
@@ -189,11 +200,13 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       if (agent !== undefined && agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
       const hint = sessionHint(env, parentPid);
       return { name: 'open_session', keys: a, ...(agent === undefined ? {} : { agent }),
+        ...(o['new'] ? { new: true } : {}), ...(opt('session') === undefined ? {} : { target: opt('session')! }),
         ...(opt('permission-mode') === undefined ? {} : { permissionMode: opt('permission-mode')! }),
         ...(opt('message') === undefined ? {} : { message: opt('message')! }),
         ...(hint === undefined ? {} : { session: hint }),
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }),
-        ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}), ...runtime };
+        ...(env['XDG_STATE_HOME'] ? { stateHome: env['XDG_STATE_HOME'] } : {}),
+        ...(env['XDG_CONFIG_HOME'] ? { configHome: env['XDG_CONFIG_HOME'] } : {}), ...runtime };
     }
     case 'token create': return { name: 'api_token_create', file: resolveApiTokensPath(env), tokenName: a[0]!, permission: required('permission'),
       ...(opt('sender') === undefined ? {} : { sender: opt('sender')! }) };

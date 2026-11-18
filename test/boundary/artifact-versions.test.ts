@@ -24,7 +24,7 @@ test('journal artifacts point at home commits: files stay editable, versions sta
   initializeWorkspace(filename, root);
   const app = createWorkspace(filename, false, root);
   try {
-    app.projects.add('one/project', 'MP');
+    app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git');
     const card = app.tasks.create({ project: 'one/project', title: 'Versions', status: 'new', slug: 'versions', source: 'source' });
     const source = card.contextDir + '/source.md', plan = card.contextDir + '/plan.md';
     app.complete([source], 'Publish source');

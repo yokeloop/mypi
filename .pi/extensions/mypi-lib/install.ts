@@ -33,6 +33,7 @@ export interface ExtensionAPI {
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
+  on(name: 'input', handler: (event: { text: string; images?: unknown[]; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' } | { action: 'transform'; text: string; images?: unknown[] }>): void;
   registerTool(tool: AskTool): void;
 }
 
@@ -95,6 +96,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   let starting: Promise<void> | undefined;
   let started: (() => void) | undefined;
   const injected = new Set<number>();
+  let subscription: AbortController | undefined;
   let parentTurn = false;
   let parentFrom: string | undefined;
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
@@ -158,7 +160,11 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       const { dev, ino } = statSync(path);
       socket.dev = dev;
       socket.ino = ino;
-      await register(ctx, session, fork, path);
+      if (await register(ctx, session, fork, path) !== undefined) {
+        subscription?.abort();
+        const ctl = subscription = new AbortController();
+        void runCli([cli, 'session', 'subscribe', '--pid', String(pid)], { cwd: root, signal: ctl.signal, onLine: () => undefined }).catch(() => undefined);
+      }
     } catch (error) {
       if (ctx.hasUI) ctx.ui.notify(`mypi event socket failed: ${error instanceof Error ? error.message : String(error)}`, 'warning');
     }
@@ -168,6 +174,19 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     starting = undefined;
     started = undefined;
     done?.();
+  });
+  pi.on('input', async event => {
+    if (event.source !== 'interactive' || key === undefined || registered === undefined) return { action: 'continue' };
+    const id = registered;
+    let line = '';
+    try {
+      const result = await pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', id, '--no-deliver'], { cwd: root, timeout: 2000 });
+      if (result.code === 0 && result.killed !== true && result.stdout.startsWith('[mypi: ')) line = result.stdout.trimEnd();
+    } catch { line = ''; }
+    void pi.exec('node', [cli, 'session', 'prompt', '--agent', 'pi', '--native-id', id], { cwd: root, timeout: 5000 }).catch(() => undefined);
+    if (line === '') return { action: 'continue' };
+    const text = event.text.startsWith('/') ? event.text + '\n\n' + line : line + '\n\n' + event.text;
+    return { action: 'transform', text, ...(event.images === undefined ? {} : { images: event.images }) };
   });
   pi.on('before_agent_start', event => {
     const options = event.systemPromptOptions;
@@ -200,6 +219,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.on('session_shutdown', async event => {
+    subscription?.abort();
+    subscription = undefined;
     const open = socket;
     socket = undefined;
     current = undefined;
@@ -214,7 +235,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     await pi.exec('node', [cli, 'session', 'unregister', '--pid', String(pid)], { cwd: root, timeout: 5000 }).catch(() => undefined);
   });
   pi.registerCommand('open', {
-    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--permission-mode mode] [--message text]',
+    description: 'Open or focus mypi sessions in Herdr tabs: /open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]',
     getArgumentCompletions: async prefix => {
       const data = await catalog();
       return data === undefined ? null : openCompletions(prefix, data, scopeCodes(key, data.projects));
@@ -231,7 +252,7 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       }) : () => {};
       const status = (text: string | undefined) => { if (ctx.hasUI) ctx.ui.setStatus('mypi-open', text); };
       const words = head.trim().split(/\s+/).filter(Boolean);
-      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode'].includes(words[i - 1] ?? ''));
+      const keys = words.filter((word, i) => !word.startsWith('--') && !['--agent', '--permission-mode', '--session'].includes(words[i - 1] ?? ''));
       const label = 'mypi open' + (keys.length > 0 ? ' ' + keys.join(' ') : '') + ': ';
       const progress = (line: string) => {
         const rest = line.slice(6);

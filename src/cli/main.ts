@@ -1,17 +1,21 @@
 #!/usr/bin/env node
 import { PartialError } from '../shared/context.js';
-import { CancelledError } from '../shared/errors.js';
+import { CancelledError, InputError } from '../shared/errors.js';
 import { constants, homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { resolveStatePath } from '../app/create-app.js';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { deviceSessions, resolveStatePath } from '../app/create-app.js';
 import { eventTransports } from '../app/event-transports.js';
+import { configuredServer, remoteBackend, sessionRunner } from '../app/backend.js';
+import { subscribeInbox } from '../app/inbox-subscription.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
 let stoppedBy: 'SIGINT' | 'SIGTERM' | undefined;
 try {
   const command = parseCommand(process.argv.slice(2));
+  const server = command.type === 'help' ? undefined : configuredServer(process.env);
   if (command.type === 'workspace' && command.name === 'serve') {
     const args = (['listen', 'port'] as const).flatMap(name =>
       typeof command.options[name] === 'string' ? ['--' + name, command.options[name]] : []);
@@ -21,6 +25,17 @@ try {
       child.once('error', reject);
       child.once('exit', (code, signal) => resolve(code ?? 128 + constants.signals[signal!]));
     });
+  } else if (command.type === 'workspace' && command.name === 'session subscribe') {
+    const pid = Number(command.options['pid']);
+    if (!Number.isSafeInteger(pid) || pid <= 0) throw new InputError('--pid must be a positive integer');
+    if (server !== undefined) {
+      const controller = new AbortController();
+      for (const sig of ['SIGINT', 'SIGTERM'] as const) process.on(sig, () => controller.abort());
+      const { signal } = controller;
+      await subscribeInbox({ server, pid, agent: 'pi', runner: sessionRunner(remoteBackend(server)), device: deviceSessions(process.env['XDG_RUNTIME_DIR']),
+        transports: eventTransports, fetch: globalThis.fetch, pause: ms => sleep(ms, undefined, { signal }).catch(() => undefined),
+        timer: (ms, fire) => { const t = setTimeout(fire, ms); return () => clearTimeout(t); }, signal });
+    }
   } else {
     const cancellable = command.type === 'workspace' && command.name === 'open';
     let context = {};
@@ -31,7 +46,8 @@ try {
     }
     // Help must work without a configured home, initialized DB or any filesystem changes.
     const output = command.type === 'help' ? { usage } : await run(command,
-      resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context);
+      resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context,
+      server === undefined ? undefined : remoteBackend(server, undefined, command.type === 'workspace' && command.name === 'session prompt' ? 1500 : 10_000));
     if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
       process.stderr.write(JSON.stringify(output) + '\n');
       process.exitCode = 1;

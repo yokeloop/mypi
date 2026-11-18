@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { archivePath, createApp, engineRoot } from '../../src/app/create-app.js';
 import { archiveStatus, engineFolders, importArchive } from '../../src/app/archive.js';
+import { localArchiveRunner } from '../../src/app/archive-operations.js';
 import { claudeFolderName, nativeIdOf, piFolderName } from '../../src/modules/archive/public.js';
 import { openArchive } from '../../src/infrastructure/database/archive.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
@@ -62,37 +63,37 @@ test('transcript folder names and native ids follow each agent\'s layout', () =>
   assert.deepEqual(engineFolders('/h', '/e'), [{ agent: 'claude', path: '/h/.claude/projects/-e' }, { agent: 'pi', path: '/h/.pi/agent/sessions/--e--' }]);
 });
 
-test('archive import reads the engine root folders and skips subagents and other files', t => {
+test('archive import reads the engine root folders and skips subagents and other files', async t => {
   const { dir, filename } = state(t);
   const home = join(dir, 'home');
   const { claude, pi } = engineHome(home);
-  const result = importArchive(filename, command(home));
+  const result = await importArchive(localArchiveRunner(filename), command(home));
   assert.equal(result.archive, archivePath(filename));
   assert.deepEqual([result.files, result.inserted, result.skipped, result.failed], [2, 4, 0, []]);
   assert.deepEqual(result.dirs, [{ agent: 'claude', path: claude, files: 1, inserted: 2, skipped: 0 }, { agent: 'pi', path: pi, files: 1, inserted: 2, skipped: 0 }]);
   const status = archiveStatus(filename);
   assert.deepEqual(status.sessions, { claude: 1, pi: 1 });
   assert.deepEqual(status.messages, { claude: 2, pi: 2 });
-  const empty = importArchive(filename, command(join(dir, 'empty')));
+  const empty = await importArchive(localArchiveRunner(filename), command(join(dir, 'empty')));
   assert.equal(empty.files, 0);
   assert.deepEqual(empty.dirs.map(d => d.files), [0, 0]);
 });
 
-test('archive import resumes from the saved offset and rereads a shorter file', t => {
+test('archive import resumes from the saved offset and rereads a shorter file', async t => {
   const { dir, filename } = state(t);
   const folder = join(dir, 'claude');
   mkdirSync(folder);
   const file = join(folder, 'c1.jsonl');
-  const run = () => importArchive(filename, command(dir, [{ agent: 'claude', path: folder }]));
+  const run = () => importArchive(localArchiveRunner(filename), command(dir, [{ agent: 'claude', path: folder }]));
   writeFileSync(file, jsonl([user('u1', null, 1), assistant('a1', 'u1', 2)]));
-  assert.equal(run().inserted, 2);
-  assert.deepEqual([run().inserted, run().skipped], [0, 0]);
+  assert.equal((await run()).inserted, 2);
+  assert.deepEqual([(await run()).inserted, (await run()).skipped], [0, 0]);
   appendFileSync(file, jsonl([user('u2', 'a1', 3)]) + JSON.stringify(assistant('a2', 'u2', 4)));
-  assert.equal(run().inserted, 1);
+  assert.equal((await run()).inserted, 1);
   appendFileSync(file, '\n');
-  assert.equal(run().inserted, 1);
+  assert.equal((await run()).inserted, 1);
   writeFileSync(file, jsonl([user('u1', null, 1), assistant('a1', 'u1', 2), user('u3', 'a1', 5)]));
-  const shorter = run();
+  const shorter = await run();
   assert.deepEqual([shorter.inserted, shorter.skipped], [1, 2]);
   const db = openArchive(archivePath(filename), true);
   try {
@@ -104,56 +105,56 @@ test('archive import resumes from the saved offset and rereads a shorter file', 
   mkdirSync(broken);
   writeFileSync(join(broken, 'a\u0001.jsonl'), jsonl([user('x1', null, 1)]));
   writeFileSync(join(broken, 'b.jsonl'), jsonl([user('y1', null, 1)]));
-  const partial = importArchive(filename, command(dir, [{ agent: 'claude', path: broken }]));
+  const partial = await importArchive(localArchiveRunner(filename), command(dir, [{ agent: 'claude', path: broken }]));
   assert.deepEqual(partial.failed, [{ agent: 'claude', path: join(broken, 'a\u0001.jsonl'), error: 'Invalid native session id' }]);
   assert.deepEqual([partial.files, partial.inserted], [1, 1]);
   assert.equal(sessionRow(filename, 'b').bytesRead, statSync(join(broken, 'b.jsonl')).size);
 });
 
-test('archive import binds a key on a later pass without new bytes', t => {
+test('archive import binds a key on a later pass without new bytes', async t => {
   const { dir, filename } = state(t);
   const setup = createApp(filename, false);
-  try { setup.projects.add('one/project', 'MP'); } finally { setup.close(); }
+  try { setup.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { setup.close(); }
   const folder = join(dir, 'claude');
   mkdirSync(folder);
   writeFileSync(join(folder, 'c1.jsonl'), jsonl([user('u1', null, 1)]));
   writeFileSync(join(folder, 'c2.jsonl'), jsonl([user('u2', null, 1), { type: 'custom-title', customTitle: 'MP' }]));
-  const run = () => importArchive(filename, command(dir, [{ agent: 'claude', path: folder }]));
-  run();
+  const run = () => importArchive(localArchiveRunner(filename), command(dir, [{ agent: 'claude', path: folder }]));
+  await run();
   assert.deepEqual([sessionRow(filename, 'c1').key, sessionRow(filename, 'c2').key, sessionRow(filename, 'c2').keySource], [null, 'MP', 'name']);
   const first = archiveStatus(filename);
   assert.deepEqual([first.boundSessions, first.unboundSessions, first.keys, first.keySources], [1, 1, 1, { sessions: 0, name: 1 }]);
   const stateDb = openDatabase(filename);
   try {
-    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, created_at)
-      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', ?)`).run(at(0));
+    stateDb.prepare(`INSERT INTO sessions(key, scope_type, org_id, project_id, task_id, agent, native_id, device, created_at)
+      VALUES ('global', 'global', NULL, NULL, NULL, 'claude', 'c1', 'host', ?)`).run(at(0));
   } finally { stateDb.close(); }
-  assert.equal(run().inserted, 0);
+  assert.equal((await run()).inserted, 0);
   assert.deepEqual([sessionRow(filename, 'c1').key, sessionRow(filename, 'c1').keySource], ['global', 'sessions']);
   const second = archiveStatus(filename);
   assert.deepEqual([second.boundSessions, second.unboundSessions, second.keys, second.keySources], [2, 0, 2, { sessions: 1, name: 1 }]);
 });
 
-test('archive import takes each --dir with its own --agent and refuses a missing folder', t => {
+test('archive import takes each --dir with its own --agent and refuses a missing folder', async t => {
   assert.deepEqual(cli(['archive', 'import', '--dir', '/a', '--agent', 'claude', '--dir', '/b', '--agent', 'pi'], { HOME: '/h' }),
     { name: 'archive_import', home: '/h', dirs: [{ agent: 'claude', path: '/a' }, { agent: 'pi', path: '/b' }] });
   for (const args of [['archive', 'import', '--dir', '/a'], ['archive', 'import', '--agent', 'pi'], ['archive', 'import', '--dir', '/a', '--agent', 'codex']])
     assert.throws(() => cli(args, { HOME: '/h' }), InputError);
   assert.deepEqual(cli(['archive', 'status'], {}), { name: 'archive_status' });
   const { dir, filename } = state(t);
-  assert.throws(() => importArchive(filename, command(dir, [{ agent: 'pi', path: join(dir, 'missing') }])), /Not a directory/);
+  await assert.rejects(importArchive(localArchiveRunner(filename), command(dir, [{ agent: 'pi', path: join(dir, 'missing') }])), /Not a directory/);
   assert.equal(existsSync(archivePath(filename)), false);
   const home = join(dir, 'home');
   engineHome(home);
   const other = join(dir, 'other');
   mkdirSync(other);
   writeFileSync(join(other, '2026-11-07T11-00-00-000Z_p2.jsonl'), jsonl([piHeader('p2'), piMessage('m3', null, 'user', 1)]));
-  const result = importArchive(filename, command(home, [{ agent: 'pi', path: other }]));
+  const result = await importArchive(localArchiveRunner(filename), command(home, [{ agent: 'pi', path: other }]));
   assert.deepEqual(result.dirs, [{ agent: 'pi', path: other, files: 1, inserted: 1, skipped: 0 }]);
   assert.deepEqual(archiveStatus(filename).sessions, { claude: 0, pi: 1 });
 });
 
-test('archive status counts sessions, messages and keys and never creates the archive', t => {
+test('archive status counts sessions, messages and keys and never creates the archive', async t => {
   const { dir, filename } = state(t);
   const path = archivePath(filename);
   assert.deepEqual(archiveStatus(filename), { path, exists: false, bytes: 0, sessions: { claude: 0, pi: 0 }, messages: { claude: 0, pi: 0 },
@@ -161,7 +162,7 @@ test('archive status counts sessions, messages and keys and never creates the ar
   assert.equal(existsSync(path), false);
   const home = join(dir, 'home');
   engineHome(home);
-  importArchive(filename, command(home));
+  await importArchive(localArchiveRunner(filename), command(home));
   const status = archiveStatus(filename);
   assert.deepEqual([status.path, status.exists, status.bytes], [path, true, statSync(path).size]);
   assert.deepEqual([status.sessions, status.messages, status.boundSessions, status.unboundSessions], [{ claude: 1, pi: 1 }, { claude: 2, pi: 2 }, 0, 2]);

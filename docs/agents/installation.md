@@ -1,6 +1,6 @@
 # Installing and updating mypi
 
-Read when: running bootstrap, updating the installed engine, moving personal Pi settings, or backing up or restoring home.
+Read when: running bootstrap, updating the installed engine, moving personal Pi settings, backing up or restoring home, or moving the database to a server.
 
 ## Bootstrap
 
@@ -20,6 +20,9 @@ Read when: running bootstrap, updating the installed engine, moving personal Pi 
   explicitly. Context backup requires a clean committed home; symlinks in home are
   rejected, except the one instruction link that homes created by earlier versions
   may contain. Managed context writes never follow links.
+- Moving the database and the archive to an always-on server, connecting devices and
+  rolling back: [Server and devices](../HTTP-API.md#server-and-devices). It is a separately
+  authorized step.
 
 ## Updating the installed engine
 
