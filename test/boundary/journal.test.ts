@@ -5,6 +5,7 @@ import { initializeState } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { createJournal } from '../../src/modules/knowledge/public.js';
 import { sameScope } from '../../src/shared/scope.js';
+import type { Scope } from '../../src/shared/scope.js';
 import { journalStorage } from '../../src/app/journal-storage.js';
 
 test('SQLite journal preserves exact multiline and scope/filter before global limit', t => {
@@ -13,9 +14,10 @@ test('SQLite journal preserves exact multiline and scope/filter before global li
   const db = openDatabase(filename);
   t.after(() => db.close());
   let at = '2026-09-30T23:59:59Z';
-  const journal = createJournal(journalStorage(db), scope => {
+  const check = (scope: Scope) => {
     if (scope.type !== 'global' && scope.key !== 'MP') throw new Error('Unknown scope');
-  }, sameScope, () => at);
+  };
+  const journal = createJournal(journalStorage(db), check, () => ({ resolve: check, contains: sameScope }), () => at);
   journal.append(journal.record({ type: 'project', key: 'MP' }, ' сентябрь\r\nстрока'));
   at = '2026-10-01T00:00:00Z';
   journal.append(journal.record({ type: 'global' }, 'global'));

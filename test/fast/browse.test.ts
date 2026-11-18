@@ -107,7 +107,7 @@ test('journal browser pages by id newest first with scope, time, type and text f
     { at: '2026-10-05T00:00:00Z', scope: { type: 'project' as const, key: 'MP' }, event_type: 'note' as const, text: 'поиск два' },
   ];
   for (const entry of entries) store.append(entry);
-  const browser = createJournalBrowser(store, () => {}, sameScope);
+  const browser = createJournalBrowser(store, () => ({ resolve: () => {}, contains: sameScope }));
   const ids = (page: { items: { id: number }[] }) => page.items.map(x => x.id);
   const first = browser.page('all', { limit: 2 });
   assert.deepEqual([ids(first), first.next], [[5, 4], 4]);

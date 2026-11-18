@@ -14,6 +14,8 @@ export { artifactRefPath } from './model.js';
 export { sqliteJournalStore } from './adapters/sqlite-journal.js';
 export type { FileFingerprint, JournalImport } from './adapters/sqlite-journal.js';
 
+export type ScopeIndex = { resolve(scope: Scope): void; contains(filter: Scope, scope: Scope): boolean };
+
 export function frozenArtifacts(store: JournalStore): Set<string> {
   const result = new Set<string>();
   for (const raw of store.entries()) for (const ref of entryValue(raw).artifacts ?? []) if (typeof ref === 'string') result.add(ref);
@@ -30,19 +32,19 @@ function historyFilter(options: { from?: string; to?: string; type?: EventType; 
   return { from, to };
 }
 
-export function createJournalBrowser(store: JournalBrowseStore, resolve: (scope: Scope) => void,
-  contains: (filter: Scope, scope: Scope) => boolean) {
+export function createJournalBrowser(store: JournalBrowseStore, scopes: () => ScopeIndex) {
   return {
     page(filter: Scope | 'all', options: { from?: string; to?: string; type?: EventType; q?: string; before?: number; limit: number }): Page<{ id: number; entry: Entry }> {
+      const index = scopes();
       const { from, to } = historyFilter(options);
-      if (filter !== 'all') resolve(scopeValue(filter));
+      if (filter !== 'all') index.resolve(scopeValue(filter));
       function* rows() {
         for (const { id, raw } of store.recent(options.before, options.from?.slice(0, 7), options.to?.slice(0, 7))) {
           const entry = entryValue(raw);
-          resolve(entry.scope);
+          index.resolve(entry.scope);
           const at = utc(entry.at);
           if (at < from || at > to || (options.type && entry.event_type !== options.type)
-            || (filter !== 'all' && !contains(filter, entry.scope)) || !matchesQuery(options.q, entry.text)) continue;
+            || (filter !== 'all' && !index.contains(filter, entry.scope)) || !matchesQuery(options.q, entry.text)) continue;
           yield { id, entry };
         }
       }
@@ -52,7 +54,7 @@ export function createJournalBrowser(store: JournalBrowseStore, resolve: (scope:
 }
 
 export function createJournal(store: JournalStore, resolve: (scope: Scope) => void,
-  contains: (filter: Scope, scope: Scope) => boolean, clock: () => string) {
+  scopes: () => ScopeIndex, clock: () => string) {
   return {
     frozen: () => frozenArtifacts(store),
     record(scope: Scope, text: string, type: EventType = 'note', artifacts?: ArtifactRef[]): Entry {
@@ -62,15 +64,16 @@ export function createJournal(store: JournalStore, resolve: (scope: Scope) => vo
     },
     append(entry: Entry) { const valid = entryValue(entry); resolve(valid.scope); return store.append(valid); },
     read(filter: Scope | 'all', options: { from?: string; to?: string; type?: EventType; limit?: number } = {}): Entry[] {
-      if (filter !== 'all') resolve(scopeValue(filter));
+      const index = scopes();
+      if (filter !== 'all') index.resolve(scopeValue(filter));
       const { from, to } = historyFilter(options);
       const result: Entry[] = [];
       for (const raw of store.entries(options.from?.slice(0, 7), options.to?.slice(0, 7))) {
         const entry = entryValue(raw);
-        resolve(entry.scope);
+        index.resolve(entry.scope);
         const at = utc(entry.at);
         if (at < from || at > to || (options.type && entry.event_type !== options.type)
-          || (filter !== 'all' && !contains(filter, entry.scope))) continue;
+          || (filter !== 'all' && !index.contains(filter, entry.scope))) continue;
         result.push(entry);
         if (options.limit !== undefined && result.length > options.limit) {
           result.sort((a, b) => utc(a.at) - utc(b.at));
