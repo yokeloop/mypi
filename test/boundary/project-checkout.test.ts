@@ -45,7 +45,7 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   const journal = () => {
     const read = createApp(filename, true);
     try {
-      return createJournal(read.journalStore, () => {}, sameScope, () => '').read('all').filter(e => e.event_type === 'clone_prepared')
+      return createJournal(read.journalStore, () => {}, () => ({ resolve: () => {}, contains: sameScope }), () => '').read('all').filter(e => e.event_type === 'clone_prepared')
         .map(e => [e.scope.type === 'global' ? null : e.scope.key, e.text]);
     } finally { read.close(); }
   };

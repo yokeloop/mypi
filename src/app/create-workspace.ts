@@ -7,12 +7,14 @@ import { contextFiles } from '../infrastructure/filesystem/context-files.js';
 import { externalDatabasePath } from '../infrastructure/filesystem/paths.js';
 import { contextGit } from '../infrastructure/git/context-git.js';
 import { createJournal, createJournalBrowser, createNotes } from '../modules/knowledge/public.js';
+import type { ScopeIndex } from '../modules/knowledge/public.js';
 import { importLegacyJournal } from './import-journal.js';
 import { migrateTaskDirectories } from './migrate-tasks.js';
 import { fileFingerprint, matchesFingerprint } from './file-fingerprints.js';
 import { sameScope, scopeValue } from '../shared/scope.js';
 import type { Scope } from '../shared/scope.js';
 import type { Card } from '../modules/tasks/public.js';
+import type { Project } from '../modules/projects/public.js';
 import { InputError } from '../shared/errors.js';
 import { changeContext } from './context-changes.js';
 import { taskWork } from './task-work.js';
@@ -32,25 +34,40 @@ export function workspaceRecords(database: ReturnType<typeof createApp>, clock: 
     return result;
   }
   function taskKey(card: Card): string { return (card.projectId === null ? 'REQ' : project(card.projectId).code) + '-' + card.number; }
-  function resolve(scope: Scope): void {
-    scopeValue(scope);
-    if (scope.type === 'org') database.projects.resolveScope(scope.key);
-    if (scope.type === 'project' && !database.projects.list().some(p => p.code === scope.key)) throw new InputError('Unknown project');
-    if (scope.type === 'task' && !database.tasks.list().some(r => taskKey(r) === scope.key)) throw new InputError('Unknown task');
-  }
-  function contains(filter: Scope, scope: Scope): boolean {
-    if (sameScope(filter, scope)) return true;
-    if (scope.type === 'task') {
-      const card = database.tasks.list().find(r => taskKey(r) === scope.key)!;
-      if (card.projectId === null) return false;
-      const p = project(card.projectId);
-      return (filter.type === 'org' && filter.key === p.org) || (filter.type === 'project' && filter.key === p.code);
+  function scopeIndex(): ScopeIndex {
+    const projects = database.projects.list();
+    const byId = new Map(projects.map(p => [p.id, p]));
+    const byCode = new Map(projects.map(p => [p.code, p]));
+    const tasks = new Map<string, Project | null>();
+    for (const card of database.tasks.list()) {
+      if (card.projectId === null) { tasks.set('REQ-' + card.number, null); continue; }
+      const project = byId.get(card.projectId);
+      if (!project) throw new InputError('Unknown parent project');
+      tasks.set(project.code + '-' + card.number, project);
     }
-    if (scope.type === 'project' && filter.type === 'org') return database.projects.list().some(p => p.code === scope.key && p.org === filter.key);
-    return false;
+    const orgs = new Set<string>();
+    return {
+      resolve(scope: Scope): void {
+        scopeValue(scope);
+        if (scope.type === 'org' && !orgs.has(scope.key)) { database.projects.resolveScope(scope.key); orgs.add(scope.key); }
+        if (scope.type === 'project' && !byCode.has(scope.key)) throw new InputError('Unknown project');
+        if (scope.type === 'task' && !tasks.has(scope.key)) throw new InputError('Unknown task');
+      },
+      contains(filter: Scope, scope: Scope): boolean {
+        if (sameScope(filter, scope)) return true;
+        if (scope.type === 'task') {
+          const p = tasks.get(scope.key);
+          if (!p) return false;
+          return (filter.type === 'org' && filter.key === p.org) || (filter.type === 'project' && filter.key === p.code);
+        }
+        if (scope.type === 'project' && filter.type === 'org') return byCode.get(scope.key)?.org === filter.key;
+        return false;
+      },
+    };
   }
-  const journal = createJournal(database.journalStore, resolve, contains, clock);
-  const browser = createJournalBrowser(database.journalStore, resolve, contains);
+  function resolve(scope: Scope): void { scopeIndex().resolve(scope); }
+  const journal = createJournal(database.journalStore, resolve, scopeIndex, clock);
+  const browser = createJournalBrowser(database.journalStore, scopeIndex);
   return { taskKey, resolve, journal, browser };
 }
 

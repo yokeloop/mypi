@@ -5,7 +5,7 @@ import { sameScope } from '../../src/shared/scope.js';
 
 test('journal validates envelope and applies overall ordering/limit even for unordered input', () => {
   const rows = [3, 1, 2].map(day => ({ at: '2026-10-0' + day + 'T00:00:00Z', scope: { type: 'global' }, event_type: 'note', text: String(day) }));
-  const journal = createJournal({ append: () => '', entries: () => rows }, () => {}, sameScope, () => '2026-10-02T00:00:00Z');
+  const journal = createJournal({ append: () => '', entries: () => rows }, () => {}, () => ({ resolve: () => {}, contains: sameScope }), () => '2026-10-02T00:00:00Z');
   assert.deepEqual(journal.read({ type: 'global' }, { limit: 2 }).map(e => e.text), ['2', '3']);
   for (const scope of [{ type: 'global', key: null }, { type: 'all' }, [], { type: 'task', key: 'REQ-0' }]) {
     assert.throws(() => journal.record(scope as never, 'bad'));
@@ -21,7 +21,7 @@ test('journal validates envelope and applies overall ordering/limit even for uno
 });
 
 test('journal accepts each event type only in the scopes of its fact', () => {
-  const journal = createJournal({ append: () => '', entries: () => [] }, () => {}, sameScope, () => '2026-10-02T00:00:00Z');
+  const journal = createJournal({ append: () => '', entries: () => [] }, () => {}, () => ({ resolve: () => {}, contains: sameScope }), () => '2026-10-02T00:00:00Z');
   const global = { type: 'global' } as const, org = { type: 'org', key: 'one' } as const;
   const project = { type: 'project', key: 'MP' } as const, task = { type: 'task', key: 'MP-1' } as const;
   const accepted = [
