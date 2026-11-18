@@ -223,8 +223,8 @@ test('cooperating writer at snapshot boundary yields honest refusal rather than 
   writeFileSync(helper, `import Database from ${JSON.stringify(import.meta.resolve('better-sqlite3'))};\n` +
     `import { writeFileSync } from 'node:fs';\n` +
     `const db = new Database(${JSON.stringify(filename)}); db.exec('BEGIN IMMEDIATE');\n` +
-    `writeFileSync(${JSON.stringify(ready)}, 'locked'); setTimeout(() => { db.exec('ROLLBACK'); db.close(); }, 1500);\n`);
-  const writer = spawn(process.execPath, [helper], { stdio: ['ignore', 'ignore', 'pipe'] });
+    `writeFileSync(${JSON.stringify(ready)}, 'locked'); process.stdin.on('end', () => { db.exec('ROLLBACK'); db.close(); }).resume();\n`);
+  const writer = spawn(process.execPath, [helper], { stdio: ['pipe', 'ignore', 'pipe'] });
   const finished = new Promise<number | null>(resolve => writer.on('exit', resolve));
   try {
     for (let i = 0; i < 100 && !existsSync(ready); i++) await new Promise(resolve => setTimeout(resolve, 10));
@@ -234,6 +234,7 @@ test('cooperating writer at snapshot boundary yields honest refusal rather than 
     assert.equal(result.commit, undefined); assert.equal(result.publicationConfirmed, false);
     assert.equal(existsSync(join(home, '.mypi-backup/state.sqlite3')), false);
   } finally {
+    writer.stdin.end();
     const exit = await finished;
     assert.equal(exit, 0);
   }
