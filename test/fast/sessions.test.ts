@@ -7,6 +7,7 @@ import { hostname } from 'node:os';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { sessionRegistryDir } from '../../src/infrastructure/filesystem/paths.js';
 import { warmupScope } from '../../src/app/warmup.js';
 import { sessionKey } from '../../src/app/sessions.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
@@ -270,12 +271,22 @@ test('the registry refuses an unsafe directory and a missing XDG_RUNTIME_DIR', t
   mkdirSync(join(run, 'mypi'));
   chmodSync(join(run, 'mypi'), 0o755);
   assert.throws(() => s(x => x.register(claude('c1', 101))), /Unsafe session registry directory/);
-  for (const runtime of [undefined, 'relative']) {
+  for (const runtime of process.platform === 'linux' ? [undefined, 'relative'] : ['relative']) {
     const app = createApp(filename, false);
     try {
       assert.throws(() => app.sessions(runtime, proc).register(claude('c1', 101)), /XDG_RUNTIME_DIR must be an absolute path/);
     } finally { app.close(); }
   }
+  const missing = /XDG_RUNTIME_DIR must be an absolute path/;
+  const tmp = join(dir, 'tmp');
+  assert.throws(() => sessionRegistryDir(undefined, 'linux'), missing);
+  assert.throws(() => sessionRegistryDir('', 'linux'), missing);
+  assert.equal(sessionRegistryDir(undefined, 'darwin', () => tmp), join(tmp, 'mypi', 'sessions'));
+  assert.equal(sessionRegistryDir('', 'darwin', () => tmp), join(tmp, 'mypi', 'sessions'));
+  assert.throws(() => sessionRegistryDir('relative', 'darwin', () => tmp), missing);
+  assert.throws(() => sessionRegistryDir('/a\0b', 'darwin', () => tmp), missing);
+  assert.throws(() => sessionRegistryDir(undefined, 'darwin', () => 'relative'), missing);
+  assert.equal(sessionRegistryDir('/run/user/1', 'darwin', () => tmp), '/run/user/1/mypi/sessions');
 });
 
 test('register validates the process, the native id and the key', t => {

@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync, lstatSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { InputError } from '../../shared/errors.js';
 
 export function canonicalDirectory(input: string): string {
@@ -55,9 +56,10 @@ export function archiveDatabasePath(stateFile: string, engineRoot: string): stri
   return externalDatabasePath(join(dirname(externalDatabasePath(stateFile, engineRoot)), 'archive.sqlite3'), engineRoot);
 }
 
-export function sessionRegistryDir(runtime: string | undefined): string {
-  if (!runtime || !isAbsolute(runtime) || runtime.includes('\0')) throw new InputError('XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
-  return join(runtime, 'mypi', 'sessions');
+export function sessionRegistryDir(runtime: string | undefined, platform: NodeJS.Platform = process.platform, tmp: () => string = tmpdir): string {
+  const base = runtime || (platform === 'darwin' ? tmp() : undefined);
+  if (!base || !isAbsolute(base) || base.includes('\0')) throw new InputError('XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
+  return join(base, 'mypi', 'sessions');
 }
 
 export function serverConfigPath(env: Readonly<Record<string, string | undefined>>): string | undefined {
