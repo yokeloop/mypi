@@ -22,7 +22,7 @@ case "$cmd" in
     exec cargo fetch --locked --manifest-path "$tui/Cargo.toml" --target "$host" ;;
   build)
     fetched
-    timeout --kill-after=5s 55s cargo build --locked --offline --release --manifest-path "$tui/Cargo.toml"
+    node "$root/scripts/bounded.mjs" --time 55 --kill-after 5 -- cargo build --locked --offline --release --manifest-path "$tui/Cargo.toml"
     mkdir -p "$tui/bin"
     cp "$CARGO_TARGET_DIR/release/mypi-tui" "$tui/bin/.mypi-tui.tmp"
     mv -f "$tui/bin/.mypi-tui.tmp" "$tui/bin/mypi-tui" ;;

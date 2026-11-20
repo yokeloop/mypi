@@ -24,6 +24,7 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 ### Fixed
 
 - Reading the journal no longer runs out of memory on a large journal (MP-152): journal read, MCP journal, journal_read in /v1/ops and GET /v1/journal build the task and project index once per read instead of querying tasks and projects for every entry; filters, order, limit and pages are unchanged.
+- `pnpm build` and `pnpm tui:build` work on macOS without GNU `timeout` (MP-154): `scripts/bounded.mjs` holds the 55 s limit and 5 more seconds before SIGKILL to the group, exit code 124, on Linux and macOS; the install commands in the README and `docs/MCP.md` use it too; macOS device setup is under "Devices" in `docs/HTTP-API.md`.
 
 ## [0.12.0] - 2026-11-11
 
