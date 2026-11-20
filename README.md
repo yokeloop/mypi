@@ -51,7 +51,9 @@ is tracked engine source (`.pi/` for Pi); your instructions, settings and knowle
 live in an independent `home/` Git.
 
 Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
-version 1.0.4 (manually checked). Linux is the currently verified platform. No
+version 1.0.4 (manually checked). Linux is the verified platform for the engine and its
+checks; macOS (arm64, mise from Homebrew) is verified as a device: install and build per
+"Devices" in `docs/HTTP-API.md`; the checks are not supported on macOS yet. No
 global agent configuration is installed or changed.
 Rust for the optional terminal UI is pinned in mise.toml and installed by mise install (rustup).
 
@@ -439,12 +441,15 @@ The notes are the CHANGELOG section of the version plus an Upgrade note. Tags ar
 never moved; there is no npm publish. `scripts/release.mjs` (`pnpm release`) commits
 and tags directly on `main`; it predates the PR workflow and is not used.
 
-From the engine project's task worktree (not the installed workspace):
+From the engine project's task worktree (not the installed workspace).
+`mise install` runs without a time limit on both systems, because Node may not exist before it;
+the other install steps are limited to 5 minutes by the same `scripts/bounded.mjs` as the build,
+on Linux and macOS:
 
 ```bash
-timeout --kill-after=5s 295s mise install
-timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
-timeout --kill-after=5s 295s mise exec -- pnpm tui:fetch
+mise install
+mise exec -- node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm install --frozen-lockfile
+mise exec -- node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm tui:fetch
 mise exec -- pnpm build
 mise exec -- pnpm verify
 ```

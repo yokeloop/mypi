@@ -8,7 +8,7 @@ The [original MCP plan](MCP-PLAN.html) is historical, including its user-global 
 ## Start
 
 ```sh
-timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
+mise exec -- node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm install --frozen-lockfile
 mise exec -- pnpm build
 mise exec -- node dist/src/mcp/main.js
 ```
