@@ -24,10 +24,10 @@ test('a command past its time is stopped with its whole group and exits 124', as
   const result = run('0.3', '0.3',
     `echo $$ > '${pgidFile}'; sh -c 'trap "" TERM; while :; do sleep 0.05; done' & wait`);
   const elapsed = Date.now() - start;
+  pgid = Number(readFileSync(pgidFile, 'utf8').trim());
   assert.equal(result.error, undefined);
   assert.equal(result.status, 124, result.stderr);
   assert.ok(elapsed < 3000, `took ${elapsed} ms`);
-  pgid = Number(readFileSync(pgidFile, 'utf8').trim());
   assert.ok(pgid > 0);
   const deadline = Date.now() + 2000;
   for (;;) {
