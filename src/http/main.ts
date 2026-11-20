@@ -1,12 +1,14 @@
 #!/usr/bin/env node
 import { homedir } from 'node:os';
 import { parseArgs } from 'node:util';
-import { resolveStatePath } from '../app/create-app.js';
+import { resolveStatePath, useProcessProbe } from '../app/create-app.js';
+import { runPs } from '../app/process-runner.js';
 import { resolveApiTokensPath } from '../app/api-tokens.js';
 import { configuredServer } from '../app/backend.js';
 import { InputError } from '../shared/errors.js';
 import { DEFAULT_PORT, serve } from './serve.js';
 
+useProcessProbe(runPs);
 try {
   if (configuredServer(process.env) !== undefined) throw new InputError('serve is not available in remote mode');
   const { values } = parseArgs({ args: process.argv.slice(2), strict: true, allowPositionals: false,

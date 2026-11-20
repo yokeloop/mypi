@@ -16,6 +16,7 @@ import type { DeviceSessions } from '../modules/sessions/public.js';
 import type { ProcessProbe, SessionScope } from '../modules/sessions/ports.js';
 import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-store.js';
 import { fsRegistry, procProbe } from '../modules/sessions/adapters/fs-registry.js';
+import { psProbe } from '../modules/sessions/adapters/ps-probe.js';
 import { createEvents } from '../modules/events/public.js';
 import { sqliteEventStore } from '../modules/events/adapters/sqlite-event-store.js';
 import { createArchive } from '../modules/archive/public.js';
@@ -41,8 +42,14 @@ export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
+let processRun: ((pid: number) => string | undefined) | undefined;
+
+export function useProcessProbe(run: (pid: number) => string | undefined): void {
+  processRun = run;
+}
+
 function probeFor(proc: string): ProcessProbe {
-  return procProbe(proc);
+  return proc === '/proc' && process.platform === 'darwin' && processRun !== undefined ? psProbe(processRun) : procProbe(proc);
 }
 
 export function deviceSessions(runtime: string | undefined, proc = '/proc'): DeviceSessions {

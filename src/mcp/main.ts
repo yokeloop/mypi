@@ -2,12 +2,14 @@
 import { homedir } from 'node:os';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { deviceSessions, resolveStatePath } from '../app/create-app.js';
+import { deviceSessions, resolveStatePath, useProcessProbe } from '../app/create-app.js';
+import { runPs } from '../app/process-runner.js';
 import { eventTransports } from '../app/event-transports.js';
 import { createServer } from './server.js';
 import { configuredServer, remoteBackend, sessionRunner } from '../app/backend.js';
 import { subscribeInbox } from '../app/inbox-subscription.js';
 
+useProcessProbe(runPs);
 try {
   const remote = configuredServer(process.env);
   const backend = remote === undefined ? undefined : remoteBackend(remote);

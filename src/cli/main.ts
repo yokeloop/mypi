@@ -5,13 +5,15 @@ import { constants, homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { deviceSessions, resolveStatePath } from '../app/create-app.js';
+import { deviceSessions, resolveStatePath, useProcessProbe } from '../app/create-app.js';
+import { runPs } from '../app/process-runner.js';
 import { eventTransports } from '../app/event-transports.js';
 import { configuredServer, remoteBackend, sessionRunner } from '../app/backend.js';
 import { subscribeInbox } from '../app/inbox-subscription.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
+useProcessProbe(runPs);
 let stoppedBy: 'SIGINT' | 'SIGTERM' | undefined;
 try {
   const command = parseCommand(process.argv.slice(2));
