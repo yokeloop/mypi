@@ -42,9 +42,9 @@ export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
-let processRun: ((pid: number) => string | undefined) | undefined;
+let processRun: ((pid: number) => { status: number | null; stdout: string }) | undefined;
 
-export function useProcessProbe(run: (pid: number) => string | undefined): void {
+export function useProcessProbe(run: (pid: number) => { status: number | null; stdout: string }): void {
   processRun = run;
 }
 

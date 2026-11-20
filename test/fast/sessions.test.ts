@@ -572,13 +572,21 @@ function psFake(t: TestContext) {
   const out = new Map<number, string>();
   const calls = new Map<number, number>();
   const errors = new Map<number, string>();
-  const ps = (pid: number) => { calls.set(pid, (calls.get(pid) ?? 0) + 1); return out.get(pid); };
+  const failures = new Map<number, number | 'timeout'>();
+  const dies = new Set<number>();
+  const ps = (pid: number) => {
+    calls.set(pid, (calls.get(pid) ?? 0) + 1);
+    const failure = failures.get(pid);
+    if (failure === 'timeout') throw Object.assign(new Error('spawnSync /bin/ps ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    const stdout = out.get(pid);
+    return stdout === undefined ? { status: failure ?? 1, stdout: '' } : { status: 0, stdout };
+  };
   const kill = (pid: number) => {
-    const code = errors.get(pid);
+    const code = dies.has(pid) && calls.has(pid) ? 'ESRCH' : errors.get(pid);
     if (code !== undefined) throw Object.assign(new Error('kill'), { code });
     return true;
   };
-  return { dir, out, calls, errors, ps, kill };
+  return { dir, out, calls, errors, failures, dies, ps, kill };
 }
 
 test('ps probe: a live pid whose lstart matches the record start is live, another lstart is dead, ESRCH is undefined without running ps', t => {
@@ -598,7 +606,34 @@ test('ps probe: a live pid whose lstart matches the record start is live, anothe
   errors.set(1, 'EPERM');
   out.set(1, 'Fri Nov 20 20:00:00 2026     /sbin/launchd\n');
   assert.ok(device.prepare({ agent: 'claude', nativeId: 'c3', pid: 1, fork: false }).start);
-  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c4', pid: 102, fork: false }), /is not running/);
+  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c4', pid: 102, fork: false }), /Cannot read process 102 through ps/);
+});
+
+test('ps probe: a ps failure for a live pid throws and keeps the record, a pid that died between kill and ps is undefined', t => {
+  const { dir, out, failures, dies, ps, kill } = psFake(t);
+  const device = createDeviceSessions(() => fsRegistry(dir, psProbe(ps, kill)), () => at);
+  out.set(101, 'Fri Nov 20 21:03:00 2026     claude\n');
+  const { start } = device.prepare({ agent: 'claude', nativeId: 'c1', pid: 101, fork: false });
+  device.record('global', { agent: 'claude', nativeId: 'c1', pid: 101, start, name: null, socket: null });
+  const file = join(dir, 'global~101.json');
+  out.delete(101);
+  for (const failure of ['timeout', 2] as const) {
+    failures.set(101, failure);
+    assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+    assert.equal(existsSync(file), true);
+  }
+  failures.delete(101);
+  assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+  assert.equal(existsSync(file), true);
+  out.set(101, 'short\n');
+  assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+  assert.equal(existsSync(file), true);
+  out.delete(101);
+  dies.add(101);
+  assert.equal(device.isLive('global'), false);
+  assert.equal(existsSync(file), false);
+  dies.add(102);
+  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c2', pid: 102, fork: false }), /Process 102 is not running/);
 });
 
 test('ps probe: the permission mode comes from args', t => {
