@@ -12,11 +12,16 @@ export type SubscriptionOptions = { server: { url: string; token: string }; pid:
   timer: (ms: number, fire: () => void) => () => void; signal: AbortSignal };
 
 export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
-  const startOf = (): string | undefined => { try { return o.device.start(o.pid); } catch { return undefined; } };
-  const start = startOf();
-  if (start === undefined) return;
-  const alive = () => startOf() === start;
+  const startOf = (): string | undefined | null => { try { return o.device.start(o.pid); } catch { return null; } };
   let retry = 2000, dirty = false;
+  let first = startOf();
+  while (first === null && !o.signal.aborted) {
+    await o.pause(retry);
+    first = startOf();
+  }
+  if (first === undefined || first === null) return;
+  const start = first;
+  const alive = () => { const now = startOf(); return now === null || now === start; };
   let inFlight: Promise<void> | undefined;
   const claim = async (): Promise<boolean> => {
     try {

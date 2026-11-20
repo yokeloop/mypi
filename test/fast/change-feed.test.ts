@@ -75,8 +75,8 @@ function subscription(t: TestContext) {
   };
   const options = (pid: number, controller: AbortController, fetch: (url: string, init: RequestInit) => Promise<Response>,
     extra: { transports?: EventTransports; runner?: SessionRunner; pause?: (ms: number) => Promise<void>;
-      timer?: SubscriptionOptions['timer'] } = {}): SubscriptionOptions => ({
-    server: { url: 'http://mypi.test', token: 't1' }, pid, agent: 'pi', runner: extra.runner ?? runner, device: deviceSessions(run, proc),
+      timer?: SubscriptionOptions['timer']; device?: SubscriptionOptions['device'] } = {}): SubscriptionOptions => ({
+    server: { url: 'http://mypi.test', token: 't1' }, pid, agent: 'pi', runner: extra.runner ?? runner, device: extra.device ?? deviceSessions(run, proc),
     transports: extra.transports ?? {}, fetch, pause: extra.pause ?? (async () => undefined), timer: extra.timer ?? (() => () => undefined),
     signal: controller.signal });
   const counting = (onClaim: (n: number) => void): SessionRunner => {
@@ -185,6 +185,24 @@ test('the subscription ends when the watched process is gone', async t => {
     return stream([': keepalive\n\n'])(signal);
   }])));
   assert.equal(x.fetched.length, 1);
+  assert.equal(controller.signal.aborted, false);
+});
+
+test('a failed process check keeps the subscription and only a confirmed end stops it', async t => {
+  const x = subscription(t);
+  const controller = new AbortController();
+  const answers: (string | undefined | Error)[] = [new Error('ps timed out'), '1', new Error('ps timed out'), new Error('ps timed out'), '1', undefined];
+  const start = () => {
+    const answer = answers.shift();
+    if (answer instanceof Error) throw answer;
+    return answer;
+  };
+  const paused: number[] = [];
+  await subscribeInbox(x.options(101, controller, x.fetcher([stream([': keepalive\n\n', ': keepalive\n\n', ': keepalive\n\n'])]),
+    { device: { start, records: () => [] }, pause: async ms => { paused.push(ms); } }));
+  assert.deepEqual(answers, []);
+  assert.equal(x.fetched.length, 1);
+  assert.deepEqual(paused, [2000]);
   assert.equal(controller.signal.aborted, false);
 });
 
