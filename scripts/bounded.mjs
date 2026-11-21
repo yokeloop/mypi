@@ -4,15 +4,17 @@
 // 125 bad arguments, 126 command cannot be started, 127 command not found,
 // 128+N command killed by signal N, otherwise the command's own exit code.
 // --name takes the lock <tmpdir>/<name>.lock (a second live run exits 1 with
-// "already running", an abandoned lock is removed) and gives the command a private
+// "already running"; an abandoned lock is removed only while holding
+// <name>.lock.break, which records its owner's pid) and gives the command a private
 // run directory in MYPI_BOUNDED_DIR and this supervisor's pid in MYPI_BOUNDED_PID.
 // --memory and --tasks poll /bin/ps every 200 ms: the command's group and every
 // descendant seen so far; above the summed RSS or the process count the tree is
 // killed and the run exits 1. After the command exits, a seen descendant still alive
 // is reported as "Surviving child", killed, and fails the run. A failed first poll or
 // five failed polls in a row fail the run (MYPI_BOUNDED_PS replaces /bin/ps for the
-// tests). A clean run prints a Cost line (and CPU from the run directory's cost file). On macOS the polling and
-// the audit stand in for the cgroup and the PID namespace (docs/TESTING.md §6).
+// tests and is announced on stderr). A clean run prints a Cost line (and CPU from the
+// run directory's cost file). On macOS the polling and the audit stand in for the
+// cgroup and the PID namespace (docs/TESTING.md §6).
 import { execFile, spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync, writeSync } from 'node:fs';
 import { constants, tmpdir } from 'node:os';
@@ -84,43 +86,51 @@ function alive(pid) {
   }
 }
 
+function take(path) {
+  const staging = mkdtempSync(path + '.');
+  writeFileSync(join(staging, 'pid'), String(process.pid));
+  try {
+    renameSync(staging, path);
+    return true;
+  } catch (error) {
+    rmSync(staging, { recursive: true, force: true });
+    if (error.code !== 'ENOTEMPTY' && error.code !== 'EEXIST') throw error;
+    return false;
+  }
+}
+
+function release(path) {
+  if (holder(path) === process.pid) rmSync(path, { recursive: true, force: true });
+}
+
 function acquire(base, name) {
   const target = join(base, name + '.lock');
-  for (let attempt = 0; ; attempt++) {
-    const staging = mkdtempSync(join(base, name + '.lock.'));
-    writeFileSync(join(staging, 'pid'), String(process.pid));
-    try {
-      renameSync(staging, target);
-      return target;
-    } catch (error) {
-      rmSync(staging, { recursive: true, force: true });
-      if (error.code !== 'ENOTEMPTY' && error.code !== 'EEXIST') throw error;
-    }
+  const gate = target + '.break';
+  const refuse = pid => {
+    say(2, `bounded: ${name} already running (pid ${pid})`);
+    finish(1);
+  };
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (take(target)) return target;
     const pid = holder(target);
-    if (attempt > 0 || alive(pid)) {
-      say(2, `bounded: ${name} already running (pid ${pid})`);
-      finish(1);
-    }
-    const tomb = `${target}.${process.pid}.stale`;
-    try {
-      renameSync(target, tomb);
-    } catch (error) {
-      if (error.code === 'ENOENT') continue;
-      throw error;
-    }
-    const taken = holder(tomb);
-    if (taken === pid) {
-      rmSync(tomb, { recursive: true, force: true });
+    if (alive(pid)) refuse(pid);
+    if (!take(gate)) {
+      const breaker = holder(gate);
+      if (alive(breaker)) refuse(breaker);
+      rmSync(gate, { recursive: true, force: true });
       continue;
     }
-    try {
-      renameSync(tomb, target);
-    } catch {
-      rmSync(tomb, { recursive: true, force: true });
+    const stale = holder(target);
+    let won = false;
+    if (!alive(stale)) {
+      rmSync(target, { recursive: true, force: true });
+      won = take(target);
     }
-    say(2, `bounded: ${name} already running (pid ${taken})`);
-    finish(1);
+    release(gate);
+    if (won) return target;
+    if (alive(stale)) refuse(stale);
   }
+  refuse(holder(target));
 }
 
 const options = parse(process.argv.slice(2));
@@ -232,6 +242,7 @@ child.on('error', error => {
 });
 
 let poller;
+if (watched && process.env.MYPI_BOUNDED_PS) say(2, `bounded: process table from ${process.env.MYPI_BOUNDED_PS}`);
 if (watched && child.pid) {
   poll();
   poller = setInterval(poll, 200);

@@ -179,6 +179,36 @@ test('a run whose process table cannot be read fails at once', t => {
   const elapsed = Date.now() - start;
   assert.equal(result.error, undefined);
   assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /process table from \/usr\/bin\/false/);
   assert.match(result.stderr, /process table cannot be read/);
   assert.ok(elapsed < 2000, `took ${elapsed} ms`);
+});
+
+test('a live break of another run refuses and leaves the stale lock alone', t => {
+  const dir = scratch(t);
+  const dead = String(spawnSync('/usr/bin/true').pid);
+  mkdirSync(join(dir, 't.lock'));
+  writeFileSync(join(dir, 't.lock', 'pid'), dead);
+  mkdirSync(join(dir, 't.lock.break'));
+  writeFileSync(join(dir, 't.lock.break', 'pid'), String(process.pid));
+  const result = runWith(dir, ['--name', 't', '--time', '5', '--kill-after', '1'], 'exit 0');
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /t already running/);
+  assert.equal(readFileSync(join(dir, 't.lock', 'pid'), 'utf8'), dead);
+  assert.equal(readFileSync(join(dir, 't.lock.break', 'pid'), 'utf8'), String(process.pid));
+});
+
+test('an abandoned break is removed and the run proceeds', t => {
+  const dir = scratch(t);
+  const dead = String(spawnSync('/usr/bin/true').pid);
+  for (const lock of ['t.lock', 't.lock.break']) {
+    mkdirSync(join(dir, lock));
+    writeFileSync(join(dir, lock, 'pid'), dead);
+  }
+  const result = runWith(dir, ['--name', 't', '--time', '5', '--kill-after', '1'], 'exit 0');
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(dir, 't.lock')), false);
+  assert.equal(existsSync(join(dir, 't.lock.break')), false);
 });

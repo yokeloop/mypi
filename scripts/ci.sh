@@ -23,7 +23,7 @@ mkdir "$work/tools" "$work/dist"
 "${clone[@]}" "$(command -v node)" "$work/tools/node"
 if [[ "$OSTYPE" == darwin* ]]; then
   mkdir -p "$work/tmp/home"
-  (cd "$work" && env TMPDIR=/private/tmp node scripts/bounded.mjs --name mypi-ci-build --time 58 --kill-after 2 --memory 1G --tasks 64 \
+  (cd "$work" && env -u MYPI_BOUNDED_PS TMPDIR=/private/tmp node scripts/bounded.mjs --name mypi-ci-build --time 58 --kill-after 2 --memory 1G --tasks 64 \
     -- env -i PATH="$work/tools:/usr/bin:/bin" HOME="$work/tmp/home" TMPDIR="$work/tmp" LANG=C.UTF-8 \
     /usr/bin/sandbox-exec -f "$work/scripts/sandbox.sb" -D HOME_DIR="$HOME" -D READ="$work" -D TOOLS="$work/tools" \
     -D WRITE="$work/dist" -D SCRATCH="$work/tmp" -D COST=/dev/null -D USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)" /bin/bash scripts/build.sh)

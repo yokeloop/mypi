@@ -9,7 +9,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
   [[ "$profile" != verify ]] || bash scripts/tui.sh check
   # On macOS the lock /private/tmp/mypi-tests.lock keeps one run per machine; the 73 s limit
   # is the 70 s macOS profile budget plus 3 s (docs/TESTING.md §6).
-  exec env TMPDIR=/private/tmp node scripts/bounded.mjs --name mypi-tests --time 73 --kill-after 2 --memory 1G --tasks 64 \
+  exec env -u MYPI_BOUNDED_PS TMPDIR=/private/tmp node scripts/bounded.mjs --name mypi-tests --time 73 --kill-after 2 --memory 1G --tasks 64 \
     -- /bin/bash "$PWD/scripts/test-sandbox.sh" "$PWD" "$(command -v node)" "$profile"
 fi
 [[ "$OSTYPE" == linux* ]] || { echo "Checks run on Linux or macOS" >&2; exit 2; }

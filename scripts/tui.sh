@@ -32,7 +32,7 @@ case "$cmd" in
       [[ -x /usr/bin/sandbox-exec ]] || { echo "/usr/bin/sandbox-exec required (docs/TESTING.md §6)" >&2; exit 2; }
       mkdir -p "$CARGO_TARGET_DIR" "$target/tmp/home"
       cd "$tui"
-      exec env TMPDIR=/private/tmp node "$root/scripts/bounded.mjs" --name mypi-tui-check --time 58 --kill-after 2 --memory 1G --tasks 64 \
+      exec env -u MYPI_BOUNDED_PS TMPDIR=/private/tmp node "$root/scripts/bounded.mjs" --name mypi-tui-check --time 58 --kill-after 2 --memory 1G --tasks 64 \
         -- env -i PATH="$sysroot/bin:/usr/bin:/bin" HOME="$target/tmp/home" LANG=C.UTF-8 TMPDIR="$target/tmp" \
         CARGO_HOME="$CARGO_HOME" CARGO_TARGET_DIR="$CARGO_TARGET_DIR" CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2 \
         CARGO_INCREMENTAL=0 CARGO_TERM_COLOR=never RUSTC="$RUSTC" \

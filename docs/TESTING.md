@@ -289,7 +289,9 @@ limited and processes are counted, not threads; CPU has no 200 % quota, the `CPU
 rusage (`times`) is only a report; there is no PID namespace: tests see other processes, and a
 descendant born and gone between polls is invisible to the audit; there is no mount namespace
 or tmpfs: the real system paths are visible, personal folders are closed by the profile but not
-hidden; `/bin/ps` runs outside the sandbox, only to read the process table; the xcrun cache files
+hidden; `/bin/ps` runs outside the sandbox, only to read the process table (the boundary tests
+replace it through `MYPI_BOUNDED_PS`, which the supervisor announces on stderr and `check.sh`,
+`tui.sh` and `ci.sh` clear with `env -u`); the xcrun cache files
 `$(getconf DARWIN_USER_TEMP_DIR)/xcrun_db*` are writable (the rest of that folder is not), since
 without the cache every call of the `/usr/bin/git` shim costs about 100 ms; `sandbox-exec` is a
 deprecated Apple interface; `NoNewPrivileges`, `OOMPolicy` and `KillMode=control-group` are
