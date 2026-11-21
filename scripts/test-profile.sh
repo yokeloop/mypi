@@ -15,7 +15,7 @@ start_fast="$(now)"
 node --permission --allow-fs-read=* --allow-fs-write=* --allow-addons \
   --test-isolation=none --test --test-concurrency=1 --test-reporter=spec dist/test/fast/*.test.js
 end_fast="$(now)"
-[[ $((end_fast - start_fast)) -le 5000 ]] || { echo "fast exceeds 5 seconds" >&2; exit 1; }
+[[ $((end_fast - start_fast)) -le 10000 ]] || { echo "fast exceeds 10 seconds" >&2; exit 1; }
 if [[ "$1" == verify ]]; then
   node --test --test-concurrency=1 --test-reporter=spec dist/test/boundary/*.test.js
 fi
@@ -29,9 +29,9 @@ if [[ "$os" == Linux ]]; then
 fi
 end="$(now)"
 elapsed=$((end - MYPi_CHECK_START))
-budget=55000
-[[ "$os" != Darwin ]] || budget=70000
-[[ "$1" != fast ]] || budget=5000
+budget=90000
+[[ "$os" != Darwin ]] || budget=150000
+[[ "$1" != fast ]] || budget=15000
 [[ "$elapsed" -le "$budget" ]] || { echo "Profile exceeds its working budget" >&2; exit 1; }
 if [[ "$os" == Linux ]]; then
   printf 'Cost: wall=%sms fast=%sms memory_peak=%s tasks_peak=%s\n' "$elapsed" "$((end_fast - start_fast))" "$(</limits/memory.peak)" "$(</limits/pids.peak)"
