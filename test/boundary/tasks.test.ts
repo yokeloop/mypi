@@ -149,7 +149,7 @@ test('task and journal paths invoke no Git and preserve staged and unstaged inde
   const bin = join(dir, 'bin'), marker = join(dir, 'git-invoked');
   mkdirSync(bin);
   const shim = join(bin, 'git');
-  writeFileSync(shim, '#!/usr/bin/bash\nprintf invoked >> ' + JSON.stringify(marker) + '\nexit 99\n');
+  writeFileSync(shim, '#!/bin/bash\nprintf invoked >> ' + JSON.stringify(marker) + '\nexit 99\n');
   chmodSync(shim, 0o755);
   const path = process.env.PATH;
   process.env.PATH = bin + ':' + path;

@@ -1,0 +1,24 @@
+(version 1)
+; macOS sandbox for the checks, in place of bwrap (docs/TESTING.md §6).
+; Closed: network except loopback and Unix sockets under SCRATCH; writes outside
+; WRITE, SCRATCH, COST and the terminal devices; reads of the engineer's HOME_DIR
+; except READ and TOOLS.
+; Weaker than bwrap: everything else is readable and the real system paths stay
+; visible (no mount namespace, no tmpfs, no PID namespace); /bin/ps runs outside the
+; sandbox, only to read the process table; the xcrun cache files USER_TEMP/xcrun_db* are
+; writable, else every git call through /usr/bin/git is slow; sandbox-exec is a deprecated
+; Apple interface.
+; Parameters, always passed with -D: HOME_DIR, READ, TOOLS, WRITE, SCRATCH, COST, USER_TEMP.
+(allow default)
+(deny network*)
+(allow network-bind network-inbound (local ip "localhost:*"))
+(allow network* (remote ip "localhost:*"))
+(allow network* (local unix-socket (subpath (param "SCRATCH"))))
+(allow network* (remote unix-socket (subpath (param "SCRATCH"))))
+(deny file-write* (subpath "/"))
+(allow file-write* (subpath (param "WRITE")) (subpath (param "SCRATCH")) (literal (param "COST"))
+  (literal "/dev/null") (literal "/dev/tty") (subpath "/dev/fd"))
+(allow file-write* (prefix (string-append (param "USER_TEMP") "/xcrun_db")))
+(deny file-read* (subpath (param "HOME_DIR")))
+(allow file-read* (subpath (param "READ")) (subpath (param "TOOLS")))
+(allow process-exec (literal "/bin/ps") (with no-sandbox))

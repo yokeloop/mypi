@@ -6,21 +6,22 @@ import { mkdtempSync, rmSync, mkdirSync, cpSync, symlinkSync, writeFileSync } fr
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fromWork, systemPath } from '../support/work.js';
 
 test('complete Node CLI dispatch: context/task lifecycle, partial repair, backup and restore into a fresh installation', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-all-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function installation(name: string) {
     const root = join(dir, name); mkdirSync(root);
-    cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-    symlinkSync('/work/node_modules', join(root, 'node_modules'));
-    symlinkSync('/work/integrations', join(root, 'integrations'));
+    cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+    symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+    symlinkSync(fromWork('integrations'), join(root, 'integrations'));
     return root;
   }
   const root = installation('engine');
   function run(where: string, args: string[], expected = 0) {
     const result = spawnSync(process.execPath, [join(where, 'dist/src/cli/main.js'), ...args], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state' },
+      env: { PATH: systemPath, HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state' },
       encoding: 'utf8', timeout: 4000,
     });
     assert.ifError(result.error);
@@ -29,7 +30,7 @@ test('complete Node CLI dispatch: context/task lifecycle, partial repair, backup
   }
   function text(args: string[], env: Record<string, string> = {}, expected = 0): string {
     const result = spawnSync(process.execPath, [join(root, 'dist/src/cli/main.js'), ...args], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: root + '-state', ...env },
+      env: { PATH: systemPath, HOME: join(dir, 'user'), XDG_STATE_HOME: root + '-state', ...env },
       encoding: 'utf8', timeout: 4000,
     });
     assert.ifError(result.error);

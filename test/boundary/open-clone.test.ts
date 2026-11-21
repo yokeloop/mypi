@@ -9,8 +9,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { cloneRepository } from '../../src/infrastructure/git/project-git.js';
 import { runOperation } from '../../src/app/operations.js';
+import { fromWork, systemPath } from '../support/work.js';
 
-const herdr = `#!/usr/bin/bash
+const herdr = `#!/bin/bash
 case "$1 $2" in
   'workspace list') echo '{"result":{"type":"workspace_list","workspaces":[]}}' ;;
   'workspace create') echo '{"result":{"workspace":{"workspace_id":"w1","label":"fx/big"},"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
@@ -22,19 +23,19 @@ case "$1 $2" in
       [ "$arg" = -- ] && after=1
       previous="$arg"
     done
-    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$PPID" > /dev/null
+    MYPI_SCOPE="$(printf %s "$3" | tr '[:lower:]' '[:upper:]')" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$PPID" > /dev/null
     echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
 esac
 `;
 
-const fakeGit = `#!/usr/bin/bash
+const fakeGit = `#!/bin/bash
 if [ "\${FAKE_GIT_MODE:-}" = slow ] && [[ " $* " == *" clone "* ]]; then
   target="\${@: -1}"
   mkdir -p "$target/.git"
   echo $$ > "$FAKE_GIT_PID"
+  sleep 30 & child=$!
   trap 'kill "$child" 2>/dev/null; exit 143' TERM INT
   printf 'Receiving objects:  10%% (1/10), 1.00 MiB | 1.00 MiB/s\\r' >&2
-  sleep 30 & child=$!
   wait "$child"
   exit 1
 fi
@@ -69,11 +70,11 @@ function installation(t: TestContext) {
   const root = join(fx.dir, 'engine'), runtime = join(fx.dir, 'run');
   mkdirSync(root);
   mkdirSync(runtime, { mode: 0o700 });
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
-  const env: Record<string, string> = { PATH: fx.bin + ':/work/tools:/usr/bin', HOME: fx.dir, XDG_STATE_HOME: join(fx.dir, 'state'),
+  const env: Record<string, string> = { PATH: `${fx.bin}:${systemPath}`, HOME: fx.dir, XDG_STATE_HOME: join(fx.dir, 'state'),
     XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
     FAKE_NODE: process.execPath, FAKE_CLI: entry };
   const cli = (args: string[]) => spawnSync(process.execPath, [entry, ...args], { env, cwd: fx.dir, encoding: 'utf8', timeout: 10000 });
@@ -111,8 +112,8 @@ test('a clone without output for the idle timeout is stopped and its process is 
   process.env['FAKE_GIT_MODE'] = 'slow';
   process.env['FAKE_GIT_PID'] = pidFile;
   const lines: string[] = [];
-  await assert.rejects(cloneRepository('file://' + bare, join(dir, 'x'), { idleTimeoutMs: 300, onLine: l => lines.push(l) }),
-    /made no progress for 0.3 s and was stopped/);
+  await assert.rejects(cloneRepository('file://' + bare, join(dir, 'x'), { idleTimeoutMs: 1000, onLine: l => lines.push(l) }),
+    /made no progress for 1 s and was stopped/);
   assert.ok(lines.includes('Receiving objects: 10% (1/10), 1.00 MiB | 1.00 MiB/s'), JSON.stringify(lines));
   gone();
 });

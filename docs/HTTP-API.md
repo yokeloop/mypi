@@ -366,8 +366,9 @@ how `server.json` is read. The session model is in
   UI also `mise exec -- pnpm tui:fetch` and `mise exec -- pnpm tui:build`. GNU coreutils are
   not needed: `scripts/bounded.mjs` holds the build time limit. In remote mode the CLI, hooks
   and MCP also work on the system Node 22, since a device needs no native sqlite.
-  `pnpm verify`, `pnpm test` and `pnpm tui:check` are not supported on macOS yet: they need
-  `systemd-run` and `bwrap`, so the checks run on Linux.
+  `pnpm test`, `pnpm verify` and `pnpm tui:check` run natively: `scripts/bounded.mjs` and
+  `/usr/bin/sandbox-exec` replace `systemd-run` and `bwrap`, with the weaker guarantees listed in
+  [TESTING](TESTING.md) §6.
 - `server.json` (0600) holds the `url`, the `device` token and the device name; its format and
   rules are in [remote mode](M1-CLI.md#remote-mode). Write it with:
 

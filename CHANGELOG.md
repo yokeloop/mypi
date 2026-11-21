@@ -16,6 +16,7 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - `/open` and `task worktree` from a device (MP-149): the clone and worktree are prepared locally from the project's `repository`; sessions of another device are not resumed, a new one starts with a note.
 - «Server and devices» in `docs/HTTP-API.md` (MP-150): moving the database to a server, device setup, backups with `sqlite3 .backup`, rollback and known limits.
 - `mypi project relativize [--apply]` (MP-155): prints, and with `--apply` rewrites, the checkout and worktree paths stored absolute under this device's mypi root as `projects/<org>/<project>[--<task>]`.
+- Checks on macOS (MP-157): `pnpm test`, `pnpm verify` and `pnpm tui:check` run natively under `scripts/bounded.mjs` (time, polled memory and processes, `already running` lock, surviving-child audit, `Cost:` line) and `sandbox-exec` with `scripts/sandbox.sb`; weaker guarantees in `docs/TESTING.md` §6; CI also runs on macOS; Linux limits unchanged.
 
 ### Changed
 
