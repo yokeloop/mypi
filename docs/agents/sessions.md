@@ -10,7 +10,8 @@ Read when: working with session registration, /open, start messages, events, mil
   only in a turn that a message in the mypi parent-message frame started through
   its socket; the event goes to that sender when it is a parent of the task, else
   to the task's project. From `session_start` to
-  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (0600),
+  `session_shutdown` it holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock` (on macOS
+  without the variable, `$TMPDIR/mypi/<key>-<pid>.sock`; 0600),
   one socket per Pi process, and registers its path; `mypi event emit` then
   claims all undelivered, unclaimed events of the parent except milestones for the
   parent's active session when it is a live Pi session, in one transaction
@@ -75,7 +76,8 @@ Read when: working with session registration, /open, start messages, events, mil
 - Both agents register their sessions: a row in the `sessions` table (one per
   agent and native id: key, device, `active_at`, kept for continuation; a key has
   many rows) and a live record per process in
-  `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` (owner-only; pid and process
+  `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` (on macOS without
+  `XDG_RUNTIME_DIR`, `$TMPDIR/mypi/sessions/`; owner-only; pid and process
   start, native id, name, socket, start permission mode). The key is resolved in
   one order: the row for this native id, the live record of the same process,
   `MYPI_SCOPE`, `global`. Many sessions of one key live side by side; none is
@@ -93,8 +95,9 @@ Read when: working with session registration, /open, start messages, events, mil
   `MYPI_SCOPE` is not registered. `mypi sessions` (MCP `sessions`) shows the tree,
   each node with its active `session` and all its `sessions`;
   `mypi session forget <key>` drops every row of the key on the user's request.
-  Without `XDG_RUNTIME_DIR` or an initialized schema 17 database registration fails
-  and the warmup still runs. /open (MCP open_session, CLI mypi open) works on the
+  Without `XDG_RUNTIME_DIR` on Linux or an initialized schema 17 database registration
+  fails and the warmup still runs; on macOS without the variable the registry is in
+  `$TMPDIR`. /open (MCP open_session, CLI mypi open) works on the
   sessions of this device: it focuses a live session's Herdr tab (the active
   session's, else the live session active last; otherwise it resumes the session
   active last); `--agent` limits this to that agent and starts it when it has no
@@ -128,7 +131,8 @@ Read when: working with session registration, /open, start messages, events, mil
   same message as the start text; `opened[].message` is its id.
 - Remote mode (`server.json`, [M1-CLI](../M1-CLI.md#remote-mode)): the `sessions`
   and `events` rows live on the server; the registry
-  `$XDG_RUNTIME_DIR/mypi/sessions`, sockets and transcripts stay on the device. A
+  `$XDG_RUNTIME_DIR/mypi/sessions` (macOS without the variable:
+  `$TMPDIR/mypi/sessions`), sockets and transcripts stay on the device. A
   row's `device` is the `device` of `server.json`, else `os.hostname()`. A new
   session becomes active when this device has no other live record of the key; the
   server does not see other devices' registries. A sender claims only for the active

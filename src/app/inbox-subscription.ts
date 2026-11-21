@@ -1,6 +1,7 @@
 import { claimFor } from './delivery.js';
 import type { EventTransports } from './delivery.js';
 import type { SessionOperationOutput, SessionRunner } from './session-operations.js';
+import { ProcessProbeError } from '../modules/sessions/public.js';
 import type { Agent, DeviceSessions } from '../modules/sessions/public.js';
 import { KEEPALIVE_MS } from '../shared/change-stream.js';
 
@@ -9,14 +10,31 @@ export const IDLE_MS = KEEPALIVE_MS * 12 / 5;
 export type SubscriptionOptions = { server: { url: string; token: string }; pid: number; agent: Agent; runner: SessionRunner;
   device: Pick<DeviceSessions, 'start' | 'records'>; transports: EventTransports;
   fetch: (url: string, init: RequestInit) => Promise<Response>; pause: (ms: number) => Promise<void>;
-  timer: (ms: number, fire: () => void) => () => void; signal: AbortSignal };
+  timer: (ms: number, fire: () => void) => () => void; signal: AbortSignal; now?: () => number };
 
 export async function subscribeInbox(o: SubscriptionOptions): Promise<void> {
-  const startOf = (): string | undefined => { try { return o.device.start(o.pid); } catch { return undefined; } };
-  const start = startOf();
-  if (start === undefined) return;
-  const alive = () => startOf() === start;
+  const clock = o.now ?? Date.now;
+  let failingSince: number | undefined;
+  const startOf = (): string | undefined | null => {
+    try {
+      const value = o.device.start(o.pid);
+      failingSince = undefined;
+      return value;
+    } catch (error) {
+      if (!(error instanceof ProcessProbeError)) return undefined;
+      failingSince ??= clock();
+      return clock() - failingSince > 60000 ? undefined : null;
+    }
+  };
   let retry = 2000, dirty = false;
+  let first = startOf();
+  while (first === null && !o.signal.aborted) {
+    await o.pause(retry);
+    first = startOf();
+  }
+  if (first === undefined || first === null) return;
+  const start = first;
+  const alive = () => { const now = startOf(); return now === null || now === start; };
   let inFlight: Promise<void> | undefined;
   const claim = async (): Promise<boolean> => {
     try {

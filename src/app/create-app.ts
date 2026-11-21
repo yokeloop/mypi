@@ -13,9 +13,10 @@ import type { CheckoutPaths } from '../modules/projects/ports.js';
 import { sqliteJournalStore } from '../modules/knowledge/public.js';
 import { createDeviceSessions, createSessions } from '../modules/sessions/public.js';
 import type { DeviceSessions } from '../modules/sessions/public.js';
-import type { SessionScope } from '../modules/sessions/ports.js';
+import type { ProcessProbe, SessionScope } from '../modules/sessions/ports.js';
 import { sqliteSessionStore } from '../modules/sessions/adapters/sqlite-session-store.js';
-import { fsRegistry } from '../modules/sessions/adapters/fs-registry.js';
+import { fsRegistry, procProbe } from '../modules/sessions/adapters/fs-registry.js';
+import { psProbe } from '../modules/sessions/adapters/ps-probe.js';
 import { createEvents } from '../modules/events/public.js';
 import { sqliteEventStore } from '../modules/events/adapters/sqlite-event-store.js';
 import { createArchive } from '../modules/archive/public.js';
@@ -41,8 +42,18 @@ export function initializeState(filename: string, createOnly = false): void {
   initializeDatabase(externalDatabasePath(filename, engineRoot()), createOnly);
 }
 
+let processRun: ((pid: number) => { status: number | null; stdout: string }) | undefined;
+
+export function useProcessProbe(run: (pid: number) => { status: number | null; stdout: string }): void {
+  processRun = run;
+}
+
+function probeFor(proc: string): ProcessProbe {
+  return proc === '/proc' && process.platform === 'darwin' && processRun !== undefined ? psProbe(processRun) : procProbe(proc);
+}
+
 export function deviceSessions(runtime: string | undefined, proc = '/proc'): DeviceSessions {
-  return createDeviceSessions(() => fsRegistry(sessionRegistryDir(runtime), proc), () => new Date().toISOString());
+  return createDeviceSessions(() => fsRegistry(sessionRegistryDir(runtime), probeFor(proc)), () => new Date().toISOString());
 }
 
 export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString(),
@@ -97,7 +108,7 @@ export function createApp(filename: string, readonly: boolean, clock = () => new
     }),
     projects,
     journalStore: sqliteJournalStore(db),
-    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), proc), sessionScope, orgOf, clock, () => hostname()),
+    sessions: (runtime: string | undefined, proc = '/proc') => createSessions(sqliteSessionStore(db), () => fsRegistry(sessionRegistryDir(runtime), probeFor(proc)), sessionScope, orgOf, clock, () => hostname()),
     events: createEvents(sqliteEventStore(db), sessionScope, parents, clock),
     archiveKeys,
     close: () => db.close(),

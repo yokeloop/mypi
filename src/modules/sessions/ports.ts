@@ -20,6 +20,10 @@ export interface RegistryRecord {
   name: string | null; socket: string | null; permissionMode: string | null;
   registeredAt: string; herdrName?: string;
 }
+export interface ProcessProbe {
+  start(pid: number): string | undefined;
+  args(pid: number): string[] | null;
+}
 export interface Registry {
   start(pid: number): string | undefined;
   permissionMode(pid: number): string | null;

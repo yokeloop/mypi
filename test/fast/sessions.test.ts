@@ -7,11 +7,12 @@ import { hostname } from 'node:os';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { sessionRegistryDir } from '../../src/infrastructure/filesystem/paths.js';
 import { warmupScope } from '../../src/app/warmup.js';
 import { sessionKey } from '../../src/app/sessions.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
 import { hookInput, promptInput, sessionHint } from '../../src/app/session-input.js';
-import { sessionTree } from '../../src/modules/sessions/public.js';
+import { createDeviceSessions, fsRegistry, psProbe, sessionTree } from '../../src/modules/sessions/public.js';
 import type { RegistryRecord, SessionRow } from '../../src/modules/sessions/public.js';
 import { InputError } from '../../src/shared/errors.js';
 
@@ -270,12 +271,22 @@ test('the registry refuses an unsafe directory and a missing XDG_RUNTIME_DIR', t
   mkdirSync(join(run, 'mypi'));
   chmodSync(join(run, 'mypi'), 0o755);
   assert.throws(() => s(x => x.register(claude('c1', 101))), /Unsafe session registry directory/);
-  for (const runtime of [undefined, 'relative']) {
+  for (const runtime of process.platform === 'linux' ? [undefined, 'relative'] : ['relative']) {
     const app = createApp(filename, false);
     try {
       assert.throws(() => app.sessions(runtime, proc).register(claude('c1', 101)), /XDG_RUNTIME_DIR must be an absolute path/);
     } finally { app.close(); }
   }
+  const missing = /XDG_RUNTIME_DIR must be an absolute path/;
+  const tmp = join(dir, 'tmp');
+  assert.throws(() => sessionRegistryDir(undefined, 'linux'), missing);
+  assert.throws(() => sessionRegistryDir('', 'linux'), missing);
+  assert.equal(sessionRegistryDir(undefined, 'darwin', () => tmp), join(tmp, 'mypi', 'sessions'));
+  assert.equal(sessionRegistryDir('', 'darwin', () => tmp), join(tmp, 'mypi', 'sessions'));
+  assert.throws(() => sessionRegistryDir('relative', 'darwin', () => tmp), missing);
+  assert.throws(() => sessionRegistryDir('/a\0b', 'darwin', () => tmp), missing);
+  assert.throws(() => sessionRegistryDir(undefined, 'darwin', () => 'relative'), missing);
+  assert.equal(sessionRegistryDir('/run/user/1', 'darwin', () => tmp), '/run/user/1/mypi/sessions');
 });
 
 test('register validates the process, the native id and the key', t => {
@@ -552,4 +563,93 @@ test('SessionStart hook input and the environment hint', () => {
     { agent: 'claude', nativeId: 'c1', pid: 42, runtime: '/run/user/1' });
   assert.deepEqual(sessionHint({ PI_SESSION_ID: 'p1' }, 42), { agent: 'pi', nativeId: 'p1', pid: 42 });
   assert.equal(sessionHint({ CLAUDE_CODE_SESSION_ID: '', PI_SESSION_ID: '', XDG_RUNTIME_DIR: '' }, 42), undefined);
+});
+
+function psFake(t: TestContext) {
+  const run = join(state(t).dir, 'run');
+  mkdirSync(run, { mode: 0o700 });
+  const dir = join(run, 'mypi', 'sessions');
+  const out = new Map<number, string>();
+  const calls = new Map<number, number>();
+  const errors = new Map<number, string>();
+  const failures = new Map<number, number | 'timeout'>();
+  const dies = new Set<number>();
+  const ps = (pid: number) => {
+    calls.set(pid, (calls.get(pid) ?? 0) + 1);
+    const failure = failures.get(pid);
+    if (failure === 'timeout') throw Object.assign(new Error('spawnSync /bin/ps ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    const stdout = out.get(pid);
+    return stdout === undefined ? { status: failure ?? 1, stdout: '' } : { status: 0, stdout };
+  };
+  const kill = (pid: number) => {
+    const code = dies.has(pid) && calls.has(pid) ? 'ESRCH' : errors.get(pid);
+    if (code !== undefined) throw Object.assign(new Error('kill'), { code });
+    return true;
+  };
+  return { dir, out, calls, errors, failures, dies, ps, kill };
+}
+
+test('ps probe: a live pid whose lstart matches the record start is live, another lstart is dead, ESRCH is undefined without running ps', t => {
+  const { dir, out, calls, errors, ps, kill } = psFake(t);
+  const device = createDeviceSessions(() => fsRegistry(dir, psProbe(ps, kill)), () => at);
+  out.set(101, 'Fri Nov 20 21:03:00 2026     claude --resume abc\n');
+  const { start } = device.prepare({ agent: 'claude', nativeId: 'c1', pid: 101, fork: false });
+  assert.equal(start, 'Fri Nov 20 21:03:00 2026');
+  device.record('global', { agent: 'claude', nativeId: 'c1', pid: 101, start, name: null, socket: null });
+  assert.deepEqual(device.records().map(r => r.pid), [101]);
+  out.set(101, 'Fri Nov 20 21:04:00 2026     other\n');
+  assert.deepEqual(device.records(), []);
+  errors.set(999, 'ESRCH');
+  out.set(999, 'Fri Nov 20 21:03:00 2026     claude\n');
+  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c2', pid: 999, fork: false }), /Process 999 is not running/);
+  assert.equal(calls.get(999), undefined);
+  errors.set(1, 'EPERM');
+  out.set(1, 'Fri Nov 20 20:00:00 2026     /sbin/launchd\n');
+  assert.ok(device.prepare({ agent: 'claude', nativeId: 'c3', pid: 1, fork: false }).start);
+  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c4', pid: 102, fork: false }), /Cannot read process 102 through ps/);
+});
+
+test('ps probe: a ps failure for a live pid throws and keeps the record, a pid that died between kill and ps is undefined', t => {
+  const { dir, out, failures, dies, ps, kill } = psFake(t);
+  const device = createDeviceSessions(() => fsRegistry(dir, psProbe(ps, kill)), () => at);
+  out.set(101, 'Fri Nov 20 21:03:00 2026     claude\n');
+  const { start } = device.prepare({ agent: 'claude', nativeId: 'c1', pid: 101, fork: false });
+  device.record('global', { agent: 'claude', nativeId: 'c1', pid: 101, start, name: null, socket: null });
+  const file = join(dir, 'global~101.json');
+  out.delete(101);
+  for (const failure of ['timeout', 2] as const) {
+    failures.set(101, failure);
+    assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+    assert.equal(existsSync(file), true);
+  }
+  failures.delete(101);
+  assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+  assert.equal(existsSync(file), true);
+  out.set(101, 'short\n');
+  assert.throws(() => device.isLive('global'), /Cannot read process 101 through ps/);
+  assert.equal(existsSync(file), true);
+  out.delete(101);
+  dies.add(101);
+  assert.equal(device.isLive('global'), false);
+  assert.equal(existsSync(file), false);
+  dies.add(102);
+  assert.throws(() => device.prepare({ agent: 'claude', nativeId: 'c2', pid: 102, fork: false }), /Process 102 is not running/);
+});
+
+test('ps probe: the permission mode comes from args', t => {
+  const { dir, out, ps, kill } = psFake(t);
+  const registry = fsRegistry(dir, psProbe(ps, kill));
+  const lstart = 'Fri Nov 20 21:03:00 2026 ';
+  const cases: [string, string | null][] = [
+    ['claude --mcp-config=/x.json --resume abc --permission-mode plan', 'plan'],
+    ['claude --permission-mode=auto', 'auto'],
+    ['claude --dangerously-skip-permissions', 'bypassPermissions'],
+    ['claude', null],
+  ];
+  for (const [args, mode] of cases) {
+    out.set(101, lstart + '    ' + args + '\n');
+    assert.equal(registry.permissionMode(101), mode, args);
+  }
+  out.delete(101);
+  assert.equal(registry.permissionMode(101), null);
 });
