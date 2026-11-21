@@ -53,7 +53,8 @@ live in an independent `home/` Git.
 Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
 version 1.0.4 (manually checked). Linux is the verified platform for the engine and its
 checks; macOS (arm64, mise from Homebrew) is verified as a device: install and build per
-"Devices" in `docs/HTTP-API.md`; the checks are not supported on macOS yet. No
+"Devices" in `docs/HTTP-API.md`; the checks run natively on macOS with weaker guarantees
+(docs/TESTING.md §6). No
 global agent configuration is installed or changed.
 Rust for the optional terminal UI is pinned in mise.toml and installed by mise install (rustup).
 
@@ -467,8 +468,9 @@ limits and network/home isolation remain in place. This is ordinary CI, not a
 candidate-independent security attestation.
 
 Read [TESTING](docs/TESTING.md) before test changes. test runs fast only; verify runs
-admission + fast + boundary. Linux user systemd, cgroup v2 and bubblewrap are required;
-no unsafe fallback. Build changed source/tests first; stale dist is rejected. Tests
+admission + fast + boundary. On Linux user systemd, cgroup v2 and bubblewrap are required;
+on macOS `/usr/bin/sandbox-exec` (part of the system), Node 24 and Rust through mise; no
+unsafe fallback. Build changed source/tests first; stale dist is rejected. Tests
 create disposable installations and must not use the personal DB/home.
 
 CLI help: `mise exec -- node dist/src/cli/main.js --help`.

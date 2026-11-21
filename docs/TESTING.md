@@ -117,7 +117,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 |---|---|---|
 | Scope/identity/traversal | Core input tables; temp FS symlink/escape and no-write checks | Narrow CLI forwarding/error canary, not every ID through subprocess |
 | Scoped warmup | Golden Markdown files in test/fixtures/warmup/ for global/project/task on a temp DB/home; scope priority; errors; 64 KiB entry clipping, invitation lines, the reports marker; character budget (multi-byte, overflow, range) | CLI text output, MYPI_SCOPE priority and error exit; MCP text |
-| Session registry | Fast tests on a temp DB, temp XDG_RUNTIME_DIR and a fake /proc: owner-only files, pid+start liveness, many live records per key, the active session, unregister/forget, tree, nine key-resolution scenarios, permission mode; the `ps` probe with fake `ps` and `kill` (`lstart`/`args` parsing, ESRCH without running `ps`, EPERM as live, another `lstart` as dead, a `ps` failure for a live pid throws and keeps the record, `ps` exit 1 without output plus a repeated ESRCH as not running, permission mode) and the registry directory for darwin and linux | One CLI boundary test with hook stdin and the real /proc on Linux; macOS by acceptance on a Mac; manual stand checklist with Claude Code and Pi versions |
+| Session registry | Fast tests on a temp DB, temp XDG_RUNTIME_DIR and a fake /proc: owner-only files, pid+start liveness, many live records per key, the active session, unregister/forget, tree, nine key-resolution scenarios, permission mode; the `ps` probe with fake `ps` and `kill` (`lstart`/`args` parsing, ESRCH without running `ps`, EPERM as live, another `lstart` as dead, a `ps` failure for a live pid throws and keeps the record, `ps` exit 1 without output plus a repeated ESRCH as not running, permission mode) and the registry directory for darwin and linux | One CLI boundary test with hook stdin, the real /proc on Linux and `ps` on macOS (the `$TMPDIR` fallback without `XDG_RUNTIME_DIR` on macOS); manual stand checklist with Claude Code and Pi versions |
 | Claude Code adapter | Shape of .mcp.json and .claude/settings.json; allow list equals the MCP tool list | Manual stand checklist with the Claude Code version (approval, warmup on start/clear/resume/compact, no prompts) |
 | Pi extension | Fast test of .pi/extensions/mypi.ts against a stub ExtensionAPI: MCP registration with the session id, re-registration on a new session, warmup section on every turn, failure section; the /open, /inbox, /flow and /epic commands (/flow sends /skill:flow, /epic sends /skill:epic); the mypi_ask tool: recommended and other option, own word, Escape in the select and in the input, no UI | Manual stand checklist with a real Pi; its version is recorded in the PR; /flow to an agreed plan on a fixture (MP-117); /epic to the subtasks and the hand-over to /flow on a fixture (MP-119) |
 | Capture/note/journal | Unicode/multiline, exact source, no-overwrite, read-only API behavior | Real context commit and preservation of unrelated dirty diff |
@@ -277,6 +277,25 @@ Do not relabel expensive work outside the measurement to claim a faster suite.
   dedicated-worker concurrency; do not write a host scheduler.
 - Targeted, test, verify and CI runs obey one policy. Direct unbounded node --test is
   not evidence of safe verification; a package script alone does not prevent bash bypass.
+
+Addition 2026-11-21 (MP-157), macOS. On macOS the containment scope is `scripts/bounded.mjs`
+(58 s + 2 s, 1 GiB of summed RSS and 64 processes by polling `ps` every 200 ms, the lock
+`/private/tmp/<name>.lock`, an audit of surviving descendants) together with
+`/usr/bin/sandbox-exec` and `scripts/sandbox.sb` (no network except loopback and Unix sockets
+in the run's `tmp`; writes only to the run's `tmp`, `tui/target` or `dist`; no reads of the
+engineer's HOME except the Rust sysroot). Weaker than on Linux: memory and tasks are a soft
+bound by polling, not a kernel limit, so a spike between polls is possible, swap is not
+limited and processes are counted, not threads; CPU has no 200 % quota, the `CPU:` line from
+rusage (`times`) is only a report; there is no PID namespace: tests see other processes, and a
+descendant born and gone between polls is invisible to the audit; there is no mount namespace
+or tmpfs: the real system paths are visible, personal folders are closed by the profile but not
+hidden; `/bin/ps` runs outside the sandbox, only to read the process table; `sandbox-exec` is a
+deprecated Apple interface; `NoNewPrivileges`, `OOMPolicy` and `KillMode=control-group` are
+replaced by the supervisor killing the group and every pid it has seen. The supervisor is the
+small checker for a gap the OS leaves; its lock only refuses a second run and is not a host
+scheduler. Such a `verify` is evidence for done; on Linux everything stays as above, the
+reference budget measurements are taken on Linux, and CI checks both OSes. `tui:check` and the
+CI build on macOS run under their own locks `mypi-tui-check` and `mypi-ci-build`.
 
 CI runs ordinary `pull_request` verification using the proposed revision's locked
 dependencies and scripts. Package, lockfile and script changes do not require a
