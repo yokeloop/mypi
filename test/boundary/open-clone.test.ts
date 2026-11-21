@@ -33,9 +33,9 @@ if [ "\${FAKE_GIT_MODE:-}" = slow ] && [[ " $* " == *" clone "* ]]; then
   target="\${@: -1}"
   mkdir -p "$target/.git"
   echo $$ > "$FAKE_GIT_PID"
+  sleep 30 & child=$!
   trap 'kill "$child" 2>/dev/null; exit 143' TERM INT
   printf 'Receiving objects:  10%% (1/10), 1.00 MiB | 1.00 MiB/s\\r' >&2
-  sleep 30 & child=$!
   wait "$child"
   exit 1
 fi
