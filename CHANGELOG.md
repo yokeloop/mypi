@@ -6,7 +6,7 @@ match the GitHub releases.
 
 ## [Unreleased]
 
-Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the update (back up the database first); reload or restart Claude Code and Pi sessions.
+Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the update (back up the database first); reload or restart Claude Code and Pi sessions. Then, only by the decision of the database's owner, run `mypi project relativize` once and `mypi project relativize --apply` on the device where the paths were recorded; until then the old absolute paths keep working on their device.
 
 ### Added
 
@@ -15,11 +15,13 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - Archive on the server (MP-148): in remote mode `archive import`, `capture`, `search`, `show`, `status` and `forget` run against `archive.sqlite3` on the server.
 - `/open` and `task worktree` from a device (MP-149): the clone and worktree are prepared locally from the project's `repository`; sessions of another device are not resumed, a new one starts with a note.
 - «Server and devices» in `docs/HTTP-API.md` (MP-150): moving the database to a server, device setup, backups with `sqlite3 .backup`, rollback and known limits.
+- `mypi project relativize [--apply]` (MP-155): prints, and with `--apply` rewrites, the checkout and worktree paths stored absolute under this device's mypi root as `projects/<org>/<project>[--<task>]`.
 
 ### Changed
 
 - `repository` is required (MP-144): `project add` needs `--repository <git-url>`, and `local` is refused in `add` and `update`. Rows registered earlier without a repository or as `local` keep working; set one with `project update … --repository <url>` (`docs/M1-CLI.md`).
 - Schema 16 and 17 (MP-140, MP-142): `sessions` holds many rows per key with `device` and `active_at`; `events` gains `claimed_by` and `claimed_at`; `mypi db init` is required.
+- Clone and worktree paths under the mypi root are stored relative to it and resolved by each device from its own root (MP-155), so a Mac with `/Users` and a Linux device with `/home` share one registration; other paths stay absolute.
 
 ### Fixed
 

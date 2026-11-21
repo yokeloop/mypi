@@ -205,9 +205,10 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
   `session_opened` journal entry); `worktree_record` `{key, worktreePath, created?}`
   (`created` is `{branch, base}` and adds `worktree_created`); `checkout_record`
   `{identity, checkoutPath, action, repository?}` (`action` is `cloned`, `initialized` or
-  `adopted`; answers `{checkoutPath}` and adds `clone_prepared`). `worktreePath` and
-  `checkoutPath` are paths on the device: the server stores them as text and never opens
-  them.
+  `adopted`; answers `{checkoutPath}` and adds `clone_prepared`). A
+  `worktreePath` or `checkoutPath` under the device's mypi root is stored as
+  `projects/<org>/<project>[--<task>]`, any other one absolute; the server stores the text
+  and never opens it. `expectedCheckoutPath` is compared with the stored text.
   The archive operations are the archive's own API on the same `/v1/ops`:
   `archive_offset` `{agent, nativeId}`; `archive_record` `{agent, nativeId, path,
   expectedOffset, newOffset, read}`; `archive_status`, `archive_search`, `archive_show`
@@ -220,7 +221,10 @@ Reading events never marks them delivered; `/inbox` and the warmup work as befor
 
 The server runs the operation in its own process as one SQLite transaction, without
 queues or leases. The device sends project paths already canonicalized; the server
-stores them as sent and never looks at its own filesystem for them. `data` is the
+stores them as sent and never looks at its own filesystem for them. The device's CLI and
+stdio MCP turn a path under their own mypi root into `projects/…` on the way out and back
+into an absolute path from that root on the way in; `serve` and `/v1/*` return the stored
+text. `data` is the
 result in the engine's internal form, in the usual envelope. The session and event
 operations serve the device's CLI, MCP and hooks; the session registry, sockets,
 transcripts and the rendering of the warmup stay on the device.
@@ -373,10 +377,14 @@ how `server.json` is read. The session model is in
       > "${XDG_CONFIG_HOME:-$HOME/.config}/mypi/server.json")
   ```
 
-- Clone paths are recorded on the server and are the same on every device. On a new device,
-  clone by hand with `git clone <repository> <path>` at the recorded path; until then
-  `task worktree` and `open` answer with a hint naming that command
-  ([remote mode](M1-CLI.md#remote-mode)).
+- A clone under the mypi root is shared by every device through its relative path: each
+  device resolves `projects/<org>/<project>` from its own root
+  (`~/Projects/mypi/projects/<org>/<project>`). A clone outside the root is stored absolute
+  and works only on its own device. On a new device, clone by hand with
+  `git clone <repository> <path on this device>`; until then `task worktree` and `open`
+  answer with a hint naming that command ([remote mode](M1-CLI.md#remote-mode)). Older
+  absolute records are rewritten by `mypi project relativize --apply` on the device that
+  recorded them.
 - Rule: push `home` changes right after each commit; after switching to another device,
   `git pull` in `home` and in the task's clone or worktree before working.
 

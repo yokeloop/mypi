@@ -8,7 +8,7 @@ an LLM or execute flow. Full command syntax is in help.
 These are optional commands, not an agent startup or task-registration procedure.
 The former mandatory workflow is [withdrawn](AGENT-WORKFLOW.md).
 
-MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, project remove, org remove, home migrate-tasks, archive import, archive status, archive capture, archive forget and task worktree exist only in this CLI.
+MCP exposes only agent operations. db init, bootstrap, backup (including --publish), restore, journal import, status list/add/rename/terminal/remove, context restore, project remove, org remove, home migrate-tasks, archive import, archive status, archive capture, archive forget, task worktree and project relativize exist only in this CLI.
 
 ## Storage and context operations
 
@@ -19,10 +19,11 @@ Use only with explicit intent; stop other writers for bootstrap/restore.
 
 ```text
 project add org/project --code MP --repository <git-url> [--path /absolute/checkout]
-project update org/project [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
+project update org/project [(--expected-path <stored text> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 project list [--org org]
 project resolve /absolute/existing-directory
 project flow MP|org/project
+project relativize [--apply]
 project remove org/project --expected-code MP
 org remove org
 capture "original text"
@@ -66,7 +67,9 @@ Task cards from task show and task list include worktreePath (null until a workt
 recorded) and parent (the key of the parent task, or null).
 `project resolve` returns `{match:"project",identity,code,scope}` or `{match:"none"}`
 or `{match:"ambiguous",projects}` using the registered checkout resolver; sibling
-worktrees are not inferred.
+worktrees are not inferred. On a device it compares the path with the checkout paths of
+this device's `project list`. `--expected-path` of `project update` is compared with the
+stored text: `projects/<org>/<project>` for a clone under the mypi root.
 `project add` requires `--repository`, the project's Git remote URL (https://, ssh://, file://, [user@]host:path or an absolute path); `local` is refused in `add` and `update`. A row registered earlier without a repository gets one with `project update <org/project> --expected-repository-unset --repository <url>`; a row registered as `local` with `project update <org/project> --expected-repository local --repository <url>`. Until then both keep working: `open` refuses the first with "no repository to clone it from" and runs `git init` for the second.
 `project remove` deletes a registration only when its code matches `--expected-code`
 and no tasks, sessions, journal entries of the project or its tasks, or events
@@ -119,6 +122,13 @@ a template without `{KEY}` or with other placeholders, a merge method other than
 `merge`, `squash` or `rebase`, or a release that is neither an https URL nor a path
 relative to the clone is refused with `Invalid flow <absolute file>: <field> …`. An
 unknown project is refused. It only reads.
+
+`project relativize` prints the checkout and worktree paths stored absolute under this
+device's mypi root with the relative text they would get:
+`{applied,projects:[{identity,from,to}],worktrees:[{key,from,to}]}`; it writes nothing.
+`--apply` rewrites them, each checkout with the stored absolute path as the expected
+value. A repeat finds nothing to change, paths outside `<root>/projects/` stay as they
+are, and no journal entry is written.
 
 `task worktree MP-1` works in the project's registered base clone: it fetches
 `origin`, fast-forwards the integration branch of the project's flow (without
@@ -337,8 +347,10 @@ A device works against the database of a `mypi serve` on another machine when it
   Pi extension on `agent_settled`) work in remote mode.
 - `sessions`, `task worktree` and `open`, and the MCP tools `sessions` and
   `open_session`, work: their data are operations on the server, clones and worktrees
-  stay on the device at the same paths. A clone on a new device is made by hand with
-  `git clone <repository> <path>`; until then `task worktree` and `open` of a task
+  stay on the device. A path under the mypi root is stored as
+  `projects/<org>/<project>[--<task>]` and each device resolves it from its own root;
+  a path outside the root is stored absolute and works only on its device. A clone on a
+  new device is made by hand with `git clone <repository> <path>`; until then `task worktree` and `open` of a task
   answer `clone <path> of <org/slug> is not on this device; git clone <repository> <path>`.
   A session of another device is not resumed.
 - Every other command, including `db init`, `bootstrap`, `backup`, `restore`,
