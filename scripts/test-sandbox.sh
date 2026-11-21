@@ -20,11 +20,12 @@ mkdir "$work/.claude" && "${copy[@]}" "$root"/.claude/{settings.json,agents,skil
 mkdir "$work/tui" && "${copy[@]}" "$root"/tui/{Cargo.toml,Cargo.lock,rust-toolchain.toml,herdr-plugin.toml,src} "$work/tui/"
 if [[ "$os" == Darwin ]]; then
   [[ "$PPID" == "${MYPI_BOUNDED_PID:-}" ]] || { echo "Missing bounded supervisor" >&2; exit 1; }
-  mkdir -p "$work/tmp/home"
-  (cd "$work" && env -i PATH="$work/tools:/usr/bin:/bin" HOME="$work/tmp/home" XDG_STATE_HOME="$work/tmp/state" TMPDIR="$work/tmp" \
+  tmp="$MYPI_BOUNDED_DIR/tmp"
+  mkdir -p "$tmp/home"
+  (cd "$work" && env -i PATH="$work/tools:/usr/bin:/bin" HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" TMPDIR="$tmp" \
     LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null MYPi_CHECK_START="$start" MYPI_COST_FILE="$MYPI_BOUNDED_DIR/cost" \
     /usr/bin/sandbox-exec -f "$work/scripts/sandbox.sb" -D HOME_DIR="$HOME" -D READ="$work" -D TOOLS="$work/tools" \
-    -D WRITE="$work/tmp" -D SCRATCH="$work/tmp" -D COST="$MYPI_BOUNDED_DIR/cost" \
+    -D WRITE="$tmp" -D SCRATCH="$tmp" -D COST="$MYPI_BOUNDED_DIR/cost" \
     /bin/bash scripts/test-profile.sh "$profile")
   exit
 fi
