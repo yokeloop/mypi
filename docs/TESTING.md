@@ -200,13 +200,14 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64) and 2026-11-04 (MP-71, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64), 2026-11-04 (MP-71) and 2026-11-21 (MP-157, below).
 
 | Parameter | Accepted value |
 |---|---:|
-| Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 55 s |
-| External hard deadline, including stop/cleanup | 60 s |
+| Fast tests working time | ≤ 10 s |
+| Fast profile (`pnpm test`) working time | ≤ 15 s |
+| Full mandatory test-profile working time | ≤ 90 s (macOS ≤ 150 s) |
+| External hard deadline, including stop/cleanup | 95 s (macOS 155 s) |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
 | Concurrent test workers / suite runs on the dedicated runner | 1 / 1 |
@@ -252,7 +253,16 @@ total, which leaves room above the 55 s budget.
 Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
 
-Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the 55 s test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
+Revision 2026-11-21 (MP-157). By the engineer's decision «давай и на маке и на линуксе
+поднимем лимит по приемлемого», measured on CI runners: Linux verify was killed at
+RuntimeMaxSec 58 s while boundary still ran, macOS fast tests took 7.4 s. The fast tests
+step is ≤ 10 s and the whole fast profile (`pnpm test`) ≤ 15 s on both OSes; the full
+profile is ≤ 90 s on Linux and ≤ 150 s on macOS. The test unit mypi-tests gets
+RuntimeMaxSec 93 s on Linux and the macOS supervisor stops at 153 s, each with the same
+2 s stop. The build (55 s), `tui:check` and the CI build unit (58 s) and the CPU/memory/task
+limits are unchanged.
+
+Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated
@@ -279,7 +289,7 @@ Do not relabel expensive work outside the measurement to claim a faster suite.
   not evidence of safe verification; a package script alone does not prevent bash bypass.
 
 Addition 2026-11-21 (MP-157), macOS. On macOS the containment scope is `scripts/bounded.mjs`
-(73 s + 2 s for verify and test, 58 s + 2 s for `tui:check` and the CI build, 1 GiB of
+(153 s + 2 s for verify and test, 58 s + 2 s for `tui:check` and the CI build, 1 GiB of
 summed RSS and 64 processes by polling `ps` every 200 ms, the lock `/private/tmp/<name>.lock`, an audit of surviving descendants) together with
 `/usr/bin/sandbox-exec` and `scripts/sandbox.sb` (no network except loopback and Unix sockets
 in the run's `tmp`; writes only to the run's `tmp`, `tui/target` or `dist`; no reads of the
@@ -297,9 +307,10 @@ without the cache every call of the `/usr/bin/git` shim costs about 100 ms; `san
 deprecated Apple interface; `NoNewPrivileges`, `OOMPolicy` and `KillMode=control-group` are
 replaced by the supervisor killing the group and every pid it has seen. The supervisor is the
 small checker for a gap the OS leaves; its lock only refuses a second run and is not a host
-scheduler. Limits on macOS (engineer's decision «увеличь лимиты»): the profile budget is 70 s
-instead of 55 s and the supervisor stops at 73 s instead of 58 s; the 5 s fast budgets, 1 GiB and
-64 tasks are unchanged. Reason: git on macOS goes through the xcrun shim. `PATH` in the
+scheduler. Limits on macOS (engineer's decision «увеличь лимиты»): the profile budget is 150 s
+instead of Linux's 90 s and the supervisor stops at 153 s instead of 93 s (raised from 70 s / 73 s
+in MP-157 after the CI runner measurements above); the fast budgets (10 s / 15 s), 1 GiB and
+64 tasks are the same as on Linux. Reason: git on macOS goes through the xcrun shim. `PATH` in the
 workspace gets `tools/git` linked to `xcrun -f git`, but the tests that hard-code `/usr/bin/git`
 still pay for the shim. Measured on an arm64 Mac (macOS 26.3): profile wall 66–68 s with the xcrun
 cache rule alone, 54 s with the `tools/git` link as well (memory peak 0.6–0.73 GiB, 15 tasks);

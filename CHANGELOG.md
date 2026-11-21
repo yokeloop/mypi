@@ -16,13 +16,14 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - `/open` and `task worktree` from a device (MP-149): the clone and worktree are prepared locally from the project's `repository`; sessions of another device are not resumed, a new one starts with a note.
 - «Server and devices» in `docs/HTTP-API.md` (MP-150): moving the database to a server, device setup, backups with `sqlite3 .backup`, rollback and known limits.
 - `mypi project relativize [--apply]` (MP-155): prints, and with `--apply` rewrites, the checkout and worktree paths stored absolute under this device's mypi root as `projects/<org>/<project>[--<task>]`.
-- Checks on macOS (MP-157): `pnpm test`, `pnpm verify` and `pnpm tui:check` run natively under `scripts/bounded.mjs` (time, polled memory and processes, `already running` lock, surviving-child audit, `Cost:` line) and `sandbox-exec` with `scripts/sandbox.sb`; weaker guarantees in `docs/TESTING.md` §6; CI also runs on macOS; Linux limits unchanged.
+- Checks on macOS (MP-157): `pnpm test`, `pnpm verify` and `pnpm tui:check` run natively under `scripts/bounded.mjs` (time, polled memory and processes, `already running` lock, surviving-child audit, `Cost:` line) and `sandbox-exec` with `scripts/sandbox.sb`; weaker guarantees in `docs/TESTING.md` §6; CI also runs on macOS.
 
 ### Changed
 
 - `repository` is required (MP-144): `project add` needs `--repository <git-url>`, and `local` is refused in `add` and `update`. Rows registered earlier without a repository or as `local` keep working; set one with `project update … --repository <url>` (`docs/M1-CLI.md`).
 - Schema 16 and 17 (MP-140, MP-142): `sessions` holds many rows per key with `device` and `active_at`; `events` gains `claimed_by` and `claimed_at`; `mypi db init` is required.
 - Clone and worktree paths under the mypi root are stored relative to it and resolved by each device from its own root (MP-155), so a Mac with `/Users` and a Linux device with `/home` share one registration; other paths stay absolute.
+- Test time budgets match what CI runners measure (MP-157; Linux verify > 58 s, macOS fast 7.4 s): fast tests ≤ 10 s and `pnpm test` ≤ 15 s on both OSes; `pnpm verify` ≤ 90 s with RuntimeMaxSec 93 s on Linux, ≤ 150 s with the supervisor at 153 s on macOS (`docs/TESTING.md` §6).
 
 ### Fixed
 
