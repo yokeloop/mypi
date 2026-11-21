@@ -23,7 +23,7 @@ case "$1 $2" in
       [ "$arg" = -- ] && after=1
       previous="$arg"
     done
-    MYPI_SCOPE="\${3^^}" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$PPID" > /dev/null
+    MYPI_SCOPE="$(printf %s "$3" | tr '[:lower:]' '[:upper:]')" "$FAKE_NODE" "$FAKE_CLI" session register --agent "$5" --native-id "$native" --pid "$PPID" > /dev/null
     echo "{\\"type\\":\\"agent_started\\",\\"name\\":\\"$3\\",\\"pane_id\\":\\"p1\\"}" ;;
 esac
 `;
