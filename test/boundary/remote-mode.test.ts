@@ -32,7 +32,10 @@ test('server operations store device paths as sent and never resolve them on the
   const resolved = runOperation(server, 'project_resolve', { path: '/nonexistent/mypi-device/clone/src' }) as { match: string; code: string };
   assert.deepEqual([resolved.match, resolved.code], ['project', 'MP']);
   assert.throws(() => runOperation(server, 'project_add', { identity: 'one/other', code: 'OT', checkoutPath: 'relative/clone',
-    repository: 'file:///nonexistent/one/other.git' }), (error: unknown) => error instanceof InputError && error.message === 'Checkout path must be absolute');
+    repository: 'file:///nonexistent/one/other.git' }), (error: unknown) => error instanceof InputError && error.message === 'Checkout path must be absolute or relative to the mypi root as projects/<org>/<project>');
+  const relative = runOperation(server, 'project_add', { identity: 'one/other', code: 'OT', checkoutPath: 'projects/one/other',
+    repository: 'file:///nonexistent/one/other.git' }) as { project: { checkoutPath: string } };
+  assert.equal(relative.project.checkoutPath, 'projects/one/other');
   assert.throws(() => runOperation({ filename }, 'project_add', { identity: 'one/third', code: 'TH', checkoutPath: '/nonexistent/mypi-device/clone',
     repository: 'file:///nonexistent/one/third.git' }));
 });
