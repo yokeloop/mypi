@@ -35,6 +35,7 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
     case 'error': return { name: 'error_add', project: a[0]!, text: a[1]! };
     case 'project resolve': return { name: 'project_resolve', path: a[0]! };
     case 'project flow': return { name: 'project_flow', project: a[0]! };
+    case 'project relativize': return { name: 'project_relativize', apply: Boolean(o['apply']) };
     case 'project remove': return { name: 'project_remove', identity: a[0]!, expectedCode: required('expected-code') };
     case 'org remove': return { name: 'org_remove', org: a[0]! };
     case 'warmup': {

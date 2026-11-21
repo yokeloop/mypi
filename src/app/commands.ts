@@ -18,6 +18,7 @@ export type AppCommand =
   | { name: 'project_update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string; expectedRepository?: string | null; repository?: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'project_flow'; project: string }
+  | { name: 'project_relativize'; apply: boolean }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
   | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint; caller?: { pid: number; runtime?: string } }

@@ -17,6 +17,7 @@ mypi project add <org/project> --code <CODE> --repository <git-url> [--path <che
 mypi project update <org/project> [(--expected-path <previous> | --expected-unset) --path <new-absolute-directory>] [(--expected-repository <previous> | --expected-repository-unset) --repository <git-url>]
 mypi project list [--org <org>] | resolve <absolute-path>
 mypi project flow <CODE|org/project> (the project's branch flow from home/projects/<org>/<project>/flow.json, defaults without it)
+mypi project relativize [--apply] (rewrites checkout and worktree paths stored absolute under this device's mypi root as projects/<org>/<project>[--<task>]; without --apply prints the plan)
 mypi project remove <org/project> --expected-code <CODE> | org remove <org> (unreferenced registrations only; home folders stay)
 mypi bootstrap | warmup [-s global|org|CODE|CODE-N] [--max-chars n]
 mypi session register --agent claude|pi --pid <pid> (--native-id <id> [--name <name>] [--fork] | --hook) [--socket <path>]

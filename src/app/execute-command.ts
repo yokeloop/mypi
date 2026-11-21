@@ -25,6 +25,7 @@ import { canonicalAbsoluteDirectory, canonicalDirectory, externalDatabasePath } 
 import { matchCheckout } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
 import { isDeviceBackend } from './device-paths.js';
+import { relativizePaths } from './project-relativize.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
@@ -61,7 +62,7 @@ const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register'
 const REMOTE_ARCHIVE_COMMANDS: ReadonlySet<string> = new Set(['archive_capture', 'archive_import']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
-  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && !REMOTE_HOME_COMMANDS.has(c.name)
+  if (backend.remote && !OPERATION_NAMES.has(c.name) && c.name !== 'project_flow' && c.name !== 'project_relativize' && !REMOTE_HOME_COMMANDS.has(c.name)
     && !REMOTE_SESSION_COMMANDS.has(c.name) && !REMOTE_ARCHIVE_COMMANDS.has(c.name)) throw new InputError(c.name + ' is not available in remote mode');
   if (backend.remote && isRemoteHome(c)) return runRemoteHome(c, backend, root ?? defaultContextRoot());
   if (c.name === 'api_token_create') return createApiToken(c.file, c);
@@ -100,6 +101,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
     const { projects } = await backend.run('project_list', {}) as { projects: Project[] };
     return projectFlow(projects, root ?? defaultContextRoot(), c.project);
   }
+  if (c.name === 'project_relativize') return relativizePaths(backend, c.apply);
   if (c.name === 'project_resolve' && isDeviceBackend(backend)) {
     return matchCheckout((await backend.run('project_list', {}) as { projects: Project[] }).projects, canonicalDirectory(c.path));
   }
