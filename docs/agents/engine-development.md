@@ -40,8 +40,11 @@ projects. Inspect each project's own instructions and verification commands.
   runner. Protect observable behavior at the cheapest reliable level; do not add
   redundant tests, new runners or higher resource limits just to get green. Use
   only disposable data under the approved isolation (2 CPU, 1 GiB, 64 tasks,
-  60-second external deadline, one suite run at a time; no network or personal
-  home; on macOS a 75-second deadline and a 70-second profile budget, see
+  a 95-second external deadline for the test profile (90-second budget,
+  RuntimeMaxSec 93 s plus a 2-second stop), fast tests within 10 seconds and
+  `pnpm test` within 15 seconds, one suite run at a time; no network or personal
+  home; on macOS a 155-second deadline (supervisor 153 s plus 2 s) and a
+  150-second profile budget, see
   [docs/TESTING.md](../TESTING.md) §6); if unavailable, stop
   rather than using an unsafe fallback. Fast tests must not spawn subprocesses;
   boundary tests may use isolated CLI/Git processes.

@@ -46,7 +46,7 @@ testing policy requires the Claude Code and Pi versions of every manual stand ru
   `mise use -g`. Do not call wrappers that rewrite them (for example a `pi` wrapper
   that runs `mise use -g`); call the absolute binaries.
 - `pnpm verify` on the candidate runs only within the limits of `docs/agents/engine-development.md`: 2 CPU,
-  1 GiB, 64 tasks, 60 seconds, one suite run on the machine at a time. The live run
+  1 GiB, 64 tasks, a 95-second deadline (155 seconds on macOS, docs/TESTING.md §6), one suite run on the machine at a time. The live run
   does not replace `verify`, CI or review and does not prove OS isolation.
 - Path separation is not a sandbox: global tools and credentials stay reachable
   from the stand's sessions. Use only the agreed services.
