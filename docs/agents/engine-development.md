@@ -41,7 +41,8 @@ projects. Inspect each project's own instructions and verification commands.
   redundant tests, new runners or higher resource limits just to get green. Use
   only disposable data under the approved isolation (2 CPU, 1 GiB, 64 tasks,
   60-second external deadline, one suite run at a time; no network or personal
-  home; on macOS see [docs/TESTING.md](../TESTING.md) §6); if unavailable, stop
+  home; on macOS a 75-second deadline and a 70-second profile budget, see
+  [docs/TESTING.md](../TESTING.md) §6); if unavailable, stop
   rather than using an unsafe fallback. Fast tests must not spawn subprocesses;
   boundary tests may use isolated CLI/Git processes.
   Do not weaken admission or mandatory checks. CI tests the proposed revision
