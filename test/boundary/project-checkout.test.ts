@@ -111,7 +111,7 @@ test('a project without a clone is cloned, initialized or adopted only when safe
   assert.equal(existsSync(abandoned), false);
   assert.equal(git('-C', join(root, 'one', 'leftover'), 'config', '--get', 'remote.origin.url'), url);
 
-  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  const sleeper = spawn('/bin/sleep', ['30']);
   t.after(() => { sleeper.kill(); });
   const running = join(root, 'one', '.live.mypi-clone-' + sleeper.pid);
   mkdirSync(running);

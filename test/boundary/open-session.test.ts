@@ -6,18 +6,22 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync,
 import { hostname, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createApp, initializeState, resolveStatePath } from '../../src/app/create-app.js';
+import { createApp, initializeState, resolveStatePath, useProcessProbe } from '../../src/app/create-app.js';
+import { runPs } from '../../src/app/process-runner.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { seedRepository } from '../support/repository.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
+import { systemPath } from '../support/work.js';
+
+useProcessProbe(runPs);
 
 const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
 const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
 const root = fileURLToPath(new URL('../../../', import.meta.url)).replace(/\/$/, '');
 const accept = '{"crossSessionInbound":"accept"}';
 
-const herdr = `#!/usr/bin/bash
+const herdr = `#!/bin/bash
 (IFS=$'\\037'; printf '%s\\n' "$*") >> "$HERDR_LOG"
 if [ "\${HERDR_FAKE:-}" = down ]; then echo '{"error":{"code":"server_not_running","message":"server is not running"}}'; exit 1; fi
 pane_env() {
@@ -79,7 +83,7 @@ function fixture(t: TestContext) {
   mkdirSync(bin);
   mkdirSync(runtime, { mode: 0o700 });
   writeFileSync(join(bin, 'herdr'), herdr, { mode: 0o755 });
-  const env: Record<string, string> = { PATH: bin + ':/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
+  const env: Record<string, string> = { PATH: `${bin}:${systemPath}`, HOME: dir, XDG_STATE_HOME: join(dir, 'state'),
     XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null', HERDR_LOG: log,
     HERDR_CHILDREN: childList, FAKE_NODE: process.execPath, FAKE_CLI: entry, HERDR_PANE_ENV: join(dir, 'pane.env'), HERDR_NAMES: join(dir, 'names') };
   const cli = (args: string[], extra: Record<string, string> = {}) => {
@@ -260,7 +264,7 @@ test('open resumes a closed session with its saved agent and passes the requeste
 
 test('open refuses without Herdr, without a clone and for unknown keys, leaving no tab, worktree or rows', t => {
   const { failed, calls, reset, rows, worktreePaths, journal, worktree } = fixture(t);
-  const missing = failed(['open', 'MP-1'], { PATH: '/work/tools:/usr/bin' });
+  const missing = failed(['open', 'MP-1'], { PATH: systemPath });
   assert.match(missing.message, /^Herdr is not available/);
   assert.deepEqual(calls(), []);
   const down = failed(['open', 'MP-1'], { HERDR_FAKE: 'down' });

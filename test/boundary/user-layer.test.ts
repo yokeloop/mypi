@@ -9,6 +9,7 @@ import { contextGit } from '../../src/infrastructure/git/context-git.js';
 import { createApp, initializeState } from '../../src/app/create-app.js';
 import { backupState, restoreState } from '../../src/app/backup.js';
 import type { TestContext } from 'node:test';
+import { fromWork } from '../support/work.js';
 
 function fixture(t: TestContext) {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-user-layer-')), root = join(dir, 'engine');
@@ -83,8 +84,8 @@ test('setup refuses conflicts and stale previews without overwrites and leaves a
   applyUserLayer(planUserLayer(root, db));
   assert.equal(readFileSync(join(home, 'USER-INSTRUCTIONS.md'), 'utf8'), 'Personal text\r\n');
   assert.equal(readFileSync(join(root, '.pi/extensions/mypi.ts'), 'utf8'), 'tracked\n');
-  const cli = spawnSync(process.execPath, ['/work/dist/src/cli/bootstrap.js'], { encoding: 'utf8', timeout: 5000 });
+  const cli = spawnSync(process.execPath, [fromWork('dist/src/cli/bootstrap.js')], { encoding: 'utf8', timeout: 5000 });
   assert.equal(cli.status, 1);
   assert.match(cli.stderr, /interactive terminal/);
-  assert.equal(existsSync('/work/home'), false);
+  assert.equal(existsSync(fromWork('home')), false);
 });

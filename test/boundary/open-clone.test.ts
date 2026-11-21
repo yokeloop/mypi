@@ -9,8 +9,9 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { cloneRepository } from '../../src/infrastructure/git/project-git.js';
 import { runOperation } from '../../src/app/operations.js';
+import { fromWork, systemPath } from '../support/work.js';
 
-const herdr = `#!/usr/bin/bash
+const herdr = `#!/bin/bash
 case "$1 $2" in
   'workspace list') echo '{"result":{"type":"workspace_list","workspaces":[]}}' ;;
   'workspace create') echo '{"result":{"workspace":{"workspace_id":"w1","label":"fx/big"},"tab":{"tab_id":"t1"},"root_pane":{"pane_id":"p1"}}}' ;;
@@ -27,7 +28,7 @@ case "$1 $2" in
 esac
 `;
 
-const fakeGit = `#!/usr/bin/bash
+const fakeGit = `#!/bin/bash
 if [ "\${FAKE_GIT_MODE:-}" = slow ] && [[ " $* " == *" clone "* ]]; then
   target="\${@: -1}"
   mkdir -p "$target/.git"
@@ -69,11 +70,11 @@ function installation(t: TestContext) {
   const root = join(fx.dir, 'engine'), runtime = join(fx.dir, 'run');
   mkdirSync(root);
   mkdirSync(runtime, { mode: 0o700 });
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
-  const env: Record<string, string> = { PATH: fx.bin + ':/work/tools:/usr/bin', HOME: fx.dir, XDG_STATE_HOME: join(fx.dir, 'state'),
+  const env: Record<string, string> = { PATH: `${fx.bin}:${systemPath}`, HOME: fx.dir, XDG_STATE_HOME: join(fx.dir, 'state'),
     XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null',
     FAKE_NODE: process.execPath, FAKE_CLI: entry };
   const cli = (args: string[]) => spawnSync(process.execPath, [entry, ...args], { env, cwd: fx.dir, encoding: 'utf8', timeout: 10000 });

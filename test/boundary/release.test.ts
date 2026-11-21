@@ -4,6 +4,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, write
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawnSync } from 'node:child_process';
+import { fromWork, systemPath } from '../support/work.js';
 
 // Real local Git commits/tags with a simulated remote, CI and pnpm: no network or credentials.
 test('release commits and tags the same version, publishes only after checks, and resumes without rewriting refs', t => {
@@ -12,7 +13,7 @@ test('release commits and tags the same version, publishes only after checks, an
   const root = join(dir, 'checkout'), bin = join(dir, 'bin');
   mkdirSync(root); mkdirSync(bin);
   const env = { ...process.env, HOME: join(dir, 'user'), GIT_CONFIG_NOSYSTEM: '1',
-    GIT_CONFIG_GLOBAL: '/dev/null', RELEASE_FIXTURE: dir, PATH: `${bin}:/work/tools:/usr/bin` };
+    GIT_CONFIG_GLOBAL: '/dev/null', RELEASE_FIXTURE: dir, PATH: `${bin}:${systemPath}` };
   mkdirSync(env.HOME);
   function command(cwd: string, command: string, args: string[], extra: Record<string, string> = {}) {
     const result = spawnSync(command, args, { cwd, env: { ...env, ...extra }, encoding: 'utf8', timeout: 8000 });
@@ -28,13 +29,13 @@ test('release commits and tags the same version, publishes only after checks, an
   git(root, 'config', 'user.name', 'Test'); git(root, 'config', 'user.email', 'test@example.org');
   git(root, 'remote', 'add', 'origin', 'https://github.com/yokeloop/mypi.git');
   mkdirSync(join(root, 'scripts')); mkdirSync(join(root, 'src/mcp'), { recursive: true });
-  cpSync('/work/scripts/release.mjs', join(root, 'scripts/release.mjs'));
+  cpSync(fromWork('scripts/release.mjs'), join(root, 'scripts/release.mjs'));
   writeFileSync(join(root, 'package.json'), '{"version": "0.1.1"}\n');
   writeFileSync(join(root, 'src/mcp/server.ts'), "new McpServer({ name: 'mypi', version: '0.1.1' })\n");
   git(root, 'add', '.'); git(root, 'commit', '-m', 'base');
   const base = git(root, 'rev-parse', 'HEAD');
   writeFileSync(join(dir, 'remote-head'), base);
-  writeFileSync(join(bin, 'git'), `#!/usr/bin/bash
+  writeFileSync(join(bin, 'git'), `#!/bin/bash
 if [[ "$1" == ls-remote && "$2" == origin ]]; then
   case "$3" in
     refs/heads/main) printf '%s\\t%s\\n' "$(cat "$RELEASE_FIXTURE/remote-head")" "$3" ;;
@@ -52,8 +53,8 @@ if [[ "$1" == push && "$2" == --atomic ]]; then
 fi
 exec /usr/bin/git "$@"
 `, { mode: 0o755 });
-  writeFileSync(join(bin, 'pnpm'), '#!/usr/bin/sh\necho "$1" >> "$RELEASE_FIXTURE/checks"\n[ "$1" != verify ] || [ "${FAIL_VERIFY:-}" != 1 ]\n', { mode: 0o755 });
-  writeFileSync(join(bin, 'gh'), `#!/usr/bin/sh
+  writeFileSync(join(bin, 'pnpm'), '#!/bin/sh\necho "$1" >> "$RELEASE_FIXTURE/checks"\n[ "$1" != verify ] || [ "${FAIL_VERIFY:-}" != 1 ]\n', { mode: 0o755 });
+  writeFileSync(join(bin, 'gh'), `#!/bin/sh
 case "$1 $2" in
   'auth status') exit 0 ;;
   'run list')

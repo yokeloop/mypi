@@ -7,19 +7,20 @@ import { spawn, spawnSync } from 'node:child_process';
 import { once } from 'node:events';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { fromWork, systemPath } from '../support/work.js';
 
 test('real stdio: seventeen tools, maintenance absent, exact source, scope, task_update partial, two clients and CLI', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function install(name: string) {
     const root = join(dir, name); mkdirSync(root);
-    cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-    symlinkSync('/work/node_modules', join(root, 'node_modules'));
-    symlinkSync('/work/integrations', join(root, 'integrations'));
+    cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+    symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+    symlinkSync(fromWork('integrations'), join(root, 'integrations'));
     return root;
   }
   const root = install('engine'), home = join(root, 'home'), scope = { type: 'project', key: 'MP' };
-  const env = (where: string) => ({ PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state',
+  const env = (where: string) => ({ PATH: systemPath, HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' });
   async function connect(where: string) {
     const transport = new StdioClientTransport({ command: process.execPath, args: [join(where, 'dist/src/mcp/main.js')],
@@ -186,8 +187,8 @@ test('stdio EOF and SIGTERM exit cleanly without creating state', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-mcp-exit-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   for (const mode of ['eof', 'signal']) {
-    const child = spawn(process.execPath, ['/work/dist/src/mcp/main.js'], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state') },
+    const child = spawn(process.execPath, [fromWork('dist/src/mcp/main.js')], {
+      env: { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state') },
     });
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL'); });
     const exit = once(child, 'exit'); let output = '', errors = '';

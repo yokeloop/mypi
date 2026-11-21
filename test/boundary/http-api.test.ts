@@ -14,14 +14,15 @@ import type { Backend } from '../../src/app/backend.js';
 import { contextGit } from '../../src/infrastructure/git/context-git.js';
 import { PartialError } from '../../src/shared/context.js';
 import { InputError } from '../../src/shared/errors.js';
+import { fromWork, systemPath } from '../support/work.js';
 
 test('real mypi serve on loopback: bearer auth, read paging with a cursor, write permission, changeId and SSE after a write, access log without secrets, the built web UI and a read-only browser session cookie, and MCP JSON-RPC on /mcp', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-http-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const entry = '/work/dist/src/cli/main.js';
+  const entry = fromWork('dist/src/cli/main.js');
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'),
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_CONFIG_HOME: join(dir, 'config'),
     XDG_RUNTIME_DIR: runtime, GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: join(dir, 'gitconfig') };
   const run = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 5000 });
@@ -71,7 +72,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal((await fetch(url + '/v1/info', { headers: auth('nope') })).status, 401);
   const info = await get('/v1/info');
   assert.equal(info.status, 200);
-  const version = (JSON.parse(readFileSync('/work/package.json', 'utf8')) as { version: string }).version;
+  const version = (JSON.parse(readFileSync(fromWork('package.json'), 'utf8')) as { version: string }).version;
   const { schemaVersion, version: served, changeId: c0 } = info.body.data as { schemaVersion: number; version: string; changeId: number };
   assert.deepEqual([schemaVersion, served], [17, version]);
 
@@ -214,7 +215,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(existsSync(join(dir, 'laptop-state')), false);
   const laptopRuntime = join(dir, 'laptop-run');
   mkdirSync(laptopRuntime, { mode: 0o700 });
-  const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+  const holder = spawn('/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
   t.after(() => { holder.kill('SIGKILL'); });
   const registered = run(['session', 'register', '--agent', 'pi', '--pid', String(holder.pid), '--native-id', 'r1'],
     { ...laptop, XDG_RUNTIME_DIR: laptopRuntime, MYPI_SCOPE: 'FXT' });
@@ -228,9 +229,9 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   const live = async (name: string, env: Record<string, string>, nativeId: string) => {
     const runtime = join(dir, name + '-live'), sock = join(dir, name + '.sock'), log = join(dir, name + '.log');
     mkdirSync(runtime, { mode: 0o700 });
-    const holder = spawn('/usr/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
+    const holder = spawn('/bin/cat', [], { stdio: ['pipe', 'ignore', 'ignore'] });
     t.after(() => { holder.kill('SIGKILL'); });
-    const listener = spawn(process.execPath, ['--v8-pool-size=1', '/work/dist/test/support/event-socket-server.js', sock, 'ack', log],
+    const listener = spawn(process.execPath, ['--v8-pool-size=1', fromWork('dist/test/support/event-socket-server.js'), sock, 'ack', log],
       { env: { ...process.env, UV_THREADPOOL_SIZE: '1' }, stdio: ['ignore', 'pipe', 'ignore'] });
     t.after(() => { listener.kill('SIGKILL'); });
     await new Promise<void>((resolve, reject) => {
@@ -316,7 +317,7 @@ test('real mypi serve on loopback: bearer auth, read paging with a cursor, write
   assert.equal(cookieOperation.status, 403);
   await cookieOperation.json();
   assert.equal(await names(laptopToken), 5);
-  const transport = new StdioClientTransport({ command: process.execPath, args: ['/work/dist/src/mcp/main.js'], cwd: dir, env: laptop, stderr: 'ignore' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [fromWork('dist/src/mcp/main.js')], cwd: dir, env: laptop, stderr: 'ignore' });
   const client = new Client({ name: 'device', version: '1' });
   await client.connect(transport);
   try {

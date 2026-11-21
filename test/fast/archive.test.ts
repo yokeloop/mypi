@@ -66,7 +66,7 @@ test('recording the same read twice inserts nothing new and keeps the offset', t
   try {
     const { archive } = app;
     const input = (r: ArchiveRead) => ({ agent: 'claude' as const, nativeId: 'n1', path: '/transcripts/n1.jsonl', read: r });
-    const first = read([entry('e1', 10), entry('e2', 11, 'assistant'), entry('e3', 12, 'user', 'peer')], 120, { cwd: '/work', parentNativeId: 'p1' });
+    const first = read([entry('e1', 10), entry('e2', 11, 'assistant'), entry('e3', 12, 'user', 'peer')], 120, { cwd: '/project', parentNativeId: 'p1' });
     assert.deepEqual(archive.record(input(first)), { inserted: 3, skipped: 0, key: null, keySource: null, bytesRead: 120 });
     assert.equal(archive.offset('claude', 'n1'), 120);
     assert.equal(archive.offset('claude', 'missing'), 0);
@@ -85,7 +85,7 @@ test('recording the same read twice inserts nothing new and keeps the offset', t
     const row = archive.session('claude', 'n1')!;
     assert.equal(row.firstAt, '2026-11-07T10:05:00.000Z');
     assert.equal(row.lastAt, '2026-11-07T10:12:00.000Z');
-    assert.equal(row.cwd, '/work');
+    assert.equal(row.cwd, '/project');
     assert.equal(row.parentNativeId, 'p1');
     assert.equal(row.bytesRead, 200);
     assert.equal(row.updatedAt, at);
