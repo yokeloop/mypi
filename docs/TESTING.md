@@ -279,8 +279,8 @@ Do not relabel expensive work outside the measurement to claim a faster suite.
   not evidence of safe verification; a package script alone does not prevent bash bypass.
 
 Addition 2026-11-21 (MP-157), macOS. On macOS the containment scope is `scripts/bounded.mjs`
-(58 s + 2 s, 1 GiB of summed RSS and 64 processes by polling `ps` every 200 ms, the lock
-`/private/tmp/<name>.lock`, an audit of surviving descendants) together with
+(73 s + 2 s for verify and test, 58 s + 2 s for `tui:check` and the CI build, 1 GiB of
+summed RSS and 64 processes by polling `ps` every 200 ms, the lock `/private/tmp/<name>.lock`, an audit of surviving descendants) together with
 `/usr/bin/sandbox-exec` and `scripts/sandbox.sb` (no network except loopback and Unix sockets
 in the run's `tmp`; writes only to the run's `tmp`, `tui/target` or `dist`; no reads of the
 engineer's HOME except the Rust sysroot). Weaker than on Linux: memory and tasks are a soft
@@ -289,12 +289,21 @@ limited and processes are counted, not threads; CPU has no 200 % quota, the `CPU
 rusage (`times`) is only a report; there is no PID namespace: tests see other processes, and a
 descendant born and gone between polls is invisible to the audit; there is no mount namespace
 or tmpfs: the real system paths are visible, personal folders are closed by the profile but not
-hidden; `/bin/ps` runs outside the sandbox, only to read the process table; `sandbox-exec` is a
+hidden; `/bin/ps` runs outside the sandbox, only to read the process table; the xcrun cache files
+`$(getconf DARWIN_USER_TEMP_DIR)/xcrun_db*` are writable (the rest of that folder is not), since
+without the cache every call of the `/usr/bin/git` shim costs about 100 ms; `sandbox-exec` is a
 deprecated Apple interface; `NoNewPrivileges`, `OOMPolicy` and `KillMode=control-group` are
 replaced by the supervisor killing the group and every pid it has seen. The supervisor is the
 small checker for a gap the OS leaves; its lock only refuses a second run and is not a host
-scheduler. Such a `verify` is evidence for done; on Linux everything stays as above, the
-reference budget measurements are taken on Linux, and CI checks both OSes. `tui:check` and the
+scheduler. Limits on macOS (engineer's decision «увеличь лимиты»): the profile budget is 70 s
+instead of 55 s and the supervisor stops at 73 s instead of 58 s; the 5 s fast budgets, 1 GiB and
+64 tasks are unchanged. Reason: git on macOS goes through the xcrun shim. `PATH` in the
+workspace gets `tools/git` linked to `xcrun -f git`, but the tests that hard-code `/usr/bin/git`
+still pay for the shim. Measured on an arm64 Mac (macOS 26.3): profile wall 66–68 s with the xcrun
+cache rule alone, 54 s with the `tools/git` link as well (memory peak 0.6–0.73 GiB, 15 tasks);
+the budget is that measurement plus about 30 %. Such a `verify` is evidence for done; on Linux
+everything stays as above, the reference budget measurements are taken on Linux, and CI checks
+both OSes. `tui:check` and the
 CI build on macOS run under their own locks `mypi-tui-check` and `mypi-ci-build`.
 
 CI runs ordinary `pull_request` verification using the proposed revision's locked

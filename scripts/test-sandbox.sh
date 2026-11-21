@@ -15,6 +15,7 @@ fi
 trap 'rm -rf "$work"' EXIT
 mkdir "$work/tools"
 "${clone[@]}" "$node" "$work/tools/node"
+[[ "$os" != Darwin ]] || ln -s "$(xcrun -f git)" "$work/tools/git"
 "${copy[@]}" "$root"/{src,test,dist,scripts,integrations,.pi,node_modules,package.json,pnpm-lock.yaml,tsconfig.json,.dependency-cruiser.cjs,.dependency-cruiser.web.cjs,.mcp.json,web,pnpm-workspace.yaml,AGENTS.md,README.md,PLAN.md,CHANGELOG.md,mise.toml,docs,.github,.yoke} "$work/"
 mkdir "$work/.claude" && "${copy[@]}" "$root"/.claude/{settings.json,agents,skills} "$work/.claude/"
 mkdir "$work/tui" && "${copy[@]}" "$root"/tui/{Cargo.toml,Cargo.lock,rust-toolchain.toml,herdr-plugin.toml,src} "$work/tui/"
@@ -25,7 +26,7 @@ if [[ "$os" == Darwin ]]; then
   (cd "$work" && env -i PATH="$work/tools:/usr/bin:/bin" HOME="$tmp/home" XDG_STATE_HOME="$tmp/state" TMPDIR="$tmp" \
     LANG=C.UTF-8 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null MYPi_CHECK_START="$start" MYPI_COST_FILE="$MYPI_BOUNDED_DIR/cost" \
     /usr/bin/sandbox-exec -f "$work/scripts/sandbox.sb" -D HOME_DIR="$HOME" -D READ="$work" -D TOOLS="$work/tools" \
-    -D WRITE="$tmp" -D SCRATCH="$tmp" -D COST="$MYPI_BOUNDED_DIR/cost" \
+    -D WRITE="$tmp" -D SCRATCH="$tmp" -D COST="$MYPI_BOUNDED_DIR/cost" -D USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)" \
     /bin/bash scripts/test-profile.sh "$profile")
   exit
 fi

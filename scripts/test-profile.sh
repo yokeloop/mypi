@@ -30,6 +30,7 @@ fi
 end="$(now)"
 elapsed=$((end - MYPi_CHECK_START))
 budget=55000
+[[ "$os" != Darwin ]] || budget=70000
 [[ "$1" != fast ]] || budget=5000
 [[ "$elapsed" -le "$budget" ]] || { echo "Profile exceeds its working budget" >&2; exit 1; }
 if [[ "$os" == Linux ]]; then
