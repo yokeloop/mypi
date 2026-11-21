@@ -1,7 +1,7 @@
 import { InputError } from '../../shared/errors.js';
 import { parseIdentity, validSlug, validateCode } from './model.js';
 import { validateRepository } from './repository.js';
-import type { ProjectScope } from './model.js';
+import type { Project, ProjectScope } from './model.js';
 import type { CheckoutPaths, ProjectStore } from './ports.js';
 
 export type { Project, ProjectScope } from './model.js';
@@ -10,6 +10,18 @@ export { parseFlow, taskBranchName, validBranchName, DEFAULT_TASK_BRANCH } from 
 export type { ProjectFlow, MergeMethod } from './flow.js';
 export { LOCAL_REPOSITORY, validateRepository, checkoutTarget, cloneStaging, stagingPid, noRepositoryError, planCheckout } from './repository.js';
 export type { CheckoutState } from './repository.js';
+
+export function matchCheckout(projects: Project[], path: string) {
+  const candidates = projects.filter(p => p.checkoutPath !== null
+    && (path === p.checkoutPath || path.startsWith(p.checkoutPath.replace(/\/$/, '') + '/')));
+  const depth = Math.max(0, ...candidates.map(p => p.checkoutPath!.length));
+  const matches = candidates.filter(p => p.checkoutPath!.length === depth);
+  if (matches.length === 0) return { match: 'none' as const };
+  if (matches.length > 1) return { match: 'ambiguous' as const, projects: matches };
+  const project = matches[0]!;
+  return { match: 'project' as const, identity: project.org + '/' + project.slug,
+    code: project.code, scope: { type: 'project' as const, key: project.code }, repository: project.repository };
+}
 
 export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
   function update(identity: string, change: { checkout?: { expected: string | null; path: string };
@@ -50,16 +62,7 @@ export function createProjects(store: ProjectStore, paths: CheckoutPaths) {
       return store.list(org);
     },
     resolveCheckout(input: string) {
-      const path = paths.canonicalDirectory(input);
-      const candidates = store.list().filter(p => p.checkoutPath !== null
-        && (path === p.checkoutPath || path.startsWith(p.checkoutPath.replace(/\/$/, '') + '/')));
-      const depth = Math.max(0, ...candidates.map(p => p.checkoutPath!.length));
-      const matches = candidates.filter(p => p.checkoutPath!.length === depth);
-      if (matches.length === 0) return { match: 'none' as const };
-      if (matches.length > 1) return { match: 'ambiguous' as const, projects: matches };
-      const project = matches[0]!;
-      return { match: 'project' as const, identity: project.org + '/' + project.slug,
-        code: project.code, scope: { type: 'project' as const, key: project.code }, repository: project.repository };
+      return matchCheckout(store.list(), paths.canonicalDirectory(input));
     },
     resolveScope(value?: string): ProjectScope {
       if (value === undefined) return { type: 'global' };

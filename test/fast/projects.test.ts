@@ -80,8 +80,12 @@ test('project checkout update preserves identity and tasks, rejects stale and du
     const task = app.tasks.create({ projectId: first.id, slug: 'task', title: 'Task', status: 'new' }, () => {});
     assert.throws(() => app.projects.updateCheckout('one/absent', null, newPath), /Unknown project/);
     assert.throws(() => app.projects.updateCheckout('one/project', oldPath, newPath), /Stale project checkout path/);
+    assert.throws(() => app.projects.updateCheckout('two/project', null, newPath),
+      (error: unknown) => error instanceof Error && error.message.startsWith('Stale project checkout path; stored ' + JSON.stringify(oldPath)));
     assert.throws(() => app.projects.updateCheckout('one/project', null, oldPath), /already registered/);
     assert.throws(() => app.projects.updateCheckout('one/project', null, 'relative'), /absolute/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, 'projects/../x'), /absolute/);
+    assert.throws(() => app.projects.updateCheckout('one/project', null, 'projects//x'), /absolute/);
     assert.throws(() => app.projects.updateCheckout('one/project', null, join(dir, 'missing')), /ENOENT/);
     assert.throws(() => app.projects.updateCheckout('one/project', null, filename), /directory/);
     const updated = app.projects.updateCheckout('one/project', null, join(dir, 'alias'));
@@ -92,6 +96,7 @@ test('project checkout update preserves identity and tasks, rejects stale and du
     assert.throws(() => app.projects.updateCheckout('one/project', newPath, oldPath), /already registered/);
     assert.deepEqual(app.projects.list(), [updated, other]);
     assert.deepEqual(app.tasks.get(task.id), task);
+    assert.equal(app.projects.updateCheckout('one/project', newPath, 'projects/one/project').checkoutPath, 'projects/one/project');
     let standalone = false;
     assert.throws(() => app.tasks.create({ projectId: null, slug: 'standalone', title: 'Standalone', status: 'new' }, () => { standalone = true; }), /Project required/);
     assert.equal(standalone, false);

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hostname } from 'node:os';
-import { archiveDatabasePath, canonicalAbsoluteDirectory, canonicalDirectory, databasePath, externalDatabasePath, sessionRegistryDir } from '../infrastructure/filesystem/paths.js';
+import { archiveDatabasePath, databasePath, externalDatabasePath, sessionRegistryDir, storedCheckoutPaths } from '../infrastructure/filesystem/paths.js';
 import { sqliteProjectStore } from '../modules/projects/adapters/sqlite-project-store.js';
 import { createTasks } from '../modules/tasks/public.js';
 import { sqliteTaskStore } from '../modules/tasks/adapters/sqlite-task-store.js';
@@ -57,7 +57,7 @@ export function deviceSessions(runtime: string | undefined, proc = '/proc'): Dev
 }
 
 export function createApp(filename: string, readonly: boolean, clock = () => new Date().toISOString(),
-  paths: CheckoutPaths = { canonicalDirectory, canonicalAbsoluteDirectory }) {
+  paths: CheckoutPaths = storedCheckoutPaths) {
   const db = openDatabase(externalDatabasePath(filename, engineRoot()), readonly);
   const projects = createProjects(sqliteProjectStore(db), paths);
   const sessionScope = (key: string): SessionScope => {

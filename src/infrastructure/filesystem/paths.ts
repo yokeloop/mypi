@@ -68,9 +68,30 @@ export function serverConfigPath(env: Readonly<Record<string, string | undefined
   return join(root, 'mypi', 'server.json');
 }
 
+export const ROOT_RELATIVE_REFUSAL = 'Checkout path must be absolute or relative to the mypi root as projects/<org>/<project>';
+
+export function isRootRelativePath(input: string): boolean {
+  if (!input.startsWith('projects/') || input.includes('\0')) return false;
+  return input.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
+}
+
 function trustedPath(input: string): string {
-  if (!isAbsolute(input) || input.includes('\0')) throw new InputError('Checkout path must be absolute');
+  if (isRootRelativePath(input)) return input;
+  if (!isAbsolute(input) || input.includes('\0')) throw new InputError(ROOT_RELATIVE_REFUSAL);
   return input;
 }
 
 export const trustedCheckoutPaths = { canonicalDirectory: trustedPath, canonicalAbsoluteDirectory: trustedPath };
+
+export const storedCheckoutPaths = {
+  canonicalDirectory(input: string): string {
+    if (isRootRelativePath(input)) return input;
+    if (!isAbsolute(input)) throw new InputError(ROOT_RELATIVE_REFUSAL);
+    return canonicalDirectory(input);
+  },
+  canonicalAbsoluteDirectory(input: string): string {
+    if (isRootRelativePath(input)) return input;
+    if (!isAbsolute(input)) throw new InputError(ROOT_RELATIVE_REFUSAL);
+    return canonicalAbsoluteDirectory(input);
+  },
+};
