@@ -37,7 +37,7 @@ case "$cmd" in
         CARGO_HOME="$CARGO_HOME" CARGO_TARGET_DIR="$CARGO_TARGET_DIR" CARGO_BUILD_JOBS=2 RUST_TEST_THREADS=2 \
         CARGO_INCREMENTAL=0 CARGO_TERM_COLOR=never RUSTC="$RUSTC" \
         /usr/bin/sandbox-exec -f "$root/scripts/sandbox.sb" -D HOME_DIR="$HOME" -D READ="$tui" -D TOOLS="$sysroot" \
-        -D WRITE="$target" -D SCRATCH="$target/tmp" -D COST=/dev/null \
+        -D WRITE="$target" -D SCRATCH="$target/tmp" -D COST=/dev/null -D USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)" \
         /bin/bash -c 'set -euo pipefail; cargo fmt --check; cargo clippy --locked --offline --all-targets -- -D warnings; cargo test --locked --offline; cargo build --locked --offline'
     fi
     for tool in systemd-run bwrap; do command -v "$tool" >/dev/null || { echo "$tool required (docs/TESTING.md §6)" >&2; exit 2; }; done

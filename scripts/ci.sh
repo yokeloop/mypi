@@ -26,7 +26,7 @@ if [[ "$OSTYPE" == darwin* ]]; then
   (cd "$work" && env TMPDIR=/private/tmp node scripts/bounded.mjs --name mypi-ci-build --time 58 --kill-after 2 --memory 1G --tasks 64 \
     -- env -i PATH="$work/tools:/usr/bin:/bin" HOME="$work/tmp/home" TMPDIR="$work/tmp" LANG=C.UTF-8 \
     /usr/bin/sandbox-exec -f "$work/scripts/sandbox.sb" -D HOME_DIR="$HOME" -D READ="$work" -D TOOLS="$work/tools" \
-    -D WRITE="$work/dist" -D SCRATCH="$work/tmp" -D COST=/dev/null /bin/bash scripts/build.sh)
+    -D WRITE="$work/dist" -D SCRATCH="$work/tmp" -D COST=/dev/null -D USER_TEMP="$(cd "$(getconf DARWIN_USER_TEMP_DIR)" && pwd -P)" /bin/bash scripts/build.sh)
 else
 # Compiler receives no credentials/home/network. Only generated output is writable;
 # source, scripts and the installed dependency tree are mounted read-only.

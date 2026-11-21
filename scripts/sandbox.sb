@@ -5,8 +5,10 @@
 ; except READ and TOOLS.
 ; Weaker than bwrap: everything else is readable and the real system paths stay
 ; visible (no mount namespace, no tmpfs, no PID namespace); /bin/ps runs outside the
-; sandbox, only to read the process table; sandbox-exec is a deprecated Apple interface.
-; Parameters, always passed with -D: HOME_DIR, READ, TOOLS, WRITE, SCRATCH, COST.
+; sandbox, only to read the process table; the xcrun cache files USER_TEMP/xcrun_db* are
+; writable, else every git call through /usr/bin/git is slow; sandbox-exec is a deprecated
+; Apple interface.
+; Parameters, always passed with -D: HOME_DIR, READ, TOOLS, WRITE, SCRATCH, COST, USER_TEMP.
 (allow default)
 (deny network*)
 (allow network-bind network-inbound (local ip "localhost:*"))
@@ -16,6 +18,7 @@
 (deny file-write* (subpath "/"))
 (allow file-write* (subpath (param "WRITE")) (subpath (param "SCRATCH")) (literal (param "COST"))
   (literal "/dev/null") (literal "/dev/tty") (subpath "/dev/fd"))
+(allow file-write* (prefix (string-append (param "USER_TEMP") "/xcrun_db")))
 (deny file-read* (subpath (param "HOME_DIR")))
 (allow file-read* (subpath (param "READ")) (subpath (param "TOOLS")))
 (allow process-exec (literal "/bin/ps") (with no-sandbox))
