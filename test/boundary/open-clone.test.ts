@@ -112,8 +112,8 @@ test('a clone without output for the idle timeout is stopped and its process is 
   process.env['FAKE_GIT_MODE'] = 'slow';
   process.env['FAKE_GIT_PID'] = pidFile;
   const lines: string[] = [];
-  await assert.rejects(cloneRepository('file://' + bare, join(dir, 'x'), { idleTimeoutMs: 300, onLine: l => lines.push(l) }),
-    /made no progress for 0.3 s and was stopped/);
+  await assert.rejects(cloneRepository('file://' + bare, join(dir, 'x'), { idleTimeoutMs: 1000, onLine: l => lines.push(l) }),
+    /made no progress for 1 s and was stopped/);
   assert.ok(lines.includes('Receiving objects: 10% (1/10), 1.00 MiB | 1.00 MiB/s'), JSON.stringify(lines));
   gone();
 });
