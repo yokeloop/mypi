@@ -76,3 +76,36 @@ jobs:
           grep -H . /proc/self/attr/current
           sysctl kernel.apparmor_restrict_unprivileged_userns || true
           sudo journalctl -k --no-pager -n 100 | grep -E 'apparmor|DENIED|bwrap|audit' || true
+  verify-macos:
+    name: bounded-verify-macos
+    runs-on: macos-26
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24.21.0'
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+        with:
+          version: '12.6.0'
+          run_install: false
+      - name: Install dependencies from this revision
+        timeout-minutes: 5
+        run: node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm install --frozen-lockfile --ignore-pnpmfile
+      - name: Install the pinned Rust toolchain
+        timeout-minutes: 5
+        run: rustup toolchain install "$(sed -n 's/^channel = "\(.*\)"$/\1/p' tui/rust-toolchain.toml)" --profile minimal --component rustfmt,clippy
+      - name: Fetch the locked Rust crates of this revision
+        timeout-minutes: 5
+        run: node scripts/bounded.mjs --time 295 --kill-after 5 -- bash scripts/tui.sh fetch
+      - name: Build and verify this revision
+        run: bash scripts/ci.sh
+      - name: Diagnose sandbox failure without loosening it
+        if: failure()
+        run: |
+          sw_vers
+          uname -m
+          ls -l /usr/bin/sandbox-exec
+          (cd tui && rustc --version) || true
