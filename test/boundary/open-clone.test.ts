@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { cloneRepository } from '../../src/infrastructure/git/project-git.js';
+import { runOperation } from '../../src/app/operations.js';
 
 const herdr = `#!/usr/bin/bash
 case "$1 $2" in
@@ -147,6 +148,8 @@ test('CLI open shows clone progress, stops on SIGINT and SIGTERM leaving nothing
   assert.equal(opened.status, 0, opened.stderr);
   assert.ok(JSON.parse(opened.stdout).opened[0].notes.includes('clone prepared: cloned ' + target + ' from ' + url), opened.stdout);
   assert.equal(checkout(), target);
+  const stored = runOperation({ filename: join(env['XDG_STATE_HOME']!, 'mypi', 'state.sqlite3') }, 'project_list', {}) as { projects: { code: string; checkoutPath: string | null }[] };
+  assert.equal(stored.projects.find(p => p.code === 'FB')!.checkoutPath, 'projects/fx/big');
 });
 
 test('MCP open_session reports clone progress, a cancelled call leaves nothing and the server keeps serving', async t => {
