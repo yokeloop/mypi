@@ -22,7 +22,9 @@ import type { Backend } from './backend.js';
 import { isOperation, OPERATION_NAMES } from './operations.js';
 import { isRemoteHome, REMOTE_HOME_COMMANDS, runRemoteHome } from './remote-home.js';
 import { canonicalAbsoluteDirectory, canonicalDirectory, externalDatabasePath } from '../infrastructure/filesystem/paths.js';
+import { matchCheckout } from '../modules/projects/public.js';
 import type { Project } from '../modules/projects/public.js';
+import { isDeviceBackend } from './device-paths.js';
 import { createApiToken, listApiTokens, revokeApiToken } from './api-tokens.js';
 
 function homeFolder(root: string | undefined, path: string): string | null {
@@ -31,16 +33,16 @@ function homeFolder(root: string | undefined, path: string): string | null {
 
 type OperationCommand = Extract<AppCommand, { name: OperationName }>;
 
-function devicePaths(c: OperationCommand): OperationCommand {
+function devicePaths(c: OperationCommand, remote: boolean): OperationCommand {
   if (c.name === 'project_add' && c.checkoutPath !== undefined) return { ...c, checkoutPath: canonicalDirectory(c.checkoutPath) };
   if (c.name === 'project_update' && c.checkoutPath !== undefined) return { ...c, checkoutPath: canonicalAbsoluteDirectory(c.checkoutPath) };
   if (c.name === 'project_resolve') return { ...c, path: canonicalDirectory(c.path) };
-  if (c.name === 'task_status' && c.session !== undefined) return { ...c, session: { agent: c.session.agent, nativeId: c.session.nativeId } } as OperationCommand;
+  if (remote && c.name === 'task_status' && c.session !== undefined) return { ...c, session: { agent: c.session.agent, nativeId: c.session.nativeId } } as OperationCommand;
   return c;
 }
 
 async function runCommandOperation(c: OperationCommand, backend: Backend, root: string | undefined): Promise<unknown> {
-  const { name, ...input } = backend.remote ? devicePaths(c) : c;
+  const { name, ...input } = backend.remote || isDeviceBackend(backend) ? devicePaths(c, backend.remote) : c;
   const result = await backend.run(name, input as never);
   if (name === 'project_remove') {
     const { removed } = result as { removed: { project: Project } };
@@ -97,6 +99,9 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'project_flow') {
     const { projects } = await backend.run('project_list', {}) as { projects: Project[] };
     return projectFlow(projects, root ?? defaultContextRoot(), c.project);
+  }
+  if (c.name === 'project_resolve' && isDeviceBackend(backend)) {
+    return matchCheckout((await backend.run('project_list', {}) as { projects: Project[] }).projects, canonicalDirectory(c.path));
   }
   if (isOperation(c.name) && c.name !== 'task_create' && c.name !== 'task_progress') return runCommandOperation(c as OperationCommand, backend, root);
   const app = createWorkspace(filename, reads.has(c.name), root);
