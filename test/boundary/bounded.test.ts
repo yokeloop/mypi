@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 
 const bounded = join(process.cwd(), 'scripts/bounded.mjs');
 
@@ -156,4 +156,29 @@ test('a clean named run prints Cost and removes its lock and run directory', t =
   assert.ok(rundir.length > 0);
   assert.equal(existsSync(rundir), false);
   assert.equal(existsSync(join(dir, 't.lock')), false);
+});
+
+test('runs racing for one abandoned lock leave exactly one running', async t => {
+  const dir = scratch(t);
+  mkdirSync(join(dir, 't.lock'));
+  writeFileSync(join(dir, 't.lock', 'pid'), String(spawnSync('/usr/bin/true').pid));
+  const runs = [0, 1, 2].map(() => new Promise<number | null>(resolve => {
+    const child = spawn(process.execPath, [bounded, '--name', 't', '--time', '5', '--kill-after', '1', '--', 'sleep', '0.5'],
+      { stdio: 'ignore', env: { ...process.env, TMPDIR: dir } });
+    child.on('exit', code => resolve(code));
+  }));
+  const codes = await Promise.all(runs);
+  assert.deepEqual(codes.filter(code => code === 0).length, 1, JSON.stringify(codes));
+});
+
+test('a run whose process table cannot be read fails at once', t => {
+  const dir = scratch(t);
+  const start = Date.now();
+  const result = runWith(dir, ['--time', '5', '--kill-after', '1', '--memory', '1G', '--tasks', '64'], 'sleep 2',
+    { MYPI_BOUNDED_PS: '/usr/bin/false' });
+  const elapsed = Date.now() - start;
+  assert.equal(result.error, undefined);
+  assert.equal(result.status, 1, result.stderr);
+  assert.match(result.stderr, /process table cannot be read/);
+  assert.ok(elapsed < 2000, `took ${elapsed} ms`);
 });

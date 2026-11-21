@@ -9,8 +9,9 @@
 // --memory and --tasks poll /bin/ps every 200 ms: the command's group and every
 // descendant seen so far; above the summed RSS or the process count the tree is
 // killed and the run exits 1. After the command exits, a seen descendant still alive
-// is reported as "Surviving child", killed, and fails the run. A clean run prints a
-// Cost line (and CPU from the run directory's cost file). On macOS the polling and
+// is reported as "Surviving child", killed, and fails the run. A failed first poll or
+// five failed polls in a row fail the run (MYPI_BOUNDED_PS replaces /bin/ps for the
+// tests). A clean run prints a Cost line (and CPU from the run directory's cost file). On macOS the polling and
 // the audit stand in for the cgroup and the PID namespace (docs/TESTING.md §6).
 import { execFile, spawn } from 'node:child_process';
 import { mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync, writeSync } from 'node:fs';
@@ -100,7 +101,25 @@ function acquire(base, name) {
       say(2, `bounded: ${name} already running (pid ${pid})`);
       finish(1);
     }
-    rmSync(target, { recursive: true, force: true });
+    const tomb = `${target}.${process.pid}.stale`;
+    try {
+      renameSync(target, tomb);
+    } catch (error) {
+      if (error.code === 'ENOENT') continue;
+      throw error;
+    }
+    const taken = holder(tomb);
+    if (taken === pid) {
+      rmSync(tomb, { recursive: true, force: true });
+      continue;
+    }
+    try {
+      renameSync(tomb, target);
+    } catch {
+      rmSync(tomb, { recursive: true, force: true });
+    }
+    say(2, `bounded: ${name} already running (pid ${taken})`);
+    finish(1);
   }
 }
 
@@ -128,6 +147,8 @@ const seen = new Set();
 let memoryPeak = 0;
 let tasksPeak = 0;
 let polling = false;
+let polls = 0;
+let failures = 0;
 
 function killGroup(signal) {
   try {
@@ -187,9 +208,21 @@ function measure(stdout) {
 function poll() {
   if (polling || exited) return;
   polling = true;
-  execFile('/bin/ps', ['-A', '-o', 'pid=,ppid=,pgid=,rss='], (error, stdout) => {
+  execFile(process.env.MYPI_BOUNDED_PS || '/bin/ps', ['-A', '-o', 'pid=,ppid=,pgid=,rss='], (error, stdout) => {
     polling = false;
-    if (!error && !exited) measure(stdout);
+    polls++;
+    if (exited) return;
+    if (!error) {
+      failures = 0;
+      measure(stdout);
+      return;
+    }
+    failures++;
+    if (polls > 1 && failures < 5) return;
+    say(2, `bounded: process table cannot be read (${error.message.split('\n')[0]})`);
+    killGroup('SIGKILL');
+    killSeen();
+    finish(1);
   });
 }
 
