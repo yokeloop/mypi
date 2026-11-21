@@ -14,6 +14,7 @@ import { runOperation } from '../../src/app/operations.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { isRootRelativePath } from '../../src/infrastructure/filesystem/paths.js';
 import { InputError } from '../../src/shared/errors.js';
+import { toolCommand } from '../../src/mcp/tools.js';
 import { state } from '../support/state.js';
 
 function device(t: TestContext, fixtures: Record<string, unknown>) {
@@ -172,6 +173,16 @@ test('project update with an absolute expected path passes on an old record and 
   assert.equal(stored()[0]!.checkoutPath, 'projects/one/project');
   await assert.rejects(runA({ name: 'project_update', identity: 'one/project', expectedCheckoutPath: cloneA, checkoutPath: cloneA }),
     (error: unknown) => error instanceof InputError && error.message.startsWith('Stale project checkout path; stored "projects/one/project" (--expected-path'));
+});
+
+test('MCP projects update takes the stored relative text as expectedCheckoutPath', async t => {
+  const { bare, runA, stored, cloneA } = engines(t);
+  await runA({ name: 'project_add', identity: 'one/project', code: 'MP', checkoutPath: cloneA, repository: bare });
+  assert.equal(stored()[0]!.checkoutPath, 'projects/one/project');
+  const [command] = toolCommand('projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'projects/one/project', checkoutPath: cloneA });
+  assert.equal(((await runA(command!)) as { project: Project }).project.checkoutPath, cloneA);
+  assert.equal(stored()[0]!.checkoutPath, 'projects/one/project');
+  assert.throws(() => toolCommand('projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'projects/../x', checkoutPath: cloneA }), /Absolute path/);
 });
 
 test('project resolve from a clone finds an old absolute record', async t => {

@@ -5,6 +5,7 @@ import type { SessionOperationName } from './session-operations.js';
 import type { ArchiveOperationName } from './archive-operations.js';
 export { EVENT_TYPES } from '../modules/knowledge/public.js';
 export type { EventType } from '../modules/knowledge/public.js';
+export { isRootRelativePath } from '../infrastructure/filesystem/paths.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
