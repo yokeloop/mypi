@@ -29,7 +29,7 @@ test('MCP lists exactly seventeen agent tools; maintenance and replaced names ar
     'status_remove', 'context_commit', 'context_restore', 'db_init', 'bootstrap', 'backup', 'backup_publish', 'restore',
     'restore_published', 'home_migrate_tasks', 'task_worktree', 'session_register', 'session_unregister', 'session_forget', 'event_emit', 'turn_end',
     'project_remove', 'org_remove', 'api_token_create', 'api_token_list', 'api_token_revoke', 'event_list', 'task_page',
-    'journal_page', 'archive_import', 'archive_status', 'archive_capture', 'archive_forget', 'unknown', '__proto__'])
+    'journal_page', 'archive_import', 'archive_status', 'archive_capture', 'archive_forget', 'project_relativize', 'unknown', '__proto__'])
     assert.throws(() => toolCommand(name, {}), /Unknown tool/);
 });
 test('every MCP call translates to the same AppCommands as its CLI commands', () => {
@@ -42,6 +42,8 @@ test('every MCP call translates to the same AppCommands as its CLI commands', ()
     ['projects', { action: 'update', identity: 'one/project', expectedRepository: null, repository: 'git@h:o/r.git' }, [['project', 'update', 'one/project', '--expected-repository-unset', '--repository', 'git@h:o/r.git']]],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: '/tmp/old', checkoutPath: '/tmp/new', expectedRepository: 'local', repository: '/srv/r.git' },
       [['project', 'update', 'one/project', '--expected-path', '/tmp/old', '--path', '/tmp/new', '--expected-repository', 'local', '--repository', '/srv/r.git']]],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'projects/one/project', checkoutPath: '/tmp/new' },
+      [['project', 'update', 'one/project', '--expected-path', 'projects/one/project', '--path', '/tmp/new']]],
     ['projects', { action: 'resolve', path: '/tmp' }, [['project', 'resolve', '/tmp']]],
     ['projects', { action: 'flow', project: 'MP' }, [['project', 'flow', 'MP']]],
     ['note', { kind: 'note', scope: g, title: 'T', body: { text: 'body' } }, [['note', 'T', 'body']]],
@@ -105,6 +107,8 @@ test('action tools and task_update reject missing, foreign and malformed fields'
     ['projects', { action: 'flow' }, /project is required for action flow/],
     ['projects', { action: 'update', identity: 'one/project', checkoutPath: '/tmp/new' }, /expectedCheckoutPath is required for action update/],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'relative', checkoutPath: '/tmp/new' }, /Absolute path/],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: 'projects/../x', checkoutPath: '/tmp/new' }, /Absolute path/],
+    ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: '/tmp/old', checkoutPath: 'projects/one/project' }, /Absolute path/],
     ['projects', { action: 'update', identity: 'one/project' }, /needs checkoutPath or repository/],
     ['projects', { action: 'update', identity: 'one/project', expectedCheckoutPath: null }, /checkoutPath is required for action update with expectedCheckoutPath/],
     ['projects', { action: 'update', identity: 'one/project', repository: 'local' }, /expectedRepository is required for action update with repository/],

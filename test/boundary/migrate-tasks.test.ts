@@ -13,6 +13,7 @@ import { legacyTask } from '../support/legacy-task.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { sqliteJournalStore } from '../../src/modules/knowledge/public.js';
 import { fileFingerprint } from '../../src/app/file-fingerprints.js';
+import { fromWork, systemPath } from '../support/work.js';
 
 function git(...args: string[]): string {
   const result = spawnSync('git', ['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.test', ...args], { encoding: 'utf8', timeout: 5000 });
@@ -25,14 +26,14 @@ test('home migrate-tasks previews, moves legacy folders in one commit, rewrites 
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   function installation(name: string) {
     const root = join(dir, name); mkdirSync(root);
-    cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-    symlinkSync('/work/node_modules', join(root, 'node_modules'));
+    cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+    symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
     return root;
   }
   const root = installation('engine'), home = join(root, 'home'), filename = root + '-state/mypi/state.sqlite3';
   function run(where: string, args: string[], expected = 0) {
     const result = spawnSync(process.execPath, [join(where, 'dist/src/cli/main.js'), ...args], {
-      env: { PATH: '/work/tools:/usr/bin', HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state' },
+      env: { PATH: systemPath, HOME: join(dir, 'user'), XDG_STATE_HOME: where + '-state' },
       encoding: 'utf8', timeout: 4000,
     });
     assert.ifError(result.error);

@@ -1,7 +1,7 @@
 import { closeSync, lstatSync, mkdirSync, openSync, readFileSync, readdirSync, renameSync, unlinkSync, writeSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import type { Registry, RegistryRecord } from '../ports.js';
+import type { ProcessProbe, Registry, RegistryRecord } from '../ports.js';
 const fileName = /^(global|[A-Z]+|[A-Z]+-[1-9][0-9]*|[a-z0-9]+(?:[._-][a-z0-9]+)*)~([1-9][0-9]*)\.json$/;
 function missing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';
@@ -27,7 +27,22 @@ function shaped(value: unknown, key: string, pid: number): value is RegistryReco
     && text(r['start']) && nullable(r['name']) && nullable(r['socket']) && nullable(r['permissionMode']) && text(r['registeredAt'])
     && (r['herdrName'] === undefined || text(r['herdrName'])) && r['pid'] === pid && r['displacedAt'] === undefined;
 }
-export function fsRegistry(dir: string, proc = '/proc'): Registry {
+export function procProbe(root: string): ProcessProbe {
+  return {
+    start(pid) {
+      let stat: string;
+      try { stat = readFileSync(join(root, String(pid), 'stat'), 'utf8'); } catch (error) {
+        if (['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined;
+        throw error;
+      }
+      return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
+    },
+    args(pid) {
+      try { return readFileSync(join(root, String(pid), 'cmdline'), 'utf8').split('\0'); } catch { return null; }
+    },
+  };
+}
+export function fsRegistry(dir: string, probe: ProcessProbe): Registry {
   const parent = dirname(dir);
   const file = (record: RegistryRecord) => join(dir, record.key + '~' + record.pid + '.json');
   function prepare(): void {
@@ -43,19 +58,11 @@ export function fsRegistry(dir: string, proc = '/proc'): Registry {
     try { writeSync(fd, JSON.stringify(record) + '\n'); } finally { closeSync(fd); }
     renameSync(tmp, file(record));
   }
-  function start(pid: number): string | undefined {
-    let stat: string;
-    try { stat = readFileSync(join(proc, String(pid), 'stat'), 'utf8'); } catch (error) {
-      if (['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) return undefined;
-      throw error;
-    }
-    return stat.slice(stat.lastIndexOf(')') + 2).split(' ')[19];
-  }
   return {
-    start,
+    start: pid => probe.start(pid),
     permissionMode(pid) {
-      let args: string[];
-      try { args = readFileSync(join(proc, String(pid), 'cmdline'), 'utf8').split('\0'); } catch { return null; }
+      const args = probe.args(pid);
+      if (args === null) return null;
       for (const [i, arg] of args.entries()) {
         if (arg === '--permission-mode') return args[i + 1] || null;
         if (arg.startsWith('--permission-mode=')) return arg.slice('--permission-mode='.length) || null;
@@ -81,7 +88,7 @@ export function fsRegistry(dir: string, proc = '/proc'): Registry {
           record = undefined;
         }
         if (!shaped(record, match[1]!, Number(match[2]))) { if (prune) unlink(path); continue; }
-        if (start(record.pid) !== record.start) { if (prune) unlink(path); continue; }
+        if (probe.start(record.pid) !== record.start) { if (prune) unlink(path); continue; }
         records.push(record);
       }
       return records;

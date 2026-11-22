@@ -247,7 +247,7 @@ test('claude transcript gives the last turn-opening prompt read from the end', t
 });
 
 test('Stop and Notification hook input give the native id, the flag or type and the text', () => {
-  const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', permission_mode: 'default', hook_event_name: 'Stop',
+  const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', permission_mode: 'default', hook_event_name: 'Stop',
     stop_hook_active: false };
   const transcript = '/tmp/t.jsonl';
   assert.deepEqual(stopInput(JSON.stringify({ ...stop, last_assistant_message: 'готово' })), { nativeId: 'c1', active: false, message: 'готово', transcript });
@@ -256,7 +256,7 @@ test('Stop and Notification hook input give the native id, the flag or type and 
   for (const path of [undefined, '', 7]) {
     assert.deepEqual(stopInput(JSON.stringify({ ...stop, transcript_path: path })), { nativeId: 'c1', active: false, message: '' });
   }
-  const note = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', hook_event_name: 'Notification' };
+  const note = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', hook_event_name: 'Notification' };
   for (const type of ['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'auth_success']) {
     assert.deepEqual(notificationInput(JSON.stringify({ ...note, message: 'Claude needs your permission', title: 'Claude Code', notification_type: type })),
       { nativeId: 'c1', type, message: 'Claude needs your permission', transcript });

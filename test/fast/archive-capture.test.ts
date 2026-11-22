@@ -33,8 +33,8 @@ const recorded = (result: Awaited<ReturnType<typeof captureArchive>>) => {
   return result as Extract<typeof result, { inserted: number }>;
 };
 
-const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', permission_mode: 'default', hook_event_name: 'Stop', stop_hook_active: false };
-const end = (reason: string) => ({ session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/work', hook_event_name: 'SessionEnd', reason });
+const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', permission_mode: 'default', hook_event_name: 'Stop', stop_hook_active: false };
+const end = (reason: string) => ({ session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', hook_event_name: 'SessionEnd', reason });
 
 test('capture hook input takes the native id and transcript of Stop and SessionEnd', () => {
   const expected = { nativeId: 'c1', transcript: '/tmp/t.jsonl' };

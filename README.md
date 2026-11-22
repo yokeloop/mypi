@@ -51,7 +51,10 @@ is tracked engine source (`.pi/` for Pi); your instructions, settings and knowle
 live in an independent `home/` Git.
 
 Requirements: the pinned Node 24/pnpm environment, Git, a terminal, and for Pi
-version 1.0.4 (manually checked). Linux is the currently verified platform. No
+version 1.0.4 (manually checked). Linux is the verified platform for the engine and its
+checks; macOS (arm64, mise from Homebrew) is verified as a device: install and build per
+"Devices" in `docs/HTTP-API.md`; the checks run natively on macOS with weaker guarantees
+(docs/TESTING.md §6). No
 global agent configuration is installed or changed.
 Rust for the optional terminal UI is pinned in mise.toml and installed by mise install (rustup).
 
@@ -163,7 +166,8 @@ settings. Use `/reload` or restart after changing the extension or rebuilding.
 
 Both agents register their sessions: a row in the `sessions` table (one per agent
 and native id: key, device, last activity, kept for continuation) and a live record
-per process in `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` (owner-only; pid
+per process in `$XDG_RUNTIME_DIR/mypi/sessions/<key>~<pid>.json` (on macOS without
+`XDG_RUNTIME_DIR`, `$TMPDIR/mypi/sessions/`; owner-only; pid
 and process start, native id, name, socket, start permission mode). The key is
 resolved in one order: the row for this native id, the live record of the same
 process, `MYPI_SCOPE`, `global`. A key may have many sessions, for example Claude
@@ -174,8 +178,9 @@ is live. A new session's warmup starts with a line when another session of the k
 is live. A fork started by hand without `MYPI_SCOPE` is not registered.
 `mypi sessions` (MCP `sessions`) shows the tree global → org → project → task with
 each key's active session and all its sessions; `mypi session forget <key>` drops
-every row of the key on the user's request. Without `XDG_RUNTIME_DIR` or an
-initialized schema 16 database registration fails and the warmup still runs.
+every row of the key on the user's request. Without `XDG_RUNTIME_DIR` on Linux or an
+initialized schema 16 database registration fails and the warmup still runs; on
+macOS without the variable the registry is in `$TMPDIR`.
 
 `/open <key...>` (the Claude skill `/open`, the Pi command `/open`, CLI
 `mypi open`) needs a running Herdr server. In Pi, typing the arguments of /open
@@ -256,9 +261,9 @@ Delivery is at-least-once; the event number in the frame tells a repeat.
 
 A live Pi project chat receives events at once. From `session_start` to
 `session_shutdown` the Pi extension holds `$XDG_RUNTIME_DIR/mypi/<key>-<pid>.sock`
-(0600) and records its path in the session's registration. Each Pi process has its
-own socket, so a session that quits never removes the socket of another session of
-the key. After `mypi event emit`
+(on macOS without the variable, `$TMPDIR/mypi/<key>-<pid>.sock`; 0600) and records
+its path in the session's registration. Each Pi process has its own socket, so a
+session that quits never removes the socket of another session of the key. After `mypi event emit`
 records an event it sends all undelivered events of the parent except milestones, in id order, to the
 parent's active session when it is a live Pi session and marks those the session acknowledges delivered: an idle
 chat gets them as a new turn, a busy one after its current turn ends. Without a live
@@ -374,7 +379,9 @@ keep environment variables or the extra arguments `/open` passed:
   project settings, which can only tighten cross-session delivery. Pi needs
   nothing extra.
 - Live records under `$XDG_RUNTIME_DIR/mypi/sessions/` do not survive a reboot
-  (a tmpfs); the resumed sessions register again at start.
+  (a tmpfs); the resumed sessions register again at start. On macOS records in
+  `$TMPDIR` may survive it; the process start check counts them as dead and the
+  next writer deletes them.
 
 ### After updating the engine
 
@@ -439,12 +446,15 @@ The notes are the CHANGELOG section of the version plus an Upgrade note. Tags ar
 never moved; there is no npm publish. `scripts/release.mjs` (`pnpm release`) commits
 and tags directly on `main`; it predates the PR workflow and is not used.
 
-From the engine project's task worktree (not the installed workspace):
+From the engine project's task worktree (not the installed workspace).
+`mise install` runs without a time limit on both systems, because Node may not exist before it;
+the other install steps are limited to 5 minutes by the same `scripts/bounded.mjs` as the build,
+on Linux and macOS:
 
 ```bash
-timeout --kill-after=5s 295s mise install
-timeout --kill-after=5s 295s mise exec -- pnpm install --frozen-lockfile
-timeout --kill-after=5s 295s mise exec -- pnpm tui:fetch
+mise install
+mise exec -- node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm install --frozen-lockfile
+mise exec -- node scripts/bounded.mjs --time 295 --kill-after 5 -- pnpm tui:fetch
 mise exec -- pnpm build
 mise exec -- pnpm verify
 ```
@@ -458,8 +468,9 @@ limits and network/home isolation remain in place. This is ordinary CI, not a
 candidate-independent security attestation.
 
 Read [TESTING](docs/TESTING.md) before test changes. test runs fast only; verify runs
-admission + fast + boundary. Linux user systemd, cgroup v2 and bubblewrap are required;
-no unsafe fallback. Build changed source/tests first; stale dist is rejected. Tests
+admission + fast + boundary. On Linux user systemd, cgroup v2 and bubblewrap are required;
+on macOS `/usr/bin/sandbox-exec` (part of the system), Node 24 and Rust through mise; no
+unsafe fallback. Build changed source/tests first; stale dist is rejected. Tests
 create disposable installations and must not use the personal DB/home.
 
 CLI help: `mise exec -- node dist/src/cli/main.js --help`.

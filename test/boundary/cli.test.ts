@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, existsSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { hostname, tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -9,6 +9,7 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { resolveStatePath } from '../../src/app/create-app.js';
 import { run as runInProcess } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
+import { fromWork, toolsPath, systemPath } from '../support/work.js';
 
 const inProcess = (env: Record<string, string>, root?: string) => (args: string[], extra: Record<string, string> = {}) =>
   runInProcess(parseCommand(args), resolveStatePath(env, env['HOME']!), root, { ...env, ...extra });
@@ -17,7 +18,7 @@ test('real Node launcher persists projects across independent processes without 
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
   const run = (...args: string[]) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env, cwd: dir, encoding: 'utf8', timeout: 3000 });
     assert.ifError(result.error);
@@ -71,7 +72,7 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
   const setup = inProcess(env);
   const run = (args: string[], extra: Record<string, string> = {}, input?: string, base: Record<string, string> = env) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...base, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
@@ -103,20 +104,28 @@ test('real CLI registers a hook session, resolves the warmup by it and keeps reg
   assert.equal(JSON.parse(ok(['sessions'])).tree.children[0].children[0].session.state, 'closed');
   assert.equal(ok(['session', 'forget', 'MP']), '{"forgotten":"MP","live":false}\n');
   const { XDG_RUNTIME_DIR: _, ...bare } = env;
-  const missing = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, bare);
-  assert.equal(missing.status, 1);
-  assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
+  if (process.platform === 'darwin') {
+    mkdirSync(join(dir, 'tmp'), { mode: 0o700 });
+    const fallback = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, { ...bare, TMPDIR: join(dir, 'tmp') });
+    assert.equal(fallback.status, 0, fallback.stderr);
+    assert.equal(JSON.parse(fallback.stdout).registered, true);
+    assert.notDeepEqual(readdirSync(join(dir, 'tmp', 'mypi', 'sessions')), []);
+  } else {
+    const missing = run(['session', 'register', '--agent', 'pi', '--pid', pid, '--native-id', 'p1'], {}, undefined, bare);
+    assert.equal(missing.status, 1);
+    assert.match(JSON.parse(missing.stderr).message, /XDG_RUNTIME_DIR must be an absolute path/);
+  }
 });
 
 test('real CLI session prompt prints one line after a switch, nothing on a repeat, and ignores a mypi frame', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  const sleeper = spawn('/bin/sleep', ['30']);
   t.after(() => { sleeper.kill(); });
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
   const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
@@ -148,12 +157,12 @@ test('real CLI session prompt prints one line after a switch, nothing on a repea
 test('real CLI pointer counts the task journal and the commits of the task worktree', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  const sleeper = spawn('/bin/sleep', ['30']);
   t.after(() => { sleeper.kill(); });
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime,
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime,
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
@@ -196,12 +205,12 @@ test('real CLI pointer counts the task journal and the commits of the task workt
 test('real CLI session prompt hook stays silent and exits 0 when the pointer fails', async t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-cli-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
-  const sleeper = spawn('/usr/bin/sleep', ['30']);
+  const sleeper = spawn('/bin/sleep', ['30']);
   t.after(() => { sleeper.kill(); });
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime };
   const setup = inProcess(env);
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 3000,
@@ -231,13 +240,13 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
   mkdirSync(root);
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const setup = inProcess(env, join(root, 'home'));
   const ok = (args: string[], extra: Record<string, string> = {}, input?: string) => {
@@ -294,11 +303,11 @@ test('real CLI task status queues one milestone unless the project chat changes 
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
   mkdirSync(root);
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), TZ: 'UTC',
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const setup = inProcess(env, join(root, 'home'));
   const ok = (args: string[], extra: Record<string, string> = {}) => {
@@ -356,13 +365,13 @@ test('real CLI send queues a message for a closed child and inbox of the child r
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
   mkdirSync(root);
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const setup = inProcess(env, join(root, 'home'));
   const run = (args: string[], extra: Record<string, string> = {}) => {

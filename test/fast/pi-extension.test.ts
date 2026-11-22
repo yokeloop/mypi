@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEMODE_GUIDELINE, install, isEscape } from '../../.pi/extensions/mypi-lib/install.js';
 import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
+import { runtimeDir } from '../../.pi/extensions/mypi-lib/runtime-dir.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 import { pointerLine } from '../../src/shared/switch-pointer.js';
 
@@ -717,4 +718,13 @@ test('pi extension refuses an unbuilt engine', () => {
   assert.throws(() => install(pi.api, join(root, 'missing'), serve, undefined), /mypi is not built/);
   assert.deepEqual(pi.servers, []);
   assert.equal(pi.handlers.size, 0);
+});
+
+test('pi extension keeps its socket in TMPDIR on macOS without XDG_RUNTIME_DIR', () => {
+  const tmp = () => '/tmp/x';
+  assert.equal(runtimeDir({}, 'darwin', tmp), '/tmp/x');
+  assert.equal(runtimeDir({ XDG_RUNTIME_DIR: '' }, 'darwin', tmp), '/tmp/x');
+  assert.equal(runtimeDir({ XDG_RUNTIME_DIR: '/run/user/1' }, 'darwin', tmp), '/run/user/1');
+  assert.equal(runtimeDir({}, 'linux', tmp), undefined);
+  assert.equal(runtimeDir({ XDG_RUNTIME_DIR: '/run/user/1' }, 'linux', tmp), '/run/user/1');
 });

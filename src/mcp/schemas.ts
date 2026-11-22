@@ -2,9 +2,12 @@ import { z } from 'zod';
 import { isAbsolute } from 'node:path';
 import { scopeValue } from '../shared/scope.js';
 import type { AppCommand } from '../app/commands.js';
+import { isRootRelativePath } from '../app/commands.js';
 
 export const text = z.string();
 export const externalPath = text.refine(p => isAbsolute(p) && !p.includes('\0'), 'Absolute path without NUL required');
+export const storedPath = text.refine(p => (isAbsolute(p) && !p.includes('\0')) || isRootRelativePath(p),
+  'Absolute path without NUL or projects/<org>/<project> relative to the mypi root required');
 const globalScope = z.strictObject({ type: z.literal('global') });
 const keyedScope = z.strictObject({ type: z.enum(['org', 'project', 'task']), key: text });
 export const scope = z.union([globalScope, keyedScope]).refine(value => {

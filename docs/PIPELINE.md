@@ -478,8 +478,9 @@ else `<checkoutPath>/CLAUDE.md`.
 - MP:
   - In the worktree: `mise exec -- pnpm build`, then `mise exec -- pnpm verify`
     (`pnpm test` is the fast profile, not sufficient for done).
-  - `pnpm verify` runs in the fixed systemd user unit `mypi-tests`; two runs at once
-    fail by design. One verify at a time on the whole machine. On
+  - `pnpm verify` runs in the fixed systemd user unit `mypi-tests` on Linux and under
+    the `scripts/bounded.mjs` lock `/private/tmp/mypi-tests.lock` on macOS; two runs at
+    once fail by design. One verify at a time on the whole machine. On
     `Unit mypi-tests already exists` or `already running`: wait 60 s and retry, at
     most 5 times, then report it as an open point.
 - When the project's instructions name no checks, the check commands of the approved

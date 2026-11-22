@@ -1,5 +1,6 @@
 import { existsSync, realpathSync, statSync, lstatSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { tmpdir } from 'node:os';
 import { InputError } from '../../shared/errors.js';
 
 export function canonicalDirectory(input: string): string {
@@ -55,9 +56,10 @@ export function archiveDatabasePath(stateFile: string, engineRoot: string): stri
   return externalDatabasePath(join(dirname(externalDatabasePath(stateFile, engineRoot)), 'archive.sqlite3'), engineRoot);
 }
 
-export function sessionRegistryDir(runtime: string | undefined): string {
-  if (!runtime || !isAbsolute(runtime) || runtime.includes('\0')) throw new InputError('XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
-  return join(runtime, 'mypi', 'sessions');
+export function sessionRegistryDir(runtime: string | undefined, platform: NodeJS.Platform = process.platform, tmp: () => string = tmpdir): string {
+  const base = runtime || (platform === 'darwin' ? tmp() : undefined);
+  if (!base || !isAbsolute(base) || base.includes('\0')) throw new InputError('XDG_RUNTIME_DIR must be an absolute path; the live session registry is kept there');
+  return join(base, 'mypi', 'sessions');
 }
 
 export function serverConfigPath(env: Readonly<Record<string, string | undefined>>): string | undefined {
@@ -66,9 +68,30 @@ export function serverConfigPath(env: Readonly<Record<string, string | undefined
   return join(root, 'mypi', 'server.json');
 }
 
+export const ROOT_RELATIVE_REFUSAL = 'Checkout path must be absolute or relative to the mypi root as projects/<org>/<project>';
+
+export function isRootRelativePath(input: string): boolean {
+  if (!input.startsWith('projects/') || input.includes('\0')) return false;
+  return input.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
+}
+
 function trustedPath(input: string): string {
-  if (!isAbsolute(input) || input.includes('\0')) throw new InputError('Checkout path must be absolute');
+  if (isRootRelativePath(input)) return input;
+  if (!isAbsolute(input) || input.includes('\0')) throw new InputError(ROOT_RELATIVE_REFUSAL);
   return input;
 }
 
 export const trustedCheckoutPaths = { canonicalDirectory: trustedPath, canonicalAbsoluteDirectory: trustedPath };
+
+export const storedCheckoutPaths = {
+  canonicalDirectory(input: string): string {
+    if (isRootRelativePath(input)) return input;
+    if (!isAbsolute(input)) throw new InputError(ROOT_RELATIVE_REFUSAL);
+    return canonicalDirectory(input);
+  },
+  canonicalAbsoluteDirectory(input: string): string {
+    if (isRootRelativePath(input)) return input;
+    if (!isAbsolute(input)) throw new InputError(ROOT_RELATIVE_REFUSAL);
+    return canonicalAbsoluteDirectory(input);
+  },
+};

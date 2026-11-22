@@ -5,13 +5,16 @@ import { constants, homedir } from 'node:os';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as sleep } from 'node:timers/promises';
-import { deviceSessions, resolveStatePath } from '../app/create-app.js';
+import { deviceSessions, engineRoot, resolveStatePath, useProcessProbe } from '../app/create-app.js';
+import { runPs } from '../app/process-runner.js';
 import { eventTransports } from '../app/event-transports.js';
-import { configuredServer, remoteBackend, sessionRunner } from '../app/backend.js';
+import { configuredServer, localBackend, remoteBackend, sessionRunner } from '../app/backend.js';
+import { deviceBackend } from '../app/device-paths.js';
 import { subscribeInbox } from '../app/inbox-subscription.js';
 import { parseCommand, usage } from './command.js';
 import { run } from './run.js';
 
+useProcessProbe(runPs);
 let stoppedBy: 'SIGINT' | 'SIGTERM' | undefined;
 try {
   const command = parseCommand(process.argv.slice(2));
@@ -45,9 +48,11 @@ try {
       context = { signal: controller.signal, onProgress: (line: string) => process.stderr.write('mypi: ' + line + '\n') };
     }
     // Help must work without a configured home, initialized DB or any filesystem changes.
-    const output = command.type === 'help' ? { usage } : await run(command,
-      resolveStatePath(process.env, homedir()), undefined, process.env, eventTransports, context,
-      server === undefined ? undefined : remoteBackend(server, undefined, command.type === 'workspace' && command.name === 'session prompt' ? 1500 : 10_000));
+    const filename = command.type === 'help' ? undefined : resolveStatePath(process.env, homedir());
+    const output = filename === undefined ? { usage } : await run(command,
+      filename, undefined, process.env, eventTransports, context,
+      deviceBackend(server === undefined ? localBackend(filename)
+        : remoteBackend(server, undefined, command.type === 'workspace' && command.name === 'session prompt' ? 1500 : 10_000), engineRoot()));
     if (output !== null && typeof output === 'object' && 'status' in output && (output.status === 'partial' || output.status === 'error')) {
       process.stderr.write(JSON.stringify(output) + '\n');
       process.exitCode = 1;

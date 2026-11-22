@@ -5,6 +5,7 @@ import type { SessionOperationName } from './session-operations.js';
 import type { ArchiveOperationName } from './archive-operations.js';
 export { EVENT_TYPES } from '../modules/knowledge/public.js';
 export type { EventType } from '../modules/knowledge/public.js';
+export { isRootRelativePath } from '../infrastructure/filesystem/paths.js';
 
 export type TextInput = { text: string; file?: never } | { file: string; text?: never };
 // A tagged reference preserves CLI syntax without colliding with the journal 'all' selector.
@@ -18,6 +19,7 @@ export type AppCommand =
   | { name: 'project_update'; identity: string; expectedCheckoutPath?: string | null; checkoutPath?: string; expectedRepository?: string | null; repository?: string }
   | { name: 'project_resolve'; path: string }
   | { name: 'project_flow'; project: string }
+  | { name: 'project_relativize'; apply: boolean }
   | { name: 'project_remove'; identity: string; expectedCode: string }
   | { name: 'org_remove'; org: string }
   | { name: 'warmup'; scope?: string; envScope?: string; maxChars?: number; session?: SessionHint; caller?: { pid: number; runtime?: string } }

@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { engineRoot } from '../../src/app/create-app.js';
 import { claudeFolderName, piFolderName } from '../../src/modules/archive/public.js';
+import { toolsPath } from '../support/work.js';
 
 const jsonl = (records: object[]) => records.map(r => JSON.stringify(r) + '\n').join('');
 const at = '2026-11-07T10:00:00.000Z';
@@ -15,7 +16,7 @@ test('archive import and status run on isolated state and home', t => {
   const dir = mkdtempSync(join(tmpdir(), 'mypi-archive-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
   const run = (...args: string[]) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env, cwd: dir, encoding: 'utf8', timeout: 3000 });
     assert.ifError(result.error);
@@ -95,7 +96,7 @@ test('archive capture reads Claude hook input from stdin and never exits 2', t =
   const dir = mkdtempSync(join(tmpdir(), 'mypi-archive-'));
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const entry = fileURLToPath(new URL('../../src/cli/main.js', import.meta.url));
-  const env = { PATH: '/work/tools', HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
+  const env = { PATH: toolsPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state') };
   const run = (input: string, ...args: string[]) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env, cwd: dir, encoding: 'utf8', timeout: 3000, input });
     assert.ifError(result.error);

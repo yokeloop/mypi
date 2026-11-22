@@ -25,7 +25,8 @@ export function sqliteProjectStore(db: Database): ProjectStore {
         .get(input.org, input.slug) as Project | undefined;
       if (!project) throw new InputError('Unknown project');
       if (input.checkout) {
-        if (project.checkoutPath !== input.checkout.expected) throw new InputError('Stale project checkout path');
+        if (project.checkoutPath !== input.checkout.expected) throw new InputError('Stale project checkout path; stored '
+          + JSON.stringify(project.checkoutPath) + ' (--expected-path is compared with the stored text: projects/<org>/<project> for a clone under the mypi root)');
         if (db.prepare('SELECT id FROM projects WHERE checkout_path = ? AND id <> ?')
           .get(input.checkout.path, project.id)) throw new InputError('Checkout path already registered to another project');
       }

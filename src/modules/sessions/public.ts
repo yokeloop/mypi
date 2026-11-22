@@ -1,6 +1,9 @@
 import { InputError } from '../../shared/errors.js';
 import type { Agent, Registry, RegistryRecord, SessionRow, SessionScope, SessionStore } from './ports.js';
 export type { Agent, RegistryRecord, SessionRow, SessionScope } from './ports.js';
+export type { ProcessProbe } from './ports.js';
+export { fsRegistry } from './adapters/fs-registry.js';
+export { ProcessProbeError, psProbe } from './adapters/ps-probe.js';
 export type SessionNode = { key: string; session: { agent: Agent; nativeId: string; state: 'live' | 'closed' } | null;
   sessions: { agent: Agent; nativeId: string; device: string; activeAt: string | null; state: 'live' | 'closed' }[]; children: SessionNode[] };
 type Identity = { agent: Agent; nativeId: string };

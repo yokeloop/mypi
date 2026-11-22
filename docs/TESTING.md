@@ -117,7 +117,7 @@ This is a placement guide, not a manual per-file catalog or eight separate runne
 |---|---|---|
 | Scope/identity/traversal | Core input tables; temp FS symlink/escape and no-write checks | Narrow CLI forwarding/error canary, not every ID through subprocess |
 | Scoped warmup | Golden Markdown files in test/fixtures/warmup/ for global/project/task on a temp DB/home; scope priority; errors; 64 KiB entry clipping, invitation lines, the reports marker; character budget (multi-byte, overflow, range) | CLI text output, MYPI_SCOPE priority and error exit; MCP text |
-| Session registry | Fast tests on a temp DB, temp XDG_RUNTIME_DIR and a fake /proc: owner-only files, pid+start liveness, many live records per key, the active session, unregister/forget, tree, nine key-resolution scenarios, permission mode | One CLI boundary test with hook stdin and the real /proc; manual stand checklist with Claude Code and Pi versions |
+| Session registry | Fast tests on a temp DB, temp XDG_RUNTIME_DIR and a fake /proc: owner-only files, pid+start liveness, many live records per key, the active session, unregister/forget, tree, nine key-resolution scenarios, permission mode; the `ps` probe with fake `ps` and `kill` (`lstart`/`args` parsing, ESRCH without running `ps`, EPERM as live, another `lstart` as dead, a `ps` failure for a live pid throws and keeps the record, `ps` exit 1 without output plus a repeated ESRCH as not running, permission mode) and the registry directory for darwin and linux | One CLI boundary test with hook stdin, the real /proc on Linux and `ps` on macOS (the `$TMPDIR` fallback without `XDG_RUNTIME_DIR` on macOS); manual stand checklist with Claude Code and Pi versions |
 | Claude Code adapter | Shape of .mcp.json and .claude/settings.json; allow list equals the MCP tool list | Manual stand checklist with the Claude Code version (approval, warmup on start/clear/resume/compact, no prompts) |
 | Pi extension | Fast test of .pi/extensions/mypi.ts against a stub ExtensionAPI: MCP registration with the session id, re-registration on a new session, warmup section on every turn, failure section; the /open, /inbox, /flow and /epic commands (/flow sends /skill:flow, /epic sends /skill:epic); the mypi_ask tool: recommended and other option, own word, Escape in the select and in the input, no UI | Manual stand checklist with a real Pi; its version is recorded in the PR; /flow to an agreed plan on a fixture (MP-117); /epic to the subtasks and the hand-over to /flow on a fixture (MP-119) |
 | Capture/note/journal | Unicode/multiline, exact source, no-overwrite, read-only API behavior | Real context commit and preservation of unrelated dirty diff |
@@ -200,13 +200,14 @@ passes within budget. Do not add more comprehensive edge cases without a new jus
 
 ### Accepted initial limits, not measured baseline
 
-Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64) and 2026-11-04 (MP-71, below).
+Accepted in the M1 preparation package on 2026-10-02 (§11); the full-profile working time was revised on 2026-11-01 (MP-63), 2026-11-02 (MP-64), 2026-11-04 (MP-71) and 2026-11-21 (MP-157, below).
 
 | Parameter | Accepted value |
 |---|---:|
-| Fast working time | ≤ 5 s |
-| Full mandatory test-profile working time | ≤ 55 s |
-| External hard deadline, including stop/cleanup | 60 s |
+| Fast tests working time | ≤ 10 s |
+| Fast profile (`pnpm test`) working time | ≤ 15 s |
+| Full mandatory test-profile working time | ≤ 90 s (macOS ≤ 150 s) |
+| External hard deadline, including stop/cleanup | 95 s (macOS 155 s) |
 | CPU / memory of the entire test scope | 2 CPU / 1 GiB |
 | Kernel tasks including threads | 64 |
 | Concurrent test workers / suite runs on the dedicated runner | 1 / 1 |
@@ -252,7 +253,16 @@ total, which leaves room above the 55 s budget.
 Speeding up boundary is a separate task; the next excess is again discussed and
 explicitly decided, never raised automatically.
 
-Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the 55 s test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
+Revision 2026-11-21 (MP-157). By the engineer's decision «давай и на маке и на линуксе
+поднимем лимит по приемлемого», measured on CI runners: Linux verify was killed at
+RuntimeMaxSec 58 s while boundary still ran, macOS fast tests took 7.4 s. The fast tests
+step is ≤ 10 s and the whole fast profile (`pnpm test`) ≤ 15 s on both OSes; the full
+profile is ≤ 90 s on Linux and ≤ 150 s on macOS. The test unit mypi-tests gets
+RuntimeMaxSec 93 s on Linux and the macOS supervisor stops at 153 s, each with the same
+2 s stop. The build (55 s), `tui:check` and the CI build unit (58 s) and the CPU/memory/task
+limits are unchanged.
+
+Addition 2026-11-03 (MP-70). The Rust TUI check is build/typecheck cost under the existing 60 s build limit, not part of the test profile: scripts/tui.sh check runs before the profile in its own fixed unit mypi-tui-check with the same 2 CPU / 1 GiB / 64 task limits, a 58 s deadline, 60 s with stop (as mypi-tests and mypi-ci-build), a working target of a clean check ≤ 55 s, no network and read-only sources. Crates are fetched beforehand by pnpm tui:fetch, an installation step under the 5-minute limit. Measured on 2026-11-04 on the final TUI code: a clean check took 25.8 s (CPU 48.2 s) and 490 MB peak in the dev profile without debug info; with debug info and a release build the same dependencies took ~90 s in the plan's probe, which is why the check builds the dev profile and only pnpm tui:build builds the release binary. The test profile's limits are unchanged.
 
 The complete profile includes fixture setup/teardown, admission, fast and boundary.
 Dependency installation and build/typecheck are measured separately, never repeated
@@ -277,6 +287,37 @@ Do not relabel expensive work outside the measurement to claim a faster suite.
   dedicated-worker concurrency; do not write a host scheduler.
 - Targeted, test, verify and CI runs obey one policy. Direct unbounded node --test is
   not evidence of safe verification; a package script alone does not prevent bash bypass.
+
+Addition 2026-11-21 (MP-157), macOS. On macOS the containment scope is `scripts/bounded.mjs`
+(153 s + 2 s for verify and test, 58 s + 2 s for `tui:check` and the CI build, 1 GiB of
+summed RSS and 64 processes by polling `ps` every 200 ms, the lock `/private/tmp/<name>.lock`, an audit of surviving descendants) together with
+`/usr/bin/sandbox-exec` and `scripts/sandbox.sb` (no network except loopback and Unix sockets
+in the run's `tmp`; writes only to the run's `tmp`, `tui/target` or `dist`; no reads of the
+engineer's HOME except the Rust sysroot). Weaker than on Linux: memory and tasks are a soft
+bound by polling, not a kernel limit, so a spike between polls is possible, swap is not
+limited and processes are counted, not threads; CPU has no 200 % quota, the `CPU:` line from
+rusage (`times`) is only a report; there is no PID namespace: tests see other processes, and a
+descendant born and gone between polls is invisible to the audit; there is no mount namespace
+or tmpfs: the real system paths are visible, personal folders are closed by the profile but not
+hidden; `/bin/ps` runs outside the sandbox, only to read the process table (the boundary tests
+replace it through `MYPI_BOUNDED_PS`, which the supervisor announces on stderr and `check.sh`,
+`tui.sh` and `ci.sh` clear with `env -u`); the xcrun cache files
+`$(getconf DARWIN_USER_TEMP_DIR)/xcrun_db*` are writable (the rest of that folder is not), since
+without the cache every call of the `/usr/bin/git` shim costs about 100 ms; `sandbox-exec` is a
+deprecated Apple interface; `NoNewPrivileges`, `OOMPolicy` and `KillMode=control-group` are
+replaced by the supervisor killing the group and every pid it has seen. The supervisor is the
+small checker for a gap the OS leaves; its lock only refuses a second run and is not a host
+scheduler. Limits on macOS (engineer's decision «увеличь лимиты»): the profile budget is 150 s
+instead of Linux's 90 s and the supervisor stops at 153 s instead of 93 s (raised from 70 s / 73 s
+in MP-157 after the CI runner measurements above); the fast budgets (10 s / 15 s), 1 GiB and
+64 tasks are the same as on Linux. Reason: git on macOS goes through the xcrun shim. `PATH` in the
+workspace gets `tools/git` linked to `xcrun -f git`, but the tests that hard-code `/usr/bin/git`
+still pay for the shim. Measured on an arm64 Mac (macOS 26.3): profile wall 66–68 s with the xcrun
+cache rule alone, 54 s with the `tools/git` link as well (memory peak 0.6–0.73 GiB, 15 tasks);
+the budget is that measurement plus about 30 %. Such a `verify` is evidence for done; on Linux
+everything stays as above, the reference budget measurements are taken on Linux, and CI checks
+both OSes. `tui:check` and the
+CI build on macOS run under their own locks `mypi-tui-check` and `mypi-ci-build`.
 
 CI runs ordinary `pull_request` verification using the proposed revision's locked
 dependencies and scripts. Package, lockfile and script changes do not require a

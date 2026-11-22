@@ -10,6 +10,7 @@ import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { resolveStatePath } from '../../src/app/create-app.js';
 import { run } from '../../src/cli/run.js';
 import { parseCommand } from '../../src/cli/command.js';
+import { fromWork, systemPath } from '../support/work.js';
 
 const server = fileURLToPath(new URL('../support/event-socket-server.js', import.meta.url));
 const shortEmit = fileURLToPath(new URL('../support/event-emit.js', import.meta.url));
@@ -19,13 +20,13 @@ async function fixture(t: TestContext) {
   t.after(() => rmSync(dir, { recursive: true, force: true }));
   const root = join(dir, 'engine');
   mkdirSync(root);
-  cpSync('/work/dist', join(root, 'dist'), { recursive: true });
-  symlinkSync('/work/node_modules', join(root, 'node_modules'));
-  symlinkSync('/work/integrations', join(root, 'integrations'));
+  cpSync(fromWork('dist'), join(root, 'dist'), { recursive: true });
+  symlinkSync(fromWork('node_modules'), join(root, 'node_modules'));
+  symlinkSync(fromWork('integrations'), join(root, 'integrations'));
   const entry = join(root, 'dist/src/cli/main.js');
   const runtime = join(dir, 'run');
   mkdirSync(runtime, { mode: 0o700 });
-  const env = { PATH: '/work/tools:/usr/bin', HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
+  const env = { PATH: systemPath, HOME: dir, XDG_STATE_HOME: join(dir, 'state'), XDG_RUNTIME_DIR: runtime, TZ: 'UTC',
     GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' };
   const ok = (args: string[], extra: Record<string, string> = {}) => {
     const result = spawnSync(process.execPath, [entry, ...args], { env: { ...env, ...extra }, cwd: dir, encoding: 'utf8', timeout: 8000 });

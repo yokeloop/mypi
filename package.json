@@ -13,7 +13,7 @@
     "mypi-mcp": "dist/src/mcp/main.js"
   },
   "scripts": {
-    "build": "timeout --kill-after=5s 55s bash scripts/build.sh",
+    "build": "node scripts/bounded.mjs --time 55 --kill-after 5 -- bash scripts/build.sh",
     "bootstrap": "pnpm build && node dist/src/cli/bootstrap.js",
     "test": "bash scripts/check.sh fast",
     "verify": "bash scripts/check.sh verify",
