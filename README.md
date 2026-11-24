@@ -224,7 +224,13 @@ started the turn when it is a parent of the task, else to the project:
 - `turn_end`: a turn that a parent message started ends. Claude's Stop hook runs
   `mypi turn end`; it records the event only when the transcript entry that opened
   the turn has `turnOrigin` `peer` and carries the mypi parent-message frame
-  (`[mypi: сообщение родительской сессии MP для MP-12. …`). The Pi extension runs
+  (`[mypi: сообщение родительской сессии MP для MP-12. …`). Before recording it checks
+  the turn: once per turn it hands the turn back with `{"decision":"block","reason":…}`
+  when the turn left a `.md`/`.html` document in tmp or a derive publication without
+  its source in home, or an edited `INDEX.md` map over 1,500 characters or with a
+  bare derive URL; the event is then recorded on the next Stop
+  (`stop_hook_active`), which always passes and carries the final answer. A passing
+  Stop prints nothing. The Pi extension runs
   `mypi event emit --to <sender>` on `agent_settled` with the last reply only when a
   message with that frame started the turn through its socket. A turn a person started records
   nothing; an unreadable transcript or a missing mark records nothing.
