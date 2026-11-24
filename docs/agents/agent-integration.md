@@ -133,6 +133,11 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   settings can only tighten cross-session delivery, so `accept` there changes nothing.
 - Personal Claude settings belong in the ignored `.claude/settings.local.json` or in
   user settings. There is no `CLAUDE.md`; Claude Code loads [AGENTS.md](../../AGENTS.md) instead.
+- The tracked settings set `autoMemoryEnabled: false`: mypi's memory is home, and
+  Claude's auto-memory would be a second memory outside home and Git that Pi does not
+  see. The project setting overrides user settings and the `/memory` toggle; an
+  installation turns it back on only with `autoMemoryEnabled: true` in
+  `.claude/settings.local.json`.
 - Shared skills live in `integrations/skills/`; each gets a relative symlink
   `.claude/skills/<name>`, except the Pi-only skills (`flow`, `epic`), which Claude Code
   replaces with its own pipeline skill of the same name. The development pipeline's skills and agents in

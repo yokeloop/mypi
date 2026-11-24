@@ -24,6 +24,7 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - Schema 16 and 17 (MP-140, MP-142): `sessions` holds many rows per key with `device` and `active_at`; `events` gains `claimed_by` and `claimed_at`; `mypi db init` is required.
 - Clone and worktree paths under the mypi root are stored relative to it and resolved by each device from its own root (MP-155), so a Mac with `/Users` and a Linux device with `/home` share one registration; other paths stay absolute.
 - Test time budgets match what CI runners measure (MP-157; Linux verify > 58 s, macOS fast 7.4 s): fast tests ≤ 10 s and `pnpm test` ≤ 15 s on both OSes; `pnpm verify` ≤ 90 s with RuntimeMaxSec 93 s on Linux, ≤ 150 s with the supervisor at 153 s on macOS (`docs/TESTING.md` §6).
+- Claude auto-memory is off in the tracked `.claude/settings.json` (`autoMemoryEnabled: false`, MP-166): mypi's memory is home; move auto-memory entries into home before updating, since Claude stops reading the auto-memory directory (`docs/agents/agent-integration.md`).
 
 ### Fixed
 
