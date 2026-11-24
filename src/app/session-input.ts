@@ -47,12 +47,15 @@ export function promptInput(text: string): { nativeId: string; counted: boolean 
   return { nativeId: value['session_id'] as string, counted: (source === undefined || source === 'user') && !mypiFrame(value['prompt']) };
 }
 
-export function stopInput(text: string): { nativeId: string; active: boolean; message: string; transcript?: string } {
+export function stopInput(text: string): { nativeId: string; active: boolean; message: string; transcript?: string; cwd?: string; scratchpad?: string } {
   const value = hookObject(text, ['Stop']);
-  if (typeof value['stop_hook_active'] !== 'boolean'
-    || (value['last_assistant_message'] !== undefined && typeof value['last_assistant_message'] !== 'string')) throw new InputError('Invalid Stop hook input');
+  const optional = (field: string) => value[field] !== undefined && typeof value[field] !== 'string';
+  if (typeof value['stop_hook_active'] !== 'boolean' || optional('last_assistant_message') || optional('cwd') || optional('scratchpad_dir')) {
+    throw new InputError('Invalid Stop hook input');
+  }
+  const cwd = value['cwd'] as string | undefined, scratchpad = value['scratchpad_dir'] as string | undefined;
   return { nativeId: value['session_id'] as string, active: value['stop_hook_active'], message: (value['last_assistant_message'] as string | undefined) ?? '',
-    ...transcript(value) };
+    ...transcript(value), ...(cwd ? { cwd } : {}), ...(scratchpad ? { scratchpad } : {}) };
 }
 
 export function captureInput(text: string): { nativeId: string; transcript?: string } {

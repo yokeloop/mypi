@@ -62,7 +62,7 @@ export type AppCommand =
   | { name: 'event_emit'; kind: 'turn_end' | 'waiting'; message: string; from?: string; to?: string; notification?: string;
       session?: SessionHint; envScope?: string; runtime?: string; transcript?: string }
   | { name: 'turn_end'; nativeId: string; active: boolean; message: string; pid: number; envScope?: string; runtime?: string;
-      transcript?: string }
+      transcript?: string; cwd?: string; scratchpad?: string }
   | { name: 'event_list'; to?: string; from?: string; kind?: 'turn_end' | 'waiting' | 'milestone' | 'message'; delivered?: boolean; q?: string; before?: number; limit: number }
   | { name: 'inbox'; key?: string; session?: SessionHint; envScope?: string }
   | { name: 'message_send'; key: string; body: TextInput; session?: SessionHint; envScope?: string; runtime?: string }

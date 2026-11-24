@@ -249,13 +249,16 @@ test('claude transcript gives the last turn-opening prompt read from the end', t
 test('Stop and Notification hook input give the native id, the flag or type and the text', () => {
   const stop = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', permission_mode: 'default', hook_event_name: 'Stop',
     stop_hook_active: false };
-  const transcript = '/tmp/t.jsonl';
-  assert.deepEqual(stopInput(JSON.stringify({ ...stop, last_assistant_message: 'готово' })), { nativeId: 'c1', active: false, message: 'готово', transcript });
-  assert.deepEqual(stopInput(JSON.stringify(stop)), { nativeId: 'c1', active: false, message: '', transcript });
-  assert.deepEqual(stopInput(JSON.stringify({ ...stop, stop_hook_active: true, last_assistant_message: 'x' })), { nativeId: 'c1', active: true, message: 'x', transcript });
+  const transcript = '/tmp/t.jsonl', cwd = '/project';
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, last_assistant_message: 'готово' })), { nativeId: 'c1', active: false, message: 'готово', transcript, cwd });
+  assert.deepEqual(stopInput(JSON.stringify(stop)), { nativeId: 'c1', active: false, message: '', transcript, cwd });
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, stop_hook_active: true, last_assistant_message: 'x' })), { nativeId: 'c1', active: true, message: 'x', transcript, cwd });
   for (const path of [undefined, '', 7]) {
-    assert.deepEqual(stopInput(JSON.stringify({ ...stop, transcript_path: path })), { nativeId: 'c1', active: false, message: '' });
+    assert.deepEqual(stopInput(JSON.stringify({ ...stop, transcript_path: path })), { nativeId: 'c1', active: false, message: '', cwd });
   }
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, scratchpad_dir: '/tmp/scratch' })),
+    { nativeId: 'c1', active: false, message: '', transcript, cwd, scratchpad: '/tmp/scratch' });
+  assert.deepEqual(stopInput(JSON.stringify({ ...stop, cwd: '', scratchpad_dir: '' })), { nativeId: 'c1', active: false, message: '', transcript });
   const note = { session_id: 'c1', transcript_path: '/tmp/t.jsonl', cwd: '/project', hook_event_name: 'Notification' };
   for (const type of ['permission_prompt', 'idle_prompt', 'elicitation_dialog', 'auth_success']) {
     assert.deepEqual(notificationInput(JSON.stringify({ ...note, message: 'Claude needs your permission', title: 'Claude Code', notification_type: type })),
@@ -266,7 +269,8 @@ test('Stop and Notification hook input give the native id, the flag or type and 
   assert.deepEqual(notificationInput(JSON.stringify({ ...note, transcript_path: undefined, message: 'm', notification_type: 'permission_prompt' })),
     { nativeId: 'c1', type: 'permission_prompt', message: 'm' });
   for (const bad of ['not json', '[]', JSON.stringify({ ...stop, hook_event_name: 'Notification' }), JSON.stringify({ ...stop, session_id: '' }),
-    JSON.stringify({ ...stop, stop_hook_active: 'no' }), JSON.stringify({ ...stop, last_assistant_message: 1 })]) {
+    JSON.stringify({ ...stop, stop_hook_active: 'no' }), JSON.stringify({ ...stop, last_assistant_message: 1 }), JSON.stringify({ ...stop, cwd: 7 }),
+    JSON.stringify({ ...stop, scratchpad_dir: 7 })]) {
     assert.throws(() => stopInput(bad), /Invalid Stop hook input/, bad);
   }
   for (const bad of ['not json', 'null', JSON.stringify({ ...note, hook_event_name: 'Stop', message: 'm', notification_type: 'idle_prompt' }),
