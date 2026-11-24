@@ -2,9 +2,10 @@ process.env.TZ = 'UTC';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
+import { turnTranscript } from '../support/turn-transcripts.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { frame, isMilestone, isParentMessage, parentFrame, parentSender, startedByParent, startFrame } from '../../src/modules/events/public.js';
@@ -339,8 +340,7 @@ test('turn end blocks a turn with an unsaved document once and records the event
       'claude', 'c1', 'host', ?)`).run(at);
   } finally { db.close(); }
   const home = join(dir, 'home'), scratch = join(dir, 'scratch');
-  const lines = readFileSync(new URL('../../../test/fixtures/turn/parent-block.jsonl', import.meta.url), 'utf8')
-    .replaceAll('{{HOME}}', home).replaceAll('{{TMP}}', scratch).split('\n');
+  const lines = turnTranscript('parent-block', home, scratch).split('\n');
   const before = join(dir, 'before.jsonl'), after = join(dir, 'after.jsonl');
   writeFileSync(before, lines.slice(0, -2).join('\n') + '\n');
   writeFileSync(after, lines.join('\n'));

@@ -4,6 +4,7 @@ import type { TestContext } from 'node:test';
 import { mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
+import { turnTranscript } from '../support/turn-transcripts.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
@@ -20,8 +21,7 @@ function turn(t: TestContext) {
   mkdirSync(tmp);
   const transcript = (name: string) => {
     const path = join(dir, name);
-    writeFileSync(path, readFileSync(new URL('../../../test/fixtures/turn/' + name, import.meta.url), 'utf8')
-      .replaceAll('{{HOME}}', home).replaceAll('{{TMP}}', tmp));
+    writeFileSync(path, turnTranscript(name.replace(/\.jsonl$/, ''), home, tmp));
     return path;
   };
   const findings = (name: string) => turnFindings(claudeTurnActions(transcript(name))!, { home, tmp: [tmp], cwd: '/work',

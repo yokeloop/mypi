@@ -1,2 +1,0 @@
-{"type":"user","turnOrigin":"human","cwd":"/work","message":{"role":"user","content":"сделай"}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Write","input":{"file_path":"{{TMP}}/notes.md","content":"# Notes\n"}}]}}

@@ -1,3 +1,0 @@
-{"type":"user","turnOrigin":"human","cwd":"/work","message":{"role":"user","content":"сделай"}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t19","name":"Edit","input":{"file_path":"{{HOME}}/projects/one/project/INDEX.md","old_string":"a","new_string":"b"}}]}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t20","name":"mcp__mypi__context_write","input":{"paths":["projects/one/INDEX.md"],"message":"map"}}]}}

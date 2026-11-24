@@ -1,5 +1,0 @@
-{"type":"user","turnOrigin":"human","cwd":"/work","message":{"role":"user","content":"сделай"}}
-{"type":"assistant","cwd":"{{TMP}}","message":{"role":"assistant","content":[{"type":"tool_use","id":"t2","name":"Bash","input":{"command":"echo x > {{TMP}}/a.md"}}]}}
-{"type":"assistant","cwd":"{{TMP}}","message":{"role":"assistant","content":[{"type":"tool_use","id":"t3","name":"Bash","input":{"command":"printf y | tee {{TMP}}/b.md"}}]}}
-{"type":"assistant","cwd":"{{TMP}}","message":{"role":"assistant","content":[{"type":"tool_use","id":"t4","name":"Bash","input":{"command":"cat <<'EOF' > {{TMP}}/c.html\n<p>body</p>\n> quote.md\nEOF"}}]}}
-{"type":"assistant","cwd":"{{TMP}}","message":{"role":"assistant","content":[{"type":"tool_use","id":"t5","name":"Bash","input":{"command":"ls {{TMP}} 2>/dev/null"}}]}}

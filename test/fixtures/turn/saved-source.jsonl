@@ -1,5 +1,0 @@
-{"type":"user","turnOrigin":"human","cwd":"/work","message":{"role":"user","content":"сделай"}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t6","name":"Write","input":{"file_path":"{{TMP}}/notes.md","content":"# Notes\n"}}]}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t7","name":"Bash","input":{"command":"cp {{TMP}}/notes.md {{HOME}}/projects/one/project/tasks/MP-12-scoped-warmup/"}}]}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t8","name":"Write","input":{"file_path":"{{TMP}}/draft.md","content":"# Draft\n"}}]}}
-{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t9","name":"Write","input":{"file_path":"{{HOME}}/projects/one/project/tasks/MP-12-scoped-warmup/plan.md","content":"# Draft"}}]}}
