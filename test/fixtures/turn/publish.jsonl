@@ -1,0 +1,8 @@
+{"type":"user","turnOrigin":"human","cwd":"/work","message":{"role":"user","content":"сделай"}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t12","name":"mcp__derive__publish","input":{"title":"Plan A","content":"# Plan A\n"}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t13","name":"mcp__derive__publish","input":{"title":"Plan B","content":"# Plan B\n"}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t14","name":"Write","input":{"file_path":"{{HOME}}/projects/one/project/tasks/MP-12-scoped-warmup/plan-b.md","content":"# Plan B\n"}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t15","name":"mcp__derive__publish","input":{"artifact":"abc","edits":[{"old":"a","new":"b"}]}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t16","name":"Bash","input":{"command":"curl -sS -F file=@{{TMP}}/x.md https://draft.example/api"}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t17","name":"Bash","input":{"command":"curl -sS -F file=@$D/plan.md https://draft.example/api"}}]}}
+{"type":"assistant","cwd":"/work","message":{"role":"assistant","content":[{"type":"tool_use","id":"t18","name":"Bash","input":{"command":"curl -sS -F file=@{{HOME}}/projects/one/project/tasks/MP-12-scoped-warmup/plan.md https://draft.example/api"}}]}}
