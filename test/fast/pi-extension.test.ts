@@ -548,6 +548,9 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   assert.equal(cellWidth('…'), 1);
   assert.equal(cellWidth('中'), 2);
   assert.equal(cellWidth('🚀🟢'), 4);
+  assert.equal(cellWidth('☰'), 2);
+  assert.equal(cellWidth('䷀'), 2);
+  assert.equal(cellWidth('𝌀'), 2);
   for (const line of wrapQuestion('🟢'.repeat(30), 40)) assert.ok(cellWidth(line) <= 40, line);
   const pi = stub();
   install(pi.api, root, serve, undefined);
