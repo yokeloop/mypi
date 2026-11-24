@@ -544,6 +544,9 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   assert.deepEqual(wrapQuestion('漢字漢字漢字 ab', 4), ['漢字', '漢字', '漢字', 'ab']);
   for (const line of [...wrapped, ...wrapQuestion('漢字漢字漢字 ab', 4)]) assert.ok(cellWidth(line) <= 10);
   assert.deepEqual(wrapQuestion('abc', 0), ['a', 'b', 'c']);
+  assert.equal(cellWidth('─'), 1);
+  assert.equal(cellWidth('…'), 1);
+  assert.equal(cellWidth('中'), 2);
   const pi = stub();
   install(pi.api, root, serve, undefined);
   const tool = pi.tools.get('mypi_ask');
@@ -576,6 +579,8 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   assert.equal(short.seen.component.capturesViewportInput, true);
   const shortLines = short.render();
   within(shortLines, 20);
+  assert.equal(shortLines[0], '─'.repeat(40));
+  assert.equal(cellWidth(shortLines[0]!), 40);
   assert.deepEqual(shortLines.slice(1, -4), ['Факт один.', '', 'Факт два.', '']);
   short.keys('tui.select.confirm');
   assert.deepEqual((await short.result).details, { answer: 'A', custom: false });
