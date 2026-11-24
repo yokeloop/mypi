@@ -1,10 +1,21 @@
 export interface AskParams { question: string; options: string[] }
 
+export interface AskTui { terminal: { rows: number; columns: number }; requestRender(): void }
+
+export interface AskTheme { fg(color: string, text: string): string; bold(text: string): string }
+
+export interface AskKeybindings { matches(data: string, id: string): boolean }
+
+export interface AskComponent { render(width: number): string[]; handleInput?(data: string): void; invalidate(): void; capturesViewportInput?: boolean }
+
 export interface AskContext {
   hasUI: boolean;
+  mode?: string;
   ui: {
     select(title: string, options: string[], opts?: { signal?: AbortSignal }): Promise<string | undefined>;
     input(title: string, placeholder?: string, opts?: { signal?: AbortSignal }): Promise<string | undefined>;
+    custom?<T>(factory: (tui: AskTui, theme: AskTheme, keybindings: AskKeybindings, done: (value: T) => void) => AskComponent,
+      options?: { overlay?: boolean; overlayOptions?: { width?: string; maxHeight?: string; anchor?: string }; blocked?: { kind: 'question'; message: string } }): Promise<T>;
   };
 }
 
