@@ -1,3 +1,6 @@
+import { readFileSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { resolve } from 'node:path';
 import type { AppCommand } from './commands.js';
 import { WAITING_NOTIFICATIONS } from './session-input.js';
 import { callerIdentity, callerKey, sessionKey } from './sessions.js';
@@ -8,6 +11,9 @@ import type { SessionRunner } from './session-operations.js';
 import { inputText } from './input-text.js';
 import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
+import { claudeTurnActions } from '../infrastructure/transcript/claude-turn.js';
+import type { TurnActionReader } from '../shared/turn-actions.js';
+import { saveFolder, turnFindings, turnReason } from './turn-check.js';
 import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
 import type { TurnPromptReader } from '../modules/events/public.js';
 
@@ -29,13 +35,37 @@ export async function emitEvent(runner: SessionRunner, c: Of<'event_emit'>, tran
   return { event: result.event, delivered: await deliverPending(runner, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
 }
 
-export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, transports: EventTransports = {},
-  proc = '/proc', readPrompt: TurnPromptReader = claudeTurnPrompt): Promise<{ event: number | null; delivered: number[] }> {
-  if (c.active) return { event: null, delivered: [] };
-  return emitEvent(runner, { name: 'event_emit', kind: 'turn_end', message: c.message,
-    session: { agent: 'claude', nativeId: c.nativeId, pid: c.pid, ...(c.runtime === undefined ? {} : { runtime: c.runtime }) },
+export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, home: string, transports: EventTransports = {}, proc = '/proc',
+  readPrompt: TurnPromptReader = claudeTurnPrompt, readActions: TurnActionReader = claudeTurnActions
+): Promise<{ event: number | null; delivered: number[]; reason: string | null }> {
+  const session = { agent: 'claude' as const, nativeId: c.nativeId, pid: c.pid, ...(c.runtime === undefined ? {} : { runtime: c.runtime }) };
+  let failure: unknown;
+  if (!c.active && c.transcript !== undefined) {
+    try {
+      const actions = readActions(c.transcript);
+      if (actions !== undefined) {
+        const tmp = [...new Set(['/tmp', tmpdir(), c.scratchpad].filter(d => d !== undefined).map(d => resolve(d)))];
+        const findings = turnFindings(actions, { home, tmp, ...(c.cwd === undefined ? {} : { cwd: c.cwd }),
+          read: path => { try { return readFileSync(path, 'utf8'); } catch { return undefined; } },
+          isDirectory: path => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true });
+        if (findings !== null) {
+          const key = warmupScope(undefined, c.envScope, await sessionKey(runner, session, proc));
+          return { event: null, delivered: [], reason: turnReason(findings, await saveFolder(runner, home, key), home) };
+        }
+      }
+    } catch (error) {
+      failure = error;
+    }
+  }
+  const result = await emitEvent(runner, { name: 'event_emit', kind: 'turn_end', message: c.message, session,
     ...(c.envScope === undefined ? {} : { envScope: c.envScope }),
     ...(c.transcript === undefined ? {} : { transcript: c.transcript }) }, transports, proc, readPrompt);
+  if (failure !== undefined) throw failure;
+  return { ...result, reason: null };
+}
+
+export function stopOutput(result: { event: number | null; delivered: number[]; reason: string | null }): string {
+  return result.reason === null ? '' : JSON.stringify({ decision: 'block', reason: result.reason }) + '\n';
 }
 
 export async function readInbox(runner: SessionRunner, c: Of<'inbox'>, proc = '/proc') {

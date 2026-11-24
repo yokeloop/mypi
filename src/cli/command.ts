@@ -31,7 +31,7 @@ mypi archive capture --agent claude --hook | --agent claude|pi --file <transcrip
 mypi archive forget [--session <native-id>] [--key <key>] [--before date|UTC] (deletes the matching messages from the conversation archive; at least one option, all given ones must match, --key is exact; session rows and their read offsets stay, so import and capture do not bring the text back; only on the user's explicit request)
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
 mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n] (events newest first, read-only; never marks them delivered)
-mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin)
+mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin; prints nothing, or one block decision per turn for documents made outside home and edited maps over 1500 characters; errors exit 1, never 2)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
 mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]

@@ -15,7 +15,7 @@ import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerIdentity, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { captureArchive, importArchive } from './archive.js';
-import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
+import { emitEvent, readInbox, sendMessage, stopOutput, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
 import { archiveRunner, localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
@@ -94,7 +94,7 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'archive_import') return importArchive(archiveRunner(backend), c);
   if (c.name === 'archive_capture') return captureArchive(archiveRunner(backend), c);
   if (c.name === 'event_emit') return emitEvent(runner, c, transports);
-  if (c.name === 'turn_end') return turnEnd(runner, c, transports);
+  if (c.name === 'turn_end') return stopOutput(await turnEnd(runner, c, root ?? defaultContextRoot(), transports));
   if (c.name === 'inbox') return readInbox(runner, c);
   if (c.name === 'message_send') return sendMessage(runner, c, transports);
   if (c.name === 'project_flow') {
