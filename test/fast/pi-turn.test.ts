@@ -6,6 +6,10 @@ import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { piTurnSession } from '../support/pi-turn-sessions.js';
 import { turnFindings, turnReason } from '../../src/app/turn-check.js';
+import { createApp } from '../../src/app/create-app.js';
+import { openDatabase } from '../../src/infrastructure/database/database.js';
+import { localSessionRunner } from '../../src/app/session-operations.js';
+import { turnCheck } from '../../src/app/events.js';
 import { piTurnActions } from '../../src/infrastructure/transcript/pi-turn.js';
 
 function turn(t: TestContext) {
@@ -71,4 +75,23 @@ test('a pi turn keeps the calls before and after a parent message mid-turn, a cu
     { kind: 'write', path: tmp + '/b.md', cwd: '/work', content: '# B\n' },
     { kind: 'bash', command: 'cp ' + tmp + '/a.md ' + tmp + '/b.md ' + folder, cwd: '/work' }]);
   assert.equal(findings('parent', 'e2'), null);
+});
+
+test('the pi turn check gives the reason with the task folder of its key, nothing for a saved turn, and fails with its reader', async t => {
+  const { filename, home, tmp, session } = turn(t);
+  const app = createApp(filename, false);
+  try { app.projects.add('one/project', 'MP', undefined, 'file:///nonexistent/one/project.git'); } finally { app.close(); }
+  const db = openDatabase(filename);
+  try {
+    db.prepare(`INSERT INTO tasks(project_id, number, title, status_id, context_dir, worktree_path, created_at, updated_at)
+      VALUES ((SELECT id FROM projects WHERE code = 'MP'), 12, 'scoped-warmup', (SELECT id FROM task_statuses WHERE code = 'new'),
+      'projects/one/project/tasks/MP-12-scoped-warmup', NULL, '2026-10-01T00:00:00.000Z', '2026-10-01T00:00:00.000Z')`).run();
+  } finally { db.close(); }
+  const runner = localSessionRunner(filename);
+  const check = (name: string) => ({ name: 'turn_check' as const, agent: 'pi' as const, file: session(name), key: 'MP-12', since: 'e1' });
+  const { reason } = await turnCheck(runner, check('write-bash'), home);
+  assert.ok(reason!.includes(join(home, 'projects/one/project/tasks/MP-12-scoped-warmup') + ' (the task folder MP-12)'));
+  assert.ok(reason!.includes(tmp + '/notes.md'));
+  assert.deepEqual(await turnCheck(runner, check('saved-source'), home), {});
+  await assert.rejects(turnCheck(runner, check('saved-source'), home, () => { throw new Error('broken'); }), /broken/);
 });

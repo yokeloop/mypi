@@ -12,7 +12,8 @@ import { inputText } from './input-text.js';
 import { InputError } from '../shared/errors.js';
 import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript.js';
 import { claudeTurnActions } from '../infrastructure/transcript/claude-turn.js';
-import type { TurnActionReader } from '../shared/turn-actions.js';
+import { piTurnActions } from '../infrastructure/transcript/pi-turn.js';
+import type { TurnAction, TurnActionReader } from '../shared/turn-actions.js';
 import { saveFolder, turnFindings, turnReason } from './turn-check.js';
 import type { TurnContext } from './turn-check.js';
 import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
@@ -66,6 +67,15 @@ export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, home: st
     ...(c.transcript === undefined ? {} : { transcript: c.transcript }) }, transports, proc, readPrompt);
   if (failure !== undefined) throw failure;
   return { ...result, reason: null };
+}
+
+export async function turnCheck(runner: SessionRunner, c: Of<'turn_check'>, home: string,
+  readActions: (path: string, since?: string) => TurnAction[] | undefined = piTurnActions): Promise<{ reason?: string }> {
+  const actions = readActions(c.file, c.since);
+  if (actions === undefined) return {};
+  const findings = turnFindings(actions, diskTurnContext(home, ['/tmp', tmpdir()]));
+  if (findings === null) return {};
+  return { reason: turnReason(findings, await saveFolder(runner, home, c.key), home) };
 }
 
 export function stopOutput(result: { event: number | null; delivered: number[]; reason: string | null }): string {
