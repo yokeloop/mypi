@@ -43,6 +43,19 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
   interactive UI.
+  On `agent_before_settle`, when the session has a file and a registered key and the
+  turn has not been continued for it yet, the extension runs
+  `mypi turn check --agent pi --file <that file> --key <key> --since <leaf entry id>`
+  (the leaf at the last `agent_settled` or `session_start`) with a 5-second limit. The
+  command reads the turn's `write`, `edit` and `bash` calls and the calls inside
+  `codemode` (`nestedCalls`; a large write without recorded arguments, a call list
+  Pi did not record completely, and old sessions
+  without `nestedCalls`, by a literal `/tmp/….md|.html` path in the code) and applies the
+  same check as the Claude Stop hook. On a `reason` the extension appends one
+  `custom_message` (`customType` `mypi-save-check`, shown in the TUI, not in the archive
+  or `input`) and requests one continuation; a nonzero exit, a timeout or unparsable
+  output does nothing. An aborted turn skips the boundary; the flag resets on
+  `agent_settled`.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores
@@ -102,8 +115,20 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `mypi turn end` and the Notification hook, for `permission_prompt` and
   `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
   event only when the current turn was started by a parent message (`turnOrigin`
-  `peer` with the mypi parent-message frame in the transcript), and discard their
-  output. A second Stop command and the SessionEnd hook (every reason, including
+  `peer` with the mypi parent-message frame in the transcript). The output of
+  `event emit` is discarded. `mypi turn end` (its stderr is discarded) reads the
+  turn from the transcript and, once per turn, prints
+  `{"decision":"block","reason":…}` when the turn made a `.md`/`.html` document in
+  `/tmp`, `os.tmpdir()` or the scratchpad (Write/Edit, Bash `>`, `>>`, `tee`,
+  heredoc, `cp`/`mv`) or a publication (`mcp__derive__publish` with `content`,
+  `curl` uploading a file from tmp) whose source this turn did not write into home
+  (the same name or the same content; an edit of an `INDEX.md` alone does not
+  count), or edited an `INDEX.md` map longer than 1,500 characters or with a derive
+  URL and no home file on its line; the reason names the level or task folder and
+  the steps `cp` → `context_write` → `git -C <home> push`. With `stop_hook_active`
+  it always passes; a passing Stop prints nothing; a failed check exits 1,
+  never 2, and the event is still created. Files a subagent makes are not seen.
+  A second Stop command and the SessionEnd hook (every reason, including
   /clear and exit) run `mypi archive capture --agent claude --hook`: it reads
   `session_id` and `transcript_path` from stdin and records that transcript file
   into the conversation archive from its saved offset, so an answer the file had
@@ -121,6 +146,11 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   settings can only tighten cross-session delivery, so `accept` there changes nothing.
 - Personal Claude settings belong in the ignored `.claude/settings.local.json` or in
   user settings. There is no `CLAUDE.md`; Claude Code loads [AGENTS.md](../../AGENTS.md) instead.
+- The tracked settings set `autoMemoryEnabled: false`: mypi's memory is home, and
+  Claude's auto-memory would be a second memory outside home and Git that Pi does not
+  see. The project setting overrides user settings and the `/memory` toggle; an
+  installation turns it back on only with `autoMemoryEnabled: true` in
+  `.claude/settings.local.json`.
 - Shared skills live in `integrations/skills/`; each gets a relative symlink
   `.claude/skills/<name>`, except the Pi-only skills (`flow`, `epic`), which Claude Code
   replaces with its own pipeline skill of the same name. The development pipeline's skills and agents in

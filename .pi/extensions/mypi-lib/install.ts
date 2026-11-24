@@ -13,7 +13,7 @@ interface ExtensionContext {
     onTerminalInput(handler: (data: string) => { consume?: boolean; data?: string } | undefined): () => void;
   };
   isIdle(): boolean;
-  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null };
+  sessionManager: { getSessionId(): string; getSessionName(): string | undefined; getSessionFile(): string | undefined; getHeader(): { parentSession?: string } | null; getLeafId(): string | null };
 }
 interface McpServer {
   command: string; args: string[]; cwd: string; env: Record<string, string>;
@@ -31,6 +31,7 @@ export interface ExtensionAPI {
   on(name: 'agent_start', handler: () => void): void;
   on(name: 'before_agent_start', handler: (event: { systemPromptOptions: { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> } }) => void): void;
   on(name: 'agent_end', handler: (event: { messages: { role: string; content?: unknown }[] }) => void): void;
+  on(name: 'agent_before_settle', handler: (event: { entries: unknown[] }, ctx: ExtensionContext) => Promise<{ entries: unknown[]; continue: boolean } | undefined>): void;
   on(name: 'agent_settled', handler: (event: unknown, ctx: ExtensionContext) => Promise<void>): void;
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
   on(name: 'input', handler: (event: { text: string; images?: unknown[]; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' } | { action: 'transform'; text: string; images?: unknown[] }>): void;
@@ -99,6 +100,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
   let subscription: AbortController | undefined;
   let parentTurn = false;
   let parentFrom: string | undefined;
+  let since: string | undefined;
+  let reminded = false;
   const onBatch = async (events: { id: number; text: string }[]): Promise<number[]> => {
     const ids = events.map(e => e.id);
     const fresh = events.filter(e => !injected.has(e.id));
@@ -122,6 +125,8 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
     return ids;
   };
   pi.on('session_start', async (event, ctx) => {
+    since = ctx.sessionManager.getLeafId() ?? undefined;
+    reminded = false;
     const session = ctx.sessionManager.getSessionId();
     if (registered !== session) {
       if (registered !== undefined) pi.unregisterMcpServer('mypi');
@@ -201,7 +206,23 @@ export function install(pi: ExtensionAPI, root: string, serve: ServeEvents, runt
       .filter((part): part is { type: 'text'; text: string } => part?.type === 'text' && typeof part.text === 'string')
       .map(part => part.text).join('\n');
   });
+  pi.on('agent_before_settle', async (event, ctx) => {
+    const file = ctx.sessionManager.getSessionFile();
+    if (reminded || key === undefined || !file) return undefined;
+    let reason: unknown;
+    try {
+      const result = await pi.exec('node', [cli, 'turn', 'check', '--agent', 'pi', '--file', file, '--key', key,
+        ...(since === undefined ? [] : ['--since', since])], { cwd: root, timeout: 5000 });
+      if (result.code !== 0 || result.killed) return undefined;
+      reason = (JSON.parse(result.stdout) as { reason?: unknown }).reason;
+    } catch { return undefined; }
+    if (typeof reason !== 'string' || reason === '') return undefined;
+    reminded = true;
+    return { entries: [...event.entries, { type: 'custom_message', customType: 'mypi-save-check', content: reason, display: true }], continue: true };
+  });
   pi.on('agent_settled', async (_event, ctx) => {
+    reminded = false;
+    since = ctx.sessionManager.getLeafId() ?? undefined;
     const report = parentTurn, reply = last, to = parentFrom;
     parentTurn = false;
     parentFrom = undefined;

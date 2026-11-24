@@ -171,7 +171,13 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
       const input = stopInput(readInputFile(0));
       return { name: 'turn_end', nativeId: input.nativeId, active: input.active, message: input.message, pid,
         ...(env['MYPI_SCOPE'] === undefined ? {} : { envScope: env['MYPI_SCOPE'] }), ...runtime,
-        ...(input.transcript === undefined ? {} : { transcript: input.transcript }) };
+        ...(input.transcript === undefined ? {} : { transcript: input.transcript }),
+        ...(input.cwd === undefined ? {} : { cwd: input.cwd }), ...(input.scratchpad === undefined ? {} : { scratchpad: input.scratchpad }) };
+    }
+    case 'turn check': {
+      if (required('agent') !== 'pi') throw new InputError('--agent must be pi');
+      return { name: 'turn_check', agent: 'pi', file: required('file'), key: required('key'),
+        ...(opt('since') === undefined ? {} : { since: opt('since')! }) };
     }
     case 'archive capture': {
       const agent = required('agent');

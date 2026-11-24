@@ -70,6 +70,13 @@ Read when: working with session registration, /open, start messages, events, mil
   marks none of them; the child's own /inbox returns and marks them. A busy Claude
   child takes one as a `queued_command` inside the current turn, without its own
   `turn_end`; Pi takes it as a `followUp`.
+- In Claude `turn_end` is created on the passing Stop. When `mypi turn end` hands
+  the turn back with a block, no event is created until the second Stop
+  (`stop_hook_active`), which carries the final answer; the block's entry in the
+  transcript does not start a new turn for reading the turn prompt.
+- In Pi a continuation requested by the save check (`mypi turn check` on
+  `agent_before_settle`) does not settle the turn: `agent_settled` comes once after
+  it, so the `turn_end` event goes once with the final reply.
 
 ## Session registry and /open
 

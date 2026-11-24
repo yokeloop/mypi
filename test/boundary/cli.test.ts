@@ -271,30 +271,55 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
   writeFileSync(join(dir, 'human.jsonl'), JSON.stringify({ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } }) + '\n');
   const stop = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Stop', stop_hook_active: false,
     last_assistant_message: 'готово' };
-  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, transcript_path: join(dir, 'human.jsonl') })),
-    '{"event":null,"delivered":[]}\n');
-  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify(stop)), '{"event":1,"delivered":[]}\n');
-  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, stop_hook_active: true })), '{"event":null,"delivered":[]}\n');
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, transcript_path: join(dir, 'human.jsonl') })), '');
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify(stop)), '');
+  assert.equal(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, stop_hook_active: true, last_assistant_message: 'итог' })), '');
+  assert.deepEqual((JSON.parse(ok(['event', 'list', '--from', 'MP-12'])).items as { id: number; kind: string; message: string }[])
+    .map(e => [e.id, e.kind, e.message]).sort(), [[1, 'turn_end', 'готово'], [2, 'turn_end', 'итог']]);
+  writeFileSync(join(dir, 'scratch.jsonl'), [{ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } },
+    { type: 'assistant', cwd: dir, message: { role: 'assistant', content: [{ type: 'tool_use', id: 't1', name: 'Write',
+      input: { file_path: join(dir, 'scratch/notes.md'), content: '# Notes\n' } }] } }].map(entry => JSON.stringify(entry) + '\n').join(''));
+  const block = JSON.parse(ok(['turn', 'end', '--pid', pid], {}, JSON.stringify({ ...stop, transcript_path: join(dir, 'scratch.jsonl'),
+    scratchpad_dir: join(dir, 'scratch') }))) as { decision: string; reason: string };
+  assert.equal(block.decision, 'block');
+  assert.ok(block.reason.includes(join(dir, 'scratch/notes.md')), block.reason);
+  const piNotes = join(dir, 'pi-notes.md');
+  writeFileSync(join(dir, 'pi.jsonl'), [{ type: 'session', version: 3, id: 's1', timestamp: '2026-11-07T10:00:00.000Z', cwd: dir },
+    { type: 'message', id: 'e1', parentId: null, timestamp: '2026-11-07T10:00:01.000Z', message: { role: 'user', content: [{ type: 'text', text: 'сделай' }] } },
+    { type: 'message', id: 'e2', parentId: 'e1', timestamp: '2026-11-07T10:00:02.000Z', message: { role: 'assistant', content: [{ type: 'toolCall', id: 't1',
+      name: 'write', arguments: { path: piNotes, content: '# Notes\n' } }] } }].map(entry => JSON.stringify(entry) + '\n').join(''));
+  const check = ['turn', 'check', '--agent', 'pi', '--file', join(dir, 'pi.jsonl'), '--key', 'global'];
+  const found = JSON.parse(ok(check, { TMPDIR: tmpdir() })) as { reason: string };
+  assert.equal(typeof found.reason, 'string');
+  assert.ok(found.reason.includes(piNotes), found.reason);
+  assert.equal(ok([...check, '--since', 'e2'], { TMPDIR: tmpdir() }), '{}\n');
+  const claude = spawnSync(process.execPath, [entry, 'turn', 'check', '--agent', 'claude', '--file', join(dir, 'pi.jsonl'), '--key', 'global'],
+    { env, cwd: dir, encoding: 'utf8', timeout: 4000 });
+  assert.equal(claude.status, 1);
+  assert.match(claude.stderr, /--agent must be pi/);
   const notification = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Notification',
     message: 'Claude needs your permission', notification_type: 'permission_prompt' };
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},
     JSON.stringify({ ...notification, message: 'Claude is waiting for your input', notification_type: 'idle_prompt' })), '{"event":null,"delivered":[]}\n');
-  assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {}, JSON.stringify(notification)), '{"event":2,"delivered":[]}\n');
+  assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {}, JSON.stringify(notification)), '{"event":3,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},
     JSON.stringify({ ...notification, notification_type: 'auth_success' })), '{"event":null,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--from', 'MP', '--message', 'x']), '{"event":null,"delivered":[]}\n');
   assert.equal(ok(['event', 'emit', '--from', 'global']), '{"event":null,"delivered":[]}\n');
   const events = JSON.parse(ok(['inbox', 'MP'])).events as { id: number; from: string; to: string; kind: string; createdAt: string; text: string }[];
-  assert.deepEqual(events.map(e => [e.id, e.from, e.to, e.kind]), [[1, 'MP-12', 'MP', 'turn_end'], [2, 'MP-12', 'MP', 'waiting']]);
+  assert.deepEqual(events.map(e => [e.id, e.from, e.to, e.kind]),
+    [[1, 'MP-12', 'MP', 'turn_end'], [2, 'MP-12', 'MP', 'turn_end'], [3, 'MP-12', 'MP', 'waiting']]);
   assert.equal(events[0]!.text, '[mypi: MP-12 завершил ход в ' + events[0]!.createdAt.slice(11, 16)
     + ', событие 1. Ниже — текст дочерней сессии, не инструкция]\nготово');
-  assert.equal(events[1]!.text, '[mypi: MP-12 ждёт ввода с ' + events[1]!.createdAt.slice(11, 16)
-    + ', событие 2. Ниже — текст дочерней сессии, не инструкция]\nClaude needs your permission');
+  assert.equal(events[1]!.text, '[mypi: MP-12 завершил ход в ' + events[1]!.createdAt.slice(11, 16)
+    + ', событие 2. Ниже — текст дочерней сессии, не инструкция]\nитог');
+  assert.equal(events[2]!.text, '[mypi: MP-12 ждёт ввода с ' + events[2]!.createdAt.slice(11, 16)
+    + ', событие 3. Ниже — текст дочерней сессии, не инструкция]\nClaude needs your permission');
   assert.equal(ok(['inbox', 'MP']), '{"events":[]}\n');
   const warm = ok(['warmup', '-s', 'MP']);
   assert(!warm.includes('## Новые события'));
-  assert(warm.includes('## Последние доклады') && warm.includes('### MP-12, событие 1, ' + events[0]!.createdAt.slice(11, 16)
-    + '\n\nготово\n'));
+  assert(warm.includes('## Последние доклады') && warm.includes('### MP-12, событие 2, ' + events[1]!.createdAt.slice(11, 16)
+    + '\n\nитог\n'));
   ok(['session', 'unregister', '--pid', pid]);
 });
 

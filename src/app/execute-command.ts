@@ -15,7 +15,7 @@ import { projectFlow } from './project-flow-command.js';
 import { openSession } from './launcher.js';
 import { callerIdentity, forgetSession, listSessions, otherLiveSession, promptSession, registerSession, sessionKey, unregisterSession } from './sessions.js';
 import { captureArchive, importArchive } from './archive.js';
-import { emitEvent, readInbox, sendMessage, turnEnd } from './events.js';
+import { emitEvent, readInbox, sendMessage, stopOutput, turnCheck, turnEnd } from './events.js';
 import type { EventTransports } from './delivery.js';
 import { archiveRunner, localBackend, sessionRunner } from './backend.js';
 import type { Backend } from './backend.js';
@@ -58,7 +58,7 @@ async function runCommandOperation(c: OperationCommand, backend: Backend, root: 
 
 const reads = new Set(['journal_page', 'task_page', 'context_read']);
 const REMOTE_SESSION_COMMANDS: ReadonlySet<string> = new Set(['session_register', 'session_unregister', 'session_prompt', 'session_forget', 'warmup',
-  'event_emit', 'turn_end', 'inbox', 'message_send', 'sessions', 'task_worktree', 'open_session']);
+  'event_emit', 'turn_end', 'turn_check', 'inbox', 'message_send', 'sessions', 'task_worktree', 'open_session']);
 const REMOTE_ARCHIVE_COMMANDS: ReadonlySet<string> = new Set(['archive_capture', 'archive_import']);
 export async function executeCommand(c: AppCommand, filename: string, root?: string,
   transports: EventTransports = {}, context: RunContext = {}, backend: Backend = localBackend(filename, root)): Promise<unknown> {
@@ -94,7 +94,8 @@ export async function executeCommand(c: AppCommand, filename: string, root?: str
   if (c.name === 'archive_import') return importArchive(archiveRunner(backend), c);
   if (c.name === 'archive_capture') return captureArchive(archiveRunner(backend), c);
   if (c.name === 'event_emit') return emitEvent(runner, c, transports);
-  if (c.name === 'turn_end') return turnEnd(runner, c, transports);
+  if (c.name === 'turn_end') return stopOutput(await turnEnd(runner, c, root ?? defaultContextRoot(), transports));
+  if (c.name === 'turn_check') return turnCheck(runner, c, root ?? defaultContextRoot());
   if (c.name === 'inbox') return readInbox(runner, c);
   if (c.name === 'message_send') return sendMessage(runner, c, transports);
   if (c.name === 'project_flow') {

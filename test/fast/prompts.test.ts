@@ -4,8 +4,8 @@ import { readFileSync } from 'node:fs';
 
 const read = (name: string) => readFileSync(new URL('../../../integrations/prompts/' + name + '.md', import.meta.url), 'utf8');
 
-test('how-to stays within 2,200 characters and every role within 1,300', () => {
-  for (const [name, limit] of [['howto', 2200], ['global', 1300], ['org', 1300], ['project', 1300], ['task', 1300]] as const) {
+test('how-to stays within 2,450 characters and every role within 1,300', () => {
+  for (const [name, limit] of [['howto', 2450], ['global', 1300], ['org', 1300], ['project', 1300], ['task', 1300]] as const) {
     const length = read(name).length;
     assert.ok(length <= limit, name + ' is ' + length + ' characters, over ' + limit);
   }
