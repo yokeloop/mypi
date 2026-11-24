@@ -22,6 +22,11 @@ function parsed(line: Buffer): Record<string, unknown> | undefined {
   return typeof entry === 'object' && entry !== null && !Array.isArray(entry) ? entry as Record<string, unknown> : undefined;
 }
 
+function stopSummary(line: Buffer): boolean {
+  const entry = parsed(line);
+  return entry?.['type'] === 'system' && entry['subtype'] === 'stop_hook_summary';
+}
+
 function lines(data: Buffer): Record<string, unknown>[] {
   const records: Record<string, unknown>[] = [];
   let start = 0;
@@ -40,6 +45,7 @@ export function claudeTurnTail(path: string): { prompt: { origin: string; text: 
   try { fd = openSync(path, 'r'); } catch { return undefined; }
   try {
     let position = fstatSync(fd).size, tail = Buffer.alloc(0), after = Buffer.alloc(0);
+    let records: Record<string, unknown>[] | undefined;
     while (position > 0) {
       const length = Math.min(block, position);
       position -= length;
@@ -50,15 +56,17 @@ export function claudeTurnTail(path: string): { prompt: { origin: string; text: 
       while (end > 0) {
         const start = data.lastIndexOf(0x0a, end - 1);
         if (start < 0) break;
-        const found = turnPrompt(data.subarray(start + 1, end));
-        if (found !== undefined) return { prompt: found, records: lines(Buffer.concat([data.subarray(end), after])) };
+        const line = data.subarray(start + 1, end);
+        const found = turnPrompt(line);
+        if (found !== undefined) return { prompt: found, records: records ?? lines(Buffer.concat([data.subarray(end), after])) };
+        if (records === undefined && stopSummary(line)) records = lines(Buffer.concat([data.subarray(end), after]));
         end = start;
       }
       after = Buffer.concat([data.subarray(end), after]);
       tail = data.subarray(0, end);
     }
     const found = turnPrompt(tail);
-    return { prompt: found, records: lines(found === undefined ? Buffer.concat([tail, after]) : after) };
+    return { prompt: found, records: records ?? lines(found === undefined && !stopSummary(tail) ? Buffer.concat([tail, after]) : after) };
   } catch {
     return undefined;
   } finally {

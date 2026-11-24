@@ -48,6 +48,13 @@ const transcripts: Record<string, unknown[]> = {
     {"type": "user", "turnOrigin": "human", "cwd": "/work", "message": {"role": "user", "content": "сделай"}},
     {"type": "assistant", "cwd": "/work", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Write", "input": {"file_path": "{{TMP}}/notes.md", "content": "# Notes\n"}}]}},
   ],
+  'teammate-after-stop': [
+    {"type": "user", "turnOrigin": "human", "cwd": "/work", "message": {"role": "user", "content": "сделай"}},
+    {"type": "assistant", "cwd": "/work", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t1", "name": "Write", "input": {"file_path": "{{TMP}}/x.md", "content": "# X\n"}}]}},
+    {"type": "system", "subtype": "stop_hook_summary", "hookCount": 2, "cwd": "/work"},
+    {"type": "user", "cwd": "/work", "message": {"role": "user", "content": "<teammate-message teammate_id=\"mp-1\">done</teammate-message>"}},
+    {"type": "assistant", "cwd": "/work", "message": {"role": "assistant", "content": [{"type": "text", "text": "ok"}]}},
+  ],
 };
 
 export function turnTranscript(name: string, home: string, tmp: string): string {

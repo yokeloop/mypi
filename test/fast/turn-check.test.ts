@@ -61,6 +61,13 @@ test('bash writes into tmp by redirect, tee and heredoc are documents, heredoc b
   assert.deepEqual(findings('bash-tmp.jsonl')!.documents.map(d => d.path), [tmp + '/a.md', tmp + '/b.md', tmp + '/c.html', tmp + '/d.md', tmp + '/e.md']);
 });
 
+test('a turn without turnOrigin starts after the last Stop hook summary, so an earlier turn is not checked again', t => {
+  const { findings, transcript } = turn(t);
+  assert.deepEqual(claudeTurnActions(transcript('teammate-after-stop.jsonl')), []);
+  assert.equal(claudeTurnPrompt(transcript('teammate-after-stop.jsonl'))?.origin, 'human');
+  assert.equal(findings('teammate-after-stop.jsonl'), null);
+});
+
 test('a document copied into home or written there with the same content is saved', t => {
   const { findings } = turn(t);
   assert.equal(findings('saved-source.jsonl'), null);
