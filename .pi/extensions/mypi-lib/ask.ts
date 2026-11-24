@@ -33,6 +33,49 @@ export interface AskTool {
 
 const OWN_WORD = 'Своё слово';
 
+export function cellWidth(text: string): number {
+  let width = 0;
+  for (const char of text) width += char.codePointAt(0)! >= 0x1100 ? 2 : 1;
+  return width;
+}
+
+function clean(text: string): string {
+  return text.replace(/\x1b\[[0-9;?]*[ -\/]*[@-~]|\x1b\][^\x07\x1b]*(\x07|\x1b\\)|\x1b./g, '').replace(/\t/g, '  ').replace(/[\x00-\x09\x0b-\x1f\x7f]/g, '');
+}
+
+function chop(text: string, width: number): string[] {
+  const chunks: string[] = [];
+  let chunk = '';
+  for (const char of text) {
+    if (chunk && cellWidth(chunk + char) > width) { chunks.push(chunk); chunk = ''; }
+    chunk += char;
+  }
+  return [...chunks, chunk];
+}
+
+export function wrapQuestion(text: string, width: number): string[] {
+  const limit = Math.max(1, width);
+  const out: string[] = [];
+  for (const line of clean(text).split('\n')) {
+    if (line === '') { out.push(''); continue; }
+    const lead = line.match(/^ */)![0];
+    const words = line.slice(lead.length).split(' ').filter(word => word !== '');
+    if (words.length === 0) { out.push(...chop(lead, limit)); continue; }
+    let current = lead, filled = false;
+    for (const word of words) {
+      const candidate = filled ? current + ' ' + word : current + word;
+      if (cellWidth(candidate) <= limit) { current = candidate; filled = true; continue; }
+      const pieces = chop(filled ? word : candidate, limit);
+      if (filled) out.push(current);
+      out.push(...pieces.slice(0, -1));
+      current = pieces[pieces.length - 1]!;
+      filled = true;
+    }
+    out.push(current);
+  }
+  return out;
+}
+
 export function registerAsk(pi: { registerTool(tool: AskTool): void }): void {
   pi.registerTool({
     name: 'mypi_ask',

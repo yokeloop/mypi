@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEMODE_GUIDELINE, install, isEscape } from '../../.pi/extensions/mypi-lib/install.js';
 import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
+import { cellWidth, wrapQuestion } from '../../.pi/extensions/mypi-lib/ask.js';
 import { runtimeDir } from '../../.pi/extensions/mypi-lib/runtime-dir.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 import { pointerLine } from '../../src/shared/switch-pointer.js';
@@ -535,6 +536,14 @@ test('pi extension mypi_ask asks one question with the recommendation first and 
   assert.equal(headless.result.isError, true);
   assert.deepEqual(headless.result.details, { answer: null, error: 'no-ui' });
   assert.deepEqual(headless.selects, []);
+});
+
+test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options and hint always visible, scrolling question', async () => {
+  const wrapped = wrapQuestion('Первый абзац.\n\nВторой абзац длиннее ширины экрана\n' + 'x'.repeat(25) + '\n\tтаб\x1b[31m красный\n  отступ', 10);
+  assert.deepEqual(wrapped, ['Первый', 'абзац.', '', 'Второй', 'абзац', 'длиннее', 'ширины', 'экрана', 'xxxxxxxxxx', 'xxxxxxxxxx', 'xxxxx', '  таб', 'красный', '  отступ']);
+  assert.deepEqual(wrapQuestion('漢字漢字漢字 ab', 4), ['漢字', '漢字', '漢字', 'ab']);
+  for (const line of [...wrapped, ...wrapQuestion('漢字漢字漢字 ab', 4)]) assert.ok(cellWidth(line) <= 10);
+  assert.deepEqual(wrapQuestion('abc', 0), ['a', 'b', 'c']);
 });
 
 test('pi extension /open suggests keys of the session\'s project from the CLI', async () => {
