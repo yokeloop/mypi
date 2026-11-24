@@ -102,8 +102,20 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `mypi turn end` and the Notification hook, for `permission_prompt` and
   `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an
   event only when the current turn was started by a parent message (`turnOrigin`
-  `peer` with the mypi parent-message frame in the transcript), and discard their
-  output. A second Stop command and the SessionEnd hook (every reason, including
+  `peer` with the mypi parent-message frame in the transcript). The output of
+  `event emit` is discarded. `mypi turn end` (its stderr is discarded) reads the
+  turn from the transcript and, once per turn, prints
+  `{"decision":"block","reason":…}` when the turn made a `.md`/`.html` document in
+  `/tmp`, `os.tmpdir()` or the scratchpad (Write/Edit, Bash `>`, `>>`, `tee`,
+  heredoc, `cp`/`mv`) or a publication (`mcp__derive__publish` with `content`,
+  `curl` uploading a file from tmp) whose source this turn did not write into home
+  (the same name or the same content; an edit of an `INDEX.md` alone does not
+  count), or edited an `INDEX.md` map longer than 1,500 characters or with a derive
+  URL and no home file on its line; the reason names the level or task folder and
+  the steps `cp` → `context_write` → `git -C <home> push`. With `stop_hook_active`
+  it always passes; a passing Stop prints nothing; a failed check exits 1,
+  never 2, and the event is still created. Files a subagent makes are not seen.
+  A second Stop command and the SessionEnd hook (every reason, including
   /clear and exit) run `mypi archive capture --agent claude --hook`: it reads
   `session_id` and `transcript_path` from stdin and records that transcript file
   into the conversation archive from its saved offset, so an answer the file had
