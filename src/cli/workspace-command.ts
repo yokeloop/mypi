@@ -55,6 +55,7 @@ const specs: Record<string, [number, number, string[], string[]]> = {
   'event emit': [0, 0, ['from', 'to', 'message', 'pid'], ['waiting', 'hook']],
   'event list': [0, 0, ['to', 'from', 'kind', 'delivered', 'q', 'before', 'limit'], []],
   'turn end': [0, 0, ['pid'], []],
+  'turn check': [0, 0, ['agent', 'file', 'key', 'since'], []],
   inbox: [0, 1, [], []],
   send: [1, 2, ['file'], []],
   open: [1, Infinity, ['agent', 'permission-mode', 'message', 'session'], ['new']],

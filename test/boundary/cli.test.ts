@@ -283,6 +283,20 @@ test('real CLI turns parent-started Stop and Notification hook input into one ev
     scratchpad_dir: join(dir, 'scratch') }))) as { decision: string; reason: string };
   assert.equal(block.decision, 'block');
   assert.ok(block.reason.includes(join(dir, 'scratch/notes.md')), block.reason);
+  const piNotes = join(dir, 'pi-notes.md');
+  writeFileSync(join(dir, 'pi.jsonl'), [{ type: 'session', version: 3, id: 's1', timestamp: '2026-11-07T10:00:00.000Z', cwd: dir },
+    { type: 'message', id: 'e1', parentId: null, timestamp: '2026-11-07T10:00:01.000Z', message: { role: 'user', content: [{ type: 'text', text: 'сделай' }] } },
+    { type: 'message', id: 'e2', parentId: 'e1', timestamp: '2026-11-07T10:00:02.000Z', message: { role: 'assistant', content: [{ type: 'toolCall', id: 't1',
+      name: 'write', arguments: { path: piNotes, content: '# Notes\n' } }] } }].map(entry => JSON.stringify(entry) + '\n').join(''));
+  const check = ['turn', 'check', '--agent', 'pi', '--file', join(dir, 'pi.jsonl'), '--key', 'global'];
+  const found = JSON.parse(ok(check, { TMPDIR: tmpdir() })) as { reason: string };
+  assert.equal(typeof found.reason, 'string');
+  assert.ok(found.reason.includes(piNotes), found.reason);
+  assert.equal(ok([...check, '--since', 'e2'], { TMPDIR: tmpdir() }), '{}\n');
+  const claude = spawnSync(process.execPath, [entry, 'turn', 'check', '--agent', 'claude', '--file', join(dir, 'pi.jsonl'), '--key', 'global'],
+    { env, cwd: dir, encoding: 'utf8', timeout: 4000 });
+  assert.equal(claude.status, 1);
+  assert.match(claude.stderr, /--agent must be pi/);
   const notification = { session_id: 'c1', transcript_path: join(dir, 't.jsonl'), cwd: dir, hook_event_name: 'Notification',
     message: 'Claude needs your permission', notification_type: 'permission_prompt' };
   assert.equal(ok(['event', 'emit', '--waiting', '--hook', '--pid', pid], {},

@@ -174,6 +174,11 @@ export function appCommand(command: Exclude<Command, { type: 'help' }>, env: Rea
         ...(input.transcript === undefined ? {} : { transcript: input.transcript }),
         ...(input.cwd === undefined ? {} : { cwd: input.cwd }), ...(input.scratchpad === undefined ? {} : { scratchpad: input.scratchpad }) };
     }
+    case 'turn check': {
+      if (required('agent') !== 'pi') throw new InputError('--agent must be pi');
+      return { name: 'turn_check', agent: 'pi', file: required('file'), key: required('key'),
+        ...(opt('since') === undefined ? {} : { since: opt('since')! }) };
+    }
     case 'archive capture': {
       const agent = required('agent');
       if (agent !== 'claude' && agent !== 'pi') throw new InputError('--agent must be claude or pi');
