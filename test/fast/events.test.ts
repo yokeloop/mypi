@@ -2,14 +2,14 @@ process.env.TZ = 'UTC';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import type { TestContext } from 'node:test';
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { state } from '../support/state.js';
 import { createApp } from '../../src/app/create-app.js';
 import { openDatabase } from '../../src/infrastructure/database/database.js';
 import { frame, isMilestone, isParentMessage, parentFrame, parentSender, startedByParent, startFrame } from '../../src/modules/events/public.js';
 import { notificationInput, stopInput } from '../../src/app/session-input.js';
-import { emitEvent, readInbox, turnEnd } from '../../src/app/events.js';
+import { emitEvent, readInbox, stopOutput, turnEnd } from '../../src/app/events.js';
 import { localSessionRunner } from '../../src/app/session-operations.js';
 import { appCommand } from '../../src/cli/app-command.js';
 import { claudeTurnPrompt } from '../../src/infrastructure/transcript/claude-transcript.js';
@@ -292,42 +292,73 @@ test('turn end and hook events emit only in a parent-started turn of a task chat
   writeFileSync(parent, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n' + parentFrame('MP', 'MP-12', 'go') } }) + '\n');
   writeFileSync(person, JSON.stringify({ type: 'user', turnOrigin: 'human', message: { role: 'user', content: 'сделай' } }) + '\n');
-  const runtime = join(dir, 'run'), pid = 2 ** 22 + 7;
+  const runtime = join(dir, 'run'), pid = 2 ** 22 + 7, home = join(dir, 'home');
   const stop = { name: 'turn_end' as const, nativeId: 'c1', active: false, message: 'готово', pid, runtime, transcript: parent };
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, active: true }), { event: null, delivered: [] });
-  assert.equal(rows().length, 0);
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: person }), { event: null, delivered: [] });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, active: true }, home), { event: 1, delivered: [], reason: null });
+  assert.equal(rows().length, 1);
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: person }, home), { event: null, delivered: [], reason: null });
   const { transcript: _, ...bare } = stop;
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), bare), { event: null, delivered: [] });
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: join(dir, 'missing.jsonl') }), { event: null, delivered: [] });
-  assert.equal(rows().length, 0);
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), stop), { event: 1, delivered: [] });
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2', envScope: 'MP-7' }), { event: 2, delivered: [] });
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2', envScope: 'MP' }), { event: null, delivered: [] });
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2' }), { event: null, delivered: [] });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), bare, home), { event: null, delivered: [], reason: null });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: join(dir, 'missing.jsonl') }, home), { event: null, delivered: [], reason: null });
+  assert.equal(rows().length, 1);
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), stop, home), { event: 2, delivered: [], reason: null });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2', envScope: 'MP-7' }, home), { event: 3, delivered: [], reason: null });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2', envScope: 'MP' }, home), { event: null, delivered: [], reason: null });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, nativeId: 'c2' }, home), { event: null, delivered: [], reason: null });
   assert.deepEqual((rows() as { fromKey: string; kind: string; message: string }[]).map(r => [r.fromKey, r.kind, r.message]),
-    [['MP-12', 'turn_end', 'готово'], ['MP-7', 'turn_end', 'готово']]);
+    [['MP-12', 'turn_end', 'готово'], ['MP-12', 'turn_end', 'готово'], ['MP-7', 'turn_end', 'готово']]);
   const hook = { name: 'event_emit' as const, kind: 'waiting' as const, message: 'Claude needs your permission',
     session: { agent: 'claude' as const, nativeId: 'c1', pid, runtime }, transcript: parent };
   assert.deepEqual(await emitEvent(localSessionRunner(filename), { ...hook, notification: 'auth_success' }), { event: null, delivered: [] });
   for (const transcript of [parent, person]) {
     assert.deepEqual(await emitEvent(localSessionRunner(filename), { ...hook, notification: 'idle_prompt', transcript }), { event: null, delivered: [] });
   }
-  assert.equal(rows().length, 2);
+  assert.equal(rows().length, 3);
   for (const notification of ['permission_prompt', 'elicitation_dialog']) {
     assert.deepEqual(await emitEvent(localSessionRunner(filename), { ...hook, notification, transcript: person }), { event: null, delivered: [] });
     await emitEvent(localSessionRunner(filename), { ...hook, notification });
   }
-  assert.deepEqual((rows() as { fromKey: string; kind: string }[]).slice(2).map(r => [r.fromKey, r.kind]),
+  assert.deepEqual((rows() as { fromKey: string; kind: string }[]).slice(3).map(r => [r.fromKey, r.kind]),
     [['MP-12', 'waiting'], ['MP-12', 'waiting']]);
   const org = join(dir, 'org.jsonl');
   writeFileSync(org, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
-  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: org }), { event: 5, delivered: [] });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: org }, home), { event: 6, delivered: [], reason: null });
   await emitEvent(localSessionRunner(filename), { ...hook, notification: 'permission_prompt', transcript: org });
   assert.deepEqual((rows() as { fromKey: string; toKey: string; kind: string }[]).map(r => [r.fromKey, r.toKey, r.kind]), [
-    ['MP-12', 'MP', 'turn_end'], ['MP-7', 'MP', 'turn_end'], ['MP-12', 'MP', 'waiting'], ['MP-12', 'MP', 'waiting'],
+    ['MP-12', 'MP', 'turn_end'], ['MP-12', 'MP', 'turn_end'], ['MP-7', 'MP', 'turn_end'], ['MP-12', 'MP', 'waiting'], ['MP-12', 'MP', 'waiting'],
     ['MP-12', 'one', 'turn_end'], ['MP-12', 'one', 'waiting']]);
+});
+
+test('turn end blocks a turn with an unsaved document once and records the event on the passing Stop', async t => {
+  const { dir, filename, rows } = fixture(t);
+  const db = openDatabase(filename);
+  try {
+    db.prepare(`INSERT INTO sessions(key, scope_type, project_id, task_id, agent, native_id, device, created_at) VALUES ('MP-12', 'task',
+      (SELECT id FROM projects WHERE code = 'MP'), (SELECT t.id FROM tasks t JOIN projects p ON p.id = t.project_id WHERE p.code = 'MP' AND t.number = 12),
+      'claude', 'c1', 'host', ?)`).run(at);
+  } finally { db.close(); }
+  const home = join(dir, 'home'), scratch = join(dir, 'scratch');
+  const lines = readFileSync(new URL('../../../test/fixtures/turn/parent-block.jsonl', import.meta.url), 'utf8')
+    .replaceAll('{{HOME}}', home).replaceAll('{{TMP}}', scratch).split('\n');
+  const before = join(dir, 'before.jsonl'), after = join(dir, 'after.jsonl');
+  writeFileSync(before, lines.slice(0, -2).join('\n') + '\n');
+  writeFileSync(after, lines.join('\n'));
+  const stop = { name: 'turn_end' as const, nativeId: 'c1', active: false, message: 'промежуточный', pid: 2 ** 22 + 7, runtime: join(dir, 'run'),
+    transcript: before, scratchpad: scratch };
+  const blocked = await turnEnd(localSessionRunner(filename), stop, home);
+  assert.equal(blocked.event, null);
+  assert.ok(blocked.reason!.includes('- ' + scratch + '/notes.md (written)'));
+  assert.ok(blocked.reason!.includes('Save each source to ' + join(home, 'projects/one/project/tasks/MP-12-scoped-warmup') + ' (the task folder MP-12):'));
+  assert.equal(stopOutput(blocked), JSON.stringify({ decision: 'block', reason: blocked.reason }) + '\n');
+  assert.equal(rows().length, 0);
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, active: true, message: 'итог' }, home), { event: 1, delivered: [], reason: null });
+  assert.deepEqual(await turnEnd(localSessionRunner(filename), { ...stop, transcript: after, message: 'сохранено' }, home), { event: 2, delivered: [], reason: null });
+  assert.equal(stopOutput({ event: 2, delivered: [], reason: null }), '');
+  await assert.rejects(turnEnd(localSessionRunner(filename), stop, home, {}, '/proc', claudeTurnPrompt, () => { throw new Error('broken transcript'); }),
+    /broken transcript/);
+  assert.deepEqual((rows() as { fromKey: string; toKey: string; kind: string; message: string }[]).map(r => [r.fromKey, r.toKey, r.kind, r.message]),
+    [['MP-12', 'MP', 'turn_end', 'итог'], ['MP-12', 'MP', 'turn_end', 'сохранено'], ['MP-12', 'MP', 'turn_end', 'промежуточный']]);
 });
 
 test('inbox returns the undelivered events in order, framed, and marks them delivered', async t => {

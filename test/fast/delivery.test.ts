@@ -308,7 +308,7 @@ test('turn end in a project scope sends nothing to a live Claude parent', async 
   const { filename, run, proc, register, delivered, calls, transport } = fixture(t);
   register(101, '/s/claude.sock', 'claude', 'c1');
   assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run },
-    { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [] });
+    join(run, 'home'), { claude: transport(ids => ids), pi: transport(ids => ids) }, proc), { event: null, delivered: [], reason: null });
   assert.equal(calls.length, 0);
   assert.deepEqual(delivered(), []);
 });
@@ -322,7 +322,7 @@ test('turn end of a turn the organization chat started goes to the live organiza
   writeFileSync(transcript, JSON.stringify({ type: 'user', turnOrigin: 'peer', message: { role: 'user',
     content: 'Another Claude session sent a message:\n' + parentFrame('one', 'MP-12', 'go') } }) + '\n');
   assert.deepEqual(await turnEnd(localSessionRunner(filename), { name: 'turn_end', nativeId: 'c1', active: false, message: 'готово', pid: 101, runtime: run, transcript },
-    { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1] });
+    join(run, 'home'), { claude: transport(ids => ids) }, proc), { event: 1, delivered: [1], reason: null });
   assert.deepEqual(calls.map(c => [c.socket, c.events.map(e => e.id)]), [['/s/one.sock', [1]]]);
   assert.deepEqual(delivered(), [[1, true]]);
   assert.deepEqual((await readInbox(localSessionRunner(filename), { name: 'inbox', key: 'MP' })).events, []);
