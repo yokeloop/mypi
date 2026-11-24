@@ -14,6 +14,7 @@ import { claudeTurnPrompt } from '../infrastructure/transcript/claude-transcript
 import { claudeTurnActions } from '../infrastructure/transcript/claude-turn.js';
 import type { TurnActionReader } from '../shared/turn-actions.js';
 import { saveFolder, turnFindings, turnReason } from './turn-check.js';
+import type { TurnContext } from './turn-check.js';
 import { frame, parentKey, parentSender, startedByParent } from '../modules/events/public.js';
 import type { TurnPromptReader } from '../modules/events/public.js';
 
@@ -35,6 +36,12 @@ export async function emitEvent(runner: SessionRunner, c: Of<'event_emit'>, tran
   return { event: result.event, delivered: await deliverPending(runner, result.to!, c.runtime ?? c.session?.runtime, transports, proc) };
 }
 
+function diskTurnContext(home: string, dirs: (string | undefined)[], cwd?: string): TurnContext {
+  return { home, tmp: [...new Set(dirs.filter(d => d !== undefined).map(d => resolve(d)))], ...(cwd === undefined ? {} : { cwd }),
+    read: path => { try { return readFileSync(path, 'utf8'); } catch { return undefined; } },
+    isDirectory: path => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true };
+}
+
 export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, home: string, transports: EventTransports = {}, proc = '/proc',
   readPrompt: TurnPromptReader = claudeTurnPrompt, readActions: TurnActionReader = claudeTurnActions
 ): Promise<{ event: number | null; delivered: number[]; reason: string | null }> {
@@ -44,10 +51,7 @@ export async function turnEnd(runner: SessionRunner, c: Of<'turn_end'>, home: st
     try {
       const actions = readActions(c.transcript);
       if (actions !== undefined) {
-        const tmp = [...new Set(['/tmp', tmpdir(), c.scratchpad].filter(d => d !== undefined).map(d => resolve(d)))];
-        const findings = turnFindings(actions, { home, tmp, ...(c.cwd === undefined ? {} : { cwd: c.cwd }),
-          read: path => { try { return readFileSync(path, 'utf8'); } catch { return undefined; } },
-          isDirectory: path => statSync(path, { throwIfNoEntry: false })?.isDirectory() === true });
+        const findings = turnFindings(actions, diskTurnContext(home, ['/tmp', tmpdir(), c.scratchpad], c.cwd));
         if (findings !== null) {
           const key = warmupScope(undefined, c.envScope, await sessionKey(runner, session, proc));
           return { event: null, delivered: [], reason: turnReason(findings, await saveFolder(runner, home, key), home) };
