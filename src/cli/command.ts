@@ -32,6 +32,7 @@ mypi archive forget [--session <native-id>] [--key <key>] [--before date|UTC] (d
 mypi event emit --from <key> [--to <parent>] [--waiting] [--message text] | --waiting --hook --pid <pid> (records the event for the parent that started the turn, default the task's project, then sends that parent's undelivered events to its live Pi or Claude session)
 mypi event list [--to <key>] [--from <key>] [--kind turn_end|waiting|milestone|message] [--delivered true|false] [--q text] [--before <id>] [--limit n] (events newest first, read-only; never marks them delivered)
 mypi turn end --pid <pid> (reads Claude's Stop hook input from stdin; prints nothing, or one block decision per turn for documents made outside home and edited maps over 1500 characters; errors exit 1, never 2)
+mypi turn check --agent pi --file <session> --key <key> [--since <entry-id>] (checks the Pi turn after that session entry; prints {} or {"reason":…} for documents made outside home and edited maps over 1500 characters; errors exit 1)
 mypi inbox [org|CODE|CODE-N|global|all] (prints and marks delivered the undelivered events; default: the session's registered key, else MYPI_SCOPE, else global)
 mypi send <key> [text | --file source] (a parent's instruction to its child session: delivered live or queued until the next open)
 mypi open <key...> [--agent claude|pi] [--new | --session <native-id>] [--permission-mode mode] [--message text]
@@ -56,7 +57,7 @@ Local backup still requires clean, published context files. Publication uses exi
 Results and errors are JSON; warmup prints Markdown (scope: -s, else the session's registered key, else MYPI_SCOPE, else global; --max-chars n caps it at n characters instead of 64 KiB).
 open keys: an organization slug (tb-ff), a project code (MP), CODE-N, org/project or org/project#N; it needs a running Herdr server.
 Set XDG_STATE_HOME to isolated state for development.
-With $XDG_CONFIG_HOME/mypi/server.json (remote mode) project, org remove, status, task, journal add|read, event list|emit, note, capture, error, context, session register|unregister|prompt|forget, sessions, open, warmup, turn end, inbox, send and archive run against that mypi serve with this device's home and session registry; other commands are refused (docs/M1-CLI.md).
+With $XDG_CONFIG_HOME/mypi/server.json (remote mode) project, org remove, status, task, journal add|read, event list|emit, note, capture, error, context, session register|unregister|prompt|forget, sessions, open, warmup, turn end, turn check, inbox, send and archive run against that mypi serve with this device's home and session registry; other commands are refused (docs/M1-CLI.md).
 `;
 
 export function parseCommand(args: string[]): Command {
