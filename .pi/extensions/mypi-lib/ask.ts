@@ -145,11 +145,11 @@ export function registerAsk(pi: { registerTool(tool: AskTool): void }): void {
   pi.registerTool({
     name: 'mypi_ask',
     label: 'mypi ask',
-    description: 'Ask the engineer one question and wait for the answer. options: 2–4 short labels, the recommended one first; the tool marks it «(рекомендую)» and adds «Своё слово» for a typed answer. Put the facts and one line of reasoning per option into question. Returns {"answer","custom"}; {"answer":null,"cancelled":true} when the engineer cancels — then stop; record no answer to it.',
+    description: 'Ask the engineer one question and wait for the answer. options: 2–4 short labels, the recommended one first; the tool marks it «(рекомендую)» and adds «Своё слово» for a typed answer. Write question as short paragraphs separated by a blank line: the facts first, then one line of reasoning per option; the engineer may read it on a phone-sized screen. Returns {"answer","custom"}; {"answer":null,"cancelled":true} when the engineer cancels — then stop; record no answer to it.',
     parameters: {
       type: 'object',
       properties: {
-        question: { type: 'string', description: 'The question with its facts and the reasoning per option' },
+        question: { type: 'string', description: 'The question: short paragraphs separated by a blank line — the facts, then one line per option' },
         options: { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 4, description: 'Option labels, the recommended one first' },
       },
       required: ['question', 'options'],
