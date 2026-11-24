@@ -19,7 +19,7 @@ const serve = async () => ({ close: async () => {} });
 const warm = (key: string) => ['node', [cli, 'warmup', '-s', key], { cwd: root, timeout: 5000 }];
 
 function stub() {
-  const handlers = new Map<string, (event: any, ctx: any) => Promise<void> | void>();
+  const handlers = new Map<string, (event: any, ctx: any) => Promise<unknown> | unknown>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
   const statuses: [string, string | undefined][] = [];
@@ -28,10 +28,10 @@ function stub() {
   const commands = new Map<string, { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }>();
   const tools = new Map<string, any>();
   const registration = () => ({ code: 0, killed: false, stdout: JSON.stringify({ key: state.key, registered: true }) + '\n', stderr: '' });
-  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null,
+  const state = { id: 's1', key: 'global', idle: true, name: undefined as string | undefined, file: undefined as string | undefined, header: null as { parentSession?: string } | null, leaf: null as string | null,
     result: (_command: string, args: string[]): unknown => args[1] === 'session' ? registration() : { code: 0, killed: false, stdout: '', stderr: '' } };
   const api = {
-    on(name: string, handler: (event: any, ctx: any) => Promise<void> | void) { handlers.set(name, handler); },
+    on(name: string, handler: (event: any, ctx: any) => Promise<unknown> | unknown) { handlers.set(name, handler); },
     registerMcpServer(name: string, config: unknown) { servers.push({ name, config }); },
     unregisterMcpServer(name: string) { removed.push(name); },
     registerCommand(name: string, command: { description: string; handler: (args: string, ctx: any) => Promise<void>; getArgumentCompletions?: (prefix: string) => Promise<unknown> }) { commands.set(name, command); },
@@ -46,7 +46,7 @@ function stub() {
       return () => { terminal.unsubscribed++; };
     } },
     isIdle: () => state.idle,
-    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header } };
+    sessionManager: { getSessionId: () => state.id, getSessionName: () => state.name, getSessionFile: () => state.file, getHeader: () => state.header, getLeafId: () => state.leaf } };
   const start = async (reason: string) => { await handlers.get('session_start')?.({ reason }, ctx); };
   const stop = async (reason: string) => { await handlers.get('session_shutdown')?.({ reason }, ctx); };
   const turn = async () => {
@@ -68,7 +68,7 @@ test('pi extension registers mypi MCP with the session id and loads warmup into 
   install(pi.api, root, serve, undefined);
   assert.equal(pi.servers.length, 0);
   assert.deepEqual(pi.calls, []);
-  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'input', 'session_shutdown', 'session_start', 'ui_prompt_start']);
+  assert.deepEqual([...pi.handlers.keys()].sort(), ['agent_before_settle', 'agent_end', 'agent_settled', 'agent_start', 'before_agent_start', 'input', 'session_shutdown', 'session_start', 'ui_prompt_start']);
   assert.deepEqual([...pi.commands.keys()], ['open', 'inbox', 'flow', 'epic']);
   assert.deepEqual([...pi.tools.keys()], ['mypi_ask']);
   assert.deepEqual(await pi.turn(), {});
@@ -268,6 +268,90 @@ test('pi extension emits the last reply and a waiting event only in a turn a par
   await parent();
   await settle();
   assert.deepEqual(pi.calls.at(-1), emitTo('MP', '--message='));
+});
+
+test('pi extension continues the turn once with the save check and reports the final reply to the parent', async t => {
+  const pi = stub();
+  const { run, batches, serve: listen } = sockets(t);
+  install(pi.api, root, listen, run);
+  pi.state.key = 'MP-12';
+  const file = pi.state.file = '/s/2026-11-07T10-00-00-000Z_s1.jsonl';
+  pi.state.leaf = 'e1';
+  await pi.start('startup');
+  const check = (...since: string[]) => ['node', [cli, 'turn', 'check', '--agent', 'pi', '--file', file, '--key', 'MP-12', ...since], { cwd: root, timeout: 5000 }];
+  const emit = (...args: string[]) => ['node', [cli, 'event', 'emit', '--from', 'MP-12', '--to', 'MP', ...args], { cwd: root, timeout: 5000 }];
+  const capture = (file: string) => ['node', [cli, 'archive', 'capture', '--agent', 'pi', '--file', file], { cwd: root, timeout: 5000 }];
+  const end = (text: string) => pi.handlers.get('agent_end')!({ messages: [{ role: 'assistant', content: [{ type: 'text', text }] }] }, pi.ctx);
+  const settle = () => pi.handlers.get('agent_settled')!(undefined, pi.ctx);
+  const before = (entries: unknown[] = [{ type: 'custom', id: 'x' }]) => pi.handlers.get('agent_before_settle')!({ entries }, pi.ctx);
+  let id = 0;
+  const parent = async () => {
+    void batches[0]!([{ id: ++id, text: parentFrame('MP', 'MP-12', 'go') }]);
+    await settled();
+    await pi.handlers.get('agent_start')!(undefined, pi.ctx);
+    await settled();
+  };
+  const found = () => ({ code: 0, killed: false, stdout: '{"reason":"save it"}\n', stderr: '' });
+  let answer: () => unknown = found;
+  const result = pi.state.result;
+  pi.state.result = (command, args) => args[1] === 'turn' ? answer() : result(command, args);
+  const turns = () => pi.calls.filter(call => (call[1] as string[])[1] === 'turn');
+  const continued = { entries: [{ type: 'custom', id: 'x' }, { type: 'custom_message', customType: 'mypi-save-check', content: 'save it', display: true }], continue: true };
+  assert.deepEqual(await before(), continued);
+  assert.deepEqual(pi.calls.at(-1), check('--since', 'e1'));
+  const count = pi.calls.length;
+  assert.equal(await before(), undefined);
+  assert.equal(pi.calls.length, count);
+  pi.state.leaf = 'e7';
+  await settle();
+  assert.deepEqual(await before(), continued);
+  assert.deepEqual(turns().at(-1), check('--since', 'e7'));
+  for (const failure of [() => ({ code: 1, killed: false, stdout: '', stderr: 'failed\n' }), () => ({ code: 0, killed: true, stdout: '', stderr: '' }),
+    () => ({ code: 0, killed: false, stdout: 'not json', stderr: '' }), () => ({ code: 0, killed: false, stdout: '{}\n', stderr: '' }),
+    () => { throw new Error('spawn node ENOENT'); }]) {
+    await settle();
+    answer = failure;
+    const checks = turns().length;
+    assert.equal(await before(), undefined);
+    assert.equal(turns().length, checks + 1);
+  }
+  answer = found;
+  await settle();
+  pi.state.file = undefined;
+  const checks = turns().length;
+  assert.equal(await before(), undefined);
+  assert.equal(turns().length, checks);
+  pi.state.file = file;
+  pi.state.leaf = 'e9';
+  await settle();
+  await parent();
+  const from = pi.calls.length;
+  end('draft');
+  assert.deepEqual(await before(), continued);
+  end('final');
+  assert.equal(await before(), undefined);
+  await settle();
+  assert.deepEqual(pi.calls.slice(from), [check('--since', 'e9'), emit('--message=final'), capture(file)]);
+
+  const keyless = stub();
+  install(keyless.api, root, serve, undefined);
+  keyless.state.result = (_command, args) => args[1] === 'session' ? { code: 1, killed: false, stdout: '', stderr: 'failed\n' }
+    : args[1] === 'turn' ? found() : { code: 0, killed: false, stdout: '# mypi warmup: global\n', stderr: '' };
+  keyless.state.file = file;
+  await keyless.start('startup');
+  assert.equal(await keyless.handlers.get('agent_before_settle')!({ entries: [] }, keyless.ctx), undefined);
+  assert(keyless.calls.every(call => (call[1] as string[])[1] !== 'turn'));
+
+  const fresh = stub();
+  install(fresh.api, root, serve, undefined);
+  fresh.state.key = 'MP-12';
+  fresh.state.file = file;
+  const plain = fresh.state.result;
+  fresh.state.result = (command, args) => args[1] === 'turn' ? found() : plain(command, args);
+  await fresh.start('startup');
+  assert.deepEqual(await fresh.handlers.get('agent_before_settle')!({ entries: [] }, fresh.ctx),
+    { entries: [{ type: 'custom_message', customType: 'mypi-save-check', content: 'save it', display: true }], continue: true });
+  assert.deepEqual(fresh.calls.at(-1), check());
 });
 
 test('pi extension emits no events without a registered key', async () => {
