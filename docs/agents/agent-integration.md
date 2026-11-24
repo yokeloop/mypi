@@ -48,7 +48,8 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `mypi turn check --agent pi --file <that file> --key <key> --since <leaf entry id>`
   (the leaf at the last `agent_settled` or `session_start`) with a 5-second limit. The
   command reads the turn's `write`, `edit` and `bash` calls and the calls inside
-  `codemode` (`nestedCalls`; a large write without recorded arguments, and old sessions
+  `codemode` (`nestedCalls`; a large write without recorded arguments, a call list
+  Pi did not record completely, and old sessions
   without `nestedCalls`, by a literal `/tmp/….md|.html` path in the code) and applies the
   same check as the Claude Stop hook. On a `reason` the extension appends one
   `custom_message` (`customType` `mypi-save-check`, shown in the TUI, not in the archive

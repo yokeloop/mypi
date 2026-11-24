@@ -54,6 +54,9 @@ test('pi codemode calls unfold from nestedCalls, and a write without arguments o
     { kind: 'publish', content: '# Plan\n', title: 'Plan' },
     { kind: 'context_write', paths: ['projects/one/project/tasks/MP-12-scoped-warmup/plan.md'] },
     { kind: 'write', path: '/tmp/mypi-old.html', cwd: '/work' }]);
+  assert.deepEqual(piTurnActions(session('truncated')), [
+    { kind: 'bash', command: 'ls', cwd: '/work' },
+    { kind: 'write', path: '/tmp/mypi-late.md', cwd: '/work' }]);
 });
 
 test('a pi turn that copies its document into the task folder is saved', t => {

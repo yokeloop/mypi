@@ -40,11 +40,11 @@ export function piTurnActions(path: string, since?: string): TurnAction[] | unde
     if (r.type === 'message' && isObject(r.message)) messages.push(r.message);
   });
   if (!started) return undefined;
-  const nested = new Map<string, unknown[]>();
+  const nested = new Map<string, { calls: unknown[]; complete: boolean }>();
   for (const message of messages) {
     if (message.role !== 'toolResult' || typeof message.toolCallId !== 'string') continue;
-    const calls = isObject(message.nestedCalls) ? message.nestedCalls.calls : undefined;
-    if (Array.isArray(calls)) nested.set(message.toolCallId, calls);
+    const record = isObject(message.nestedCalls) ? message.nestedCalls : undefined;
+    if (record !== undefined && Array.isArray(record.calls)) nested.set(message.toolCallId, { calls: record.calls, complete: record.complete === true });
   }
   const actions: TurnAction[] = [];
   const add = (found: TurnAction | undefined) => { if (found !== undefined) actions.push(found); };
@@ -57,13 +57,13 @@ export function piTurnActions(path: string, since?: string): TurnAction[] | unde
         add(toAction(part.name, args, cwd));
         continue;
       }
-      const calls = typeof part.id === 'string' ? nested.get(part.id) : undefined;
-      if (calls === undefined) {
+      const recorded = typeof part.id === 'string' ? nested.get(part.id) : undefined;
+      if (recorded === undefined) {
         actions.push(...literals(args.code, cwd));
         continue;
       }
       let scanned = false;
-      for (const call of calls) {
+      for (const call of recorded.calls) {
         if (!isObject(call)) continue;
         if (isObject(call.arguments)) add(toAction(call.name, call.arguments, cwd));
         else if ((call.name === 'write' || call.name === 'edit') && !scanned) {
@@ -71,6 +71,7 @@ export function piTurnActions(path: string, since?: string): TurnAction[] | unde
           actions.push(...literals(args.code, cwd));
         }
       }
+      if (!recorded.complete && !scanned) actions.push(...literals(args.code, cwd));
     }
   }
   return actions;

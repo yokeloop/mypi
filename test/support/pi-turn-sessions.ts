@@ -29,8 +29,14 @@ const sessions: Record<string, unknown[]> = {
       { name: 'write', argumentsBytes: 20000 },
       { name: 'mcp__derive__publish', arguments: { content: '# Plan\n', title: 'Plan' } },
       { name: 'mcp__mypi__context_write', arguments: { paths: ['projects/one/project/tasks/MP-12-scoped-warmup/plan.md'] } },
-    ] }),
+    ], complete: true }),
     call('e4', 'e3', 'c2', 'codemode', { code: "await write({ path: '/tmp/mypi-old.html', content: page });" }),
+  ],
+  'truncated': [
+    header,
+    user('e1', null, 'сделай'),
+    call('e2', 'e1', 'c1', 'codemode', { code: "for (const p of parts) await bash({ command: p }); await write({ path: '/tmp/mypi-late.md', content: tail });" }),
+    result('e3', 'e2', 'c1', 'codemode', { calls: [{ name: 'bash', arguments: { command: 'ls' } }], complete: false }),
   ],
   'saved-source': [
     header,
