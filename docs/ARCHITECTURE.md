@@ -164,8 +164,9 @@ Warmup (`mypi warmup`, MCP `warmup`) prints a session's starting context as Mark
 a fixed order: personal instructions (`home/USER-INSTRUCTIONS.md`, omitted when absent),
 the scope's role (`integrations/prompts/global.md`, `org.md`, `project.md` or `task.md`), how to
 work in mypi (`integrations/prompts/howto.md`: a map of where to look, the write rules
-and the paragraph on keeping knowledge by progressive disclosure, the one place those
-concepts are stated), the knowledge
+and the paragraph on keeping knowledge by progressive disclosure, including
+where created documents and decisions live, the one place those concepts are
+stated), the knowledge
 entries: the entry of every level from global down to the scope's own (global: `INDEX.md`;
 organization: global and `projects/<org>/INDEX.md`; project and task: global, organization
 and `projects/<org>/<project>/INDEX.md`), each under a `###` heading with its home-relative
