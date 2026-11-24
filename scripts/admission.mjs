@@ -10,7 +10,7 @@ const walkFiles = dir => fs.readdirSync(dir, { withFileTypes: true }).flatMap(e 
 const files = walkFiles('test');
 for (const file of files) {
   assert(/^test\/(fast|boundary)\/[^/]+\.test\.ts$/.test(file) || /^test\/support\/.+\.ts$/.test(file)
-    || /^test\/fixtures\/[a-z0-9-]+\/[^/]+\.md$/.test(file),
+    || /^test\/fixtures\/[a-z0-9-]+\/[^/]+\.(md|jsonl)$/.test(file),
     'Unknown test file: ' + file);
 }
 for (const profile of ['fast', 'boundary']) {
