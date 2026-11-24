@@ -76,6 +76,71 @@ export function wrapQuestion(text: string, width: number): string[] {
   return out;
 }
 
+function fit(text: string, width: number): string {
+  if (cellWidth(text) <= width) return text;
+  let out = '';
+  for (const char of text) {
+    if (cellWidth(out + char) > width - 1) break;
+    out += char;
+  }
+  return width < 1 ? '' : out + '…';
+}
+
+function askComponent(question: string, list: string[], tui: AskTui, theme: AskTheme, kb: AskKeybindings, done: (value: string | undefined) => void): AskComponent {
+  let cursor = 0, offset = 0, win = 1;
+  let cachedWidth: number | undefined, cachedRows: number | undefined, cachedLines: string[] | undefined;
+  const invalidate = () => { cachedWidth = undefined; cachedRows = undefined; cachedLines = undefined; };
+  const dim = (text: string) => theme.fg('dim', text);
+  return {
+    capturesViewportInput: true,
+    render(width: number): string[] {
+      const rows = tui.terminal.rows;
+      if (cachedLines && cachedWidth === width && cachedRows === rows) return cachedLines;
+      const lines = wrapQuestion(question, width);
+      const framed = rows > 10;
+      const avail = rows - list.length - 1 - (framed ? 2 : 0);
+      const body: string[] = [];
+      if (lines.length <= avail) {
+        offset = 0;
+        win = Math.max(1, lines.length);
+        body.push(...lines.map(line => fit(line, width)));
+      } else {
+        win = avail >= 3 ? avail - 2 : Math.max(1, avail - 1);
+        offset = Math.min(Math.max(0, offset), lines.length - win);
+        const below = lines.length - offset - win;
+        const shown = lines.slice(offset, offset + win).map(line => fit(line, width));
+        if (avail >= 3) body.push(dim(fit(offset ? `↑ ещё ${offset} строк` : '', width)), ...shown,
+          dim(fit(below ? `↓ ещё ${below} строк` : '— конец вопроса —', width)));
+        else body.push(...shown, dim(fit(`↑${offset} ↓${below}`, width)));
+      }
+      const options = list.map((option, index) => index === cursor ? theme.fg('accent', fit('› ' + option, width)) : fit('  ' + option, width));
+      const out = [
+        ...(framed ? [dim('─'.repeat(Math.floor(Math.max(0, width) / cellWidth('─'))))] : []),
+        ...body,
+        ...(framed ? [''] : []),
+        ...options,
+        dim(fit('↑↓ выбор · ←→ текст · Enter · Esc', width)),
+      ];
+      cachedWidth = width;
+      cachedRows = rows;
+      cachedLines = out.length > rows ? out.slice(out.length - Math.max(0, rows)) : out;
+      return cachedLines;
+    },
+    handleInput(data: string): void {
+      if (kb.matches(data, 'tui.select.up')) cursor = (cursor - 1 + list.length) % list.length;
+      else if (kb.matches(data, 'tui.select.down')) cursor = (cursor + 1) % list.length;
+      else if (kb.matches(data, 'tui.editor.cursorLeft') || kb.matches(data, 'tui.select.pageUp')) offset = Math.max(0, offset - win);
+      else if (kb.matches(data, 'tui.editor.cursorRight') || kb.matches(data, 'tui.select.pageDown')) offset += win;
+      else if (kb.matches(data, 'tui.select.confirm')) { done(list[cursor]); return; }
+      else if (kb.matches(data, 'tui.select.cancel')) { done(undefined); return; }
+      else return;
+      invalidate();
+      tui.requestRender();
+    },
+    invalidate,
+  };
+}
+
 export function registerAsk(pi: { registerTool(tool: AskTool): void }): void {
   pi.registerTool({
     name: 'mypi_ask',
@@ -97,7 +162,23 @@ export function registerAsk(pi: { registerTool(tool: AskTool): void }): void {
       const list = [params.options[0] + ' (рекомендую)', ...params.options.slice(1), OWN_WORD];
       const done = (details: AskDetails) => ({ content: [{ type: 'text' as const, text: JSON.stringify(details) }], details });
       const cancelled = done({ answer: null, cancelled: true });
-      const choice = await ctx.ui.select(params.question, list, { signal });
+      const choose = async (): Promise<string | undefined> => {
+        if (ctx.mode !== 'tui' || typeof ctx.ui.custom !== 'function') return ctx.ui.select(params.question, list, { signal });
+        if (signal.aborted) return undefined;
+        return ctx.ui.custom<string | undefined>((tui, theme, kb, finish) => {
+          let finished = false;
+          const close = (value: string | undefined) => {
+            if (finished) return;
+            finished = true;
+            signal.removeEventListener('abort', abort);
+            finish(value);
+          };
+          const abort = () => close(undefined);
+          signal.addEventListener('abort', abort, { once: true });
+          return askComponent(params.question, list, tui, theme, kb, close);
+        }, { overlay: true, overlayOptions: { width: '100%', maxHeight: '100%', anchor: 'bottom-center' }, blocked: { kind: 'question', message: 'mypi_ask' } });
+      };
+      const choice = await choose();
       if (choice === undefined) return cancelled;
       const index = list.indexOf(choice);
       if (index === list.length - 1) {
