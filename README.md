@@ -230,7 +230,9 @@ started the turn when it is a parent of the task, else to the project:
   its source in home, or an edited `INDEX.md` map over 1,500 characters or with a
   bare derive URL; the event is then recorded on the next Stop
   (`stop_hook_active`), which always passes and carries the final answer. A passing
-  Stop prints nothing. The Pi extension runs
+  Stop prints nothing. On `agent_before_settle` the Pi extension runs
+  `mypi turn check` and may continue the turn once with the same text; the event is
+  then sent on the one `agent_settled`. The Pi extension runs
   `mypi event emit --to <sender>` on `agent_settled` with the last reply only when a
   message with that frame started the turn through its socket. A turn a person started records
   nothing; an unreadable transcript or a missing mark records nothing.

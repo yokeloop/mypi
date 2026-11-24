@@ -43,6 +43,18 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
   interactive UI.
+  On `agent_before_settle`, when the session has a file and a registered key and the
+  turn has not been continued for it yet, the extension runs
+  `mypi turn check --agent pi --file <that file> --key <key> --since <leaf entry id>`
+  (the leaf at the last `agent_settled` or `session_start`) with a 5-second limit. The
+  command reads the turn's `write`, `edit` and `bash` calls and the calls inside
+  `codemode` (`nestedCalls`; a large write without recorded arguments, and old sessions
+  without `nestedCalls`, by a literal `/tmp/….md|.html` path in the code) and applies the
+  same check as the Claude Stop hook. On a `reason` the extension appends one
+  `custom_message` (`customType` `mypi-save-check`, shown in the TUI, not in the archive
+  or `input`) and requests one continuation; a nonzero exit, a timeout or unparsable
+  output does nothing. An aborted turn skips the boundary; the flag resets on
+  `agent_settled`.
   On every `agent_settled`, after the [event emit](sessions.md#events-and-parent-messages),
   when its session has a file (`getSessionFile()`; none under `--no-session`) it runs
   `mypi archive capture --agent pi --file <that file>` with a 5-second limit and ignores

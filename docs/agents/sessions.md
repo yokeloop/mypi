@@ -74,6 +74,9 @@ Read when: working with session registration, /open, start messages, events, mil
   the turn back with a block, no event is created until the second Stop
   (`stop_hook_active`), which carries the final answer; the block's entry in the
   transcript does not start a new turn for reading the turn prompt.
+- In Pi a continuation requested by the save check (`mypi turn check` on
+  `agent_before_settle`) does not settle the turn: `agent_settled` comes once after
+  it, so the `turn_end` event goes once with the final reply.
 
 ## Session registry and /open
 
