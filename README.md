@@ -349,8 +349,10 @@ discarded, its failure does not stop the warmup), then `mypi warmup --max-chars 
 the key saved for this conversation, else `MYPI_SCOPE`, else `global`. The Stop hook
 runs `mypi turn end` and the Notification hook, for `permission_prompt` and
 `elicitation_dialog`, runs `mypi event emit --waiting --hook`; both create an event
-only in a turn a parent message started, discard their output and never block the
-session. A forked
+only in a turn a parent message started. `event emit` discards its output and never
+blocks the session; `turn end` discards only its stderr and may hand the turn back
+once with `{"decision":"block","reason":…}`, and a Stop with `stop_hook_active`
+always passes. A forked
 session gets the warmup of `MYPI_SCOPE`, else `global`, and is registered only with
 `MYPI_SCOPE`. A failing warmup (for example an unknown
 `MYPI_SCOPE`) shows its error to the user and the session starts without it. Shared
