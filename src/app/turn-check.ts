@@ -34,7 +34,7 @@ function withoutHeredocs(command: string): string {
       continue;
     }
     out.push(line);
-    for (const match of line.matchAll(/<<-?\s*['"]?(\w+)['"]?/g)) pending.push(match[1]!);
+    for (const match of line.matchAll(/(?<![<\d])<<(?!<)-?\s*['"]?([A-Za-z_]\w*)['"]?/g)) pending.push(match[1]!);
   }
   return out.join('\n');
 }

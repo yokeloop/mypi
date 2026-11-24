@@ -5,6 +5,8 @@ const transcripts: Record<string, unknown[]> = {
     {"type": "assistant", "cwd": "{{TMP}}", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t3", "name": "Bash", "input": {"command": "printf y | tee {{TMP}}/b.md"}}]}},
     {"type": "assistant", "cwd": "{{TMP}}", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t4", "name": "Bash", "input": {"command": "cat <<'EOF' > {{TMP}}/c.html\n<p>body</p>\n> quote.md\nEOF"}}]}},
     {"type": "assistant", "cwd": "{{TMP}}", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t5", "name": "Bash", "input": {"command": "ls {{TMP}} 2>/dev/null"}}]}},
+    {"type": "assistant", "cwd": "{{TMP}}", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t6", "name": "Bash", "input": {"command": "cat <<< word\necho d > {{TMP}}/d.md"}}]}},
+    {"type": "assistant", "cwd": "{{TMP}}", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "t7", "name": "Bash", "input": {"command": "echo $((1<<2))\necho e > {{TMP}}/e.md"}}]}},
   ],
   'index-only': [
     {"type": "user", "turnOrigin": "human", "cwd": "/work", "message": {"role": "user", "content": "сделай"}},

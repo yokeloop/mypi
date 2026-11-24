@@ -58,7 +58,7 @@ test('a turn that writes a document into tmp is found, with a reason naming the 
 
 test('bash writes into tmp by redirect, tee and heredoc are documents, heredoc bodies and fd redirects are not', t => {
   const { tmp, findings } = turn(t);
-  assert.deepEqual(findings('bash-tmp.jsonl')!.documents.map(d => d.path), [tmp + '/a.md', tmp + '/b.md', tmp + '/c.html']);
+  assert.deepEqual(findings('bash-tmp.jsonl')!.documents.map(d => d.path), [tmp + '/a.md', tmp + '/b.md', tmp + '/c.html', tmp + '/d.md', tmp + '/e.md']);
 });
 
 test('a document copied into home or written there with the same content is saved', t => {
