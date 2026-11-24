@@ -99,7 +99,7 @@ not a mislabeled fast profile.
 - Targeted red→green runs do not replace final verify.
 - New test files must belong to a known profile; unknown paths fail discovery rather
   than being silently excluded or added to an expensive glob.
-- Golden output files live in test/fixtures/<area>/*.md and input transcripts in test/fixtures/<area>/*.jsonl; admission accepts only those shapes outside the profiles and test/support.
+- Golden output files live in test/fixtures/<area>/*.md; admission accepts only that shape outside the profiles and test/support.
 - test/support holds shared helpers and the unix socket server fixture that boundary tests start as
   dist/test/support/event-socket-server.js; no test imports it, so no test reaches node:net.
 - The HTTP boundary test starts dist/src/cli/main.js serve on 127.0.0.1 port 0 and uses the global fetch; no test imports src/http/serve.ts, so no test reaches node:http.
