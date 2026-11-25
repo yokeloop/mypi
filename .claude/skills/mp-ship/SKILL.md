@@ -1,9 +1,9 @@
 ---
-name: ship
-description: After the engineer's manual check — bring each task PR (or a flow PR) onto the project's PR target, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/ship <KEY|flow/<name>> [<KEY>…]".
+name: mp-ship
+description: After the engineer's manual check — bring each task PR (or a flow PR) onto the project's PR target, wait for green checks, merge, set status merged, inspect and remove the worktree. Never updates the installed engine. Triggered by "/mp-ship <KEY|flow/<name>> [<KEY>…]".
 ---
 
-# /ship — merge what the engineer accepted
+# /mp-ship — merge what the engineer accepted
 
 Read `docs/PIPELINE.md` in the engine root first. The typed command is the
 engineer's word that the manual check passed; nothing new is planned or coded.
@@ -13,7 +13,7 @@ one entered. `BIN=scripts/pipeline` (relative to the engine root, every session'
 ## Step 0 — session scope
 
 `$BIN/mp-task scope`, then apply the «Session scope» rule of `docs/PIPELINE.md` to
-`/ship` and every typed argument: `global` — any keys and `flow/<name>`; an
+`/mp-ship` and every typed argument: `global` — any keys and `flow/<name>`; an
 organization (`org` is not `null`) — keys with a code in `codes` and a flow of one
 project in `codes`; `P` — keys with the code `P` and a flow of project `P`; `P-N` — continue only when every
 typed key is `P-N` or its subtask by `$BIN/mp-task subtasks P-N`, and for
