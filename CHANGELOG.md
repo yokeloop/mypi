@@ -33,6 +33,7 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - `pnpm build` and `pnpm tui:build` work on macOS without GNU `timeout` (MP-154): `scripts/bounded.mjs` holds the 55 s limit and 5 more seconds before SIGKILL to the group, exit code 124, on Linux and macOS; the install commands in the README and `docs/MCP.md` use it too; macOS device setup is under "Devices" in `docs/HTTP-API.md`.
 - macOS: live session registry without /proc and XDG_RUNTIME_DIR (MP-153): process liveness and permission mode through `kill(pid, 0)` and `ps -o lstart=,args=` in the CLI, stdio MCP and `mypi serve`; without `XDG_RUNTIME_DIR` the registry and Pi sockets live in `$TMPDIR/mypi`. Linux unchanged.
 - `mypi_ask` in Pi (MP-167): the question keeps its line breaks and paragraphs, and on a small screen the options and hint stay visible while the question scrolls.
+- `mypi_ask` in Pi (MP-169): while a question waits for the engineer, the tool emits `herdr:blocked` on `pi.events`, so Herdr shows the tab as blocked with the label `mypi_ask` instead of working.
 
 ## [0.12.0] - 2026-11-11
 
