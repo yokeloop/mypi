@@ -17,12 +17,14 @@ const description = 'Local mypi tools for projects, tasks, history and knowledge
 const cli = join(root, 'dist/src/cli/main.js');
 const reg = (id: string, ...extra: string[]) => ['node', [cli, 'session', 'register', '--agent', 'pi', '--pid', String(process.pid), '--native-id', id, ...extra], { cwd: root, timeout: 5000 }];
 const serve = async () => ({ close: async () => {} });
+const pair = [['herdr:blocked', { active: true, label: 'mypi_ask' }], ['herdr:blocked', { active: false }]];
 const warm = (key: string) => ['node', [cli, 'warmup', '-s', key], { cwd: root, timeout: 5000 }];
 
 function stub() {
   const handlers = new Map<string, (event: any, ctx: any) => Promise<unknown> | unknown>();
   const servers: { name: string; config: any }[] = [], removed: string[] = [], calls: unknown[][] = [], sent: unknown[][] = [];
   const notes: [string, string][] = [];
+  const emits: unknown[][] = [];
   const statuses: [string, string | undefined][] = [];
   const inputs: ((data: string) => { consume?: boolean; data?: string } | undefined)[] = [];
   const terminal = { unsubscribed: 0 };
@@ -39,6 +41,7 @@ function stub() {
     async exec(command: string, args: string[], options: unknown) { calls.push([command, args, options]); return state.result(command, args); },
     sendUserMessage(content: string, options?: unknown) { sent.push([content, options]); },
     registerTool(tool: any) { tools.set(tool.name, tool); },
+    events: { emit(channel: string, data: unknown) { emits.push([channel, data]); }, on() {} },
   };
   const ctx = { hasUI: true, ui: { notify(message: string, level: string) { notes.push([message, level]); },
     setStatus(key: string, text: string | undefined) { statuses.push([key, text]); },
@@ -61,7 +64,7 @@ function stub() {
     return event.systemPromptOptions as { sections: Record<string, string>; toolGuidelines?: Record<string, string[]> };
   };
   return { api: api as never, handlers, commands, tools, ctx, servers, removed, calls, sent, notes, statuses, inputs, terminal, state, start, stop, turn,
-    options, registration };
+    options, registration, emits };
 }
 
 test('pi extension registers mypi MCP with the session id and loads warmup into every turn', async () => {
@@ -512,8 +515,9 @@ test('pi extension mypi_ask asks one question with the recommendation first and 
       async select(...args: unknown[]) { selects.push(args); return answers.shift(); },
       async input(...args: unknown[]) { inputs.push(args); return answers.shift(); },
     } };
+    const from = pi.emits.length;
     const result = await tool.execute('call-1', { question: 'Q?', options: ['A', 'B'] }, signal, undefined, ctx);
-    return { result, selects, inputs, signal };
+    return { result, selects, inputs, signal, emits: pi.emits.slice(from) };
   };
   const recommended = await ask(['A (рекомендую)']);
   assert.deepEqual(recommended.result.details, { answer: 'A', custom: false });
@@ -521,21 +525,40 @@ test('pi extension mypi_ask asks one question with the recommendation first and 
   assert.equal(recommended.result.isError, undefined);
   assert.deepEqual(recommended.selects, [['Q?', ['A (рекомендую)', 'B', 'Своё слово'], { signal: recommended.signal }]]);
   assert.deepEqual(recommended.inputs, []);
-  assert.deepEqual((await ask(['B'])).result.details, { answer: 'B', custom: false });
+  assert.deepEqual(recommended.emits, pair);
+  const b = await ask(['B']);
+  assert.deepEqual(b.result.details, { answer: 'B', custom: false });
+  assert.deepEqual(b.emits, pair);
   const own = await ask(['Своё слово', ' текст ']);
   assert.deepEqual(own.result.details, { answer: 'текст', custom: true });
   assert.deepEqual(own.inputs, [['Своё слово:', undefined, { signal: own.signal }]]);
+  assert.deepEqual(own.emits, pair);
   const escape = await ask([undefined]);
   assert.deepEqual(escape.result.details, { answer: null, cancelled: true });
   assert.equal(escape.result.content[0].text, JSON.stringify({ answer: null, cancelled: true }));
   assert.equal(escape.result.isError, undefined);
   assert.deepEqual(escape.inputs, []);
-  assert.deepEqual((await ask(['Своё слово', undefined])).result.details, { answer: null, cancelled: true });
-  assert.deepEqual((await ask(['Своё слово', '  '])).result.details, { answer: null, cancelled: true });
+  assert.deepEqual(escape.emits, pair);
+  const inputEscape = await ask(['Своё слово', undefined]);
+  assert.deepEqual(inputEscape.result.details, { answer: null, cancelled: true });
+  assert.deepEqual(inputEscape.emits, pair);
+  const blank = await ask(['Своё слово', '  ']);
+  assert.deepEqual(blank.result.details, { answer: null, cancelled: true });
+  assert.deepEqual(blank.emits, pair);
   const headless = await ask(['A (рекомендую)'], false);
   assert.equal(headless.result.isError, true);
   assert.deepEqual(headless.result.details, { answer: null, error: 'no-ui' });
   assert.deepEqual(headless.selects, []);
+  assert.deepEqual(headless.emits, []);
+  const from = pi.emits.length;
+  let during: unknown[][] = [];
+  const throwing = { hasUI: true, ui: {
+    async select() { during = pi.emits.slice(from); throw new Error('boom'); },
+    async input() { return undefined; },
+  } };
+  await assert.rejects(tool.execute('call-1', { question: 'Q?', options: ['A', 'B'] }, new AbortController().signal, undefined, throwing), /boom/);
+  assert.deepEqual(during, [pair[0]]);
+  assert.deepEqual(pi.emits.slice(from), pair);
 });
 
 test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options and hint always visible, scrolling question', async () => {
@@ -555,7 +578,7 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   const pi = stub();
   install(pi.api, root, serve, undefined);
   const tool = pi.tools.get('mypi_ask');
-  const open = (question: string, rows = 20, columns = 40, mode = 'tui', answers: (string | undefined)[] = []) => {
+  const open = (question: string, rows = 20, columns = 40, mode = 'tui', answers: (string | undefined)[] = [], preAborted = false) => {
     const inputs: unknown[][] = [], selects: unknown[][] = [];
     const seen: { opts?: unknown; renders: number; customs: number; component?: any } = { renders: 0, customs: 0 };
     const controller = new AbortController();
@@ -569,9 +592,12 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
       async input(...args: unknown[]) { inputs.push(args); return answers.shift(); },
       async select(...args: unknown[]) { if (mode === 'tui') throw new Error('select in the TUI'); selects.push(args); return answers.shift(); },
     } };
+    if (preAborted) controller.abort();
+    const from = pi.emits.length;
     const result = tool.execute('call-1', { question, options: ['A', 'B'] }, controller.signal, undefined, ctx);
     const keys = (...ids: string[]) => { for (const id of ids) seen.component.handleInput(id); };
-    return { result, inputs, selects, seen, controller, keys, render: () => seen.component.render(columns) as string[] };
+    const emits = () => pi.emits.slice(from);
+    return { result, inputs, selects, seen, controller, keys, emits, render: () => seen.component.render(columns) as string[] };
   };
   const tail = ['› A (рекомендую)', '  B', '  Своё слово', '↑↓ выбор · ←→ текст · Enter · Esc'];
   const within = (lines: string[], rows: number) => {
@@ -587,8 +613,10 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   assert.equal(shortLines[0], '─'.repeat(40));
   assert.equal(cellWidth(shortLines[0]!), 40);
   assert.deepEqual(shortLines.slice(1, -4), ['Факт один.', '', 'Факт два.', '']);
+  assert.deepEqual(short.emits(), [pair[0]]);
   short.keys('tui.select.confirm');
   assert.deepEqual((await short.result).details, { answer: 'A', custom: false });
+  assert.deepEqual(short.emits(), pair);
   const paragraphs = Array.from({ length: 8 }, (_, index) => `Абзац ${index + 1}: факты о задаче и о том, что из них следует для выбора ответа.`);
   const question = [...paragraphs, 'Слово' + 'о'.repeat(45), '\tс табом', '漢字の行 とても長い 漢字の行'].join('\n\n');
   const lines = wrapQuestion(question, 40);
@@ -616,6 +644,7 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   const cancelled = await long.result;
   assert.deepEqual(cancelled.details, { answer: null, cancelled: true });
   assert.deepEqual(long.inputs, []);
+  assert.deepEqual(long.emits(), pair);
   const paged = open(question);
   paged.render();
   paged.keys('tui.select.pageDown');
@@ -648,13 +677,20 @@ test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options
   const ownResult = await own.result;
   assert.deepEqual(ownResult.details, { answer: 'текст', custom: true });
   assert.deepEqual(own.inputs, [['Своё слово:', undefined, { signal: own.controller.signal }]]);
+  assert.deepEqual(own.emits(), pair);
   const aborted = open('Q?');
   aborted.controller.abort();
   assert.deepEqual((await aborted.result).details, { answer: null, cancelled: true });
+  assert.deepEqual(aborted.emits(), pair);
+  const preAborted = open('Q?', 20, 40, 'tui', [], true);
+  assert.deepEqual((await preAborted.result).details, { answer: null, cancelled: true });
+  assert.equal(preAborted.seen.customs, 0);
+  assert.deepEqual(preAborted.emits(), pair);
   const rpc = open('Q?', 20, 40, 'rpc', ['B']);
   assert.deepEqual((await rpc.result).details, { answer: 'B', custom: false });
   assert.deepEqual(rpc.selects, [['Q?', ['A (рекомендую)', 'B', 'Своё слово'], { signal: rpc.controller.signal }]]);
   assert.equal(rpc.seen.customs, 0);
+  assert.deepEqual(rpc.emits(), pair);
 });
 
 test('pi extension /open suggests keys of the session\'s project from the CLI', async () => {

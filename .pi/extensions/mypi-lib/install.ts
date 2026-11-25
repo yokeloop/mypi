@@ -1,7 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { registerAsk } from './ask.js';
-import type { AskTool } from './ask.js';
+import type { AskEvents, AskTool } from './ask.js';
 import { completionSource, openCompletions, scopeCodes } from './open-completions.js';
 import type { CompletionItem, OpenCatalog } from './open-completions.js';
 
@@ -36,6 +36,7 @@ export interface ExtensionAPI {
   on(name: 'ui_prompt_start', handler: (event: { kind: string; title?: string }) => Promise<void>): void;
   on(name: 'input', handler: (event: { text: string; images?: unknown[]; source: 'interactive' | 'rpc' | 'extension' }) => Promise<{ action: 'continue' } | { action: 'transform'; text: string; images?: unknown[] }>): void;
   registerTool(tool: AskTool): void;
+  events: AskEvents;
 }
 
 export type RunCli = (args: string[], options: { cwd: string; signal: AbortSignal; onLine: (line: string) => void }) =>
