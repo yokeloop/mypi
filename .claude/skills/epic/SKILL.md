@@ -31,7 +31,7 @@ malformed session key, a non-zero exit) — print the refusal text from
 
 - `new` or `planning` → «State»;
 - `review` and `$BIN/mp-task subtasks <KEY>` is not empty → print
-  `<KEY>: подзадачи заведены (<ключи>); следующий шаг, если поток ещё не запущен, — /flow <name> <KEY>, затем /ship flow/<name>`
+  `<KEY>: подзадачи заведены (<ключи>); следующий шаг, если поток ещё не запущен, — /flow <name> <KEY>, затем /mp-ship flow/<name>`
   (`<name>` is the output of `$BIN/mp-task slug <KEY>`) and stop;
 - any other status (`review` without subtasks included) → name the status and stop.
 
@@ -197,7 +197,7 @@ Row 5 (`V` ≥ 2, no subtasks).
    takes the key as the epic only in `review` with subtasks («Preconditions» and
    «Subtasks» of the flow skill). «Завести» → the report: the research URL, the
    number of findings and decisions, the subtask keys in order and
-   `следующий шаг — /flow <name> <KEY>, набираете вы; затем /ship flow/<name>`.
+   `следующий шаг — /flow <name> <KEY>, набираете вы; затем /mp-ship flow/<name>`.
 
 ## Questions
 
@@ -208,7 +208,7 @@ message is never an answer.
 
 ## Never
 
-- `/ship`.
+- `/mp-ship`.
 - `/flow` on a parent message or without the answer «Завести и запустить /flow».
 - Steps 6–8 inside `/epic`, except starting `/flow` by that answer.
 - A worktree, a branch or a commit in the epic's clone.

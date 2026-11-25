@@ -192,7 +192,7 @@ engineer answers so; the run then stops, later keys stay untouched.
 6. Report: the PR URL, the keys in order with their review verdicts and acceptance,
    the epic acceptance result (when a typed key is the epic), open advice, the
    engineer's answers, the lead's edits of plans, and «ждёт вашей ручной проверки;
-   /ship flow/<name> мержит».
+   /mp-ship flow/<name> мержит».
 
 ## Never
 
@@ -200,4 +200,4 @@ engineer answers so; the run then stops, later keys stay untouched.
   the engine update: only on the engineer's separate permission, never as a step of
   the run.
 - Force-push, deleting a remote branch, merging the PR: never; the PR is merged by
-  `/ship flow/<name>`.
+  `/mp-ship flow/<name>`.
