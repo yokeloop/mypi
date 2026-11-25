@@ -51,8 +51,8 @@ malformed session key, a non-zero exit) — print the refusal text from
 Score is `<task folder>/progress.md`: the plan path on the first line, a checkbox
 per stage below, ticked the moment its condition is met. A resumed run starts at
 the first unchecked box and never redoes checked work. `progress.md` is a live
-file (checkboxes, `blocked` reasons, `--force`, entries of `/ship` and of the
-manual check); `/ship` registers it.
+file (checkboxes, `blocked` reasons, `--force`, entries of `/mp-ship` and of the
+manual check); `/mp-ship` registers it.
 
 1. **Worktree.** `$BIN/mp-worktree <KEY> [--base flow/<name>]` → JSON; without
    `--base` it takes the base and the task branch from the project's flow. `dirty:
@@ -120,7 +120,7 @@ manual check); `/ship` registers it.
    key is recorded in the flow score.
 
 7. **Report** in a few lines: the PR URL or flow merge, the checks, the review
-   verdict, open advice, and «ждёт вашей ручной проверки; /ship <KEY> мержит». In
+   verdict, open advice, and «ждёт вашей ручной проверки; /mp-ship <KEY> мержит». In
    flow mode the report goes to the run, which continues with its next step.
 
 A stage you cannot pass becomes `blocked` with the literal failing output in the

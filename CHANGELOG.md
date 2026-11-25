@@ -26,6 +26,7 @@ Upgrading: schema 17 (migrations 016 and 017), run `mypi db init` once after the
 - Test time budgets match what CI runners measure (MP-157; Linux verify > 58 s, macOS fast 7.4 s): fast tests ≤ 10 s and `pnpm test` ≤ 15 s on both OSes; `pnpm verify` ≤ 90 s with RuntimeMaxSec 93 s on Linux, ≤ 150 s with the supervisor at 153 s on macOS (`docs/TESTING.md` §6).
 - Claude auto-memory is off in the tracked `.claude/settings.json` (`autoMemoryEnabled: false`, MP-166): mypi's memory is home; move auto-memory entries into home before updating, since Claude stops reading the auto-memory directory (`docs/agents/agent-integration.md`).
 - The turn-end save check — Claude's Stop hook (`mypi turn end`, MP-164) and Pi's `agent_before_settle` (`mypi turn check`, MP-165) — hands the turn back once when a document made in tmp or a derive publication has no source in home, or an edited `INDEX.md` map is over 1,500 characters or has a bare derive URL.
+- `/ship` is renamed `/mp-ship` (MP-168): Claude Code's bundled `/ship` shadows a project skill of that name, so a typed `/ship` never reached mypi's merge procedure. Type `/mp-ship <KEY|flow/<name>> [<KEY>…]`; the procedure is unchanged, and in Pi `/flow` still merges on «Одобрить».
 
 ### Fixed
 

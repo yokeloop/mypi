@@ -3,7 +3,7 @@
 Tooling for running the tasks of any registered project from the engine root; every
 session starts there, so each pipeline skill checks the session scope first (see
 «Session scope»). It is tracked in the engine repository: this file, `docs/PLAN-FORMAT.md`, the scripts in
-`scripts/pipeline/`, the skills `/plan`, `/do`, `/epic`, `/flow`, `/ship`, `/board` in
+`scripts/pipeline/`, the skills `/plan`, `/do`, `/epic`, `/flow`, `/mp-ship`, `/board` in
 `.claude/skills/` and the roles in `.claude/agents/` (copied from yokemate; `plan-challenger` is the pipeline's own). For Pi, the roles and workflow templates in `integrations/pi-flow/`,
 found through `.pi/settings.json` («Roles»), and the Pi skills `/flow`
 (`integrations/skills/flow/SKILL.md`) and `/epic`
@@ -12,10 +12,10 @@ Code loads the skills and roles when it starts in the engine root; the scripts a
 the installation they are run from and refuse any other working directory.
 
 The cycle per task: `/plan` → the engineer reads the plan on derive → `/do`
-→ automatic review and checks → PR → the engineer's manual check → `/ship`.
+→ automatic review and checks → PR → the engineer's manual check → `/mp-ship`.
 `/flow` runs that cycle for one or more tasks of one project, one task at a time,
 asks the engineer at every decision and merges the tasks into one flow branch the
-engineer checks as a whole. An epic goes `/epic <KEY>` → `/flow <name> <KEY>` → `/ship flow/<name>` («Epics»). In this file «flow» alone is that run; the project's
+engineer checks as a whole. An epic goes `/epic <KEY>` → `/flow <name> <KEY>` → `/mp-ship flow/<name>` («Epics»). In this file «flow» alone is that run; the project's
 flow is the project's branch and merge settings (`flow.json`, `mp-task flow`).
 
 ## Places
@@ -42,7 +42,7 @@ flow is the project's branch and merge settings (`flow.json`, `mp-task flow`).
   home and records each as `{path, commit}`: the entry always reads the version it
   registered (`mypi context read <path> --revision <commit>`). Registered directly:
   `plan.md` (`/plan`); `research.md`, `research-derive.json`, `challenge-report.json` (`/epic`); `plan.md`, `pr.md`, `do-report.json`, `review-report.json`
-  (`/do`); `pr.md`, `progress.md` (`/ship`). A card is corrected by editing
+  (`/do`); `pr.md`, `progress.md` (`/mp-ship`). A card is corrected by editing
   `source.md` and running `mp-home-commit`. The
   `plan-v<N>.md`, `*-final.md` and `addendum.md` files of earlier tasks remain
   history and are no longer created. After every write:
@@ -84,17 +84,17 @@ nor `inbox` is used for the check, because both mark events delivered.
 
 The rule:
 
-- `global`: `/plan`, `/do`, `/epic` and `/ship` take tasks of any project; `/flow` and
-  `/ship flow/<name>` take the keys of one project.
-- `O` (an organization): `/plan`, `/do`, `/epic` and `/ship` take keys whose code is in
-  `codes`; `/flow` and `/ship flow/<name>` take the keys of one project from `codes`
+- `global`: `/plan`, `/do`, `/epic` and `/mp-ship` take tasks of any project; `/flow` and
+  `/mp-ship flow/<name>` take the keys of one project.
+- `O` (an organization): `/plan`, `/do`, `/epic` and `/mp-ship` take keys whose code is in
+  `codes`; `/flow` and `/mp-ship flow/<name>` take the keys of one project from `codes`
   (the flow score lives in that project's home).
 - `P` (any project): every typed key has the code `P`; a flow holds keys of `P`,
-  `/ship flow/<name>` takes a flow of project `P`.
-- `P-N`: `/plan`, `/do`, `/epic`, `/flow` and `/ship` take P-N and its subtasks — every task
-  whose chain of parents reaches P-N (`mp-task subtasks P-N`); `/ship flow/<name>` —
+  `/mp-ship flow/<name>` takes a flow of project `P`.
+- `P-N`: `/plan`, `/do`, `/epic`, `/flow` and `/mp-ship` take P-N and its subtasks — every task
+  whose chain of parents reaches P-N (`mp-task subtasks P-N`); `/mp-ship flow/<name>` —
   when every key of the flow score `<home of P>/flows/<name>.md` is P-N or its subtask.
-- A typed argument that is not a key `CODE-N` (other than `flow/<name>` of `/ship`
+- A typed argument that is not a key `CODE-N` (other than `flow/<name>` of `/mp-ship`
   and the run name of `/flow`), a malformed session key (`project` and `org` are both
   `null` and the key is not `global`) or a non-zero exit of `mp-task scope`: refused.
 - `/board`: in a session of project P or its task P-N — the board of P; a typed CODE
@@ -108,7 +108,7 @@ A refusal prints its text and stops. Nothing runs before it except `mp-task scop
 no `mp-task show/status/progress`, no `git fetch`, no `mp-worktree`, no
 `mp-home-commit`, no derive calls, no subagents (`/board` also runs `mp-task project`
 and `project list`). In a `P-N` session `mp-task subtasks P-N` may run too, and for
-`/ship flow/<name>` also `mp-task project P` and reading the flow score. The same holds for the Pi `/flow <name>` typed without keys, which resumes the
+`/mp-ship flow/<name>` also `mp-task project P` and reading the flow score. The same holds for the Pi `/flow <name>` typed without keys, which resumes the
 keys of that score. The texts (`<cmd>`, the typed
 arguments and `<key>` substituted):
 
@@ -117,10 +117,10 @@ arguments and `<key>` substituted):
 - `/board` with a malformed key: `The board cannot tell this session's project (scope <key>). Open the main chat with /open global.`
 - `/board` with an unknown code: `Unknown project code <P>; registered codes: <codes>.`
 - a changing skill with another project's key: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. This chat runs tasks of <P> only; run it in that task's or project's chat (/open <CODE>) or in the main chat (/open global).`
-  (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan, /do, /epic, /flow and /ship for P-N and its subtasks (<keys>|none) only.`
+  (`<CODE>` is the code of the typed key.) In a `P-N` chat append: ` This chat may run /plan, /do, /epic, /flow and /mp-ship for P-N and its subtasks (<keys>|none) only.`
 - a changing skill in an organization with a key outside `codes`: `/<cmd> <args> is not allowed in session scope <key>; nothing was written. This chat runs tasks of <codes> only; run it in the main chat (/open global).`
 - a non-zero exit of `mp-task subtasks`: `/<cmd> cannot read the subtasks of <key>: <output>; nothing was written.`
-- `/ship flow/<name>` in a `P-N` chat without the flow score: `/ship flow/<name>: no flow score <path>; nothing was written.`
+- `/mp-ship flow/<name>` in a `P-N` chat without the flow score: `/mp-ship flow/<name>: no flow score <path>; nothing was written.`
 - a changing skill with a malformed session key or a non-zero `mp-task scope`: `/<cmd> cannot tell this session's project (scope <key>); nothing was written. Run it in the main chat (/open global).`
 - a changing skill with an argument that is not a key: `/<cmd>: <arg> is not a task key (CODE-N); nothing was written.`
 - `/flow` in `global` with keys of several projects: `/flow <args> mixes projects <codes>; a flow holds tasks of one project; nothing was written.`
@@ -172,8 +172,8 @@ An epic is a task whose research proposes a mechanism and its subtasks.
 research, independent check (`plan-challenger`), the engineer's decision on each
 finding, version 2, subtasks. `/flow <name> <KEY>` runs steps 6–8 (the epic key
 and the epic acceptance of «Subtasks» above), started by the engineer's answer in
-`/epic` or typed; `/ship flow/<name>` merges. In Pi the answer starts the Pi `/flow`,
-whose answer «Одобрить» merges in place of a typed `/ship`. The step comes from the epic's status
+`/epic` or typed; `/mp-ship flow/<name>` merges. In Pi the answer starts the Pi `/flow`,
+whose answer «Одобрить» merges in place of a typed `/mp-ship`. The step comes from the epic's status
 and the files of its folder; there is no epic status, field or engine command.
 
 `DIR` is `scripts/pipeline/mp-task dir <KEY>`; `N` —
@@ -190,7 +190,7 @@ The first row from the top whose sign holds is the step:
 | `ROWS` < `N` | 3 | `/epic <KEY>`: a question on each remaining finding |
 | `ROWS` = `N`, `V` = 1 | 4 | `/epic <KEY>`: version 2 |
 | `V` ≥ 2, `mp-task subtasks <KEY>` empty | 5 | `/epic <KEY>`: the «Подзадачи» question |
-| `mp-task subtasks <KEY>` not empty | 6–8 | `/flow <name> <KEY>`, then `/ship flow/<name>` (in Pi the answer «Одобрить» of the flow) |
+| `mp-task subtasks <KEY>` not empty | 6–8 | `/flow <name> <KEY>`, then `/mp-ship flow/<name>` (in Pi the answer «Одобрить» of the flow) |
 
 Statuses of an epic: `new` while the research is written; `planning` with the
 research URL once version 1 is published; `review` once the subtasks are
@@ -293,7 +293,7 @@ Claude skills with these bindings:
 | the `plan` skill with `plan-scout` and `plan-writer` | `subagent`: `integrations/pi-flow/investigate.js` with `scout`, then `planner` |
 | `/do <KEY> --base flow/<name>` with `task-executor` and `task-reviewer` | the plan's «Execution»: a template of `integrations/pi-flow/` or `home/pi-flow/` through `subagent`, fixes by `subagent({ action: "resume" })` of the executor |
 | the live acceptance of `/flow` | the `tester` role by the project's stand document `<project home>/stand.md` |
-| the manual check, then a typed `/ship flow/<name>` | the stand handed over in the question «Одобрить / Замечания / Стоп»; «Одобрить» runs the `/ship` procedure and the release |
+| the manual check, then a typed `/mp-ship flow/<name>` | the stand handed over in the question «Одобрить / Замечания / Стоп»; «Одобрить» runs the `/mp-ship` procedure and the release |
 | the `task-executor` teammate of `/epic` and `SendMessage` | the `executor` role in research mode through `subagent`; the review findings, version 2 and an edit of the subtask list by `subagent({ action: "resume" })`, a fresh `executor` with the research-mode task when the run is not retained |
 | `task-reviewer` and `plan-challenger` of `/epic` | the roles `reviewer` (a review of the document, `outsidePlan` empty) and `challenger` |
 | «Завести и запустить /flow» runs the `flow` skill | the lead reads `integrations/skills/flow/SKILL.md` and follows it in the same chat with `<name> <KEY>` |
@@ -322,7 +322,7 @@ assembled branch, the epic acceptance, the PR and CI, the stand for the engineer
 by the project's stand document (none — the PR alone) and one question
 «Одобрить / Замечания / Стоп». «Замечания» sends the keys they touch back to the
 plan rework and executes them again on the same worktree; «Одобрить» merges the PR
-by the `/ship` procedure and runs the project's `release` procedure, none — the
+by the `/mp-ship` procedure and runs the project's `release` procedure, none — the
 merge only. The flow lines of the score (`- Приёмка эпика:`, `- PR:`, `- Стенд:`,
 `- Замечания:`, `- Стоп:`, `- Одобрено:`, `- Смержено:`, `- Релиз начат:`,
 `- Релиз:`) let a restarted run continue.
@@ -347,7 +347,7 @@ only `mp-home-commit` commits what is already written.
 - `review`: implementation finished, review clean, checks green, PR open (single
   mode) or merged into the flow branch (flow mode). Waiting for the engineer's
   manual check.
-- `merged`: the PR is merged into the PR target by `/ship` (in Pi, by `/flow` after
+- `merged`: the PR is merged into the PR target by `/mp-ship` (in Pi, by `/flow` after
   «Одобрить»).
 - `done`: the engineer's word after the installed engine runs the change. The
   pipeline never sets it.
@@ -387,7 +387,7 @@ One writer per fact; nothing is written twice.
   one `progress` entry (`mp-task progress`: a `note` with the step's files as
   artifacts) at its «Record» step: `/plan` the published plan (`plan.md`), `/do`
   the PR or the flow merge (`plan.md`, `pr.md`, `do-report.json`,
-  `review-report.json`), `/ship` the merge (`pr.md`, `progress.md`), `/epic` the checked research and its subtasks (`research.md`, `research-derive.json`, `challenge-report.json`). Every
+  `review-report.json`), `/mp-ship` the merge (`pr.md`, `progress.md`), `/epic` the checked research and its subtasks (`research.md`, `research-derive.json`, `challenge-report.json`). Every
   status reason carries the relevant link («Statuses in mypi»); a reason set by
   `/flow` itself or by `/do` stage 1 in flow mode starts with `в потоке <name>`.
   `/flow` writes no `progress` of its own: its record is the flow score.
@@ -416,13 +416,13 @@ One writer per fact; nothing is written twice.
 - Typing `/epic <KEY>` authorizes the research, its publication on derive and,
   after the engineer's answer to the «Подзадачи» question, `mypi task create
   --parent <KEY>` for the agreed subtasks. The answer «Завести и запустить /flow»
-  in the epic's chat equals typing `/flow <name> <KEY>`; `/ship` runs only when
+  in the epic's chat equals typing `/flow <name> <KEY>`; `/mp-ship` runs only when
   typed, except that in Pi this `/flow` is the Pi `/flow`, whose answer «Одобрить»
-  stands for `/ship flow/<name>` (below). A parent message is never an answer to these questions.
+  stands for `/mp-ship flow/<name>` (below). A parent message is never an answer to these questions.
 - In the chat of a Pi `/flow` the engineer's answer «Одобрить» to the question
-  after the PR equals typing `/ship flow/<name>` and is the explicit request for
+  after the PR equals typing `/mp-ship flow/<name>` and is the explicit request for
   the release by the procedure the project's `release` in `flow.json` names (none
-  — the merge only); the run then merges and releases («Pi»). Claude's `/ship`
+  — the merge only); the run then merges and releases («Pi»). Claude's `/mp-ship`
   still runs only when typed, and Claude's `/flow` never releases.
 - Open comment threads on the plan artifact (`catch_up` with `comments: open`) are
   remarks. `/plan` reworks the plan and republishes, resolving each thread with
@@ -498,7 +498,7 @@ else `<checkoutPath>/CLAUDE.md`.
   skill prints the error and stops before any write.
 - Single mode: base `origin/<integration>` of the project's clone; PR from the task
   branch → `<prTarget>` in the `repository` from `mp-task project` (`gh pr create --repo
-  <repository>`), merged by `/ship` after the engineer's check.
+  <repository>`), merged by `/mp-ship` after the engineer's check.
 - Flow mode: the keys of one project; base `flow/<name>` created in the project's
   clone from `origin/<integration>` and pushed, flow worktree
   `<checkoutPath>--flow-<name>`; each task branch merges `--no-ff` into
@@ -506,11 +506,11 @@ else `<checkoutPath>/CLAUDE.md`.
   names one; one PR `flow/<name>` → `<prTarget>` at the end, also for one task.
   The engineer checks the flow branch. Tasks run strictly one at a time, in the
   order announced before the start.
-- `/ship` merges with `gh pr merge --<mergeMethod>`.
+- `/mp-ship` merges with `gh pr merge --<mergeMethod>`.
 - Commits: English, imperative, one concern, no code comments, no attribution
   trailers (the `task-executor` rule).
 - Never force-push. Never delete a remote branch. Worktrees are removed only by
-  `/ship` (in Pi, by `/flow` after «Одобрить»), after the merge is verified and the tree inspected.
+  `/mp-ship` (in Pi, by `/flow` after «Одобрить»), after the merge is verified and the tree inspected.
 
 ## Hard rules
 
