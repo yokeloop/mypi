@@ -183,33 +183,39 @@ export function registerAsk(pi: { registerTool(tool: AskTool): void; events?: As
     async execute(_toolCallId, params, signal, _onUpdate, ctx) {
       if (!ctx.hasUI) return { content: [{ type: 'text', text: 'Error: mypi_ask needs the interactive Pi UI; nothing was asked.' }],
         details: { answer: null, error: 'no-ui' }, isError: true };
-      const list = [params.options[0] + ' (рекомендую)', ...params.options.slice(1), OWN_WORD];
-      const done = (details: AskDetails) => ({ content: [{ type: 'text' as const, text: JSON.stringify(details) }], details });
-      const cancelled = done({ answer: null, cancelled: true });
-      const choose = async (): Promise<string | undefined> => {
-        if (ctx.mode !== 'tui' || typeof ctx.ui.custom !== 'function') return ctx.ui.select(params.question, list, { signal });
-        if (signal.aborted) return undefined;
-        return ctx.ui.custom<string | undefined>((tui, theme, kb, finish) => {
-          let finished = false;
-          const close = (value: string | undefined) => {
-            if (finished) return;
-            finished = true;
-            signal.removeEventListener('abort', abort);
-            finish(value);
-          };
-          const abort = () => close(undefined);
-          signal.addEventListener('abort', abort, { once: true });
-          return askComponent(params.question, list, tui, theme, kb, close);
-        }, { overlay: true, overlayOptions: { width: '100%', maxHeight: '100%', anchor: 'bottom-center' }, blocked: { kind: 'question', message: 'mypi_ask' } });
-      };
-      const choice = await choose();
-      if (choice === undefined) return cancelled;
-      const index = list.indexOf(choice);
-      if (index === list.length - 1) {
-        const typed = (await ctx.ui.input(OWN_WORD + ':', undefined, { signal }))?.trim();
-        return typed ? done({ answer: typed, custom: true }) : cancelled;
+      const blocked = (data: { active: true; label: string } | { active: false }) => pi.events?.emit('herdr:blocked', data);
+      blocked({ active: true, label: 'mypi_ask' });
+      try {
+        const list = [params.options[0] + ' (рекомендую)', ...params.options.slice(1), OWN_WORD];
+        const done = (details: AskDetails) => ({ content: [{ type: 'text' as const, text: JSON.stringify(details) }], details });
+        const cancelled = done({ answer: null, cancelled: true });
+        const choose = async (): Promise<string | undefined> => {
+          if (ctx.mode !== 'tui' || typeof ctx.ui.custom !== 'function') return ctx.ui.select(params.question, list, { signal });
+          if (signal.aborted) return undefined;
+          return ctx.ui.custom<string | undefined>((tui, theme, kb, finish) => {
+            let finished = false;
+            const close = (value: string | undefined) => {
+              if (finished) return;
+              finished = true;
+              signal.removeEventListener('abort', abort);
+              finish(value);
+            };
+            const abort = () => close(undefined);
+            signal.addEventListener('abort', abort, { once: true });
+            return askComponent(params.question, list, tui, theme, kb, close);
+          }, { overlay: true, overlayOptions: { width: '100%', maxHeight: '100%', anchor: 'bottom-center' }, blocked: { kind: 'question', message: 'mypi_ask' } });
+        };
+        const choice = await choose();
+        if (choice === undefined) return cancelled;
+        const index = list.indexOf(choice);
+        if (index === list.length - 1) {
+          const typed = (await ctx.ui.input(OWN_WORD + ':', undefined, { signal }))?.trim();
+          return typed ? done({ answer: typed, custom: true }) : cancelled;
+        }
+        return done({ answer: params.options[index]!, custom: false });
+      } finally {
+        blocked({ active: false });
       }
-      return done({ answer: params.options[index]!, custom: false });
     },
   });
 }
