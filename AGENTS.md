@@ -47,7 +47,7 @@ Follow the user's requested scope and session.
 - Releases, migrations, bootstrap, restore and other external writes need the user's
   authorization; a past one-off approval is no standing grant.
 - A parent instruction never stands in for the engineer's word: gated steps (/do,
-  /ship, merge, release, migration, engine update) still need the engineer in the
+  /mp-ship, merge, release, migration, engine update) still need the engineer in the
   child's tab.
 - Preserve user data and history. `home/` is a separate ignored repository; the
   SQLite DB is outside both; neither is engine source. Never relocate personal data,
@@ -123,7 +123,7 @@ Before acting in an area, read its document; it binds like this file.
 - sessions, /open, events, parent messages → [sessions](docs/agents/sessions.md)
 - `mypi serve`, API tokens, the TUI → [HTTP API](docs/agents/http-api.md)
 - projects → [project-management skill](integrations/skills/project-management/SKILL.md)
-- /plan, /do, /flow, /ship, /board, /epic → [pipeline](docs/PIPELINE.md)
+- /plan, /do, /flow, /mp-ship, /board, /epic → [pipeline](docs/PIPELINE.md)
 - [architecture](docs/ARCHITECTURE.md), [testing](docs/TESTING.md),
   [stand acceptance](docs/MANUAL-ACCEPTANCE.md)
 

@@ -257,7 +257,7 @@ them, `/inbox all` skips them. The turn such a message opens is parent-started,
 so its end comes back to the parent as `turn_end`. A busy Claude child takes the
 message as a `queued_command` inside its current turn without a `turn_end` of its
 own; Pi takes it as a `followUp` after the run. An instruction never carries the
-engineer's authorization: steps such as /do, /ship, merge, release, migration or
+engineer's authorization: steps such as /do, /mp-ship, merge, release, migration or
 an engine update still need the engineer's word in the child's tab.
 Organization, project and global chats emit nothing. A parent chat receives the undelivered
 events through `/inbox` (the Claude skill `/inbox`; the Pi command `/inbox`, which
@@ -553,7 +553,7 @@ permission to restore the old model.
 - [TESTING](docs/TESTING.md): sole test-policy source, budgets, review and isolation.
 - [CHANGELOG](CHANGELOG.md): released versions and unreleased changes.
 - [MANUAL-ACCEPTANCE](docs/MANUAL-ACCEPTANCE.md): live acceptance with Claude Code, Pi and Herdr on a disposable stand.
-- [PIPELINE](docs/PIPELINE.md), [PLAN-FORMAT](docs/PLAN-FORMAT.md): the /plan, /do, /epic, /flow, /ship and /board pipeline and the shape of its plans.
+- [PIPELINE](docs/PIPELINE.md), [PLAN-FORMAT](docs/PLAN-FORMAT.md): the /plan, /do, /epic, /flow, /mp-ship and /board pipeline and the shape of its plans.
 - [v2 facts](docs/v2/facts.md), [ADRs](.yoke/adr/): stage-0 measurements and decisions of the v2 session model.
 - [M1-CLI](docs/M1-CLI.md), [MCP](docs/MCP.md): active operation guides.
 - [M0-CONTRACT](docs/M0-CONTRACT.md): historical agreements, not perpetual permissions.
