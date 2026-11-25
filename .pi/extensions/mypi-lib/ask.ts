@@ -4,6 +4,8 @@ export interface AskTui { terminal: { rows: number; columns: number }; requestRe
 
 export interface AskTheme { fg(color: string, text: string): string; bold(text: string): string }
 
+export interface AskEvents { emit(channel: string, data: unknown): void }
+
 export interface AskKeybindings { matches(data: string, id: string): boolean }
 
 export interface AskComponent { render(width: number): string[]; handleInput?(data: string): void; invalidate(): void; capturesViewportInput?: boolean }
@@ -163,7 +165,7 @@ function askComponent(question: string, list: string[], tui: AskTui, theme: AskT
   };
 }
 
-export function registerAsk(pi: { registerTool(tool: AskTool): void }): void {
+export function registerAsk(pi: { registerTool(tool: AskTool): void; events?: AskEvents }): void {
   pi.registerTool({
     name: 'mypi_ask',
     label: 'mypi ask',
