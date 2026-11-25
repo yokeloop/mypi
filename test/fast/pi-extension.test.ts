@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CODEMODE_GUIDELINE, install, isEscape } from '../../.pi/extensions/mypi-lib/install.js';
 import type { RunCli } from '../../.pi/extensions/mypi-lib/install.js';
+import { cellWidth, wrapQuestion } from '../../.pi/extensions/mypi-lib/ask.js';
 import { runtimeDir } from '../../.pi/extensions/mypi-lib/runtime-dir.js';
 import { frame, parentFrame, startFrame } from '../../src/modules/events/public.js';
 import { pointerLine } from '../../src/shared/switch-pointer.js';
@@ -535,6 +536,125 @@ test('pi extension mypi_ask asks one question with the recommendation first and 
   assert.equal(headless.result.isError, true);
   assert.deepEqual(headless.result.details, { answer: null, error: 'no-ui' });
   assert.deepEqual(headless.selects, []);
+});
+
+test('pi extension mypi_ask in the TUI draws its own screen: paragraphs, options and hint always visible, scrolling question', async () => {
+  const wrapped = wrapQuestion('Первый абзац.\n\nВторой абзац длиннее ширины экрана\n' + 'x'.repeat(25) + '\n\tтаб\x1b[31m красный\n  отступ', 10);
+  assert.deepEqual(wrapped, ['Первый', 'абзац.', '', 'Второй', 'абзац', 'длиннее', 'ширины', 'экрана', 'xxxxxxxxxx', 'xxxxxxxxxx', 'xxxxx', '  таб', 'красный', '  отступ']);
+  assert.deepEqual(wrapQuestion('漢字漢字漢字 ab', 4), ['漢字', '漢字', '漢字', 'ab']);
+  for (const line of [...wrapped, ...wrapQuestion('漢字漢字漢字 ab', 4)]) assert.ok(cellWidth(line) <= 10);
+  assert.deepEqual(wrapQuestion('abc', 0), ['a', 'b', 'c']);
+  assert.equal(cellWidth('─'), 1);
+  assert.equal(cellWidth('…'), 1);
+  assert.equal(cellWidth('中'), 2);
+  assert.equal(cellWidth('🚀🟢'), 4);
+  assert.equal(cellWidth('☰'), 2);
+  assert.equal(cellWidth('䷀'), 2);
+  assert.equal(cellWidth('𝌀'), 2);
+  for (const line of wrapQuestion('🟢'.repeat(30), 40)) assert.ok(cellWidth(line) <= 40, line);
+  const pi = stub();
+  install(pi.api, root, serve, undefined);
+  const tool = pi.tools.get('mypi_ask');
+  const open = (question: string, rows = 20, columns = 40, mode = 'tui', answers: (string | undefined)[] = []) => {
+    const inputs: unknown[][] = [], selects: unknown[][] = [];
+    const seen: { opts?: unknown; renders: number; customs: number; component?: any } = { renders: 0, customs: 0 };
+    const controller = new AbortController();
+    const ctx = { hasUI: true, mode, ui: {
+      custom(factory: any, opts: unknown) {
+        seen.customs++;
+        seen.opts = opts;
+        const tui = { terminal: { rows, columns }, requestRender() { seen.renders++; } };
+        return new Promise(resolve => { seen.component = factory(tui, { fg: (_color: string, text: string) => text, bold: (text: string) => text }, { matches: (data: string, id: string) => data === id }, resolve); });
+      },
+      async input(...args: unknown[]) { inputs.push(args); return answers.shift(); },
+      async select(...args: unknown[]) { if (mode === 'tui') throw new Error('select in the TUI'); selects.push(args); return answers.shift(); },
+    } };
+    const result = tool.execute('call-1', { question, options: ['A', 'B'] }, controller.signal, undefined, ctx);
+    const keys = (...ids: string[]) => { for (const id of ids) seen.component.handleInput(id); };
+    return { result, inputs, selects, seen, controller, keys, render: () => seen.component.render(columns) as string[] };
+  };
+  const tail = ['› A (рекомендую)', '  B', '  Своё слово', '↑↓ выбор · ←→ текст · Enter · Esc'];
+  const within = (lines: string[], rows: number) => {
+    assert.ok(lines.length <= rows);
+    for (const line of lines) assert.ok(cellWidth(line) <= 40, line);
+    assert.deepEqual(lines.slice(-4), tail);
+  };
+  const short = open('Факт один.\n\nФакт два.');
+  assert.deepEqual(short.seen.opts, { overlay: true, overlayOptions: { width: '100%', maxHeight: '100%', anchor: 'bottom-center' }, blocked: { kind: 'question', message: 'mypi_ask' } });
+  assert.equal(short.seen.component.capturesViewportInput, true);
+  const shortLines = short.render();
+  within(shortLines, 20);
+  assert.equal(shortLines[0], '─'.repeat(40));
+  assert.equal(cellWidth(shortLines[0]!), 40);
+  assert.deepEqual(shortLines.slice(1, -4), ['Факт один.', '', 'Факт два.', '']);
+  short.keys('tui.select.confirm');
+  assert.deepEqual((await short.result).details, { answer: 'A', custom: false });
+  const paragraphs = Array.from({ length: 8 }, (_, index) => `Абзац ${index + 1}: факты о задаче и о том, что из них следует для выбора ответа.`);
+  const question = [...paragraphs, 'Слово' + 'о'.repeat(45), '\tс табом', '漢字の行 とても長い 漢字の行'].join('\n\n');
+  const lines = wrapQuestion(question, 40);
+  const long = open(question);
+  const first = long.render();
+  within(first, 20);
+  assert.equal(first.length, 20);
+  assert.equal(first[1], '');
+  assert.deepEqual(first.slice(2, 14), lines.slice(0, 12));
+  assert.equal(first[14], `↓ ещё ${lines.length - 12} строк`);
+  long.keys('tui.editor.cursorRight');
+  const second = long.render();
+  within(second, 20);
+  assert.equal(second[1], '↑ ещё 12 строк');
+  assert.equal(second[2], lines[12]);
+  assert.ok(long.seen.renders > 0);
+  long.keys('tui.editor.cursorRight', 'tui.editor.cursorRight', 'tui.editor.cursorRight', 'tui.editor.cursorRight', 'tui.editor.cursorRight');
+  const end = long.render();
+  within(end, 20);
+  assert.equal(end[14], '— конец вопроса —');
+  assert.deepEqual(end.slice(2, 14), lines.slice(-12));
+  long.keys('tui.editor.cursorLeft');
+  assert.deepEqual(long.render().slice(2, 14), lines.slice(lines.length - 24, lines.length - 12));
+  long.keys('tui.select.cancel');
+  const cancelled = await long.result;
+  assert.deepEqual(cancelled.details, { answer: null, cancelled: true });
+  assert.deepEqual(long.inputs, []);
+  const paged = open(question);
+  paged.render();
+  paged.keys('tui.select.pageDown');
+  assert.equal(paged.render()[2], lines[12]);
+  paged.keys('tui.select.pageUp');
+  assert.equal(paged.render()[2], lines[0]);
+  paged.keys('tui.select.down', 'tui.select.confirm');
+  assert.deepEqual((await paged.result).details, { answer: 'B', custom: false });
+  const tiny = open(question, 8);
+  const tinyLines = tiny.render();
+  within(tinyLines, 8);
+  assert.equal(tinyLines[0], '');
+  assert.deepEqual(tinyLines.slice(1, 3), lines.slice(0, 2));
+  assert.equal(tinyLines[3], `↓ ещё ${lines.length - 2} строк`);
+  tiny.keys('tui.select.up', 'tui.select.down', 'tui.select.down', 'unknown');
+  assert.deepEqual(tiny.render().slice(-4), ['  A (рекомендую)', '› B', '  Своё слово', tail[3]]);
+  tiny.keys('tui.select.up', 'tui.select.confirm');
+  assert.deepEqual((await tiny.result).details, { answer: 'A', custom: false });
+  for (const rows of [5, 4, 3, 1]) {
+    const cramped = open(question, rows);
+    const crampedLines = cramped.render();
+    assert.ok(crampedLines.length <= rows);
+    assert.equal(crampedLines[crampedLines.length - 1], tail[3]);
+    for (const line of crampedLines) assert.ok(cellWidth(line) <= 40, line);
+    cramped.keys('tui.select.cancel');
+    await cramped.result;
+  }
+  const own = open('Q?', 20, 40, 'tui', [' текст ']);
+  own.keys('tui.select.down', 'tui.select.down', 'tui.select.confirm');
+  const ownResult = await own.result;
+  assert.deepEqual(ownResult.details, { answer: 'текст', custom: true });
+  assert.deepEqual(own.inputs, [['Своё слово:', undefined, { signal: own.controller.signal }]]);
+  const aborted = open('Q?');
+  aborted.controller.abort();
+  assert.deepEqual((await aborted.result).details, { answer: null, cancelled: true });
+  const rpc = open('Q?', 20, 40, 'rpc', ['B']);
+  assert.deepEqual((await rpc.result).details, { answer: 'B', custom: false });
+  assert.deepEqual(rpc.selects, [['Q?', ['A (рекомендую)', 'B', 'Своё слово'], { signal: rpc.controller.signal }]]);
+  assert.equal(rpc.seen.customs, 0);
 });
 
 test('pi extension /open suggests keys of the session\'s project from the CLI', async () => {

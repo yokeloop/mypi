@@ -38,8 +38,11 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   /flow command, which runs the Pi-only flow skill as /skill:flow, and the /epic
   command, which runs the Pi-only epic skill as /skill:epic. It registers the tool
   `mypi_ask` (direct, run sequentially): `question` and 2–4 `options`, the recommended
-  one first; it shows a select with the first option marked «(рекомендую)» and «Своё
-  слово» last, which opens a text input; it returns `{"answer","custom"}`,
+  one first; in the TUI it shows its own full-terminal screen (an overlay): the question
+  keeps its line breaks and paragraphs, wraps by words to the screen width and scrolls
+  with ←/→ and PgUp/PgDn when it does not fit; the options and the hint stay visible at
+  the bottom, the first option marked «(рекомендую)» and «Своё слово» last, which opens a
+  text input; outside the TUI it shows a select with the same options; it returns `{"answer","custom"}`,
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
   interactive UI.
