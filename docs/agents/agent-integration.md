@@ -45,7 +45,11 @@ Read when: starting, configuring or diagnosing Claude Code or Pi in this checkou
   text input; outside the TUI it shows a select with the same options; it returns `{"answer","custom"}`,
   `{"answer":null,"cancelled":true}` when Escape closes the select or the input (or the
   input is empty), and an error result without asking when the session has no
-  interactive UI.
+  interactive UI. While a question is open (the select or overlay and the «Своё слово»
+  input) the tool emits `herdr:blocked` `{active:true,label:"mypi_ask"}` on the Pi
+  extension event bus (`pi.events`) and `{active:false}` when the question ends, however
+  it ends; Herdr's Pi extension shows the tab as blocked meanwhile. Without a UI nothing
+  is emitted.
   On `agent_before_settle`, when the session has a file and a registered key and the
   turn has not been continued for it yet, the extension runs
   `mypi turn check --agent pi --file <that file> --key <key> --since <leaf entry id>`
