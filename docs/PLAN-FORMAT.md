@@ -50,7 +50,7 @@ What this ticket deliberately does not change. The line that keeps `/do` from wi
 
 ### Acceptance
 
-What the engineer will see and check on the stand at the engineer's manual check before `/ship`: observable behavior with its trigger — «когда X — Y видно на стенде» — never internals, never «работает корректно». One list, used twice: `/do` proves these technically, the engineer walks them at the manual check before `/ship`.
+What the engineer will see and check on the stand at the engineer's manual check before `/mp-ship`: observable behavior with its trigger — «когда X — Y видно на стенде» — never internals, never «работает корректно». One list, used twice: `/do` proves these technically, the engineer walks them at the manual check before `/mp-ship`.
 
 ## The bar
 

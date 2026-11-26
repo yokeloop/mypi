@@ -52,7 +52,7 @@ Read-only. `BIN=scripts/pipeline` (relative to the engine root, every session's 
 4. Print one table: key, title, parent (key or —), status, plan (URL or —), open threads, PR,
    worktree, next. The next column, for any project: `/plan` for `new`; `/do` for
    `planning` with no open threads; `/plan` again when threads are open;
-   «ручная проверка → /ship» for `review`; — for `merged`/`done`; the row's `reason` for
+   «ручная проверка → /mp-ship» for `review`; — for `merged`/`done`; the row's `reason` for
    `blocked` (— when `null`); the status itself for any other status.
 
    Flows: a line for each `<home>/flows/*.md`, only when `<home>/flows` exists.

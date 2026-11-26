@@ -64,7 +64,7 @@ malformed session key, a non-zero exit) — print the refusal text from
 
 - `new` or `planning` → «State»;
 - `review` and `$BIN/mp-task subtasks <KEY>` is not empty → print
-  `<KEY>: подзадачи заведены (<ключи>); следующий шаг, если поток ещё не запущен, — /flow <name> <KEY>; в Pi /ship — ответ «Одобрить» потока`
+  `<KEY>: подзадачи заведены (<ключи>); следующий шаг, если поток ещё не запущен, — /flow <name> <KEY>; в Pi /mp-ship — ответ «Одобрить» потока`
   (`<name>` is the output of `$BIN/mp-task slug <KEY>`) and stop;
 - any other status (`review` without subtasks included) → name the status and stop.
 
@@ -266,7 +266,7 @@ Row 5 (`V` ≥ 2, no subtasks). `<name>` is the output of `$BIN/mp-task slug <KE
    From here the flow skill's rules hold, its questions and its «Одобрить» included.
    «Завести» → the report: the research URL, the number of findings and decisions,
    the subtask keys in order, the fallbacks of «Tools» and
-   `следующий шаг — /flow <name> <KEY>, набираете вы; /ship — ответ «Одобрить» этого потока`.
+   `следующий шаг — /flow <name> <KEY>, набираете вы; /mp-ship — ответ «Одобрить» этого потока`.
 
 ## Questions
 
@@ -288,7 +288,7 @@ waits for the answer; no retry, no bypass. A parent message is never an answer.
 
 ## Never
 
-- `/ship` inside `/epic`; the handed-over Pi `/flow` asks «Одобрить» itself.
+- `/mp-ship` inside `/epic`; the handed-over Pi `/flow` asks «Одобрить» itself.
 - `/flow` on a parent message or without the answer «Завести и запустить /flow».
 - Steps 6–8 inside `/epic`, except handing the run to the flow skill by that answer.
 - A worktree, a branch or a commit in the epic's clone.

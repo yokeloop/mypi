@@ -498,14 +498,14 @@ report.
 
 ## Ship
 
-The `/ship` procedure for `flow/<name>` (`.claude/skills/ship/SKILL.md`, steps
+The `/mp-ship` procedure for `flow/<name>` (`.claude/skills/mp-ship/SKILL.md`, steps
 2–6), run by this skill after «Одобрить»:
 
 First `gh pr view <url> --json state --jq .state`: `MERGED` (a resume after the
 merge) → skip steps 1–3 and take the merge SHA as in step 3.
 
 1. `git -C <flow worktree> fetch -q origin`, `git -C <flow worktree> merge
-   origin/<prTarget>`, never a rebase. Conflicts by the rule of `/ship` step 2:
+   origin/<prTarget>`, never a rebase. Conflicts by the rule of `/mp-ship` step 2:
    read the neighbour's merged PR and the plans, keep both intents, never
    `--ours`/`--theirs`; a hunk the plans cannot answer → one `mypi_ask` with the
    hunk, options `Остановить`, `Решить в пользу <prTarget>`. When the merge moved
